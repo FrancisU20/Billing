@@ -14,8 +14,8 @@ var/
 sdist/
 develop-eggs/
 .installed.cfg
-lib/
-lib64/
+# lib/ y lib64/ removidos — son demasiado amplios y rompen frontend/web/src/lib/
+# Los venvs de Python están cubiertos por .venv/ y venv/ de abajo
 .venv/
 venv/
 env/
