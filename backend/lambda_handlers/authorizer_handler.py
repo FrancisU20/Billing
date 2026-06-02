@@ -1,11 +1,11 @@
-import os
 import json
-import urllib.request
+import os
 import urllib.parse
+import urllib.request
 from functools import lru_cache
-from jose import jwk, jwt
-from jose.utils import base64url_decode
+
 from aws_lambda_powertools import Logger
+from jose import jwk, jwt
 
 logger = Logger(service="codelabs-billing-authorizer")
 

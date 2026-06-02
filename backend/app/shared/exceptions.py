@@ -22,7 +22,10 @@ class TenantNotActiveError(DomainError):
 
 class PlanLimitExceededError(DomainError):
     def __init__(self, tenant_id: str):
-        super().__init__(f"Tenant {tenant_id} ha alcanzado el límite mensual de comprobantes", code="PLAN_LIMIT_EXCEEDED")
+        super().__init__(
+            f"Tenant {tenant_id} ha alcanzado el límite mensual de comprobantes",
+            code="PLAN_LIMIT_EXCEEDED",
+        )
 
 
 class IdempotencyConflictError(DomainError):

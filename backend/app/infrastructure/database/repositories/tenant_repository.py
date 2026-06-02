@@ -1,6 +1,8 @@
 from uuid import UUID
-from sqlalchemy import select, update
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.domain.entities.tenant import Tenant
 from app.domain.repositories.tenant_repository import TenantRepository
 from app.infrastructure.database.models.tenant import TenantModel

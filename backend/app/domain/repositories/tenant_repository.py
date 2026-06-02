@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
+
 from app.domain.entities.tenant import Tenant
 
 

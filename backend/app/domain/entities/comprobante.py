@@ -1,13 +1,14 @@
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
-from datetime import datetime, timezone
-from app.domain.enums.estado_comprobante import EstadoComprobante, VALID_TRANSITIONS
+
+from app.domain.enums.estado_comprobante import VALID_TRANSITIONS, EstadoComprobante
 from app.domain.enums.tipo_comprobante import TipoComprobante
 from app.shared.exceptions import DomainError
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass

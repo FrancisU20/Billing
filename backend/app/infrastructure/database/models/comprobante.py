@@ -1,15 +1,20 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Integer, Text, ForeignKey, DateTime, func, UniqueConstraint, Index
-from sqlalchemy.dialects.postgresql import UUID, JSONB, INET
+
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
+
 from app.infrastructure.database.connection import Base
 
 
 class ComprobanteModel(Base):
     __tablename__ = "comprobantes"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "tipo", "establecimiento", "punto_emision", "secuencial", name="uq_comprobante_serie"),
+        UniqueConstraint(
+            "tenant_id", "tipo", "establecimiento", "punto_emision", "secuencial",
+            name="uq_comprobante_serie",
+        ),
         UniqueConstraint("tenant_id", "idempotency_key", name="uq_comprobante_idempotency"),
         Index("idx_comprobantes_tenant_estado", "tenant_id", "estado"),
         Index("idx_comprobantes_clave_acceso", "clave_acceso"),

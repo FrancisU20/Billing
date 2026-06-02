@@ -1,5 +1,6 @@
 from fastapi import APIRouter
-from app.api.v1.routes import tenants, comprobantes, lotes, reportes, auth, api_keys, certificates
+
+from app.api.v1.routes import api_keys, auth, certificates, comprobantes, lotes, reportes, tenants
 
 api_router = APIRouter()
 

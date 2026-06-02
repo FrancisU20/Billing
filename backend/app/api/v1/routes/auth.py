@@ -1,10 +1,9 @@
-from uuid import UUID
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+
+from app.infrastructure.database.models.user import UserModel
 from app.shared.dependencies import DbSession, TenantCtx
-from app.infrastructure.database.models.user import UserModel, TenantUserModel
 
 router = APIRouter()
 

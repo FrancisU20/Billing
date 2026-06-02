@@ -1,5 +1,6 @@
 import logging
 import sys
+
 from aws_lambda_powertools import Logger
 
 # Logger estructurado con Lambda Powertools

@@ -7,13 +7,18 @@ Flujo de carga:
   GET  /tenants/{tenant_id}/certificates             → listar certificados del tenant
 """
 import uuid
+from datetime import date
 from uuid import UUID
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from datetime import date
-from app.shared.dependencies import DbSession, TenantCtx
-from app.infrastructure.security.certificate_service import generate_upload_url, validate_and_store_certificate
+
 from app.infrastructure.database.repositories.certificate_repository import CertificateRepository
+from app.infrastructure.security.certificate_service import (
+    generate_upload_url,
+    validate_and_store_certificate,
+)
+from app.shared.dependencies import DbSession, TenantCtx
 
 router = APIRouter()
 
@@ -69,7 +74,7 @@ async def confirm_certificate(tenant_id: UUID, body: ConfirmCertificateRequest, 
             password=body.password,
         )
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
 
     cert_repo = CertificateRepository(db)
     cert = await cert_repo.create(

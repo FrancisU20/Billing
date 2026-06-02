@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+
 from app.domain.entities.tenant import Tenant
 from app.domain.repositories.tenant_repository import TenantRepository
 from app.shared.exceptions import DomainError

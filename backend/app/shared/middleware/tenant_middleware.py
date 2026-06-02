@@ -1,6 +1,6 @@
-from fastapi import Request, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
+from fastapi import HTTPException, Request
+from fastapi.security import HTTPBearer
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -25,8 +25,8 @@ async def get_tenant_context(request: Request) -> dict:
                 "role": claims.get("custom:role", "viewer"),
                 "is_superadmin": claims.get("custom:is_superadmin", False),
             }
-        except Exception:
-            raise HTTPException(status_code=401, detail="Token inválido")
+        except Exception as exc:
+            raise HTTPException(status_code=401, detail="Token inválido") from exc
 
     # API Key (integraciones externas)
     api_key = request.headers.get("X-Api-Key")

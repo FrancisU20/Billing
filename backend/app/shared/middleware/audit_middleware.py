@@ -4,9 +4,10 @@ Registra operaciones críticas en la tabla audit_log.
 Se usa explícitamente en los use cases — NO como middleware HTTP genérico,
 porque necesita el contexto de la operación para ser útil.
 """
-import uuid
 from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.infrastructure.database.models.audit import AuditLogModel
 
 

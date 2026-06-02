@@ -14,10 +14,10 @@ El .p12 en sí NUNCA se guarda en Secrets Manager — solo la contraseña.
 El archivo cifrado reside en S3 con clave KMS.
 """
 import json
+
 import boto3
-from datetime import date
 from cryptography.hazmat.primitives.serialization import pkcs12
-from cryptography.hazmat.primitives import hashes
+
 from app.shared.config import get_settings
 from app.shared.logging import logger
 
@@ -63,10 +63,10 @@ def validate_and_store_certificate(
         private_key, certificate, _ = pkcs12.load_key_and_certificates(
             p12_data, password.encode()
         )
-    except Exception:
+    except Exception as exc:
         # Eliminar el upload temporal si la contraseña es incorrecta
         s3.delete_object(Bucket=settings.s3_documents_bucket, Key=s3_key_upload)
-        raise ValueError("Contraseña incorrecta o certificado inválido")
+        raise ValueError("Contraseña incorrecta o certificado inválido") from exc
 
     if certificate is None:
         raise ValueError("El archivo no contiene un certificado válido")

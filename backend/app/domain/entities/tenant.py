@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
-from datetime import datetime, timezone
+
 from app.domain.enums.estado_tenant import EstadoTenant
 
 
@@ -14,8 +15,8 @@ class Tenant:
     ambiente_sri: str = "PRUEBAS"  # PRUEBAS | PRODUCCION
     plan_id: UUID | None = None
     comprobantes_mes_actual: int = 0
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def can_emit(self) -> bool:
         return EstadoTenant(self.estado).can_emit

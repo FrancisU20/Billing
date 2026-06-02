@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 from uuid import UUID
+
 from app.domain.entities.tenant import Tenant
 from app.domain.enums.estado_tenant import EstadoTenant
 from app.domain.repositories.tenant_repository import TenantRepository
-from app.shared.exceptions import NotFoundError, DomainError
+from app.shared.exceptions import DomainError, NotFoundError
 
 
 @dataclass
@@ -27,8 +28,8 @@ class UpdateTenantUseCase:
         if cmd.estado:
             try:
                 EstadoTenant(cmd.estado)
-            except ValueError:
-                raise DomainError(f"Estado inválido: {cmd.estado}", code="INVALID_ESTADO")
+            except ValueError as exc:
+                raise DomainError(f"Estado inválido: {cmd.estado}", code="INVALID_ESTADO") from exc
             tenant.estado = cmd.estado
 
         if cmd.razon_social:

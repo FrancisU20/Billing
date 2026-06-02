@@ -1,12 +1,14 @@
+import re
 from uuid import UUID
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, field_validator
-import re
-from app.shared.dependencies import DbSession, TenantCtx
-from app.infrastructure.database.repositories.tenant_repository import SqlAlchemyTenantRepository
-from app.application.use_cases.tenants.create_tenant import CreateTenantUseCase, CreateTenantCommand
+
+from app.application.use_cases.tenants.create_tenant import CreateTenantCommand, CreateTenantUseCase
 from app.application.use_cases.tenants.get_tenant import GetTenantUseCase, ListTenantsUseCase
-from app.application.use_cases.tenants.update_tenant import UpdateTenantUseCase, UpdateTenantCommand
+from app.application.use_cases.tenants.update_tenant import UpdateTenantCommand, UpdateTenantUseCase
+from app.infrastructure.database.repositories.tenant_repository import SqlAlchemyTenantRepository
+from app.shared.dependencies import DbSession, TenantCtx
 from app.shared.exceptions import DomainError, NotFoundError, domain_error_to_http
 
 router = APIRouter()
@@ -66,7 +68,7 @@ async def create_tenant(body: CreateTenantRequest, db: DbSession, ctx: TenantCtx
         )
         return TenantResponse.model_validate(tenant)
     except DomainError as e:
-        raise domain_error_to_http(e)
+        raise domain_error_to_http(e) from e
 
 
 @router.get("", response_model=list[TenantResponse])
@@ -84,7 +86,7 @@ async def get_tenant(tenant_id: UUID, db: DbSession, ctx: TenantCtx):
         tenant = await GetTenantUseCase(SqlAlchemyTenantRepository(db)).execute(tenant_id)
         return TenantResponse.model_validate(tenant)
     except NotFoundError as e:
-        raise domain_error_to_http(e)
+        raise domain_error_to_http(e) from e
 
 
 @router.patch("/{tenant_id}", response_model=TenantResponse)
@@ -102,4 +104,4 @@ async def update_tenant(tenant_id: UUID, body: UpdateTenantRequest, db: DbSessio
         )
         return TenantResponse.model_validate(tenant)
     except (DomainError, NotFoundError) as e:
-        raise domain_error_to_http(e)
+        raise domain_error_to_http(e) from e

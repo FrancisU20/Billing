@@ -1,13 +1,15 @@
-from typing import Annotated, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Annotated
+
 from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.infrastructure.database.connection import get_session_factory
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async with get_session_factory()() as session:
-        async with session.begin():
-            yield session
+    async with get_session_factory()() as session, session.begin():
+        yield session
 
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]

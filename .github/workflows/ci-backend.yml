@@ -5,6 +5,7 @@ on:
     paths: ["backend/**", ".github/workflows/ci-backend.yml"]
   pull_request:
     paths: ["backend/**"]
+  workflow_call:  # permite ser invocado desde deploy-dev.yml
 
 jobs:
   lint-and-test:
@@ -20,6 +21,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
 
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
