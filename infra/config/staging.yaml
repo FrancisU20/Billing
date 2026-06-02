@@ -10,7 +10,8 @@ aurora:
 
 network:
   nat_type: gateway
-  availability_zones: 1  # 1 AZ en staging para reducir costo
+  availability_zones: 2  # Aurora requiere 2 AZs
+  nat_count: 1           # Solo 1 NAT Gateway en staging para reducir costo
 
 waf:
   enabled: true

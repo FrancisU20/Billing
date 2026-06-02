@@ -13,6 +13,7 @@ aurora:
 network:
   nat_type: gateway
   availability_zones: 2
+  nat_count: 2           # 2 NAT Gateways en prod (HA)
 
 # WAF: habilitado con reglas OWASP básicas
 waf:

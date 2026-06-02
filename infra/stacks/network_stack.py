@@ -6,15 +6,17 @@ class NetworkStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, config: dict, **kwargs):
         super().__init__(scope, construct_id, **kwargs)
 
-        nat_type = config["network"]["nat_type"]
-        az_count = config["network"]["availability_zones"]
+        net_cfg = config["network"]
+        nat_type = net_cfg["nat_type"]
+        az_count = net_cfg["availability_zones"]
+        # nat_count permite tener 2 AZs pero solo 1 NAT (dev: 1 AZ sin HA)
+        nat_count = net_cfg.get("nat_count", az_count)
 
         if nat_type == "gateway":
             nat_provider = ec2.NatProvider.gateway()
         else:
             # NAT Instance (t4g.nano) — ~$4/mes vs $35/mes para NAT Gateway
-            # Sin SLA de AWS, acceptable para dev/bootstrapping
-            instance_type = ec2.InstanceType(config["network"]["nat_instance_type"])
+            instance_type = ec2.InstanceType(net_cfg["nat_instance_type"])
             nat_provider = ec2.NatProvider.instance_v2(
                 instance_type=instance_type,
                 default_allowed_traffic=ec2.NatTrafficDirection.OUTBOUND_ONLY,
@@ -24,7 +26,7 @@ class NetworkStack(Stack):
             self, "Vpc",
             vpc_name=f"codelabs-billing-{config['env']}-vpc",
             max_azs=az_count,
-            nat_gateways=az_count,
+            nat_gateways=nat_count,
             nat_gateway_provider=nat_provider,
             subnet_configuration=[
                 ec2.SubnetConfiguration(
@@ -45,7 +47,7 @@ class NetworkStack(Stack):
             ],
         )
 
-        # VPC Endpoints para servicios AWS frecuentes — evita tráfico por NAT
+        # VPC Endpoints — evita tráfico por NAT para servicios AWS internos
         self.vpc.add_gateway_endpoint(
             "S3Endpoint",
             service=ec2.GatewayVpcEndpointAwsService.S3,

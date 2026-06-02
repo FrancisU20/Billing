@@ -15,7 +15,8 @@ aurora:
 network:
   nat_type: instance          # instance | gateway
   nat_instance_type: t4g.nano
-  availability_zones: 1       # 1 en dev (sin HA), 2 en prod
+  availability_zones: 2       # Aurora requiere mínimo 2 AZs
+  nat_count: 1                # Solo 1 NAT instance aunque haya 2 AZs (~$4/mes)
 
 # WAF: deshabilitado en dev (ahorrar $10/mes)
 # API Gateway tiene throttling básico configurado
