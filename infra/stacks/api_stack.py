@@ -38,11 +38,12 @@ class ApiStack(Stack):
             allow_all_outbound=True,  # necesario para llamadas al SRI y providers de email
         )
 
-        # Permitir Lambda → Aurora (o Proxy)
+        # Permitir Lambda → Aurora usando el CIDR de la VPC
+        # (evita ciclo de dependencia SG cross-stack)
         database.aurora_sg.add_ingress_rule(
-            peer=self.lambda_sg,
+            peer=ec2.Peer.ipv4(vpc.vpc_cidr_block),
             connection=ec2.Port.tcp(5432),
-            description="Lambda → Aurora",
+            description="Lambda → Aurora (VPC internal)",
         )
 
         # Rol base compartido para Lambdas
@@ -55,8 +56,14 @@ class ApiStack(Stack):
             ],
         )
 
-        # Grants: Secrets Manager, S3, SQS
-        database.connection_secret.grant_read(base_role)
+        # Grants: Secrets Manager — inline policy en lugar de grant_read()
+        # grant_read() modifica la resource policy del Secret (en DatabaseStack),
+        # creando una dependencia cruzada Database→Api que causa ciclo.
+        # Inline policy en el rol evita el ciclo.
+        base_role.add_to_policy(iam.PolicyStatement(
+            actions=["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+            resources=[database.connection_secret.secret_arn],
+        ))
         storage.documents_bucket.grant_read_write(base_role)
         storage.assets_bucket.grant_read_write(base_role)
         storage.batches_bucket.grant_read_write(base_role)
@@ -117,6 +124,7 @@ class ApiStack(Stack):
             function_name=f"codelabs-billing-{env}-invoice-worker",
             code=_lambda.Code.from_asset("../backend"),
             handler="lambda_handlers.invoice_worker_handler.handler",
+            runtime=_lambda.Runtime.PYTHON_3_12,
             memory_size=512,  # PDF generation necesita más memoria
             timeout=Duration.seconds(300),
             role=base_role,
@@ -150,6 +158,7 @@ class ApiStack(Stack):
             function_name=f"codelabs-billing-{env}-batch-import-worker",
             code=_lambda.Code.from_asset("../backend"),
             handler="lambda_handlers.batch_import_handler.handler",
+            runtime=_lambda.Runtime.PYTHON_3_12,
             memory_size=512,
             timeout=Duration.seconds(600),
             role=base_role,

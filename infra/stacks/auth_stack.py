@@ -1,4 +1,4 @@
-from aws_cdk import Stack, RemovalPolicy, aws_cognito as cognito
+from aws_cdk import Stack, RemovalPolicy, Duration, aws_cognito as cognito
 from constructs import Construct
 
 
@@ -45,9 +45,9 @@ class AuthStack(Stack):
                 flows=cognito.OAuthFlows(authorization_code_grant=True),
                 scopes=[cognito.OAuthScope.EMAIL, cognito.OAuthScope.OPENID, cognito.OAuthScope.PROFILE],
             ),
-            access_token_validity=cognito.Duration.hours(1),
-            id_token_validity=cognito.Duration.hours(1),
-            refresh_token_validity=cognito.Duration.days(30),
+            access_token_validity=Duration.hours(1),
+            id_token_validity=Duration.hours(1),
+            refresh_token_validity=Duration.days(30),
             prevent_user_existence_errors=True,
         )
 
@@ -56,9 +56,9 @@ class AuthStack(Stack):
             "ApiClient",
             user_pool_client_name=f"codelabs-billing-{env}-api",
             auth_flows=cognito.AuthFlow(user_srp=True),
-            access_token_validity=cognito.Duration.hours(1),
-            id_token_validity=cognito.Duration.hours(1),
-            refresh_token_validity=cognito.Duration.days(1),
+            access_token_validity=Duration.hours(1),
+            id_token_validity=Duration.hours(1),
+            refresh_token_validity=Duration.days(1),
             prevent_user_existence_errors=True,
         )
 
@@ -71,8 +71,8 @@ class AuthStack(Stack):
                 flows=cognito.OAuthFlows(authorization_code_grant=True),
                 scopes=[cognito.OAuthScope.EMAIL, cognito.OAuthScope.OPENID, cognito.OAuthScope.PROFILE],
             ),
-            access_token_validity=cognito.Duration.hours(1),
-            id_token_validity=cognito.Duration.hours(1),
-            refresh_token_validity=cognito.Duration.days(30),
+            access_token_validity=Duration.hours(1),
+            id_token_validity=Duration.hours(1),
+            refresh_token_validity=Duration.days(30),
             prevent_user_existence_errors=True,
         )

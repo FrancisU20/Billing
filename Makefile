@@ -1,5 +1,5 @@
 .PHONY: setup backend-dev backend-test backend-lint frontend-dev frontend-build \
-        infra-synth infra-diff deploy-dev migrate help
+        infra-synth infra-diff deploy-dev migrate setup-oidc cdk-bootstrap help
 
 AWS_PROFILE := codelabs
 AWS_REGION  := sa-east-1
@@ -51,3 +51,9 @@ migrate: ## Corre migraciones Alembic contra Aurora dev
 
 migrate-gen: ## Genera nueva migración Alembic (uso: make migrate-gen msg="descripcion")
 	cd backend && .venv/bin/alembic revision --autogenerate -m "$(msg)"
+
+setup-oidc: ## Crea el rol OIDC de GitHub Actions en AWS (ejecutar UNA VEZ antes del bootstrap)
+	cd backend && .venv/bin/python ../scripts/setup-github-oidc.py --env $(ENV) --profile $(AWS_PROFILE)
+
+cdk-bootstrap: ## CDK bootstrap en sa-east-1 (ejecutar UNA VEZ por cuenta/región)
+	cd infra && AWS_PROFILE=$(AWS_PROFILE) cdk bootstrap aws://$(shell AWS_PROFILE=$(AWS_PROFILE) aws sts get-caller-identity --query Account --output text)/$(AWS_REGION)
