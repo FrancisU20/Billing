@@ -30,7 +30,7 @@ class UpdateTenantUseCase:
                 EstadoTenant(cmd.estado)
             except ValueError as exc:
                 raise DomainError(f"Estado inválido: {cmd.estado}", code="INVALID_ESTADO") from exc
-            tenant.estado = cmd.estado
+            tenant.estado = EstadoTenant(cmd.estado)
 
         if cmd.razon_social:
             tenant.razon_social = cmd.razon_social

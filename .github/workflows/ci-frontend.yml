@@ -22,6 +22,7 @@ jobs:
             frontend/web/package-lock.json
             frontend/shared/package-lock.json
 
+      # shared primero — web lo declara como file dependency
       - name: Install shared dependencies
         run: npm ci
         working-directory: frontend/shared
@@ -30,8 +31,9 @@ jobs:
         run: npm run typecheck
         working-directory: frontend/shared
 
+      # web usa npm install (no npm ci) para que npm resuelva el file:../shared
       - name: Install web dependencies
-        run: npm ci
+        run: npm install
         working-directory: frontend/web
 
       - name: TypeScript check (web)

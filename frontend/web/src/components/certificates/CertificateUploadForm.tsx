@@ -28,7 +28,7 @@ export function CertificateUploadForm() {
   const tenantId = ""; // TODO: obtener del contexto de auth
   const { data: certificates = [] } = useQuery<CertificateInfo[]>({
     queryKey: ["certificates", tenantId],
-    queryFn: () => apiClient.get(`/tenants/${tenantId}/certificates`).then((r) => r.data),
+    queryFn: () => apiClient.get(`/tenants/${tenantId}/certificates`).then((r: { data: unknown }) => r.data),
     enabled: !!tenantId,
   });
 

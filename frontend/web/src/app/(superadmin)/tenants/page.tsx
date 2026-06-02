@@ -11,11 +11,11 @@ export default function TenantsPage() {
 
   const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
     queryKey: ["tenants"],
-    queryFn: () => apiClient.get("/tenants").then((r) => r.data),
+    queryFn: () => apiClient.get("/tenants").then((r: { data: unknown }) => r.data),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateTenantRequest) => apiClient.post("/tenants", data).then((r) => r.data),
+    mutationFn: (data: CreateTenantRequest) => apiClient.post("/tenants", data).then((r: { data: unknown }) => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
       setShowForm(false);

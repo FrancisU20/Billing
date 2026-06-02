@@ -24,7 +24,7 @@ from app.shared.logging import logger
 settings = get_settings()
 
 
-def generate_upload_url(tenant_id: str, cert_id: str, expires_in: int = 300) -> str:
+def generate_upload_url(tenant_id: str, cert_id: str, expires_in: int = 300) -> tuple[str, str]:
     """Genera una presigned URL de S3 para que el frontend suba el .p12 directamente."""
     s3 = boto3.client("s3", region_name=settings.env != "local" and "sa-east-1" or None)
     s3_key = f"tenants/{tenant_id}/certs/uploads/{cert_id}.p12"
