@@ -1,0 +1,337 @@
+{
+  "info": {
+    "name": "CodeLabs Billing Cloud",
+    "description": "Colección completa de la API de CodeLabs Billing Cloud.\n\n**Cómo usar:**\n1. Importar la colección y el environment correspondiente (local o dev).\n2. Completar la variable `token` con el JWT obtenido de Cognito.\n3. Para endpoints de tenant, completar `tenant_id` con el UUID del tenant.\n\n**Estructura:**\n- System — health check\n- Auth — perfil del usuario autenticado\n- Tenants — CRUD (solo superadmin)\n- Certificates — gestión de firma electrónica por tenant",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "2.1.0"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api/v1",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/../health",
+              "host": ["{{base_url}}"],
+              "path": ["..", "health"]
+            },
+            "description": "Verifica que la API está levantada. No requiere autenticación."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"status\": \"ok\",\n  \"env\": \"dev\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "GET /auth/me",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Devuelve el perfil del usuario autenticado según el JWT de Cognito.\n\nRespuesta incluye: user_id, email, tenant_id, role, is_superadmin."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"user_id\": \"cognito-sub-uuid\",\n  \"email\": \"admin@empresa.com\",\n  \"nombre\": \"Juan Pérez\",\n  \"tenant_id\": \"uuid-del-tenant\",\n  \"role\": \"admin\",\n  \"is_superadmin\": false\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Tenants",
+      "description": "CRUD de tenants. Todos los endpoints requieren rol superadmin.",
+      "item": [
+        {
+          "name": "GET /tenants",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/tenants?offset=0&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["tenants"],
+              "query": [
+                { "key": "offset", "value": "0" },
+                { "key": "limit", "value": "50" }
+              ]
+            },
+            "description": "Lista todos los tenants. Solo superadmin."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  {\n    \"id\": \"uuid\",\n    \"ruc\": \"1234567890001\",\n    \"razon_social\": \"Empresa S.A.\",\n    \"nombre_comercial\": \"Empresa\",\n    \"estado\": \"TRIAL\",\n    \"ambiente_sri\": \"PRUEBAS\",\n    \"comprobantes_mes_actual\": 0\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "POST /tenants",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/tenants",
+              "host": ["{{base_url}}"],
+              "path": ["tenants"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ruc\": \"1234567890001\",\n  \"razon_social\": \"Mi Empresa S.A.\",\n  \"nombre_comercial\": \"Mi Empresa\",\n  \"ambiente_sri\": \"PRUEBAS\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Crea un nuevo tenant. Solo superadmin.\n\n**Validaciones:**\n- `ruc`: exactamente 13 dígitos\n- `ambiente_sri`: PRUEBAS | PRODUCCION\n- RUC único en el sistema"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.environment.set('tenant_id', body.id);",
+                  "  pm.test('tenant_id guardado en environment', () => pm.expect(body.id).to.be.a('string'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": \"uuid-generado\",\n  \"ruc\": \"1234567890001\",\n  \"razon_social\": \"Mi Empresa S.A.\",\n  \"nombre_comercial\": \"Mi Empresa\",\n  \"estado\": \"TRIAL\",\n  \"ambiente_sri\": \"PRUEBAS\",\n  \"comprobantes_mes_actual\": 0\n}"
+            },
+            {
+              "name": "400 RUC duplicado",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"detail\": {\n    \"code\": \"TENANT_ALREADY_EXISTS\",\n    \"message\": \"Ya existe un tenant con RUC 1234567890001\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /tenants/:tenant_id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}"]
+            },
+            "description": "Obtiene un tenant por ID. Superadmin puede ver cualquiera; admin de tenant solo el suyo."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"{{tenant_id}}\",\n  \"ruc\": \"1234567890001\",\n  \"razon_social\": \"Mi Empresa S.A.\",\n  \"nombre_comercial\": \"Mi Empresa\",\n  \"estado\": \"ACTIVE\",\n  \"ambiente_sri\": \"PRUEBAS\",\n  \"comprobantes_mes_actual\": 42\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"detail\": {\n    \"code\": \"NOT_FOUND\",\n    \"message\": \"Tenant uuid no encontrado\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "PATCH /tenants/:tenant_id",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"ACTIVE\",\n  \"ambiente_sri\": \"PRODUCCION\",\n  \"nombre_comercial\": \"Nuevo nombre comercial\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Actualiza datos de un tenant. Solo superadmin.\n\n**Campos actualizables:** razon_social, nombre_comercial, ambiente_sri, estado.\n\n**Estados válidos:** TRIAL | ACTIVE | PAYMENT_DUE | GRACE_PERIOD | SUSPENDED | CANCELLED"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"id\": \"{{tenant_id}}\",\n  \"ruc\": \"1234567890001\",\n  \"razon_social\": \"Mi Empresa S.A.\",\n  \"nombre_comercial\": \"Nuevo nombre comercial\",\n  \"estado\": \"ACTIVE\",\n  \"ambiente_sri\": \"PRODUCCION\",\n  \"comprobantes_mes_actual\": 42\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Certificates",
+      "description": "Gestión de certificados de firma electrónica por tenant.\n\n**Flujo de carga en 2 pasos:**\n1. `POST upload-url` → obtener presigned URL de S3\n2. Subir el .p12 directamente a S3 con PUT a la URL obtenida\n3. `POST confirm` → validar certificado y guardar contraseña en Secrets Manager",
+      "item": [
+        {
+          "name": "GET /tenants/:tenant_id/certificates",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}/certificates",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}", "certificates"]
+            },
+            "description": "Lista los certificados de firma electrónica del tenant."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[\n  {\n    \"id\": \"cert-uuid\",\n    \"tenant_id\": \"{{tenant_id}}\",\n    \"nombre\": \"Certificado BCE 2024\",\n    \"fecha_emision\": \"2024-01-15\",\n    \"fecha_expiracion\": \"2026-01-15\",\n    \"estado\": \"ACTIVE\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "POST /tenants/:tenant_id/certificates/upload-url",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}/certificates/upload-url",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}", "certificates", "upload-url"]
+            },
+            "description": "**Paso 1:** Genera una presigned URL de S3 para subir el .p12 directamente desde el navegador.\n\nEl archivo NUNCA pasa por el backend — va directo a S3 privado cifrado con KMS.\n\nLa URL expira en 300 segundos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.environment.set('cert_id', body.cert_id);",
+                  "  pm.environment.set('s3_upload_url', body.upload_url);",
+                  "  pm.test('cert_id y upload_url guardados', () => {",
+                  "    pm.expect(body.cert_id).to.be.a('string');",
+                  "    pm.expect(body.upload_url).to.include('s3');",
+                  "  });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"upload_url\": \"https://codelabs-billing-dev-documents.s3.sa-east-1.amazonaws.com/tenants/.../certs/uploads/cert-id.p12?X-Amz-Signature=...\",\n  \"cert_id\": \"uuid-del-certificado\",\n  \"expires_in_seconds\": 300\n}"
+            }
+          ]
+        },
+        {
+          "name": "PUT S3 — subir .p12 (presigned URL)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "url": {
+              "raw": "{{s3_upload_url}}",
+              "host": ["{{s3_upload_url}}"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/x-pkcs12" }
+            ],
+            "body": {
+              "mode": "file",
+              "file": {}
+            },
+            "description": "**Paso 2:** Sube el archivo .p12 directamente a S3 usando la presigned URL del paso anterior.\n\n- Seleccionar el archivo .p12 en el body → file\n- Content-Type debe ser `application/x-pkcs12`\n- No incluir Authorization header (la URL ya tiene la firma de AWS)\n- Responde 200 con body vacío si OK"
+          },
+          "response": [
+            {
+              "name": "200 OK (body vacío)",
+              "status": "OK",
+              "code": 200,
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "POST /tenants/:tenant_id/certificates/confirm",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}/certificates/confirm",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}", "certificates", "confirm"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cert_id\": \"{{cert_id}}\",\n  \"s3_key_upload\": \"tenants/{{tenant_id}}/certs/uploads/{{cert_id}}.p12\",\n  \"password\": \"contraseña-del-p12\",\n  \"nombre\": \"Certificado BCE 2024\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "**Paso 3:** Valida el .p12 con la contraseña dada, guarda la contraseña cifrada en AWS Secrets Manager y registra el certificado en la base de datos.\n\n**La contraseña NO se almacena en la DB** — solo el ARN del secret de Secrets Manager.\n\nEl .p12 queda en S3 cifrado con KMS."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": \"uuid-del-certificado\",\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"nombre\": \"Certificado BCE 2024\",\n  \"fecha_emision\": \"2024-01-15\",\n  \"fecha_expiracion\": \"2026-01-15\",\n  \"estado\": \"ACTIVE\"\n}"
+            },
+            {
+              "name": "422 Contraseña incorrecta",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "body": "{\n  \"detail\": \"Contraseña incorrecta o certificado inválido\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
