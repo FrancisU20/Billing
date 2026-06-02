@@ -36,11 +36,9 @@ jobs:
         run: npm install
         working-directory: frontend/web
 
-      - name: TypeScript check (web)
-        run: npm run typecheck
-        working-directory: frontend/web
-
-      - name: Build (web)
+      # next build incluye type-check completo con resolución correcta de @/ aliases
+      # tsc --noEmit standalone no resuelve los path aliases sin Next.js corriendo
+      - name: Build + TypeScript check (web)
         run: npm run build
         working-directory: frontend/web
         env:
