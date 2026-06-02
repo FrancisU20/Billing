@@ -24,12 +24,9 @@ class EstadoComprobante(StrEnum):
     RETRY_PENDING = "RETRY_PENDING"
     MANUAL_REVIEW_REQUIRED = "MANUAL_REVIEW_REQUIRED"
 
-    # Transiciones válidas por estado
-    VALID_TRANSITIONS: dict = {}  # poblado abajo
 
-
-# Define qué transiciones son válidas para evitar estados inválidos
-EstadoComprobante.VALID_TRANSITIONS = {
+# Transiciones válidas por estado — fuera del enum para no violar StrEnum
+VALID_TRANSITIONS: dict[EstadoComprobante, set[EstadoComprobante]] = {
     EstadoComprobante.DRAFT: {EstadoComprobante.PENDING_VALIDATION},
     EstadoComprobante.PENDING_VALIDATION: {EstadoComprobante.VALIDATION_FAILED, EstadoComprobante.QUEUED},
     EstadoComprobante.QUEUED: {EstadoComprobante.PROCESSING},
@@ -45,11 +42,9 @@ EstadoComprobante.VALID_TRANSITIONS = {
     },
     EstadoComprobante.AUTHORIZED: {EstadoComprobante.EMAIL_PENDING, EstadoComprobante.PENDING_CANCELLATION},
     EstadoComprobante.EMAIL_PENDING: {EstadoComprobante.EMAIL_SENT, EstadoComprobante.EMAIL_FAILED},
-    EstadoComprobante.EMAIL_FAILED: {EstadoComprobante.EMAIL_PENDING},  # reintento manual
+    EstadoComprobante.EMAIL_FAILED: {EstadoComprobante.EMAIL_PENDING},
     EstadoComprobante.RETRY_PENDING: {
         EstadoComprobante.PROCESSING, EstadoComprobante.MANUAL_REVIEW_REQUIRED,
     },
     EstadoComprobante.PENDING_CANCELLATION: {EstadoComprobante.CANCELLED},
-    # Estados terminales sin transición: VALIDATION_FAILED, NOT_AUTHORIZED, RETURNED_BY_SRI,
-    # EMAIL_SENT, FAILED, CANCELLED, MANUAL_REVIEW_REQUIRED (requieren acción explícita)
 }

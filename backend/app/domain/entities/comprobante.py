@@ -1,9 +1,13 @@
 from dataclasses import dataclass, field
 from uuid import UUID, uuid4
-from datetime import datetime
-from app.domain.enums.estado_comprobante import EstadoComprobante
+from datetime import datetime, timezone
+from app.domain.enums.estado_comprobante import EstadoComprobante, VALID_TRANSITIONS
 from app.domain.enums.tipo_comprobante import TipoComprobante
 from app.shared.exceptions import DomainError
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 @dataclass
@@ -28,24 +32,24 @@ class Comprobante:
     lote_id: UUID | None = None
     retry_count: int = 0
     error_detalle: str | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_now)
+    updated_at: datetime = field(default_factory=_now)
 
     def transition_to(self, nuevo_estado: EstadoComprobante) -> None:
-        valid = EstadoComprobante.VALID_TRANSITIONS.get(self.estado, set())
+        valid = VALID_TRANSITIONS.get(self.estado, set())
         if nuevo_estado not in valid:
             raise DomainError(
                 f"Transición inválida: {self.estado} → {nuevo_estado}",
                 code="INVALID_STATE_TRANSITION",
             )
         self.estado = nuevo_estado
-        self.updated_at = datetime.utcnow()
+        self.updated_at = _now()
 
     def increment_retry(self) -> None:
         self.retry_count += 1
-        self.updated_at = datetime.utcnow()
+        self.updated_at = _now()
 
     def mark_failed(self, reason: str) -> None:
         self.error_detalle = reason
         self.estado = EstadoComprobante.FAILED
-        self.updated_at = datetime.utcnow()
+        self.updated_at = _now()

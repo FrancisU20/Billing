@@ -1,12 +1,13 @@
 # API
 fastapi==0.115.5
+python-jose[cryptography]==3.3.0
 mangum==0.19.0
 uvicorn[standard]==0.32.1
 
 # DB
 sqlalchemy==2.0.36
 alembic==1.14.0
-psycopg[binary]==3.2.3
+psycopg[binary]==3.2.13
 
 # Validación y config
 pydantic==2.10.3
