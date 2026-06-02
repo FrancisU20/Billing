@@ -197,14 +197,44 @@ class ApiStack(Stack):
                 tracing_enabled=True,
             ),
             default_cors_preflight_options=apigw.CorsOptions(
-                allow_origins=apigw.Cors.ALL_ORIGINS if env == "dev" else ["https://app.codelasbilling.com"],
+                allow_origins=(
+                    apigw.Cors.ALL_ORIGINS if env == "dev"
+                    else [f"https://{config['domain']['frontend']}"]
+                ),
                 allow_methods=apigw.Cors.ALL_METHODS,
                 allow_headers=["Content-Type", "Authorization", "X-Api-Key", "X-Idempotency-Key"],
             ),
         )
 
-        # Proxy completo a Lambda API
+        # Lambda Authorizer — valida JWT Cognito, extrae tenant_id + rol
+        # Necesita python-jose para verificar RS256; se incluye en requirements.txt
+        authorizer_fn = _lambda.Function(
+            self, "AuthorizerFunction",
+            function_name=f"codelabs-billing-{env}-authorizer",
+            code=_lambda.Code.from_asset("../backend"),
+            handler="lambda_handlers.authorizer_handler.handler",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            memory_size=256,
+            timeout=Duration.seconds(10),
+            environment={
+                "AWS_REGION_NAME": self.region,
+                "COGNITO_USER_POOL_ID": auth.user_pool.user_pool_id,
+                "COGNITO_WEB_CLIENT_ID": auth.web_client.user_pool_client_id,
+                "POWERTOOLS_LOG_LEVEL": lambda_cfg["powertools_log_level"],
+            },
+            log_retention=logs.RetentionDays.ONE_WEEK,
+        )
+
+        authorizer = apigw.TokenAuthorizer(
+            self, "CognitoAuthorizer",
+            authorizer_name=f"codelabs-billing-{env}-authorizer",
+            handler=authorizer_fn,
+            results_cache_ttl=Duration.minutes(5),  # cachea el resultado 5 min — reduce invocaciones
+            identity_source="method.request.header.Authorization",
+        )
+
+        # Proxy completo a Lambda API con authorizer
         api_integration = apigw.LambdaIntegration(self.api_function)
         proxy = self.api.root.add_resource("{proxy+}")
-        proxy.add_method("ANY", api_integration)
-        self.api.root.add_method("ANY", api_integration)
+        proxy.add_method("ANY", api_integration, authorizer=authorizer)
+        self.api.root.add_method("ANY", api_integration, authorizer=authorizer)

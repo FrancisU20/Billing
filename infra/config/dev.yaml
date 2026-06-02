@@ -55,7 +55,10 @@ sqs:
 cognito:
   mfa_enforcement: "OFF"      # OFF en dev, OPTIONAL en prod
 
-# Dominio (vacío en dev — no se configura Route53/CloudFront hasta staging)
+# Dominio — dev no tiene CloudFront/Route53, frontend corre local con next dev
+# Los subdominios están definidos para referencia y para CORS de API Gateway
 domain:
   enabled: false
-  name: ""
+  hosted_zone: codelabsecuador.com
+  frontend: billing-dev.codelabsecuador.com
+  api: api-billing-dev.codelabsecuador.com
