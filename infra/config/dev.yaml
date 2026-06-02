@@ -1,0 +1,61 @@
+# Configuración ambiente dev — Bootstrapping (costo optimizado ~$50/mes)
+env: dev
+region: sa-east-1
+account: ""  # se resuelve via CDK_DEFAULT_ACCOUNT en CI
+
+# Aurora PostgreSQL Serverless v2
+# min_capacity=0 → pausa automática cuando idle (cold start ~25s, aceptable en dev)
+aurora:
+  min_capacity: 0
+  max_capacity: 4
+  database_name: codelabs_billing
+
+# NAT: instancia EC2 t4g.nano en lugar de NAT Gateway (~$4/mes vs $35/mes)
+# Cambiar a nat_gateway: true cuando haya clientes en producción
+network:
+  nat_type: instance          # instance | gateway
+  nat_instance_type: t4g.nano
+  availability_zones: 1       # 1 en dev (sin HA), 2 en prod
+
+# WAF: deshabilitado en dev (ahorrar $10/mes)
+# API Gateway tiene throttling básico configurado
+waf:
+  enabled: false
+
+# RDS Proxy: deshabilitado en dev (tráfico bajo, ahorrar $8/mes)
+rds_proxy:
+  enabled: false
+
+# Lambda
+lambda:
+  memory_mb: 256
+  timeout_seconds: 30
+  powertools_log_level: DEBUG
+
+# CloudWatch
+cloudwatch:
+  log_retention_days: 7
+  custom_dashboards: false    # false en dev (ahorrar $6/mes de dashboards)
+
+# S3
+s3:
+  lifecycle_transition_ia_days: 90
+  lifecycle_transition_glacier_days: 365
+  lifecycle_expiration_days: 2555  # 7 años — cumplimiento tributario Ecuador
+
+# SQS
+sqs:
+  invoice_processing_visibility_timeout: 300
+  sri_retry_visibility_timeout: 120
+  email_dispatch_visibility_timeout: 60
+  batch_import_visibility_timeout: 600
+  max_receive_count: 5        # reintentos antes de DLQ
+
+# Cognito
+cognito:
+  mfa_enforcement: "OFF"      # OFF en dev, OPTIONAL en prod
+
+# Dominio (vacío en dev — no se configura Route53/CloudFront hasta staging)
+domain:
+  enabled: false
+  name: ""

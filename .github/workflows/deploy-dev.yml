@@ -1,0 +1,51 @@
+name: Deploy Dev
+
+on:
+  push:
+    branches: [develop]
+
+permissions:
+  id-token: write   # OIDC — sin credenciales IAM estáticas
+  contents: read
+
+jobs:
+  ci-backend:
+    uses: ./.github/workflows/ci-backend.yml
+
+  ci-frontend:
+    uses: ./.github/workflows/ci-frontend.yml
+
+  deploy:
+    needs: [ci-backend, ci-frontend]
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: sa-east-1
+
+      - name: Install CDK dependencies
+        run: |
+          cd infra
+          python -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+
+      - name: CDK diff
+        run: |
+          cd infra
+          .venv/bin/cdk diff --context env=dev
+
+      - name: CDK deploy (dev — auto-approve)
+        run: |
+          cd infra
+          .venv/bin/cdk deploy --all --context env=dev --require-approval never

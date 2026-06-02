@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "CodeLabs Billing",
+    "slug": "codelabs-billing",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "codelabsbilling",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.codelabs.billing"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.codelabs.billing"
+    },
+    "plugins": ["expo-router"]
+  }
+}

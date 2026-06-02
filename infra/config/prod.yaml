@@ -1,0 +1,57 @@
+# Configuración ambiente prod — con primer cliente (~$115-130/mes)
+env: prod
+region: sa-east-1
+account: ""  # se resuelve via CDK_DEFAULT_ACCOUNT en CI
+
+# Aurora: sin cold start, mínimo 0.5 ACU siempre activo
+aurora:
+  min_capacity: 0.5
+  max_capacity: 16
+  database_name: codelabs_billing
+
+# NAT: Gateway con 2 AZs para HA
+network:
+  nat_type: gateway
+  availability_zones: 2
+
+# WAF: habilitado con reglas OWASP básicas
+waf:
+  enabled: true
+
+# RDS Proxy: habilitado para connection pooling
+rds_proxy:
+  enabled: true
+
+# Lambda
+lambda:
+  memory_mb: 512
+  timeout_seconds: 30
+  powertools_log_level: INFO
+
+# CloudWatch
+cloudwatch:
+  log_retention_days: 90
+  custom_dashboards: true
+
+# S3
+s3:
+  lifecycle_transition_ia_days: 90
+  lifecycle_transition_glacier_days: 365
+  lifecycle_expiration_days: 2555
+
+# SQS
+sqs:
+  invoice_processing_visibility_timeout: 300
+  sri_retry_visibility_timeout: 120
+  email_dispatch_visibility_timeout: 60
+  batch_import_visibility_timeout: 600
+  max_receive_count: 5
+
+# Cognito
+cognito:
+  mfa_enforcement: "OPTIONAL"
+
+# Dominio
+domain:
+  enabled: true
+  name: ""  # completar cuando se contrate el dominio

@@ -1,0 +1,34 @@
+# API
+fastapi==0.115.5
+mangum==0.19.0
+uvicorn[standard]==0.32.1
+
+# DB
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+
+# Validación y config
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# AWS
+boto3==1.35.74
+aws-lambda-powertools[aws-sdk]==3.3.0
+
+# SRI — integración SOAP y XML
+zeep==4.2.1
+lxml==5.3.0
+cryptography==43.0.3
+xmlschema==3.4.2
+
+# PDF/RIDE
+reportlab==4.2.5
+
+# Carga masiva
+openpyxl==3.1.5
+pandas==2.2.3
+
+# Email providers
+sib-api-v3-sdk==7.6.0
+requests==2.32.3

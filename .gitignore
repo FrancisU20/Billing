@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+.venv/
+venv/
+env/
+ENV/
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+.next/
+.expo/
+out/
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+
+# CDK
+infra/cdk.out/
+infra/.venv/
+
+# AWS
+.aws-sam/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+coverage.xml
+*.lcov
+
+# Local secrets — nunca commitear
+.env.local
+*.pem
+*.p12
+*.pfx
+secrets.yaml
+secrets.json
+
+# CLAUDE.md — ignorado según convención personal (ver .git/info/exclude si se prefiere)
+CLAUDE.md
