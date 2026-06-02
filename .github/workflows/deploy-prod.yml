@@ -31,7 +31,9 @@ jobs:
           cache-dependency-path: infra/requirements.txt
 
       - name: Install CDK Python dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -r requirements.txt
         working-directory: infra
 
       - name: Configure AWS credentials (OIDC)
