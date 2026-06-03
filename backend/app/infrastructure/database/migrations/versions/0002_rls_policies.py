@@ -22,20 +22,23 @@ down_revision: str | None = "0001"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-# Tablas con tenant_id — aislamiento multitenant
+# Tablas con columna tenant_id propia — política de aislamiento por tenant_id directo
 TENANT_TABLES = [
     "comprobantes",
     "lotes",
     "signing_certificates",
     "establecimientos",
-    "email_dispatches",
     "api_keys",
     "webhooks",
     "tenant_users",
 ]
 
-# Tablas de auditoría — acceso solo al rol de servicio
+# Tablas sin tenant_id directo — acceso solo al rol de servicio.
+# El aislamiento multitenant se resuelve a nivel app o mediante JOIN con tablas que sí tienen tenant_id.
+# email_dispatches: accede via comprobante_id → comprobantes.tenant_id (ya protegida por RLS)
+# audit_log: tabla de auditoría interna
 SERVICE_ONLY_TABLES = [
+    "email_dispatches",
     "audit_log",
 ]
 
