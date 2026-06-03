@@ -260,6 +260,26 @@ class ApiStack(Stack):
             ),
         )
 
+        cors_error_origin = (
+            "'*'" if env == "dev"
+            else f"'https://{config['domain']['frontend']}'"
+        )
+        cors_error_headers = {
+            "Access-Control-Allow-Origin": cors_error_origin,
+            "Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Api-Key,X-Idempotency-Key'",
+            "Access-Control-Allow-Methods": "'OPTIONS,GET,POST,PUT,PATCH,DELETE,HEAD'",
+        }
+        self.api.add_gateway_response(
+            "Default4xxCorsResponse",
+            type=apigw.ResponseType.DEFAULT_4_XX,
+            response_headers=cors_error_headers,
+        )
+        self.api.add_gateway_response(
+            "Default5xxCorsResponse",
+            type=apigw.ResponseType.DEFAULT_5_XX,
+            response_headers=cors_error_headers,
+        )
+
         # Lambda Authorizer — valida JWT Cognito, extrae tenant_id + rol
         # Necesita python-jose para verificar RS256; se incluye en requirements.txt
         authorizer_fn = _lambda.Function(
@@ -270,6 +290,7 @@ class ApiStack(Stack):
             runtime=_lambda.Runtime.PYTHON_3_12,
             memory_size=256,
             timeout=Duration.seconds(10),
+            layers=[core_layer],
             environment={
                 "AWS_REGION_NAME": self.region,
                 "COGNITO_USER_POOL_ID": auth.user_pool.user_pool_id,
