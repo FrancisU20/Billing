@@ -78,7 +78,7 @@ class DatabaseStack(Stack):
             self.aurora_sg.add_ingress_rule(
                 peer=self.proxy_sg,
                 connection=ec2.Port.tcp(5432),
-                description="RDS Proxy → Aurora",
+                description="RDS Proxy to Aurora",
             )
             self.proxy = rds.DatabaseProxy(
                 self, "AuroraProxy",

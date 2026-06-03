@@ -43,7 +43,7 @@ class ApiStack(Stack):
         database.aurora_sg.add_ingress_rule(
             peer=ec2.Peer.ipv4(vpc.vpc_cidr_block),
             connection=ec2.Port.tcp(5432),
-            description="Lambda → Aurora (VPC internal)",
+            description="Lambda to Aurora via VPC CIDR",
         )
 
         # Rol base compartido para Lambdas
