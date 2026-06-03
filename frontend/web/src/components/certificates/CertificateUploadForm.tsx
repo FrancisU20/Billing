@@ -151,7 +151,20 @@ export function CertificateUploadForm() {
               type="file"
               accept=".p12,.pfx"
               className="h-auto file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-primary-foreground"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                const selected = e.target.files?.[0] ?? null;
+                if (selected && !/\.(p12|pfx)$/i.test(selected.name)) {
+                  setErrorMsg("El archivo debe tener extensión .p12 o .pfx");
+                  e.target.value = "";
+                  return;
+                }
+                if (selected && selected.size > 5 * 1024 * 1024) {
+                  setErrorMsg("El archivo no puede superar 5 MB");
+                  e.target.value = "";
+                  return;
+                }
+                setFile(selected);
+              }}
             />
           </Field>
 

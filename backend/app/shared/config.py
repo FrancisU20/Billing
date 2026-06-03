@@ -1,8 +1,12 @@
 import json
+import logging
+import os
 from functools import lru_cache
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.domain.enums.ambiente_sri import AmbienteSri
 
 
 class Settings(BaseSettings):
@@ -11,11 +15,14 @@ class Settings(BaseSettings):
     # Ambiente
     env: str = Field(default="dev")
 
-    # DB — host y nombre vienen como env vars (no sensibles)
+    # DB — host, nombre y usuario vienen como env vars (no sensibles)
     db_host: str = Field(default="localhost")
     db_port: int = Field(default=5432)
     db_name: str = Field(default="codelabs_billing")
+    db_user: str = Field(default="clbilling_admin")
     db_secret_arn: str = Field(default="")
+    db_pool_size: int = Field(default=5)
+    db_max_overflow: int = Field(default=10)
 
     # S3
     s3_documents_bucket: str = Field(default="")
@@ -52,11 +59,10 @@ class Settings(BaseSettings):
         """
         if self.env == "prod":
             return tenant_ambiente
-        return "PRUEBAS"
+        return AmbienteSri.PRUEBAS
 
     def get_db_password(self) -> str:
         if self.is_local:
-            import os
             return os.environ.get("DB_PASSWORD", "postgres")
         return _load_secret(self.db_secret_arn)["password"]
 
@@ -72,7 +78,10 @@ def _load_secret(secret_arn: str) -> dict:
         from aws_lambda_powertools.utilities import parameters
         value = parameters.get_secret(secret_arn)
         return json.loads(value) if isinstance(value, str) else value
-    except Exception:
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "Powertools secret cache unavailable, falling back to boto3: %s", exc
+        )
         import boto3
         client = boto3.client("secretsmanager")
         response = client.get_secret_value(SecretId=secret_arn)

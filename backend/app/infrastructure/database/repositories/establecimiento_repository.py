@@ -9,6 +9,9 @@ from app.infrastructure.database.models.establecimiento import (
     SecuencialModel,
 )
 
+_ESTADO_ACTIVE = "ACTIVE"
+_ESTADO_INACTIVE = "INACTIVE"
+
 
 class EstablecimientoRepository:
     def __init__(self, session: AsyncSession):
@@ -17,7 +20,7 @@ class EstablecimientoRepository:
     async def list_by_tenant(self, tenant_id: UUID) -> list[EstablecimientoModel]:
         result = await self._session.execute(
             select(EstablecimientoModel)
-            .where(EstablecimientoModel.tenant_id == tenant_id, EstablecimientoModel.estado == "ACTIVE")
+            .where(EstablecimientoModel.tenant_id == tenant_id, EstablecimientoModel.estado == _ESTADO_ACTIVE)
             .order_by(EstablecimientoModel.codigo)
         )
         return list(result.scalars().all())
@@ -40,7 +43,7 @@ class EstablecimientoRepository:
     async def delete(self, tenant_id: UUID, codigo: str) -> None:
         est = await self.get(tenant_id, codigo)
         if est:
-            est.estado = "INACTIVE"
+            est.estado = _ESTADO_INACTIVE
             await self._session.flush()
 
 
@@ -51,7 +54,7 @@ class PuntoEmisionRepository:
     async def list_by_establecimiento(self, establecimiento_id: UUID) -> list[PuntoEmisionModel]:
         result = await self._session.execute(
             select(PuntoEmisionModel)
-            .where(PuntoEmisionModel.establecimiento_id == establecimiento_id, PuntoEmisionModel.estado == "ACTIVE")
+            .where(PuntoEmisionModel.establecimiento_id == establecimiento_id, PuntoEmisionModel.estado == _ESTADO_ACTIVE)
             .order_by(PuntoEmisionModel.codigo)
         )
         return list(result.scalars().all())
@@ -117,3 +120,9 @@ class SecuencialRepository:
         model.secuencial_actual += 1
         await self._session.flush()
         return str(model.secuencial_actual).zfill(9)
+
+    async def list_by_punto_emision(self, punto_emision_id: UUID) -> list[SecuencialModel]:
+        result = await self._session.execute(
+            select(SecuencialModel).where(SecuencialModel.punto_emision_id == punto_emision_id)
+        )
+        return list(result.scalars().all())

@@ -11,6 +11,7 @@ from app.domain.enums.estado_comprobante import EstadoComprobante
 from app.infrastructure.database.connection import get_session_factory
 from app.infrastructure.database.models.comprobante import SriSubmissionModel
 from app.infrastructure.database.repositories.comprobante_repository import SqlAlchemyComprobanteRepository
+from app.infrastructure.database.repositories.tenant_repository import SqlAlchemyTenantRepository
 from app.infrastructure.queues.sqs_publisher import encolar_envio_email
 from app.infrastructure.sri.soap_client import consultar_autorizacion
 from app.infrastructure.storage.s3_storage import (
@@ -43,7 +44,6 @@ async def reintentar_pendientes() -> None:
             if not comp.clave_acceso:
                 continue
 
-            from app.infrastructure.database.repositories.tenant_repository import SqlAlchemyTenantRepository
             tenant_repo = SqlAlchemyTenantRepository(session)
             tenant = await tenant_repo.get_by_id(comp.tenant_id)
             if tenant:

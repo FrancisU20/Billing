@@ -3,6 +3,7 @@ from typing import Literal
 from uuid import UUID
 
 from app.domain.entities.comprobante import Comprobante
+from app.domain.enums.ambiente_sri import AmbienteSri
 from app.domain.enums.estado_comprobante import EstadoComprobante
 from app.domain.repositories.comprobante_repository import ComprobanteRepository
 from app.infrastructure.queues.sqs_publisher import (
@@ -39,7 +40,7 @@ class RetryComprobanteCommand:
     comprobante_id: UUID
     tenant_id: UUID
     tipo: TipoReintento
-    ambiente: str = "PRUEBAS"
+    ambiente: AmbienteSri = AmbienteSri.PRUEBAS
 
 
 class RetryComprobanteUseCase:

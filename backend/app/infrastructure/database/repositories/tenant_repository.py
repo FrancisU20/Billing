@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.entities.tenant import Tenant
+from app.domain.enums.ambiente_sri import AmbienteSri
 from app.domain.enums.estado_tenant import EstadoTenant
 from app.domain.repositories.tenant_repository import TenantRepository
 from app.infrastructure.database.models.tenant import TenantModel
@@ -16,7 +17,7 @@ def _to_entity(model: TenantModel) -> Tenant:
         razon_social=model.razon_social,
         nombre_comercial=model.nombre_comercial,
         estado=EstadoTenant(model.estado),
-        ambiente_sri=model.ambiente_sri,
+        ambiente_sri=AmbienteSri(model.ambiente_sri),
         plan_id=model.plan_id,
         comprobantes_mes_actual=model.comprobantes_mes_actual,
         created_at=model.created_at,

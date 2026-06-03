@@ -6,6 +6,7 @@ No requiere auth superadmin — cualquier usuario autenticado puede leerlos.
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.domain.constants.sri import FORMAS_PAGO, TIPOS_IDENTIFICACION
 from app.infrastructure.sri.iva_config import TARIFAS_IVA, get_iva_vigente
 
 router = APIRouter()
@@ -45,21 +46,6 @@ def get_sri_config():
             descripcion=f"IVA {iva['tarifa']:.0f}% (vigente)",
         ),
         tarifas_disponibles=tarifas,
-        formas_pago=[
-            {"codigo": "01", "descripcion": "Sin utilización del sistema financiero (efectivo)"},
-            {"codigo": "15", "descripcion": "Compensación de deudas"},
-            {"codigo": "16", "descripcion": "Tarjeta de débito"},
-            {"codigo": "17", "descripcion": "Dinero electrónico"},
-            {"codigo": "18", "descripcion": "Tarjeta prepago"},
-            {"codigo": "19", "descripcion": "Tarjeta de crédito"},
-            {"codigo": "20", "descripcion": "Otros con utilización del sistema financiero"},
-            {"codigo": "21", "descripcion": "Endoso de títulos"},
-        ],
-        tipos_identificacion=[
-            {"codigo": "04", "descripcion": "RUC"},
-            {"codigo": "05", "descripcion": "Cédula de identidad"},
-            {"codigo": "06", "descripcion": "Pasaporte"},
-            {"codigo": "07", "descripcion": "Consumidor final"},
-            {"codigo": "08", "descripcion": "Identificación del exterior"},
-        ],
+        formas_pago=FORMAS_PAGO,
+        tipos_identificacion=TIPOS_IDENTIFICACION,
     )

@@ -26,3 +26,12 @@ class ComprobanteRepository(ABC):
 
     @abstractmethod
     async def list_retry_pending(self, tenant_id: UUID | None = None, limit: int = 100) -> list[Comprobante]: ...
+
+    @abstractmethod
+    async def list_by_tenant(
+        self,
+        tenant_id: UUID,
+        offset: int = 0,
+        limit: int = 50,
+        estado: str | None = None,
+    ) -> tuple[list[Comprobante], int]: ...

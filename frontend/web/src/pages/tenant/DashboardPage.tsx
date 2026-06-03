@@ -1,15 +1,18 @@
 import { useAuth } from "@/lib/auth-context";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { getApiErrorMessage } from "@/lib/api-errors";
 import { Link } from "react-router-dom";
+import { Alert } from "@/components/ui/Alert";
 import { Card, CardContent } from "@/components/ui/Card";
+import { LoadingState } from "@/components/ui/LoadingState";
 import type { ComprobanteListResponse } from "@codelabs-billing/shared";
 
 export function DashboardPage() {
   const { user } = useAuth();
 
-  const { data } = useQuery({
-    queryKey: ["comprobantes-summary", user?.tenantId],
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["comprobantes", user?.tenantId, { limit: 1 }],
     queryFn: () =>
       apiClient.get<ComprobanteListResponse>("/comprobantes?limit=1").then((r) => r.data),
     enabled: !!user?.tenantId,
@@ -22,6 +25,10 @@ export function DashboardPage() {
         <h1 className="mt-1 text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">Bienvenido, {user?.email}</p>
       </div>
+      {isLoading && <LoadingState />}
+      {isError && (
+        <Alert tone="danger">{getApiErrorMessage(error, "No se pudieron cargar los comprobantes")}</Alert>
+      )}
       <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="space-y-2">

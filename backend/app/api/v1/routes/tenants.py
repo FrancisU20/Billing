@@ -4,11 +4,12 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, field_validator
 
+from app.api.v1.deps import TenantRepo
 from app.application.use_cases.tenants.create_tenant import CreateTenantCommand, CreateTenantUseCase
 from app.application.use_cases.tenants.get_tenant import GetTenantUseCase, ListTenantsUseCase
 from app.application.use_cases.tenants.update_tenant import UpdateTenantCommand, UpdateTenantUseCase
-from app.infrastructure.database.repositories.tenant_repository import SqlAlchemyTenantRepository
-from app.shared.dependencies import DbSession, TenantCtx
+from app.domain.enums.ambiente_sri import AmbienteSri
+from app.shared.dependencies import TenantCtx
 from app.shared.exceptions import DomainError, NotFoundError, domain_error_to_http
 
 router = APIRouter()
@@ -18,7 +19,7 @@ class CreateTenantRequest(BaseModel):
     ruc: str
     razon_social: str
     nombre_comercial: str | None = None
-    ambiente_sri: str = "PRUEBAS"
+    ambiente_sri: AmbienteSri = AmbienteSri.PRUEBAS
 
     @field_validator("ruc")
     @classmethod
@@ -27,18 +28,11 @@ class CreateTenantRequest(BaseModel):
             raise ValueError("RUC debe tener exactamente 13 dígitos")
         return v
 
-    @field_validator("ambiente_sri")
-    @classmethod
-    def validate_ambiente(cls, v: str) -> str:
-        if v not in ("PRUEBAS", "PRODUCCION"):
-            raise ValueError("ambiente_sri debe ser PRUEBAS o PRODUCCION")
-        return v
-
 
 class UpdateTenantRequest(BaseModel):
     razon_social: str | None = None
     nombre_comercial: str | None = None
-    ambiente_sri: str | None = None
+    ambiente_sri: AmbienteSri | None = None
     estado: str | None = None
 
 
@@ -55,10 +49,10 @@ class TenantResponse(BaseModel):
 
 
 @router.post("", response_model=TenantResponse, status_code=201)
-async def create_tenant(body: CreateTenantRequest, db: DbSession, ctx: TenantCtx):
+async def create_tenant(body: CreateTenantRequest, ctx: TenantCtx, repo: TenantRepo):
     ctx.require_superadmin()
     try:
-        tenant = await CreateTenantUseCase(SqlAlchemyTenantRepository(db)).execute(
+        tenant = await CreateTenantUseCase(repo).execute(
             CreateTenantCommand(
                 ruc=body.ruc,
                 razon_social=body.razon_social,
@@ -72,28 +66,28 @@ async def create_tenant(body: CreateTenantRequest, db: DbSession, ctx: TenantCtx
 
 
 @router.get("", response_model=list[TenantResponse])
-async def list_tenants(db: DbSession, ctx: TenantCtx, offset: int = 0, limit: int = 50):
+async def list_tenants(ctx: TenantCtx, repo: TenantRepo, offset: int = 0, limit: int = 50):
     ctx.require_superadmin()
-    tenants = await ListTenantsUseCase(SqlAlchemyTenantRepository(db)).execute(offset=offset, limit=limit)
+    tenants = await ListTenantsUseCase(repo).execute(offset=offset, limit=limit)
     return [TenantResponse.model_validate(t) for t in tenants]
 
 
 @router.get("/{tenant_id}", response_model=TenantResponse)
-async def get_tenant(tenant_id: UUID, db: DbSession, ctx: TenantCtx):
+async def get_tenant(tenant_id: UUID, ctx: TenantCtx, repo: TenantRepo):
     if not ctx.is_superadmin and str(tenant_id) != ctx.tenant_id:
         raise HTTPException(status_code=403, detail="Acceso denegado")
     try:
-        tenant = await GetTenantUseCase(SqlAlchemyTenantRepository(db)).execute(tenant_id)
+        tenant = await GetTenantUseCase(repo).execute(tenant_id)
         return TenantResponse.model_validate(tenant)
     except NotFoundError as e:
         raise domain_error_to_http(e) from e
 
 
 @router.patch("/{tenant_id}", response_model=TenantResponse)
-async def update_tenant(tenant_id: UUID, body: UpdateTenantRequest, db: DbSession, ctx: TenantCtx):
+async def update_tenant(tenant_id: UUID, body: UpdateTenantRequest, ctx: TenantCtx, repo: TenantRepo):
     ctx.require_superadmin()
     try:
-        tenant = await UpdateTenantUseCase(SqlAlchemyTenantRepository(db)).execute(
+        tenant = await UpdateTenantUseCase(repo).execute(
             UpdateTenantCommand(
                 tenant_id=tenant_id,
                 razon_social=body.razon_social,

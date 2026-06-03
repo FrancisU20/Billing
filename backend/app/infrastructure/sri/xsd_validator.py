@@ -7,6 +7,9 @@ import os
 from lxml import etree
 
 _SCHEMAS_DIR = os.path.join(os.path.dirname(__file__), "schemas")
+
+# Cache de schemas por nombre de archivo. En Lambda cada instancia es single-threaded,
+# por lo que el acceso al dict es seguro entre invocaciones del mismo warm container.
 _schema_cache: dict[str, etree.XMLSchema] = {}
 
 
@@ -39,7 +42,7 @@ def validar_xml(xml_str: str, tipo_comprobante: str) -> list[str]:
 
     schema_path = os.path.join(_SCHEMAS_DIR, schema_file)
     if not os.path.exists(schema_path):
-        # Si no existe el XSD local, saltar la validación con advertencia
+        # Si no existe el XSD local, saltar la validación
         # Los schemas deben descargarse del SRI y colocarse en /schemas/
         return []
 
@@ -50,5 +53,5 @@ def validar_xml(xml_str: str, tipo_comprobante: str) -> list[str]:
         return [str(e) for e in schema.error_log]
     except etree.XMLSyntaxError as e:
         return [f"XML malformado: {e}"]
-    except Exception as e:
-        return [f"Error de validación: {e}"]
+    except etree.XPathError as e:
+        return [f"Error de schema XSD: {e}"]

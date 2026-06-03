@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.entities.comprobante import Comprobante
@@ -155,8 +155,6 @@ class SqlAlchemyComprobanteRepository(ComprobanteRepository):
         limit: int = 50,
         estado: str | None = None,
     ) -> tuple[list[Comprobante], int]:
-        from sqlalchemy import func
-
         q = select(ComprobanteModel).where(ComprobanteModel.tenant_id == tenant_id)
         count_q = select(func.count()).select_from(ComprobanteModel).where(
             ComprobanteModel.tenant_id == tenant_id

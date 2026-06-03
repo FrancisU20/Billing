@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from app.application.schemas.factura import DatosFactura
 from app.domain.entities.comprobante import Comprobante
 from app.domain.enums.estado_comprobante import EstadoComprobante
 from app.domain.enums.tipo_comprobante import TipoComprobante
 from app.domain.repositories.comprobante_repository import ComprobanteRepository
 from app.domain.repositories.tenant_repository import TenantRepository
+from app.domain.schemas.factura import DatosFactura
+from app.infrastructure.database.repositories.establecimiento_repository import SecuencialRepository
 from app.infrastructure.queues.sqs_publisher import encolar_procesamiento
 from app.shared.exceptions import DomainError, TenantNotActiveError
 
@@ -17,11 +18,11 @@ class CreateComprobanteCommand:
     tipo: str
     establecimiento: str
     punto_emision: str
+    punto_emision_id: UUID
     datos: dict
     idempotency_key: str | None = None
     external_reference: str | None = None
     lote_id: UUID | None = None
-    # secuencial se omite del command — se auto-genera desde la DB
 
 
 class CreateComprobanteUseCase:
@@ -29,7 +30,7 @@ class CreateComprobanteUseCase:
         self,
         comprobante_repo: ComprobanteRepository,
         tenant_repo: TenantRepository,
-        secuencial_repo=None,  # SecuencialRepository — inyección opcional
+        secuencial_repo: SecuencialRepository | None = None,
     ):
         self._comp_repo = comprobante_repo
         self._tenant_repo = tenant_repo
@@ -57,27 +58,10 @@ class CreateComprobanteUseCase:
 
         # 4. Auto-generar secuencial con SELECT FOR UPDATE (evita duplicados)
         secuencial = "000000001"
-        if self._secuencial_repo:
-            from app.infrastructure.database.repositories.establecimiento_repository import (
-                EstablecimientoRepository,
-                PuntoEmisionRepository,
+        if self._secuencial_repo is not None:
+            secuencial = await self._secuencial_repo.next_secuencial(
+                cmd.punto_emision_id, cmd.tipo
             )
-            # Buscar el punto de emisión del tenant
-            est_repo = EstablecimientoRepository(self._secuencial_repo._session)
-            pto_repo = PuntoEmisionRepository(self._secuencial_repo._session)
-            est = await est_repo.get(cmd.tenant_id, cmd.establecimiento)
-            if not est:
-                raise DomainError(
-                    f"Establecimiento {cmd.establecimiento} no encontrado para este tenant",
-                    code="ESTABLECIMIENTO_NOT_FOUND",
-                )
-            pto = await pto_repo.get(est.id, cmd.punto_emision)
-            if not pto:
-                raise DomainError(
-                    f"Punto de emisión {cmd.punto_emision} no encontrado",
-                    code="PUNTO_EMISION_NOT_FOUND",
-                )
-            secuencial = await self._secuencial_repo.next_secuencial(pto.id, cmd.tipo)
 
         # 5. Crear comprobante
         comprobante = Comprobante(

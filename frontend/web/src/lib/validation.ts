@@ -1,4 +1,14 @@
+import { z } from "zod";
+
 export type FieldErrors<T extends string> = Partial<Record<T, string>>;
+
+/**
+ * Parsea el valor de un <select> con el schema Zod correspondiente.
+ * Lanza si el valor no es válido — evita casteos sin validación.
+ */
+export function parseSelectValue<T>(schema: z.ZodType<T>, value: string): T {
+  return schema.parse(value);
+}
 
 export function required(value: string, label: string) {
   return value.trim() ? undefined : `${label} es obligatorio`;

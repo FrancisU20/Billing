@@ -13,12 +13,12 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.infrastructure.database.repositories.certificate_repository import CertificateRepository
+from app.api.v1.deps import CertificateRepo
 from app.infrastructure.security.certificate_service import (
     generate_upload_url,
     validate_and_store_certificate,
 )
-from app.shared.dependencies import DbSession, TenantCtx
+from app.shared.dependencies import TenantCtx
 
 router = APIRouter()
 
@@ -49,22 +49,17 @@ class CertificateResponse(BaseModel):
 
 @router.post("/upload-url", response_model=UploadUrlResponse)
 async def request_upload_url(tenant_id: UUID, ctx: TenantCtx):
-    """
-    Paso 1: genera una presigned URL de S3 para que el frontend suba el .p12 directamente.
-    El archivo NUNCA pasa por el backend — va directo a S3 privado.
-    """
     _require_tenant_access(ctx, tenant_id)
     cert_id = str(uuid.uuid4())
-    upload_url, s3_key = generate_upload_url(str(tenant_id), cert_id, expires_in=300)
+    upload_url, _ = generate_upload_url(str(tenant_id), cert_id, expires_in=300)
     return UploadUrlResponse(upload_url=upload_url, cert_id=cert_id)
 
 
 @router.post("/confirm", response_model=CertificateResponse, status_code=201)
-async def confirm_certificate(tenant_id: UUID, body: ConfirmCertificateRequest, db: DbSession, ctx: TenantCtx):
-    """
-    Paso 2: valida el .p12, guarda la contraseña en Secrets Manager y registra el certificado.
-    La contraseña NO se almacena en la DB — solo el ARN del secret.
-    """
+async def confirm_certificate(
+    tenant_id: UUID, body: ConfirmCertificateRequest,
+    ctx: TenantCtx, cert_repo: CertificateRepo,
+):
     _require_tenant_access(ctx, tenant_id)
     try:
         metadata = validate_and_store_certificate(
@@ -76,7 +71,6 @@ async def confirm_certificate(tenant_id: UUID, body: ConfirmCertificateRequest, 
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
 
-    cert_repo = CertificateRepository(db)
     cert = await cert_repo.create(
         tenant_id=tenant_id,
         nombre=body.nombre,
@@ -89,9 +83,9 @@ async def confirm_certificate(tenant_id: UUID, body: ConfirmCertificateRequest, 
 
 
 @router.get("", response_model=list[CertificateResponse])
-async def list_certificates(tenant_id: UUID, db: DbSession, ctx: TenantCtx):
+async def list_certificates(tenant_id: UUID, ctx: TenantCtx, cert_repo: CertificateRepo):
     _require_tenant_access(ctx, tenant_id)
-    certs = await CertificateRepository(db).list_for_tenant(tenant_id)
+    certs = await cert_repo.list_for_tenant(tenant_id)
     return [CertificateResponse.model_validate(c) for c in certs]
 
 

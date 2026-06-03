@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const estadoCertificateValues = ["ACTIVE", "EXPIRED", "REVOKED"] as const;
+export const estadoCertificateSchema = z.enum(estadoCertificateValues);
+export type EstadoCertificate = z.infer<typeof estadoCertificateSchema>;
+
 export const uploadCertificateUrlResponseSchema = z.object({
   upload_url: z.string().url(),
   cert_id: z.string().uuid(),
@@ -23,7 +27,7 @@ export const certificateSchema = z.object({
   nombre: z.string().nullable(),
   fecha_emision: z.string().nullable(),
   fecha_expiracion: z.string().nullable(),
-  estado: z.string(),
+  estado: estadoCertificateSchema,
 });
 
 export type Certificate = z.infer<typeof certificateSchema>;

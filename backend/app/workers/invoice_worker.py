@@ -9,13 +9,20 @@ Flujo:
 5. Si DEVUELTA → estado RETURNED_BY_SRI (no reintento automático)
 6. Si error transitorio → estado RETRY_PENDING
 """
+import hashlib
+from datetime import datetime
+from uuid import UUID
+
 from aws_lambda_powertools import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.schemas.factura import DatosFactura
+from app.domain.enums.ambiente_sri import AmbienteSri
+from app.domain.schemas.factura import DatosFactura
 from app.domain.enums.estado_comprobante import EstadoComprobante
 from app.domain.value_objects.clave_acceso import ClaveAcceso
 from app.infrastructure.database.connection import get_session_factory
+from app.infrastructure.database.models.comprobante import SriSubmissionModel
+from app.infrastructure.database.repositories.certificate_repository import CertificateRepository
 from app.infrastructure.database.repositories.comprobante_repository import SqlAlchemyComprobanteRepository
 from app.infrastructure.database.repositories.tenant_repository import SqlAlchemyTenantRepository
 from app.infrastructure.queues.sqs_publisher import encolar_consulta_autorizacion
@@ -40,8 +47,6 @@ async def procesar_comprobante(comprobante_id: str, tenant_id: str) -> None:
 
 
 async def _procesar(session: AsyncSession, comprobante_id: str, tenant_id: str) -> None:
-    from uuid import UUID
-
     comp_repo = SqlAlchemyComprobanteRepository(session)
     tenant_repo = SqlAlchemyTenantRepository(session)
 
@@ -72,15 +77,17 @@ async def _procesar(session: AsyncSession, comprobante_id: str, tenant_id: str) 
             datos = DatosFactura(**comp.datos)
 
             # Generar clave de acceso
-            import random
-            from datetime import datetime
+            # cod_numerico derivado del ID del comprobante — determinístico para
+            # que reintentos produzcan la misma clave_acceso, evitando duplicados en el SRI.
             fecha = datetime.strptime(datos.fecha_emision, "%d/%m/%Y").date()
-            cod_numerico = str(random.randint(10000000, 99999999))
+            cod_numerico = str(
+                int(hashlib.sha256(str(comp.id).encode()).hexdigest()[:8], 16) % 90_000_000 + 10_000_000
+            )
             clave = ClaveAcceso.generate(
                 fecha_emision=fecha,
                 tipo_comprobante=comp.tipo,
                 ruc=tenant.ruc,
-                ambiente="1" if ambiente == "PRUEBAS" else "2",
+                ambiente="1" if ambiente == AmbienteSri.PRUEBAS else "2",
                 establecimiento=comp.establecimiento,
                 punto_emision=comp.punto_emision,
                 secuencial=comp.secuencial or "000000001",
@@ -97,7 +104,7 @@ async def _procesar(session: AsyncSession, comprobante_id: str, tenant_id: str) 
                 establecimiento=comp.establecimiento,
                 punto_emision=comp.punto_emision,
                 secuencial=comp.secuencial or "000000001",
-                ambiente="1" if ambiente == "PRUEBAS" else "2",
+                ambiente="1" if ambiente == AmbienteSri.PRUEBAS else "2",
             )
             await comp_repo.update_estado(comp.id, EstadoComprobante.XML_GENERATED)
 
@@ -112,7 +119,6 @@ async def _procesar(session: AsyncSession, comprobante_id: str, tenant_id: str) 
                 return
 
             # Cargar certificado y firmar
-            from app.infrastructure.database.repositories.certificate_repository import CertificateRepository
             cert_repo = CertificateRepository(session)
             cert = await cert_repo.get_active_for_tenant(UUID(tenant_id))
             if not cert:
@@ -148,7 +154,6 @@ async def _procesar(session: AsyncSession, comprobante_id: str, tenant_id: str) 
         })
 
         # Registrar submission en DB
-        from app.infrastructure.database.models.comprobante import SriSubmissionModel
         submission = SriSubmissionModel(
             comprobante_id=comp.id,
             tipo="RECEPCION",

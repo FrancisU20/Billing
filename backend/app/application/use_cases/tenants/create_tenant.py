@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from app.domain.entities.tenant import Tenant
+from app.domain.enums.ambiente_sri import AmbienteSri
 from app.domain.repositories.tenant_repository import TenantRepository
 from app.shared.exceptions import DomainError
 
@@ -10,7 +11,7 @@ class CreateTenantCommand:
     ruc: str
     razon_social: str
     nombre_comercial: str | None = None
-    ambiente_sri: str = "PRUEBAS"
+    ambiente_sri: AmbienteSri = AmbienteSri.PRUEBAS
     plan_id: str | None = None
 
 

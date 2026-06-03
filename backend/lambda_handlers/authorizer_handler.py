@@ -1,6 +1,5 @@
 import json
 import os
-import urllib.parse
 import urllib.request
 from functools import lru_cache
 
@@ -32,10 +31,17 @@ def handler(event: dict, context) -> dict:
         logger.warning("Token verification failed", extra={"error": str(e)})
         return _deny("Unauthorized")
 
-    tenant_id = claims.get("custom:tenant_id", "")
-    role = claims.get("custom:role", "viewer")
-    is_superadmin = str(claims.get("custom:is_superadmin", "false")).lower() == "true"
-    user_id = claims.get("sub", "")
+    # is_superadmin: Cognito envía el claim como string "true"/"false"
+    # Se acepta también bool True por si cambia el tipo en el futuro
+    is_superadmin = claims.get("custom:is_superadmin") in ("true", True)
+    user_id = claims.get("sub") or ""
+    role = claims.get("custom:role") or "viewer"
+    tenant_id = claims.get("custom:tenant_id") or ""
+
+    # Un usuario no-superadmin sin tenant_id es un token mal configurado — denegar
+    if not is_superadmin and not tenant_id:
+        logger.warning("Non-superadmin token missing custom:tenant_id", extra={"sub": user_id})
+        return _deny("Unauthorized")
 
     return _allow(
         principal_id=user_id,
@@ -44,7 +50,8 @@ def handler(event: dict, context) -> dict:
             "tenant_id": tenant_id,
             "user_id": user_id,
             "role": role,
-            "is_superadmin": str(is_superadmin),
+            # Siempre string lowercase para consistencia con TenantContext
+            "is_superadmin": "true" if is_superadmin else "false",
         },
     )
 
@@ -71,24 +78,21 @@ def _verify_token(token: str) -> dict:
         raise ValueError(f"No matching key found for kid={kid}")
 
     public_key = jwk.construct(key_data)
-    claims = jwt.decode(
+    return jwt.decode(
         token,
         public_key,
         algorithms=["RS256"],
         audience=CLIENT_ID,
         options={"verify_exp": True},
     )
-    return claims
 
 
 def _allow(principal_id: str, method_arn: str, context: dict) -> dict:
-    # Permitir acceso a todo el stage para evitar generar una política nueva por endpoint
     arn_parts = method_arn.split(":")
     region = arn_parts[3]
     account = arn_parts[4]
     api_gateway_arn = arn_parts[5]
     api_id, stage = api_gateway_arn.split("/")[:2]
-
     resource_arn = f"arn:aws:execute-api:{region}:{account}:{api_id}/{stage}/*/*"
 
     return {

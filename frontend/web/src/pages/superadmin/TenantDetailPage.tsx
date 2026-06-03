@@ -4,13 +4,14 @@ import { useNavigate, useParams } from "react-router-dom";
 import { apiClient } from "@/lib/api-client";
 import { getApiErrorMessage } from "@/lib/api-errors";
 import { tenantEstadoTone } from "@/lib/status-styles";
-import { hasErrors, required, type FieldErrors } from "@/lib/validation";
+import { hasErrors, parseSelectValue, required, type FieldErrors } from "@/lib/validation";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Field, Input, Select } from "@/components/ui/Form";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { useToast } from "@/components/ui/Toast";
+import { ambienteSriSchema, estadoTenantSchema } from "@codelabs-billing/shared";
 import type { AmbienteSri, EstadoTenant, Tenant, UpdateTenantRequest } from "@codelabs-billing/shared";
 
 type TenantUpdateForm = {
@@ -108,7 +109,7 @@ export function TenantDetailPage() {
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Estado">
-              <Select value={form.estado} onChange={(event) => setForm({ ...form, estado: event.target.value as EstadoTenant })}>
+              <Select value={form.estado} onChange={(event) => setForm({ ...form, estado: parseSelectValue(estadoTenantSchema, event.target.value) })}>
                 {ESTADOS.map((estado) => (
                   <option key={estado} value={estado}>
                     {estado}
@@ -119,7 +120,7 @@ export function TenantDetailPage() {
             <Field label="Ambiente SRI">
               <Select
                 value={form.ambiente_sri}
-                onChange={(event) => setForm({ ...form, ambiente_sri: event.target.value as AmbienteSri })}
+                onChange={(event) => setForm({ ...form, ambiente_sri: parseSelectValue(ambienteSriSchema, event.target.value) })}
               >
                 <option value="PRUEBAS">PRUEBAS</option>
                 <option value="PRODUCCION">PRODUCCION</option>

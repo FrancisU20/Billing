@@ -5,12 +5,13 @@ import { v4 as uuidv4 } from "uuid";
 import { apiClient } from "@/lib/api-client";
 import { getApiErrorMessage } from "@/lib/api-errors";
 import { formatCurrency, roundCurrency } from "@/lib/format";
-import { hasErrors, positiveNumber, required, type FieldErrors } from "@/lib/validation";
+import { hasErrors, parseSelectValue, positiveNumber, required, type FieldErrors } from "@/lib/validation";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Field, Input, Select } from "@/components/ui/Form";
 import { useToast } from "@/components/ui/Toast";
+import { tipoIdentificacionCompradorSchema } from "@codelabs-billing/shared";
 import type {
   CreateComprobanteRequest,
   DatosFactura,
@@ -42,7 +43,7 @@ export function NuevoComprobantePage() {
   const ivaVigente = sriConfig?.iva_vigente ?? { codigo_porcentaje: "4", tarifa: 15, descripcion: "IVA 15%" };
 
   const [receptor, setReceptor] = useState({
-    tipo_identificacion_comprador: "05" as TipoIdentificacionComprador,
+    tipo_identificacion_comprador: tipoIdentificacionCompradorSchema.parse("05"),
     identificacion_comprador: "",
     razon_social_comprador: "",
     email_comprador: "",
@@ -175,7 +176,7 @@ export function NuevoComprobantePage() {
           <h2 className="text-sm font-semibold">Receptor</h2>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Tipo identificación">
-              <Select value={receptor.tipo_identificacion_comprador} onChange={(event) => setReceptor({ ...receptor, tipo_identificacion_comprador: event.target.value as TipoIdentificacionComprador })}>
+              <Select value={receptor.tipo_identificacion_comprador} onChange={(event) => setReceptor({ ...receptor, tipo_identificacion_comprador: parseSelectValue(tipoIdentificacionCompradorSchema, event.target.value) })}>
                 <option value="04">RUC</option>
                 <option value="05">Cédula</option>
                 <option value="06">Pasaporte</option>

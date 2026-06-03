@@ -5,12 +5,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { getApiErrorMessage } from "@/lib/api-errors";
-import { hasErrors, required, type FieldErrors } from "@/lib/validation";
+import { hasErrors, parseSelectValue, required, type FieldErrors } from "@/lib/validation";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Form";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { useToast } from "@/components/ui/Toast";
+import { ambienteSriSchema } from "@codelabs-billing/shared";
 import type { AmbienteSri, Tenant, UpdateTenantRequest } from "@codelabs-billing/shared";
 
 type EmpresaForm = {
@@ -91,7 +92,7 @@ export function EmpresaConfigTab() {
       </Field>
 
       <Field label="Ambiente SRI">
-        <Select value={form.ambiente_sri} onChange={(event) => setForm({ ...form, ambiente_sri: event.target.value as AmbienteSri })}>
+        <Select value={form.ambiente_sri} onChange={(event) => setForm({ ...form, ambiente_sri: parseSelectValue(ambienteSriSchema, event.target.value) })}>
           <option value="PRUEBAS">PRUEBAS</option>
           <option value="PRODUCCION">PRODUCCION</option>
         </Select>

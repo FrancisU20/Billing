@@ -64,7 +64,8 @@ def validate_and_store_certificate(
             p12_data, password.encode()
         )
     except Exception as exc:
-        # Eliminar el upload temporal si la contraseña es incorrecta
+        logger.warning("Certificate validation failed — removing temp upload",
+                       extra={"error": type(exc).__name__, "s3_key": s3_key_upload})
         s3.delete_object(Bucket=settings.s3_documents_bucket, Key=s3_key_upload)
         raise ValueError("Contraseña incorrecta o certificado inválido") from exc
 

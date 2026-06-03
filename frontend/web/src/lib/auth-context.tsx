@@ -28,12 +28,18 @@ const AuthContext = createContext<AuthContextValue>({
 
 function parseSession(session: CognitoUserSession): AuthUser {
   const payload = session.getIdToken().decodePayload();
+
+  if (!payload.sub || !payload.email) {
+    throw new Error("Invalid Cognito session: missing required claims (sub, email)");
+  }
+
   return {
-    userId: payload.sub ?? "",
-    email: payload.email ?? "",
-    tenantId: payload["custom:tenant_id"] ?? null,
-    role: payload["custom:role"] ?? "viewer",
-    isSuperadmin: payload["custom:is_superadmin"] === "true",
+    userId: payload.sub as string,
+    email: payload.email as string,
+    tenantId: (payload["custom:tenant_id"] as string | undefined) ?? null,
+    role: (payload["custom:role"] as string | undefined) ?? "viewer",
+    // Cognito almacena el claim como string "true"/"false"
+    isSuperadmin: payload["custom:is_superadmin"] === "true" || payload["custom:is_superadmin"] === true,
   };
 }
 

@@ -4,6 +4,14 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
+from app.domain.enums.ambiente_sri import AmbienteSri
+from app.api.v1.deps import (
+    ComprobanteRepo,
+    EstablecimientoRepo,
+    PuntoEmisionRepo,
+    SecuencialRepo,
+    TenantRepo,
+)
 from app.application.use_cases.comprobantes.create_comprobante import (
     CreateComprobanteCommand,
     CreateComprobanteUseCase,
@@ -12,10 +20,8 @@ from app.application.use_cases.comprobantes.retry_comprobante import (
     RetryComprobanteCommand,
     RetryComprobanteUseCase,
 )
-from app.infrastructure.database.repositories.comprobante_repository import SqlAlchemyComprobanteRepository
-from app.infrastructure.database.repositories.tenant_repository import SqlAlchemyTenantRepository
 from app.infrastructure.storage.s3_storage import generar_presigned_url
-from app.shared.dependencies import DbSession, TenantCtx
+from app.shared.dependencies import TenantCtx
 from app.shared.exceptions import DomainError, NotFoundError, domain_error_to_http
 
 router = APIRouter()
@@ -28,7 +34,6 @@ class CreateComprobanteRequest(BaseModel):
     datos: dict
     idempotency_key: str | None = None
     external_reference: str | None = None
-    # secuencial se auto-genera desde la DB — no enviar en el body
 
 
 class RetryRequest(BaseModel):
@@ -56,17 +61,29 @@ class ComprobanteResponse(BaseModel):
 @router.post("", response_model=ComprobanteResponse, status_code=202)
 async def create_comprobante(
     body: CreateComprobanteRequest,
-    db: DbSession,
     ctx: TenantCtx,
+    est_repo: EstablecimientoRepo,
+    pto_repo: PuntoEmisionRepo,
+    sec_repo: SecuencialRepo,
+    comp_repo: ComprobanteRepo,
+    tenant_repo: TenantRepo,
     x_idempotency_key: str | None = Header(default=None, alias="X-Idempotency-Key"),
 ):
     tenant_id = UUID(ctx.require_tenant())
     idempotency = body.idempotency_key or x_idempotency_key
 
-    comp_repo = SqlAlchemyComprobanteRepository(db)
-    tenant_repo = SqlAlchemyTenantRepository(db)
-    from app.infrastructure.database.repositories.establecimiento_repository import SecuencialRepository
-    sec_repo = SecuencialRepository(db)
+    est = await est_repo.get(tenant_id, body.establecimiento)
+    if not est:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Establecimiento {body.establecimiento} no encontrado para este tenant",
+        )
+    pto = await pto_repo.get(est.id, body.punto_emision)
+    if not pto:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Punto de emisión {body.punto_emision} no encontrado",
+        )
 
     try:
         comp = await CreateComprobanteUseCase(comp_repo, tenant_repo, sec_repo).execute(
@@ -75,6 +92,7 @@ async def create_comprobante(
                 tipo=body.tipo,
                 establecimiento=body.establecimiento,
                 punto_emision=body.punto_emision,
+                punto_emision_id=pto.id,
                 datos=body.datos,
                 idempotency_key=idempotency,
                 external_reference=body.external_reference,
@@ -87,14 +105,13 @@ async def create_comprobante(
 
 @router.get("", response_model=dict)
 async def list_comprobantes(
-    db: DbSession,
     ctx: TenantCtx,
+    comp_repo: ComprobanteRepo,
     offset: int = 0,
     limit: int = 50,
     estado: str | None = None,
 ):
     tenant_id = UUID(ctx.require_tenant())
-    comp_repo = SqlAlchemyComprobanteRepository(db)
     comprobantes, total = await comp_repo.list_by_tenant(
         tenant_id, offset=offset, limit=limit, estado=estado
     )
@@ -107,9 +124,8 @@ async def list_comprobantes(
 
 
 @router.get("/{comprobante_id}", response_model=ComprobanteResponse)
-async def get_comprobante(comprobante_id: UUID, db: DbSession, ctx: TenantCtx):
+async def get_comprobante(comprobante_id: UUID, ctx: TenantCtx, comp_repo: ComprobanteRepo):
     tenant_id = UUID(ctx.require_tenant())
-    comp_repo = SqlAlchemyComprobanteRepository(db)
     comp = await comp_repo.get_by_id(comprobante_id, tenant_id)
     if not comp:
         raise HTTPException(status_code=404, detail="Comprobante no encontrado")
@@ -118,13 +134,12 @@ async def get_comprobante(comprobante_id: UUID, db: DbSession, ctx: TenantCtx):
 
 @router.patch("/{comprobante_id}/retry", response_model=ComprobanteResponse)
 async def retry_comprobante(
-    comprobante_id: UUID, body: RetryRequest, db: DbSession, ctx: TenantCtx
+    comprobante_id: UUID, body: RetryRequest,
+    ctx: TenantCtx, comp_repo: ComprobanteRepo, tenant_repo: TenantRepo,
 ):
     tenant_id = UUID(ctx.require_tenant())
-    comp_repo = SqlAlchemyComprobanteRepository(db)
-    tenant_repo = SqlAlchemyTenantRepository(db)
     tenant = await tenant_repo.get_by_id(tenant_id)
-    ambiente = tenant.ambiente_sri if tenant else "PRUEBAS"
+    ambiente = tenant.ambiente_sri if tenant else AmbienteSri.PRUEBAS
 
     try:
         comp = await RetryComprobanteUseCase(comp_repo).execute(
@@ -141,10 +156,8 @@ async def retry_comprobante(
 
 
 @router.get("/{comprobante_id}/descargar/xml")
-async def descargar_xml(comprobante_id: UUID, db: DbSession, ctx: TenantCtx):
-    """Genera presigned URL para descargar el XML autorizado."""
+async def descargar_xml(comprobante_id: UUID, ctx: TenantCtx, comp_repo: ComprobanteRepo):
     tenant_id = UUID(ctx.require_tenant())
-    comp_repo = SqlAlchemyComprobanteRepository(db)
     comp = await comp_repo.get_by_id(comprobante_id, tenant_id)
     if not comp:
         raise HTTPException(status_code=404, detail="Comprobante no encontrado")
@@ -158,10 +171,8 @@ async def descargar_xml(comprobante_id: UUID, db: DbSession, ctx: TenantCtx):
 
 
 @router.get("/{comprobante_id}/descargar/pdf")
-async def descargar_pdf(comprobante_id: UUID, db: DbSession, ctx: TenantCtx):
-    """Genera presigned URL para descargar el PDF/RIDE."""
+async def descargar_pdf(comprobante_id: UUID, ctx: TenantCtx, comp_repo: ComprobanteRepo):
     tenant_id = UUID(ctx.require_tenant())
-    comp_repo = SqlAlchemyComprobanteRepository(db)
     comp = await comp_repo.get_by_id(comprobante_id, tenant_id)
     if not comp:
         raise HTTPException(status_code=404, detail="Comprobante no encontrado")

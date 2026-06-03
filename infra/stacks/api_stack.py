@@ -116,24 +116,13 @@ class ApiStack(Stack):
             "POWERTOOLS_LOG_LEVEL": lambda_cfg["powertools_log_level"],
         }
 
-        # Dos Lambda Layers separados para mantener tamaños bajo los 250MB:
-        #   core-layer (~130MB): FastAPI, SQLAlchemy, zeep, lxml, cryptography, etc.
-        #   batch-layer (~69MB): pandas, openpyxl — solo para batch_import_worker
-        # Construidos en CI (GitHub Actions = Linux) — correcto SO para los wheels nativos
         core_layer = _lambda.LayerVersion(
             self, "CoreLayer",
             layer_version_name=f"codelabs-billing-{env}-core",
             code=_lambda.Code.from_asset("./lambda_layer/core"),
             compatible_runtimes=[_lambda.Runtime.PYTHON_3_12],
+            compatible_architectures=[_lambda.Architecture.ARM_64],
             description=f"Core Python dependencies — {env}",
-        )
-
-        batch_layer = _lambda.LayerVersion(
-            self, "BatchLayer",
-            layer_version_name=f"codelabs-billing-{env}-batch",
-            code=_lambda.Code.from_asset("./lambda_layer/batch"),
-            compatible_runtimes=[_lambda.Runtime.PYTHON_3_12],
-            description=f"Batch processing Python dependencies (pandas/numpy) — {env}",
         )
 
         # Solo código de la aplicación en el zip (<10MB sin dependencias)
@@ -152,6 +141,7 @@ class ApiStack(Stack):
         lambda_props = dict(
             layers=[core_layer],
             runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
             memory_size=lambda_cfg["memory_mb"],
             timeout=Duration.seconds(lambda_cfg["timeout_seconds"]),
             role=base_role,
@@ -177,6 +167,7 @@ class ApiStack(Stack):
             code=backend_code(),
             handler="lambda_handlers.invoice_worker_handler.handler",
             runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
             memory_size=512,  # PDF generation necesita más memoria
             timeout=Duration.seconds(300),
             role=base_role,
@@ -211,12 +202,12 @@ class ApiStack(Stack):
             code=backend_code(),
             handler="lambda_handlers.batch_import_handler.handler",
             runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
             memory_size=512,
             timeout=Duration.seconds(600),
             role=base_role,
             environment=common_env,
-            # Batch worker necesita ambos layers: core + batch (pandas/numpy)
-            layers=[core_layer, batch_layer],
+            layers=[core_layer],
             log_retention=logs.RetentionDays.ONE_WEEK if env != "prod" else logs.RetentionDays.THREE_MONTHS,
             tracing=_lambda.Tracing.ACTIVE,
             **vpc_config,
@@ -297,6 +288,7 @@ class ApiStack(Stack):
             code=backend_code(),
             handler="lambda_handlers.authorizer_handler.handler",
             runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
             memory_size=256,
             timeout=Duration.seconds(10),
             layers=[core_layer],

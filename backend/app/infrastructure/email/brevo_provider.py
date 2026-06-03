@@ -1,7 +1,7 @@
 import base64
 
-import sib_api_v3_sdk
-from sib_api_v3_sdk.rest import ApiException
+import brevo_python
+from brevo_python.rest import ApiException
 
 from app.infrastructure.email.provider import EmailMessage, EmailProvider
 from app.shared.logging import logger
@@ -11,19 +11,19 @@ class BrevoEmailProvider(EmailProvider):
     name = "brevo"
 
     def __init__(self, api_key: str):
-        configuration = sib_api_v3_sdk.Configuration()
+        configuration = brevo_python.Configuration()
         configuration.api_key["api-key"] = api_key
-        self._api = sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
+        self._api = brevo_python.TransactionalEmailsApi(brevo_python.ApiClient(configuration))
 
     def send(self, message: EmailMessage) -> bool:
         attachments = [
-            sib_api_v3_sdk.SendSmtpEmailAttachment(
+            brevo_python.SendSmtpEmailAttachment(
                 name=att["filename"],
                 content=base64.b64encode(att["content"]).decode(),
             )
             for att in message.attachments
         ]
-        email = sib_api_v3_sdk.SendSmtpEmail(
+        email = brevo_python.SendSmtpEmail(
             sender={"name": message.from_name, "email": message.from_email},
             to=[{"email": message.to}],
             subject=message.subject,

@@ -7,7 +7,7 @@ logger = Logger(service="codelabs-billing-batch-import")
 
 
 @logger.inject_lambda_context(log_event=False)
-def handler(event: dict, context: LambdaContext) -> dict:
+async def handler(event: dict, context: LambdaContext) -> dict:
     """
     Triggered por SQS batch-import-queue.
     Flujo: descargar CSV/Excel de S3 → validar → crear comprobantes → encolar.

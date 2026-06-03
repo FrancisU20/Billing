@@ -22,7 +22,7 @@ def get_url() -> str:
     password = settings.get_db_password()
     return (
         f"postgresql+psycopg://{settings.db_host}/{settings.db_name}"
-        f"?user=clbilling_admin&password={password}"
+        f"?user={settings.db_user}&password={password}"
         f"&sslmode={'require' if settings.env != 'local' else 'disable'}"
     )
 

@@ -4,6 +4,8 @@ Usa reportlab para generar el comprobante en formato imprimible.
 """
 from io import BytesIO
 
+from app.domain.enums.ambiente_sri import AmbienteSri
+from app.infrastructure.sri.iva_config import tarifa_para_codigo
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
@@ -75,7 +77,7 @@ def generar_ride_factura(datos_comprobante: dict, datos_tenant: dict) -> bytes:
                 [Paragraph(ambiente, ParagraphStyle(
                     "amb", parent=base, fontSize=7, fontName="Helvetica-Bold",
                     alignment=TA_CENTER,
-                    textColor=colors.red if "PRUEBAS" in ambiente else colors.green,
+                    textColor=colors.red if AmbienteSri.PRUEBAS in ambiente else colors.green,
                 ))],
             ], colWidths=[70 * mm])
         ]
@@ -156,7 +158,6 @@ def generar_ride_factura(datos_comprobante: dict, datos_tenant: dict) -> bytes:
     elements.append(Spacer(1, 3 * mm))
 
     # ── Totales — la tarifa se infiere de los impuestos del detalle ──────
-    from app.infrastructure.sri.iva_config import tarifa_para_codigo
     total_sin_imp = float(datos.get("total_sin_impuestos", 0))
     total_dcto = float(datos.get("total_descuento", 0))
     importe_total = float(datos.get("importe_total", 0))

@@ -1,9 +1,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlalchemy import select
 
-from app.infrastructure.database.models.user import UserModel
-from app.shared.dependencies import DbSession, TenantCtx
+from app.api.v1.deps import UserRepo
+from app.shared.dependencies import TenantCtx
 
 router = APIRouter()
 
@@ -18,12 +17,9 @@ class MeResponse(BaseModel):
 
 
 @router.get("/me", response_model=MeResponse)
-async def get_me(ctx: TenantCtx, db: DbSession):
+async def get_me(ctx: TenantCtx, user_repo: UserRepo):
     """Devuelve el perfil del usuario autenticado según el JWT."""
-    result = await db.execute(
-        select(UserModel).where(UserModel.cognito_sub == ctx.user_id)
-    )
-    user = result.scalar_one_or_none()
+    user = await user_repo.get_by_cognito_sub(ctx.user_id or "")
     return MeResponse(
         user_id=ctx.user_id or "",
         email=user.email if user else None,

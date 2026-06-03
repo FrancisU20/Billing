@@ -3,9 +3,12 @@ Generador de XML para comprobantes electrónicos del SRI Ecuador.
 Soporta: Factura (01), Nota Crédito (04), Nota Débito (05).
 Fase 3 implementa Factura; los demás se agregan en fases posteriores.
 """
+from collections import defaultdict
+from decimal import Decimal
+
 from lxml import etree
 
-from app.application.schemas.factura import DatosFactura
+from app.domain.schemas.factura import DatosFactura
 from app.domain.value_objects.clave_acceso import ClaveAcceso
 
 
@@ -139,8 +142,6 @@ def _dec(value) -> str:
 
 def _agrupar_impuestos(datos: DatosFactura) -> dict:
     """Agrupa los impuestos de todos los detalles por (codigo, codigoPorcentaje)."""
-    from collections import defaultdict
-    from decimal import Decimal
     totales: dict[tuple, list] = defaultdict(lambda: [Decimal("0"), Decimal("0")])
     for det in datos.detalles:
         for imp in det.impuestos:

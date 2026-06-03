@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from app.domain.entities.tenant import Tenant
+from app.domain.enums.ambiente_sri import AmbienteSri
 from app.domain.enums.estado_tenant import EstadoTenant
 from app.domain.repositories.tenant_repository import TenantRepository
 from app.shared.exceptions import DomainError, NotFoundError
@@ -12,7 +13,7 @@ class UpdateTenantCommand:
     tenant_id: UUID
     razon_social: str | None = None
     nombre_comercial: str | None = None
-    ambiente_sri: str | None = None
+    ambiente_sri: AmbienteSri | None = None
     estado: str | None = None
 
 
@@ -36,9 +37,7 @@ class UpdateTenantUseCase:
             tenant.razon_social = cmd.razon_social
         if cmd.nombre_comercial is not None:
             tenant.nombre_comercial = cmd.nombre_comercial
-        if cmd.ambiente_sri:
-            if cmd.ambiente_sri not in ("PRUEBAS", "PRODUCCION"):
-                raise DomainError("ambiente_sri debe ser PRUEBAS o PRODUCCION", code="INVALID_AMBIENTE")
+        if cmd.ambiente_sri is not None:
             tenant.ambiente_sri = cmd.ambiente_sri
 
         return await self._repo.save(tenant)

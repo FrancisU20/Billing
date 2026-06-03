@@ -5,6 +5,7 @@ from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.database.connection import get_session_factory
+from app.shared.config import get_settings
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -21,11 +22,21 @@ class TenantContext:
         request: Request,
         x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
     ):
-        # En producción, el Lambda Authorizer inyecta el contexto via requestContext
-        # En local, se acepta X-Tenant-Id para desarrollo
         apigw_context = (request.scope.get("aws.event") or {}).get("requestContext", {}).get("authorizer", {})
+        settings = get_settings()
 
-        self.tenant_id: str | None = apigw_context.get("tenant_id") or x_tenant_id
+        tenant_from_jwt = apigw_context.get("tenant_id")
+
+        # X-Tenant-Id solo se acepta en ambiente local.
+        # En cualquier otro ambiente el tenant_id debe venir del Lambda Authorizer
+        # vía requestContext — aceptarlo del cliente sería impersonación de tenant.
+        if tenant_from_jwt:
+            self.tenant_id: str | None = tenant_from_jwt
+        elif settings.is_local:
+            self.tenant_id = x_tenant_id
+        else:
+            self.tenant_id = None
+
         self.user_id: str | None = apigw_context.get("user_id")
         self.role: str = apigw_context.get("role", "viewer")
         self.is_superadmin: bool = apigw_context.get("is_superadmin", "false").lower() == "true"

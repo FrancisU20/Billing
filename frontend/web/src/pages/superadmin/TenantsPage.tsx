@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { apiClient } from "@/lib/api-client";
 import { getApiErrorMessage } from "@/lib/api-errors";
-import { exactDigits, hasErrors, required, type FieldErrors } from "@/lib/validation";
+import { exactDigits, hasErrors, parseSelectValue, required, type FieldErrors } from "@/lib/validation";
 import { tenantEstadoTone } from "@/lib/status-styles";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +13,7 @@ import { Field, Input, Select } from "@/components/ui/Form";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Table, TableHead, TableShell, Td, Th, Tr } from "@/components/ui/Table";
 import { useToast } from "@/components/ui/Toast";
+import { ambienteSriSchema } from "@codelabs-billing/shared";
 import type { AmbienteSri, CreateTenantRequest, Tenant } from "@codelabs-billing/shared";
 
 type TenantFormField = "ruc" | "razon_social";
@@ -90,7 +91,7 @@ export function TenantsPage() {
               <Field label="Ambiente SRI">
                 <Select
                   value={form.ambiente_sri}
-                  onChange={(event) => setForm({ ...form, ambiente_sri: event.target.value as AmbienteSri })}
+                  onChange={(event) => setForm({ ...form, ambiente_sri: parseSelectValue(ambienteSriSchema, event.target.value) })}
                 >
                   <option value="PRUEBAS">PRUEBAS</option>
                   <option value="PRODUCCION">PRODUCCION</option>

@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const estadoEstablecimientoValues = ["ACTIVE", "INACTIVE"] as const;
+export const estadoEstablecimientoSchema = z.enum(estadoEstablecimientoValues);
+export type EstadoEstablecimiento = z.infer<typeof estadoEstablecimientoSchema>;
+
 export const createEstablecimientoRequestSchema = z.object({
   codigo: z.string(),
   direccion: z.string().nullable().optional(),
@@ -18,7 +22,7 @@ export const establecimientoSchema = z.object({
   tenant_id: z.string().uuid(),
   codigo: z.string(),
   direccion: z.string().nullable(),
-  estado: z.string(),
+  estado: estadoEstablecimientoSchema,
 });
 
 export type Establecimiento = z.infer<typeof establecimientoSchema>;
@@ -27,7 +31,7 @@ export const puntoEmisionSchema = z.object({
   id: z.string().uuid(),
   establecimiento_id: z.string().uuid(),
   codigo: z.string(),
-  estado: z.string(),
+  estado: estadoEstablecimientoSchema,
 });
 
 export type PuntoEmision = z.infer<typeof puntoEmisionSchema>;

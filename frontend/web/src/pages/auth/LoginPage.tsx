@@ -35,10 +35,13 @@ export function LoginPage() {
       await refreshSession();
       navigate("/dashboard");
     } catch (err: unknown) {
-      const msg = (err as { message?: string })?.message ?? "";
-      if (msg.includes("NotAuthorizedException") || msg.includes("Incorrect")) {
+      // Cognito SDK lanza objetos con `name` como código de error (no depender del mensaje)
+      const cognitoName = (typeof err === "object" && err !== null && "name" in err)
+        ? (err as { name: string }).name
+        : "";
+      if (cognitoName === "NotAuthorizedException") {
         setError("Correo o contraseña incorrectos");
-      } else if (msg.includes("UserNotFoundException")) {
+      } else if (cognitoName === "UserNotFoundException") {
         setError("Usuario no encontrado");
       } else {
         setError(getApiErrorMessage(err, "Error al iniciar sesión"));

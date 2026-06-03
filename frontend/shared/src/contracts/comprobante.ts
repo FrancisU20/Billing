@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { offsetListResponseSchema } from "./api";
+import { datosFacturaSchema } from "./factura";
 
 export const tipoComprobanteValues = ["01", "03", "04", "05", "06", "07"] as const;
 export const tipoComprobanteSchema = z.enum(tipoComprobanteValues);
@@ -63,7 +64,7 @@ export const createComprobanteRequestSchema = z.object({
   tipo: tipoComprobanteSchema.default("01"),
   establecimiento: z.string(),
   punto_emision: z.string(),
-  datos: z.record(z.unknown()),
+  datos: datosFacturaSchema,
   idempotency_key: z.string().optional(),
   external_reference: z.string().nullable().optional(),
 });

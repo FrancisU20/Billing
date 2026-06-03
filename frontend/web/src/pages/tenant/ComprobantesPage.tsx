@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { apiClient } from "@/lib/api-client";
+import { getApiErrorMessage } from "@/lib/api-errors";
 import { formatComprobanteNumber } from "@/lib/format";
 import { EstadoBadge } from "@/components/comprobantes/EstadoBadge";
 import { Button } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FilterChips, type FilterChip } from "@/components/ui/FilterChips";
 import { LoadingState } from "@/components/ui/LoadingState";
@@ -24,8 +26,8 @@ const ESTADOS: FilterChip<EstadoFilter>[] = [
 export function ComprobantesPage() {
   const [estado, setEstado] = useState<EstadoFilter>("");
 
-  const { data, isLoading } = useQuery<ComprobanteListResponse>({
-    queryKey: ["comprobantes", estado],
+  const { data, isLoading, isError, error } = useQuery<ComprobanteListResponse>({
+    queryKey: ["comprobantes", { estado }],
     queryFn: () =>
       apiClient
         .get<ComprobanteListResponse>("/comprobantes", {
@@ -48,6 +50,9 @@ export function ComprobantesPage() {
 
       <FilterChips items={ESTADOS} value={estado} onChange={setEstado} />
 
+      {isError && (
+        <Alert tone="danger">{getApiErrorMessage(error, "No se pudieron cargar los comprobantes")}</Alert>
+      )}
       {isLoading ? (
         <LoadingState />
       ) : (

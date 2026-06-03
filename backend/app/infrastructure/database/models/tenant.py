@@ -5,6 +5,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.domain.enums.ambiente_sri import AmbienteSri
 from app.infrastructure.database.connection import Base
 
 
@@ -16,7 +17,7 @@ class TenantModel(Base):
     razon_social: Mapped[str] = mapped_column(String(300), nullable=False)
     nombre_comercial: Mapped[str | None] = mapped_column(String(300), nullable=True)
     estado: Mapped[str] = mapped_column(String(30), nullable=False, default="TRIAL")
-    ambiente_sri: Mapped[str] = mapped_column(String(10), nullable=False, default="PRUEBAS")
+    ambiente_sri: Mapped[str] = mapped_column(String(10), nullable=False, default=AmbienteSri.PRUEBAS)
     plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("planes.id"), nullable=True)
     comprobantes_mes_actual: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

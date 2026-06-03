@@ -120,6 +120,8 @@ export function SriConfigTab() {
           <Card key={est.codigo} className="overflow-hidden">
             <button
               onClick={() => setExpandedEst(expandedEst === est.codigo ? null : est.codigo)}
+              aria-expanded={expandedEst === est.codigo}
+              aria-controls={`est-content-${est.codigo}`}
               className="flex w-full items-center justify-between bg-muted/30 px-4 py-3 text-sm hover:bg-muted/50"
             >
               <span className="font-mono font-medium">
@@ -127,14 +129,14 @@ export function SriConfigTab() {
                 {est.direccion && <span className="ml-2 font-normal text-muted-foreground">{est.direccion}</span>}
               </span>
               {expandedEst === est.codigo ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                <ChevronUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               )}
             </button>
 
             {expandedEst === est.codigo && (
-              <div className="space-y-3 px-4 py-3">
+              <div id={`est-content-${est.codigo}`} className="space-y-3 px-4 py-3">
                 <div className="space-y-1">
                   {(puntosMap?.[est.codigo] ?? []).map((pto) => (
                     <div key={pto.codigo} className="flex items-center gap-2 text-sm">

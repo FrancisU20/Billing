@@ -15,15 +15,15 @@ def get_engine():
         password = settings.get_db_password()
         url = (
             f"postgresql+psycopg://{settings.db_host}/{settings.db_name}"
-            f"?user=clbilling_admin&password={password}"
+            f"?user={settings.db_user}&password={password}"
             f"&sslmode={'require' if settings.env != 'local' else 'disable'}"
         )
         # pool_pre_ping=True detecta conexiones muertas (importante con Aurora que escala a 0)
         _engine = create_async_engine(
             url,
             pool_pre_ping=True,
-            pool_size=5,
-            max_overflow=10,
+            pool_size=settings.db_pool_size,
+            max_overflow=settings.db_max_overflow,
             echo=settings.env == "local",
         )
     return _engine

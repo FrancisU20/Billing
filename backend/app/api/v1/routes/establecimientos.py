@@ -3,11 +3,8 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.infrastructure.database.repositories.establecimiento_repository import (
-    EstablecimientoRepository,
-    PuntoEmisionRepository,
-)
-from app.shared.dependencies import DbSession, TenantCtx
+from app.api.v1.deps import EstablecimientoRepo, PuntoEmisionRepo, SecuencialRepo
+from app.shared.dependencies import TenantCtx
 
 router = APIRouter()
 
@@ -53,26 +50,30 @@ def _check_access(ctx: TenantCtx, tenant_id: UUID) -> None:
 # ── Establecimientos ──────────────────────────────────────────────────────────
 
 @router.get("/{tenant_id}/establecimientos", response_model=list[EstablecimientoResponse])
-async def list_establecimientos(tenant_id: UUID, db: DbSession, ctx: TenantCtx):
+async def list_establecimientos(
+    tenant_id: UUID, ctx: TenantCtx, est_repo: EstablecimientoRepo
+):
     _check_access(ctx, tenant_id)
-    return await EstablecimientoRepository(db).list_by_tenant(tenant_id)
+    return await est_repo.list_by_tenant(tenant_id)
 
 
 @router.post("/{tenant_id}/establecimientos", response_model=EstablecimientoResponse, status_code=201)
 async def create_establecimiento(
-    tenant_id: UUID, body: CreateEstablecimientoRequest, db: DbSession, ctx: TenantCtx
+    tenant_id: UUID, body: CreateEstablecimientoRequest, ctx: TenantCtx, est_repo: EstablecimientoRepo
 ):
     _check_access(ctx, tenant_id)
-    existing = await EstablecimientoRepository(db).get(tenant_id, body.codigo)
+    existing = await est_repo.get(tenant_id, body.codigo)
     if existing:
         raise HTTPException(status_code=409, detail=f"Establecimiento {body.codigo} ya existe")
-    return await EstablecimientoRepository(db).create(tenant_id, body.codigo, body.direccion)
+    return await est_repo.create(tenant_id, body.codigo, body.direccion)
 
 
 @router.delete("/{tenant_id}/establecimientos/{codigo}", status_code=204)
-async def delete_establecimiento(tenant_id: UUID, codigo: str, db: DbSession, ctx: TenantCtx):
+async def delete_establecimiento(
+    tenant_id: UUID, codigo: str, ctx: TenantCtx, est_repo: EstablecimientoRepo
+):
     _check_access(ctx, tenant_id)
-    await EstablecimientoRepository(db).delete(tenant_id, codigo)
+    await est_repo.delete(tenant_id, codigo)
 
 
 # ── Puntos de emisión ─────────────────────────────────────────────────────────
@@ -81,12 +82,15 @@ async def delete_establecimiento(tenant_id: UUID, codigo: str, db: DbSession, ct
     "/{tenant_id}/establecimientos/{codigo}/puntos-emision",
     response_model=list[PuntoEmisionResponse],
 )
-async def list_puntos_emision(tenant_id: UUID, codigo: str, db: DbSession, ctx: TenantCtx):
+async def list_puntos_emision(
+    tenant_id: UUID, codigo: str, ctx: TenantCtx,
+    est_repo: EstablecimientoRepo, pto_repo: PuntoEmisionRepo,
+):
     _check_access(ctx, tenant_id)
-    est = await EstablecimientoRepository(db).get(tenant_id, codigo)
+    est = await est_repo.get(tenant_id, codigo)
     if not est:
         raise HTTPException(status_code=404, detail="Establecimiento no encontrado")
-    return await PuntoEmisionRepository(db).list_by_establecimiento(est.id)
+    return await pto_repo.list_by_establecimiento(est.id)
 
 
 @router.post(
@@ -95,16 +99,17 @@ async def list_puntos_emision(tenant_id: UUID, codigo: str, db: DbSession, ctx: 
     status_code=201,
 )
 async def create_punto_emision(
-    tenant_id: UUID, codigo: str, body: CreatePuntoEmisionRequest, db: DbSession, ctx: TenantCtx
+    tenant_id: UUID, codigo: str, body: CreatePuntoEmisionRequest,
+    ctx: TenantCtx, est_repo: EstablecimientoRepo, pto_repo: PuntoEmisionRepo,
 ):
     _check_access(ctx, tenant_id)
-    est = await EstablecimientoRepository(db).get(tenant_id, codigo)
+    est = await est_repo.get(tenant_id, codigo)
     if not est:
         raise HTTPException(status_code=404, detail="Establecimiento no encontrado")
-    existing = await PuntoEmisionRepository(db).get(est.id, body.codigo)
+    existing = await pto_repo.get(est.id, body.codigo)
     if existing:
         raise HTTPException(status_code=409, detail=f"Punto de emisión {body.codigo} ya existe")
-    return await PuntoEmisionRepository(db).create(est.id, body.codigo)
+    return await pto_repo.create(est.id, body.codigo)
 
 
 # ── Secuenciales ──────────────────────────────────────────────────────────────
@@ -114,19 +119,14 @@ async def create_punto_emision(
     response_model=list[SecuencialResponse],
 )
 async def list_secuenciales(
-    tenant_id: UUID, est_codigo: str, pto_codigo: str, db: DbSession, ctx: TenantCtx
+    tenant_id: UUID, est_codigo: str, pto_codigo: str, ctx: TenantCtx,
+    est_repo: EstablecimientoRepo, pto_repo: PuntoEmisionRepo, sec_repo: SecuencialRepo,
 ):
     _check_access(ctx, tenant_id)
-    est = await EstablecimientoRepository(db).get(tenant_id, est_codigo)
+    est = await est_repo.get(tenant_id, est_codigo)
     if not est:
         raise HTTPException(status_code=404, detail="Establecimiento no encontrado")
-    pto = await PuntoEmisionRepository(db).get(est.id, pto_codigo)
+    pto = await pto_repo.get(est.id, pto_codigo)
     if not pto:
         raise HTTPException(status_code=404, detail="Punto de emisión no encontrado")
-    from sqlalchemy import select
-
-    from app.infrastructure.database.models.establecimiento import SecuencialModel
-    result = await db.execute(
-        select(SecuencialModel).where(SecuencialModel.punto_emision_id == pto.id)
-    )
-    return list(result.scalars().all())
+    return await sec_repo.list_by_punto_emision(pto.id)

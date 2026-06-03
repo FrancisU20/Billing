@@ -1,12 +1,16 @@
 from datetime import UTC, datetime
+from uuid import UUID
 
 from aws_lambda_powertools import Logger
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.enums.ambiente_sri import AmbienteSri
 from app.domain.enums.estado_comprobante import EstadoComprobante
 from app.infrastructure.database.connection import get_session_factory
 from app.infrastructure.database.models.email import EmailDispatchModel
 from app.infrastructure.database.repositories.comprobante_repository import SqlAlchemyComprobanteRepository
+from app.infrastructure.database.repositories.tenant_repository import SqlAlchemyTenantRepository
 from app.infrastructure.email.dispatcher import dispatch
 from app.infrastructure.email.provider import EmailMessage
 from app.infrastructure.pdf.ride_generator import generar_ride_factura
@@ -21,10 +25,6 @@ async def enviar_comprobante_email(comprobante_id: str, tenant_id: str) -> None:
 
 
 async def _enviar(session: AsyncSession, comprobante_id: str, tenant_id: str) -> None:
-    from uuid import UUID
-
-    from app.infrastructure.database.repositories.tenant_repository import SqlAlchemyTenantRepository
-
     comp_repo = SqlAlchemyComprobanteRepository(session)
     tenant_repo = SqlAlchemyTenantRepository(session)
 
@@ -35,9 +35,29 @@ async def _enviar(session: AsyncSession, comprobante_id: str, tenant_id: str) ->
         logger.error("Comprobante o tenant no encontrado")
         return
 
+    # Idempotency: si ya existe un dispatch exitoso, no reenviar
+    existing = await session.execute(
+        select(EmailDispatchModel).where(
+            EmailDispatchModel.comprobante_id == comp.id,
+            EmailDispatchModel.tipo == "RECEPTOR",
+            EmailDispatchModel.estado == "SENT",
+        )
+    )
+    if existing.scalar_one_or_none():
+        logger.info("Email ya enviado — skip", extra={"comprobante_id": comprobante_id})
+        return
+
     email_receptor = comp.datos.get("email_comprador")
     if not email_receptor:
-        logger.info("Sin email receptor — omitiendo envío", extra={"comprobante_id": comprobante_id})
+        logger.info("Sin email receptor — registrando SKIPPED", extra={"comprobante_id": comprobante_id})
+        skip_record = EmailDispatchModel(
+            comprobante_id=comp.id,
+            destinatario="",
+            tipo="RECEPTOR",
+            estado="SKIPPED",
+            intentos=0,
+        )
+        session.add(skip_record)
         await comp_repo.update_estado(comp.id, EstadoComprobante.EMAIL_SENT)
         return
 
@@ -57,7 +77,7 @@ async def _enviar(session: AsyncSession, comprobante_id: str, tenant_id: str) ->
                 "punto_emision": comp.punto_emision,
                 "secuencial": comp.secuencial,
                 "datos": comp.datos,
-                "ambiente": "1" if tenant.ambiente_sri == "PRUEBAS" else "2",
+                "ambiente": "1" if tenant.ambiente_sri == AmbienteSri.PRUEBAS else "2",
             },
             datos_tenant=datos_tenant,
         )
@@ -68,7 +88,6 @@ async def _enviar(session: AsyncSession, comprobante_id: str, tenant_id: str) ->
     else:
         pdf_bytes = descargar_documento(comp.s3_key_pdf)
 
-    # Descargar XML autorizado para adjuntar
     xml_bytes = b""
     if comp.s3_key_xml_autorizado:
         xml_bytes = descargar_documento(comp.s3_key_xml_autorizado)

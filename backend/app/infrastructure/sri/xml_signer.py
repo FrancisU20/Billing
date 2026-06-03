@@ -17,6 +17,7 @@ Nota: El SRI usa SHA-1 (no SHA-256) a pesar de ser obsoleto — es requisito nor
 import base64
 import hashlib
 import uuid
+from io import BytesIO
 from datetime import UTC, datetime
 
 from cryptography import x509
@@ -154,7 +155,6 @@ def firmar_xml(xml_str: str, p12_bytes: bytes, p12_password: str) -> str:
 
 def _c14n(element: etree._Element) -> bytes:
     """Canonicalización C14N del elemento (sin comments)."""
-    from io import BytesIO
     buf = BytesIO()
     element.getroottree().write_c14n(buf, exclusive=False, with_comments=False, compression=0)
     # write_c14n opera sobre el árbol completo; usamos tostring con method="c14n" para un elemento

@@ -1,0 +1,66 @@
+"""rls_policies
+
+Revision ID: 0002
+Revises: 0001
+Create Date: 2026-06-03
+
+Crea las políticas RLS prometidas en migración 0001.
+
+Estrategia:
+- clbilling_admin es el rol de servicio. Se le da bypass explícito para que
+  el esquema sea auto-documentado (superusers ya bypass RLS por defecto).
+- Tablas con tenant_id reciben política de aislamiento basada en la variable
+  de sesión app.tenant_id que el app establecerá en el futuro para aislamiento
+  DB-level. Mientras tanto clbilling_admin es la única ruta de acceso.
+"""
+from typing import Sequence, Union
+
+from alembic import op
+
+revision: str = "0002"
+down_revision: Union[str, None] = "0001"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+# Tablas con tenant_id — aislamiento multitenant
+TENANT_TABLES = [
+    "comprobantes",
+    "lotes",
+    "signing_certificates",
+    "establecimientos",
+    "email_dispatches",
+    "api_keys",
+    "webhooks",
+    "tenant_users",
+]
+
+# Tablas de auditoría — acceso solo al rol de servicio
+SERVICE_ONLY_TABLES = [
+    "audit_log",
+]
+
+
+def upgrade() -> None:
+    # Política de bypass para el rol de servicio en todas las tablas con RLS
+    for table in TENANT_TABLES + SERVICE_ONLY_TABLES:
+        op.execute(
+            f"CREATE POLICY service_role_bypass ON {table} "
+            f"TO clbilling_admin USING (true) WITH CHECK (true)"
+        )
+
+    # Política de aislamiento por tenant (preparada para uso futuro con SET LOCAL)
+    # Cuando el app establezca: SET LOCAL app.tenant_id = '<uuid>'
+    # esta política filtrará automáticamente los rows por tenant.
+    for table in TENANT_TABLES:
+        op.execute(
+            f"CREATE POLICY tenant_isolation ON {table} "
+            f"USING (tenant_id = current_setting('app.tenant_id', true)::uuid)"
+        )
+
+
+def downgrade() -> None:
+    for table in TENANT_TABLES:
+        op.execute(f"DROP POLICY IF EXISTS tenant_isolation ON {table}")
+        op.execute(f"DROP POLICY IF EXISTS service_role_bypass ON {table}")
+    for table in SERVICE_ONLY_TABLES:
+        op.execute(f"DROP POLICY IF EXISTS service_role_bypass ON {table}")

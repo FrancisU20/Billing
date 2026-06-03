@@ -8,6 +8,12 @@ from app.shared.logging import configure_logging
 configure_logging()
 settings = get_settings()
 
+if settings.env == "prod" and settings.cors_origins == ["*"]:
+    raise ValueError(
+        "cors_origins no puede ser ['*'] en producción. "
+        "Configura CORS_ORIGINS con el dominio específico del frontend."
+    )
+
 app = FastAPI(
     title="CodeLabs Billing Cloud API",
     version="0.1.0",

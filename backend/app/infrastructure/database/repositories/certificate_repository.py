@@ -1,9 +1,12 @@
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.database.models.signing_certificate import SigningCertificateModel
+
+_ESTADO_ACTIVE = "ACTIVE"
 
 
 class CertificateRepository:
@@ -16,8 +19,8 @@ class CertificateRepository:
         nombre: str | None,
         s3_key: str,
         secrets_manager_arn: str,
-        fecha_emision,
-        fecha_expiracion,
+        fecha_emision: date | None,
+        fecha_expiracion: date | None,
     ) -> SigningCertificateModel:
         model = SigningCertificateModel(
             tenant_id=tenant_id,
@@ -26,7 +29,7 @@ class CertificateRepository:
             secrets_manager_arn=secrets_manager_arn,
             fecha_emision=fecha_emision,
             fecha_expiracion=fecha_expiracion,
-            estado="ACTIVE",
+            estado=_ESTADO_ACTIVE,
         )
         self._session.add(model)
         await self._session.flush()
@@ -38,7 +41,7 @@ class CertificateRepository:
             select(SigningCertificateModel)
             .where(
                 SigningCertificateModel.tenant_id == tenant_id,
-                SigningCertificateModel.estado == "ACTIVE",
+                SigningCertificateModel.estado == _ESTADO_ACTIVE,
             )
             .order_by(SigningCertificateModel.created_at.desc())
             .limit(1)
