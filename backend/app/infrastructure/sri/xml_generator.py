@@ -23,7 +23,7 @@ def generar_factura(
 ) -> str:
     """Genera el XML de una Factura conforme al esquema SRI versión 1.1.0."""
 
-    nsmap = {}
+    nsmap: dict[str, str] = {}
     factura = etree.Element("factura", id="comprobante", version="1.1.0", nsmap=nsmap)
 
     # ── infoTributaria ────────────────────────────────────────────────────

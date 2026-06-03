@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.entities.comprobante import Comprobante
 from app.domain.enums.estado_comprobante import EstadoComprobante
+from app.domain.enums.tipo_comprobante import TipoComprobante
 from app.domain.repositories.comprobante_repository import ComprobanteRepository
 from app.infrastructure.database.models.comprobante import ComprobanteModel, ComprobanteStatusHistoryModel
 
@@ -14,7 +15,7 @@ def _to_entity(m: ComprobanteModel) -> Comprobante:
     return Comprobante(
         id=m.id,
         tenant_id=m.tenant_id,
-        tipo=m.tipo,
+        tipo=TipoComprobante(m.tipo),
         clave_acceso=m.clave_acceso,
         establecimiento=m.establecimiento,
         punto_emision=m.punto_emision,

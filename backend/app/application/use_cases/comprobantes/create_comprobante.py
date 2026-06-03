@@ -82,7 +82,7 @@ class CreateComprobanteUseCase:
         # 5. Crear comprobante
         comprobante = Comprobante(
             tenant_id=cmd.tenant_id,
-            tipo=cmd.tipo,
+            tipo=TipoComprobante(cmd.tipo),
             establecimiento=cmd.establecimiento,
             punto_emision=cmd.punto_emision,
             secuencial=secuencial,

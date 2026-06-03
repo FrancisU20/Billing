@@ -13,7 +13,7 @@ def build_providers() -> list[EmailProvider]:
 
     settings = get_settings()
     creds = settings.get_email_credentials()
-    providers = []
+    providers: list[EmailProvider] = []
 
     brevo_key = creds.get("brevo_api_key")
     if brevo_key:

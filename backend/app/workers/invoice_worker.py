@@ -157,7 +157,7 @@ async def _procesar(session: AsyncSession, comprobante_id: str, tenant_id: str) 
             await comp_repo.update_estado(comp.id, EstadoComprobante.RECEIVED_BY_SRI)
             await comp_repo.update_estado(comp.id, EstadoComprobante.PENDING_AUTHORIZATION)
             await session.flush()
-            encolar_consulta_autorizacion(comprobante_id, comp.clave_acceso, tenant.ambiente_sri)
+            encolar_consulta_autorizacion(comprobante_id, comp.clave_acceso or "", tenant.ambiente_sri)
         elif respuesta.estado == "DEVUELTA":
             mensajes = [m["mensaje"] for c in respuesta.comprobantes for m in c.get("mensajes", [])]
             await comp_repo.update_estado(

@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, pkcs12
 from lxml import etree
 
@@ -43,12 +44,15 @@ def firmar_xml(xml_str: str, p12_bytes: bytes, p12_password: str) -> str:
     Returns:
         XML firmado como string UTF-8
     """
-    # 1. Cargar p12
-    private_key, cert, chain = pkcs12.load_key_and_certificates(
+    # 1. Cargar p12 — el SRI solo acepta certificados RSA
+    raw_key, cert, chain = pkcs12.load_key_and_certificates(
         p12_bytes, p12_password.encode()
     )
     if cert is None:
         raise ValueError("El .p12 no contiene un certificado válido")
+    if not isinstance(raw_key, RSAPrivateKey):
+        raise ValueError("Solo se soportan claves privadas RSA (requerido por el SRI XAdES-BES)")
+    private_key: RSAPrivateKey = raw_key
 
     # 2. Parsear el XML
     doc = etree.fromstring(xml_str.encode("utf-8"))

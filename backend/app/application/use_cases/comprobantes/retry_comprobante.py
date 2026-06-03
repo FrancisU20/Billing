@@ -73,4 +73,7 @@ class RetryComprobanteUseCase:
             await self._repo.update_estado(comprobante.id, EstadoComprobante.EMAIL_PENDING)
             encolar_envio_email(str(comprobante.id), str(cmd.tenant_id))
 
-        return await self._repo.get_by_id(cmd.comprobante_id, cmd.tenant_id)
+        result = await self._repo.get_by_id(cmd.comprobante_id, cmd.tenant_id)
+        if result is None:
+            raise NotFoundError("Comprobante", str(cmd.comprobante_id))
+        return result
