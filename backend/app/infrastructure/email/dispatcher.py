@@ -15,9 +15,10 @@ def build_providers() -> list[EmailProvider]:
     creds = settings.get_email_credentials()
     providers: list[EmailProvider] = []
 
-    brevo_key = creds.get("brevo_api_key")
-    if brevo_key:
-        providers.append(BrevoEmailProvider(api_key=brevo_key))
+    smtp_user = creds.get("smtp_user")
+    smtp_password = creds.get("smtp_password")
+    if smtp_user and smtp_password:
+        providers.append(BrevoEmailProvider(smtp_user=smtp_user, smtp_password=smtp_password))
 
     mailgun_key = creds.get("mailgun_api_key")
     mailgun_domain = creds.get("mailgun_domain")
