@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { getCurrentSession, signOut, getAccessToken } from "./auth";
+import { getCurrentSession, signOut } from "./auth";
 import type { CognitoUserSession } from "amazon-cognito-identity-js";
 
-interface AuthUser {
+export interface AuthUser {
   userId: string;
   email: string;
   tenantId: string | null;
@@ -15,7 +15,7 @@ interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   logout: () => void;
-  refreshSession: () => Promise<void>;
+  refreshSession: () => Promise<AuthUser | null>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -23,7 +23,7 @@ const AuthContext = createContext<AuthContextValue>({
   isLoading: true,
   isAuthenticated: false,
   logout: () => {},
-  refreshSession: async () => {},
+  refreshSession: async () => null,
 });
 
 function parseSession(session: CognitoUserSession): AuthUser {
@@ -38,7 +38,6 @@ function parseSession(session: CognitoUserSession): AuthUser {
     email: payload.email as string,
     tenantId: (payload["custom:tenant_id"] as string | undefined) ?? null,
     role: (payload["custom:role"] as string | undefined) ?? "viewer",
-    // Cognito almacena el claim como string "true"/"false"
     isSuperadmin: payload["custom:is_superadmin"] === "true" || payload["custom:is_superadmin"] === true,
   };
 }
@@ -47,12 +46,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const refreshSession = useCallback(async () => {
+  const refreshSession = useCallback(async (): Promise<AuthUser | null> => {
     try {
       const session = await getCurrentSession();
-      setUser(parseSession(session));
+      const parsed = parseSession(session);
+      setUser(parsed);
+      return parsed;
     } catch {
       setUser(null);
+      return null;
     }
   }, []);
 

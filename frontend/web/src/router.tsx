@@ -27,6 +27,15 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Rutas exclusivas de tenant: redirige superadmins que lleguen por navegación directa
+function RequireTenantUser({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <FullPageLoading />;
+  if (user?.isSuperadmin) return <Navigate to="/tenants" replace />;
+  return <>{children}</>;
+}
+
+// Rutas exclusivas de superadmin: redirige usuarios tenant que lleguen por navegación directa
 function RequireSuperadmin({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return <FullPageLoading />;
@@ -41,8 +50,8 @@ export function AppRouter() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<Navigate to="/login" replace />} />
 
-      {/* Tenant — autenticado */}
-      <Route element={<RequireAuth><TenantLayout /></RequireAuth>}>
+      {/* Tenant — autenticado + no superadmin */}
+      <Route element={<RequireAuth><RequireTenantUser><TenantLayout /></RequireTenantUser></RequireAuth>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/comprobantes" element={<ComprobantesPage />} />
         <Route path="/comprobantes/nuevo" element={<NuevoComprobantePage />} />

@@ -32,8 +32,8 @@ export function LoginPage() {
     setIsLoading(true);
     try {
       await signIn(email, password);
-      await refreshSession();
-      navigate("/dashboard");
+      const authedUser = await refreshSession();
+      navigate(authedUser?.isSuperadmin ? "/tenants" : "/dashboard");
     } catch (err: unknown) {
       // Cognito SDK lanza objetos con `name` como código de error (no depender del mensaje)
       const cognitoName = (typeof err === "object" && err !== null && "name" in err)
