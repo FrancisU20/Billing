@@ -25,7 +25,8 @@ class QueuesStack(Stack):
                 retention_period=Duration.days(4),
                 dead_letter_queue=sqs.DeadLetterQueue(max_receive_count=max_receives, queue=dlq),
                 fifo=fifo,
-                content_based_deduplication=fifo,
+                # ContentBasedDeduplication solo aplica a colas FIFO
+                **({"content_based_deduplication": True} if fifo else {}),
             )
 
         # Cola principal de procesamiento de comprobantes (FIFO para deduplicación)
