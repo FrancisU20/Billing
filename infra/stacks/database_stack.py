@@ -40,7 +40,8 @@ class DatabaseStack(Stack):
             self, "AuroraCluster",
             cluster_identifier=f"codelabs-billing-{env}",
             engine=rds.DatabaseClusterEngine.aurora_postgres(
-                version=rds.AuroraPostgresEngineVersion.VER_16_2,
+                # 16.4 es la mínima versión 16.x disponible en sa-east-1
+                version=rds.AuroraPostgresEngineVersion.of("16.4", "16"),
             ),
             serverless_v2_min_capacity=aurora_cfg["min_capacity"],
             serverless_v2_max_capacity=aurora_cfg["max_capacity"],
