@@ -150,25 +150,25 @@ jobs:
         run: npm install
         working-directory: frontend/web
 
-      - name: Build Next.js (static export)
+      - name: Build (Vite)
         run: npm run build
         working-directory: frontend/web
         env:
-          # Valores inyectados desde los outputs de CloudFormation — nada hardcodeado
-          NEXT_PUBLIC_API_URL: ${{ needs.deploy-infra.outputs.api_url }}/api/v1
-          NEXT_PUBLIC_COGNITO_USER_POOL_ID: ${{ needs.deploy-infra.outputs.user_pool_id }}
-          NEXT_PUBLIC_COGNITO_CLIENT_ID: ${{ needs.deploy-infra.outputs.web_client_id }}
-          NEXT_PUBLIC_COGNITO_REGION: sa-east-1
+          # Valores inyectados desde outputs de CloudFormation — nada hardcodeado
+          VITE_API_URL: ${{ needs.deploy-infra.outputs.api_url }}/api/v1
+          VITE_COGNITO_USER_POOL_ID: ${{ needs.deploy-infra.outputs.user_pool_id }}
+          VITE_COGNITO_CLIENT_ID: ${{ needs.deploy-infra.outputs.web_client_id }}
+          VITE_COGNITO_REGION: sa-east-1
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: us-east-1  # S3 y CloudFront están en us-east-1
+          aws-region: us-east-1
 
       - name: Deploy a S3
         run: |
-          aws s3 sync frontend/web/out/ \
+          aws s3 sync frontend/web/dist/ \
             s3://${{ needs.deploy-infra.outputs.web_bucket }} \
             --delete \
             --region us-east-1

@@ -1,5 +1,3 @@
-"use client";
-
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { getCurrentSession, signOut, getAccessToken } from "./auth";
 import type { CognitoUserSession } from "amazon-cognito-identity-js";
@@ -29,8 +27,7 @@ const AuthContext = createContext<AuthContextValue>({
 });
 
 function parseSession(session: CognitoUserSession): AuthUser {
-  const idToken = session.getIdToken();
-  const payload = idToken.decodePayload();
+  const payload = session.getIdToken().decodePayload();
   return {
     userId: payload.sub ?? "",
     email: payload.email ?? "",
@@ -56,9 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     signOut();
     setUser(null);
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
+    window.location.href = "/login";
   }, []);
 
   useEffect(() => {
@@ -66,9 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshSession]);
 
   return (
-    <AuthContext.Provider
-      value={{ user, isLoading, isAuthenticated: !!user, logout, refreshSession }}
-    >
+    <AuthContext.Provider value={{ user, isLoading, isAuthenticated: !!user, logout, refreshSession }}>
       {children}
     </AuthContext.Provider>
   );

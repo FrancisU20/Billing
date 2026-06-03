@@ -1,12 +1,10 @@
-"use client";
-
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { signIn } from "@/lib/auth";
 import { useAuth } from "@/lib/auth-context";
 
-export default function LoginPage() {
-  const router = useRouter();
+export function LoginPage() {
+  const navigate = useNavigate();
   const { refreshSession } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,24 +13,20 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
     setError("");
     setIsLoading(true);
-
     try {
       await signIn(email, password);
       await refreshSession();
-      router.push("/dashboard");
+      navigate("/dashboard");
     } catch (err: unknown) {
-      const msg = (err as { message?: string })?.message ?? "Error al iniciar sesión";
-      if (msg.includes("NotAuthorizedException") || msg.includes("Incorrect username or password")) {
+      const msg = (err as { message?: string })?.message ?? "";
+      if (msg.includes("NotAuthorizedException") || msg.includes("Incorrect")) {
         setError("Correo o contraseña incorrectos");
       } else if (msg.includes("UserNotFoundException")) {
         setError("Usuario no encontrado");
-      } else if (msg.includes("UserNotConfirmedException")) {
-        setError("La cuenta no ha sido confirmada");
       } else {
-        setError(msg);
+        setError(msg || "Error al iniciar sesión");
       }
     } finally {
       setIsLoading(false);
@@ -46,46 +40,38 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold">CodeLabs Billing</h1>
           <p className="text-sm text-muted-foreground">Inicia sesión en tu cuenta</p>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <label htmlFor="email" className="text-sm font-medium">
-              Correo electrónico
-            </label>
+            <label htmlFor="email" className="text-sm font-medium">Correo electrónico</label>
             <input
               id="email"
               type="email"
               autoComplete="email"
               required
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="tu@empresa.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
-
           <div className="space-y-1">
-            <label htmlFor="password" className="text-sm font-medium">
-              Contraseña
-            </label>
+            <label htmlFor="password" className="text-sm font-medium">Contraseña</label>
             <input
               id="password"
               type="password"
               autoComplete="current-password"
               required
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="••••••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-
           {error && (
             <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">
               {error}
             </div>
           )}
-
           <button
             type="submit"
             disabled={isLoading || !email || !password}

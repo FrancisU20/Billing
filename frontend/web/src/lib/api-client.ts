@@ -1,12 +1,14 @@
 import axios from "axios";
 import { getAccessToken } from "./auth";
 
+// Con Vite las variables de entorno usan el prefijo VITE_
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api/v1";
+
 export const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: API_URL,
   headers: { "Content-Type": "application/json" },
 });
 
-// Inyecta el JWT de Cognito en cada request autenticado
 apiClient.interceptors.request.use(async (config) => {
   try {
     const token = await getAccessToken();
@@ -17,11 +19,10 @@ apiClient.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Redirige a login si el token expiró
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && typeof window !== "undefined") {
+    if (error.response?.status === 401) {
       window.location.href = "/login";
     }
     return Promise.reject(error);
