@@ -31,7 +31,7 @@ backend-test: ## Corre tests del backend
 backend-lint: ## Lint y type check del backend
 	cd backend && .venv/bin/ruff check app/ && .venv/bin/mypy app/
 
-frontend-dev: ## Levanta Next.js en modo desarrollo
+frontend-dev: ## Levanta Vite en modo desarrollo
 	cd frontend/web && npm run dev
 
 frontend-build: ## Build de producción del frontend
