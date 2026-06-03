@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
-from app.domain.enums.ambiente_sri import AmbienteSri
 from app.api.v1.deps import (
     ComprobanteRepo,
     EstablecimientoRepo,
@@ -20,6 +19,7 @@ from app.application.use_cases.comprobantes.retry_comprobante import (
     RetryComprobanteCommand,
     RetryComprobanteUseCase,
 )
+from app.domain.enums.ambiente_sri import AmbienteSri
 from app.infrastructure.storage.s3_storage import generar_presigned_url
 from app.shared.dependencies import TenantCtx
 from app.shared.exceptions import DomainError, NotFoundError, domain_error_to_http

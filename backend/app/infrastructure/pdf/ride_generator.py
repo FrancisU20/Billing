@@ -4,8 +4,6 @@ Usa reportlab para generar el comprobante en formato imprimible.
 """
 from io import BytesIO
 
-from app.domain.enums.ambiente_sri import AmbienteSri
-from app.infrastructure.sri.iva_config import tarifa_para_codigo
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
@@ -19,6 +17,9 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
+
+from app.domain.enums.ambiente_sri import AmbienteSri
+from app.infrastructure.sri.iva_config import tarifa_para_codigo
 
 
 def generar_ride_factura(datos_comprobante: dict, datos_tenant: dict) -> bytes:

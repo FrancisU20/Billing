@@ -13,14 +13,14 @@ Estrategia:
   de sesión app.tenant_id que el app establecerá en el futuro para aislamiento
   DB-level. Mientras tanto clbilling_admin es la única ruta de acceso.
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
 revision: str = "0002"
-down_revision: Union[str, None] = "0001"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0001"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # Tablas con tenant_id — aislamiento multitenant
 TENANT_TABLES = [

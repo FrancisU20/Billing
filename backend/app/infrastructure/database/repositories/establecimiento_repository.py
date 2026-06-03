@@ -54,7 +54,10 @@ class PuntoEmisionRepository:
     async def list_by_establecimiento(self, establecimiento_id: UUID) -> list[PuntoEmisionModel]:
         result = await self._session.execute(
             select(PuntoEmisionModel)
-            .where(PuntoEmisionModel.establecimiento_id == establecimiento_id, PuntoEmisionModel.estado == _ESTADO_ACTIVE)
+            .where(
+                PuntoEmisionModel.establecimiento_id == establecimiento_id,
+                PuntoEmisionModel.estado == _ESTADO_ACTIVE,
+            )
             .order_by(PuntoEmisionModel.codigo)
         )
         return list(result.scalars().all())

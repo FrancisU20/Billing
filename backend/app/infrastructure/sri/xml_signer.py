@@ -17,8 +17,8 @@ Nota: El SRI usa SHA-1 (no SHA-256) a pesar de ser obsoleto — es requisito nor
 import base64
 import hashlib
 import uuid
-from io import BytesIO
 from datetime import UTC, datetime
+from io import BytesIO
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes

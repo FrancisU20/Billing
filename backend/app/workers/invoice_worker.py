@@ -17,8 +17,8 @@ from aws_lambda_powertools import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.enums.ambiente_sri import AmbienteSri
-from app.domain.schemas.factura import DatosFactura
 from app.domain.enums.estado_comprobante import EstadoComprobante
+from app.domain.schemas.factura import DatosFactura
 from app.domain.value_objects.clave_acceso import ClaveAcceso
 from app.infrastructure.database.connection import get_session_factory
 from app.infrastructure.database.models.comprobante import SriSubmissionModel
