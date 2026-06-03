@@ -64,6 +64,11 @@ class ApiStack(Stack):
             actions=["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
             resources=[database.connection_secret.secret_arn],
         ))
+        # SSM Parameter Store: configuración no-sensible (ej. tarifa IVA vigente)
+        base_role.add_to_policy(iam.PolicyStatement(
+            actions=["ssm:GetParameter", "ssm:GetParameters"],
+            resources=[f"arn:aws:ssm:{self.region}:{self.account}:parameter/codelabs-billing/{env}/*"],
+        ))
         storage.documents_bucket.grant_read_write(base_role)
         storage.assets_bucket.grant_read_write(base_role)
         storage.batches_bucket.grant_read_write(base_role)

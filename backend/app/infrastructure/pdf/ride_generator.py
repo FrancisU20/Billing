@@ -155,17 +155,27 @@ def generar_ride_factura(datos_comprobante: dict, datos_tenant: dict) -> bytes:
     elements.append(detail_table)
     elements.append(Spacer(1, 3 * mm))
 
-    # ── Totales ───────────────────────────────────────────────────────────
+    # ── Totales — la tarifa se infiere de los impuestos del detalle ──────
+    from app.infrastructure.sri.iva_config import tarifa_para_codigo
     total_sin_imp = float(datos.get("total_sin_impuestos", 0))
     total_dcto = float(datos.get("total_descuento", 0))
     importe_total = float(datos.get("importe_total", 0))
     iva_valor = importe_total - total_sin_imp
 
+    # Obtener la tarifa IVA desde los datos del comprobante (no hardcodeada)
+    cod_iva = "4"
+    for det in datos.get("detalles", []):
+        for imp in det.get("impuestos", []):
+            if imp.get("codigo") == "2":
+                cod_iva = imp.get("codigo_porcentaje", "4")
+                break
+    tarifa_label = f"{tarifa_para_codigo(cod_iva):.0f}%"
+
     totales_data = [
-        ["SUBTOTAL 12%:", f"${total_sin_imp:.2f}"],
+        [f"SUBTOTAL {tarifa_label}:", f"${total_sin_imp:.2f}"],
         ["SUBTOTAL 0%:", "$0.00"],
         ["DESCUENTO:", f"${total_dcto:.2f}"],
-        ["IVA 12%:", f"${iva_valor:.2f}"],
+        [f"IVA {tarifa_label}:", f"${iva_valor:.2f}"],
         ["TOTAL:", f"${importe_total:.2f}"],
     ]
     totales_table = Table(totales_data, colWidths=[40 * mm, 25 * mm], hAlign="RIGHT")

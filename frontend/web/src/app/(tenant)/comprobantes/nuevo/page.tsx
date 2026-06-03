@@ -2,9 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { v4 as uuidv4 } from "uuid";
+
+interface SriConfig {
+  iva_vigente: { codigo_porcentaje: string; tarifa: number; descripcion: string };
+  tarifas_disponibles: { codigo_porcentaje: string; tarifa: number; descripcion: string }[];
+  formas_pago: { codigo: string; descripcion: string }[];
+  tipos_identificacion: { codigo: string; descripcion: string }[];
+}
 
 interface Detalle {
   codigo_principal: string;
@@ -16,6 +23,14 @@ interface Detalle {
 
 export default function NuevoComprobanteePage() {
   const router = useRouter();
+
+  // IVA vigente desde la API — nunca hardcodeado en el frontend
+  const { data: sriConfig } = useQuery<SriConfig>({
+    queryKey: ["config-sri"],
+    queryFn: () => apiClient.get<SriConfig>("/config/sri").then((r) => r.data),
+    staleTime: 5 * 60 * 1000,  // cachear 5 minutos
+  });
+  const ivaVigente = sriConfig?.iva_vigente ?? { codigo_porcentaje: "4", tarifa: 15 };
   const [receptor, setReceptor] = useState({
     tipo_identificacion_comprador: "05",
     identificacion_comprador: "",
@@ -40,7 +55,8 @@ export default function NuevoComprobanteePage() {
       (acc, d) => acc + d.cantidad * d.precio_unitario - d.descuento,
       0
     );
-    const iva = round2(subtotal * 0.12);
+    const tasaIva = (ivaVigente.tarifa ?? 15) / 100;
+    const iva = round2(subtotal * tasaIva);
     return { subtotal: round2(subtotal), iva, total: round2(subtotal + iva) };
   };
 
@@ -53,6 +69,7 @@ export default function NuevoComprobanteePage() {
   const handleSubmit = () => {
     setError("");
     const { subtotal, iva, total } = calcularTotal();
+    const tasaIva = (ivaVigente.tarifa ?? 15) / 100;
 
     const detallesSRI = detalles.map((d) => {
       const base = round2(d.cantidad * d.precio_unitario - d.descuento);
@@ -64,7 +81,13 @@ export default function NuevoComprobanteePage() {
         descuento: d.descuento,
         precio_total_sin_impuesto: base,
         impuestos: [
-          { codigo: "2", codigo_porcentaje: "2", tarifa: 12, base_imponible: base, valor: round2(base * 0.12) },
+          {
+            codigo: "2",
+            codigo_porcentaje: ivaVigente.codigo_porcentaje,
+            tarifa: ivaVigente.tarifa,
+            base_imponible: base,
+            valor: round2(base * tasaIva),
+          },
         ],
       };
     });
@@ -253,7 +276,7 @@ export default function NuevoComprobanteePage() {
       <div className="flex justify-end">
         <div className="space-y-1 text-sm min-w-[200px]">
           <div className="flex justify-between"><span className="text-muted-foreground">Subtotal:</span><span>${subtotal.toFixed(2)}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">IVA 12%:</span><span>${iva.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">IVA {ivaVigente.tarifa}%:</span><span>${iva.toFixed(2)}</span></div>
           <div className="flex justify-between font-bold border-t border-border pt-1"><span>Total:</span><span>${total.toFixed(2)}</span></div>
         </div>
       </div>
