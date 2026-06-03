@@ -18,6 +18,7 @@ from app.infrastructure.storage.s3_storage import (
     s3_key_xml_autorizado,
     subir_documento,
 )
+from app.shared.config import get_settings
 
 logger = Logger(service="codelabs-billing-sri-retry")
 
@@ -46,7 +47,8 @@ async def reintentar_pendientes() -> None:
             tenant_repo = SqlAlchemyTenantRepository(session)
             tenant = await tenant_repo.get_by_id(comp.tenant_id)
             if tenant:
-                await _consultar(session, str(comp.id), comp.clave_acceso, tenant.ambiente_sri)
+                ambiente = get_settings().effective_ambiente(tenant.ambiente_sri)
+                await _consultar(session, str(comp.id), comp.clave_acceso, ambiente)
 
 
 async def _consultar(

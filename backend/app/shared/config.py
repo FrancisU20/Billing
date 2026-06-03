@@ -42,6 +42,18 @@ class Settings(BaseSettings):
     def is_local(self) -> bool:
         return self.env == "local"
 
+    def effective_ambiente(self, tenant_ambiente: str) -> str:
+        """
+        Retorna el ambiente SRI efectivo para este deploy.
+        Solo prod puede usar el SRI de producción — dev y staging
+        siempre apuntan a PRUEBAS, sin importar la config del tenant.
+        Centraliza la regla en un solo lugar para que ningún worker
+        necesite saber de restricciones por ambiente.
+        """
+        if self.env == "prod":
+            return tenant_ambiente
+        return "PRUEBAS"
+
     def get_db_password(self) -> str:
         if self.is_local:
             import os

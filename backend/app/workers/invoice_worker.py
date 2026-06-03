@@ -29,6 +29,7 @@ from app.infrastructure.storage.s3_storage import (
     s3_key_xml_firmado,
     subir_documento,
 )
+from app.shared.config import get_settings
 
 logger = Logger(service="codelabs-billing-invoice-worker")
 
@@ -58,6 +59,11 @@ async def _procesar(session: AsyncSession, comprobante_id: str, tenant_id: str) 
         logger.error("Tenant no encontrado", extra={"tenant_id": tenant_id})
         return
 
+    # Ambiente efectivo — dev/staging siempre usan PRUEBAS
+    # La regla está centralizada en Settings.effective_ambiente()
+    settings = get_settings()
+    ambiente = settings.effective_ambiente(tenant.ambiente_sri)
+
     try:
         # Paso 1: generar XML si no existe ya
         if not comp.s3_key_xml_firmado:
@@ -74,7 +80,7 @@ async def _procesar(session: AsyncSession, comprobante_id: str, tenant_id: str) 
                 fecha_emision=fecha,
                 tipo_comprobante=comp.tipo,
                 ruc=tenant.ruc,
-                ambiente="1" if tenant.ambiente_sri == "PRUEBAS" else "2",
+                ambiente="1" if ambiente == "PRUEBAS" else "2",
                 establecimiento=comp.establecimiento,
                 punto_emision=comp.punto_emision,
                 secuencial=comp.secuencial or "000000001",
@@ -91,7 +97,7 @@ async def _procesar(session: AsyncSession, comprobante_id: str, tenant_id: str) 
                 establecimiento=comp.establecimiento,
                 punto_emision=comp.punto_emision,
                 secuencial=comp.secuencial or "000000001",
-                ambiente="1" if tenant.ambiente_sri == "PRUEBAS" else "2",
+                ambiente="1" if ambiente == "PRUEBAS" else "2",
             )
             await comp_repo.update_estado(comp.id, EstadoComprobante.XML_GENERATED)
 
@@ -134,7 +140,7 @@ async def _procesar(session: AsyncSession, comprobante_id: str, tenant_id: str) 
 
         # Paso 2: enviar al SRI
         await comp_repo.update_estado(comp.id, EstadoComprobante.SENT_TO_SRI)
-        respuesta = enviar_comprobante(xml_firmado, tenant.ambiente_sri)
+        respuesta = enviar_comprobante(xml_firmado, ambiente)
 
         logger.info("Respuesta SRI recepción", extra={
             "comprobante_id": comprobante_id,
@@ -146,7 +152,7 @@ async def _procesar(session: AsyncSession, comprobante_id: str, tenant_id: str) 
         submission = SriSubmissionModel(
             comprobante_id=comp.id,
             tipo="RECEPCION",
-            ambiente=tenant.ambiente_sri,
+            ambiente=ambiente,
             request_claveacceso=comp.clave_acceso,
             response_estado=respuesta.estado,
             response_mensajes={"comprobantes": respuesta.comprobantes},
@@ -157,7 +163,7 @@ async def _procesar(session: AsyncSession, comprobante_id: str, tenant_id: str) 
             await comp_repo.update_estado(comp.id, EstadoComprobante.RECEIVED_BY_SRI)
             await comp_repo.update_estado(comp.id, EstadoComprobante.PENDING_AUTHORIZATION)
             await session.flush()
-            encolar_consulta_autorizacion(comprobante_id, comp.clave_acceso or "", tenant.ambiente_sri)
+            encolar_consulta_autorizacion(comprobante_id, comp.clave_acceso or "", ambiente)
         elif respuesta.estado == "DEVUELTA":
             mensajes = [m["mensaje"] for c in respuesta.comprobantes for m in c.get("mensajes", [])]
             await comp_repo.update_estado(
