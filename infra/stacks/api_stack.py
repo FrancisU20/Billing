@@ -151,6 +151,26 @@ class ApiStack(Stack):
             **vpc_config,
         )
 
+        # Lambda de migraciones Alembic — invocada desde CI/CD después de cada deploy.
+        # Corre dentro de la VPC para alcanzar Aurora en subnets privadas.
+        # Idempotente: Alembic solo aplica migraciones pendientes.
+        self.migrate_function = _lambda.Function(
+            self, "MigrateFunction",
+            function_name=f"codelabs-billing-{env}-migrate",
+            code=backend_code(),
+            handler="lambda_handlers.migration_handler.handler",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            architecture=_lambda.Architecture.ARM_64,
+            memory_size=256,
+            timeout=Duration.seconds(300),
+            layers=[core_layer],
+            role=base_role,
+            environment=common_env,
+            log_retention=logs.RetentionDays.ONE_WEEK if env != "prod" else logs.RetentionDays.THREE_MONTHS,
+            tracing=_lambda.Tracing.ACTIVE,
+            **vpc_config,
+        )
+
         # Lambda API (FastAPI + Mangum)
         self.api_function = _lambda.Function(
             self, "ApiFunction",

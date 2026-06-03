@@ -125,9 +125,36 @@ jobs:
           echo "web_bucket=$WEB_BUCKET" >> $GITHUB_OUTPUT
           echo "cf_dist_id=$CF_DIST_ID" >> $GITHUB_OUTPUT
 
+  migrate-db:
+    name: Run Database Migrations
+    needs: deploy-infra
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: sa-east-1
+
+      - name: Run Alembic migrations via Lambda
+        run: |
+          aws lambda invoke \
+            --function-name codelabs-billing-dev-migrate \
+            --payload '{}' \
+            --region sa-east-1 \
+            --log-type Tail \
+            /tmp/migrate-result.json
+          echo "=== Migration result ==="
+          cat /tmp/migrate-result.json
+          if jq -e '.errorMessage' /tmp/migrate-result.json > /dev/null 2>&1; then
+            echo "ERROR: Migration Lambda failed"
+            exit 1
+          fi
+
   deploy-frontend:
     name: Build and Deploy Frontend
-    needs: deploy-infra
+    needs: [deploy-infra, migrate-db]
     runs-on: ubuntu-latest
     environment: dev
 
