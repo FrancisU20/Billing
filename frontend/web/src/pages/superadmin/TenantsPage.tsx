@@ -2,21 +2,41 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { apiClient } from "@/lib/api-client";
-import type { Tenant, CreateTenantRequest } from "@codelabs-billing/shared";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { exactDigits, hasErrors, required, type FieldErrors } from "@/lib/validation";
+import { tenantEstadoTone } from "@/lib/status-styles";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Field, Input, Select } from "@/components/ui/Form";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { Table, TableHead, TableShell, Td, Th, Tr } from "@/components/ui/Table";
+import { useToast } from "@/components/ui/Toast";
+import type { AmbienteSri, CreateTenantRequest, Tenant } from "@codelabs-billing/shared";
 
-const ESTADO_COLORS: Record<string, string> = {
-  TRIAL: "bg-blue-100 text-blue-700",
-  ACTIVE: "bg-green-100 text-green-700",
-  PAYMENT_DUE: "bg-yellow-100 text-yellow-700",
-  GRACE_PERIOD: "bg-orange-100 text-orange-700",
-  SUSPENDED: "bg-red-100 text-red-700",
-  CANCELLED: "bg-gray-100 text-gray-600",
+type TenantFormField = "ruc" | "razon_social";
+
+const initialForm: CreateTenantRequest = {
+  ruc: "",
+  razon_social: "",
+  nombre_comercial: "",
+  ambiente_sri: "PRUEBAS",
 };
+
+function validateTenantForm(form: CreateTenantRequest): FieldErrors<TenantFormField> {
+  return {
+    ruc: exactDigits(form.ruc, 13, "RUC"),
+    razon_social: required(form.razon_social, "Razón social"),
+  };
+}
 
 export function TenantsPage() {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<CreateTenantRequest>({ ruc: "", razon_social: "", nombre_comercial: "", ambiente_sri: "PRUEBAS" });
+  const [form, setForm] = useState<CreateTenantRequest>(initialForm);
+  const [errors, setErrors] = useState<FieldErrors<TenantFormField>>({});
 
   const { data: tenants = [], isLoading } = useQuery<Tenant[]>({
     queryKey: ["tenants"],
@@ -25,60 +45,126 @@ export function TenantsPage() {
 
   const createMutation = useMutation({
     mutationFn: (data: CreateTenantRequest) => apiClient.post<Tenant>("/tenants", data).then((r) => r.data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["tenants"] }); setShowForm(false); setForm({ ruc: "", razon_social: "", nombre_comercial: "", ambiente_sri: "PRUEBAS" }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      setShowForm(false);
+      setForm(initialForm);
+      setErrors({});
+      toast.success("Tenant creado correctamente");
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error, "No se pudo crear el tenant")),
   });
 
-  if (isLoading) return <p className="text-muted-foreground text-sm">Cargando...</p>;
+  const submit = () => {
+    const nextErrors = validateTenantForm(form);
+    setErrors(nextErrors);
+    if (hasErrors(nextErrors)) return;
+    createMutation.mutate(form);
+  };
+
+  if (isLoading) return <LoadingState />;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Tenants</h1>
-        <button onClick={() => setShowForm(true)} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">Nuevo tenant</button>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Superadmin</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight">Tenants</h1>
+        </div>
+        <Button onClick={() => setShowForm(true)}>Nuevo tenant</Button>
       </div>
 
       {showForm && (
-        <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-          <h2 className="font-semibold">Nuevo tenant</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-sm font-medium">RUC *</label><input className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" maxLength={13} value={form.ruc} onChange={(e) => setForm({ ...form, ruc: e.target.value })} /></div>
-            <div><label className="text-sm font-medium">Ambiente SRI</label><select className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.ambiente_sri} onChange={(e) => setForm({ ...form, ambiente_sri: e.target.value as "PRUEBAS" | "PRODUCCION" })}><option value="PRUEBAS">PRUEBAS</option><option value="PRODUCCION">PRODUCCION</option></select></div>
-            <div className="col-span-2"><label className="text-sm font-medium">Razón social *</label><input className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.razon_social} onChange={(e) => setForm({ ...form, razon_social: e.target.value })} /></div>
-          </div>
-          <div className="flex gap-3 justify-end">
-            <button onClick={() => setShowForm(false)} className="rounded-md px-4 py-2 text-sm border border-input hover:bg-muted">Cancelar</button>
-            <button onClick={() => createMutation.mutate(form)} disabled={createMutation.isPending || !form.ruc || !form.razon_social} className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50">{createMutation.isPending ? "Creando..." : "Crear tenant"}</button>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="space-y-4">
+            <h2 className="font-semibold">Nuevo tenant</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="RUC *" error={errors.ruc}>
+                <Input
+                  maxLength={13}
+                  value={form.ruc}
+                  hasError={!!errors.ruc}
+                  onChange={(event) => setForm({ ...form, ruc: event.target.value.replace(/\D/g, "") })}
+                />
+              </Field>
+              <Field label="Ambiente SRI">
+                <Select
+                  value={form.ambiente_sri}
+                  onChange={(event) => setForm({ ...form, ambiente_sri: event.target.value as AmbienteSri })}
+                >
+                  <option value="PRUEBAS">PRUEBAS</option>
+                  <option value="PRODUCCION">PRODUCCION</option>
+                </Select>
+              </Field>
+              <Field label="Razón social *" error={errors.razon_social}>
+                <Input
+                  value={form.razon_social}
+                  hasError={!!errors.razon_social}
+                  onChange={(event) => setForm({ ...form, razon_social: event.target.value })}
+                />
+              </Field>
+              <Field label="Nombre comercial">
+                <Input
+                  value={form.nombre_comercial ?? ""}
+                  onChange={(event) => setForm({ ...form, nombre_comercial: event.target.value })}
+                />
+              </Field>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowForm(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={submit} isLoading={createMutation.isPending}>
+                Crear tenant
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead className="border-b border-border bg-muted/50">
+      <TableShell>
+        <Table>
+          <TableHead>
             <tr>
-              <th className="px-4 py-3 text-left font-medium">RUC</th>
-              <th className="px-4 py-3 text-left font-medium">Razón social</th>
-              <th className="px-4 py-3 text-left font-medium">Estado</th>
-              <th className="px-4 py-3 text-left font-medium">Ambiente</th>
-              <th className="px-4 py-3 text-right font-medium">Comp. mes</th>
-              <th className="px-4 py-3 text-left font-medium">Acciones</th>
+              <Th>RUC</Th>
+              <Th>Razón social</Th>
+              <Th>Estado</Th>
+              <Th>Ambiente</Th>
+              <Th className="text-right">Comp. mes</Th>
+              <Th>Acciones</Th>
             </tr>
-          </thead>
+          </TableHead>
           <tbody>
             {tenants.map((tenant) => (
-              <tr key={tenant.id} className="border-b border-border last:border-0 hover:bg-muted/30">
-                <td className="px-4 py-3 font-mono text-xs">{tenant.ruc}</td>
-                <td className="px-4 py-3">{tenant.razon_social}</td>
-                <td className="px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ESTADO_COLORS[tenant.estado] ?? "bg-gray-100 text-gray-600"}`}>{tenant.estado}</span></td>
-                <td className="px-4 py-3"><span className={`text-xs font-medium ${tenant.ambiente_sri === "PRODUCCION" ? "text-green-600" : "text-yellow-600"}`}>{tenant.ambiente_sri}</span></td>
-                <td className="px-4 py-3 text-right tabular-nums">{tenant.comprobantes_mes_actual}</td>
-                <td className="px-4 py-3"><Link to={`/tenants/${tenant.id}`} className="text-xs text-primary underline-offset-2 hover:underline">Ver</Link></td>
-              </tr>
+              <Tr key={tenant.id}>
+                <Td className="font-mono text-xs">{tenant.ruc}</Td>
+                <Td>{tenant.razon_social}</Td>
+                <Td>
+                  <Badge tone={tenantEstadoTone[tenant.estado]}>{tenant.estado}</Badge>
+                </Td>
+                <Td>
+                  <Badge tone={tenant.ambiente_sri === "PRODUCCION" ? "success" : "warning"}>
+                    {tenant.ambiente_sri}
+                  </Badge>
+                </Td>
+                <Td className="text-right tabular-nums">{tenant.comprobantes_mes_actual}</Td>
+                <Td>
+                  <Link to={`/tenants/${tenant.id}`} className="text-xs text-primary underline-offset-2 hover:underline">
+                    Ver
+                  </Link>
+                </Td>
+              </Tr>
             ))}
-            {!tenants.length && <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">No hay tenants</td></tr>}
+            {!tenants.length && (
+              <tr>
+                <Td colSpan={6}>
+                  <EmptyState message="No hay tenants" />
+                </Td>
+              </tr>
+            )}
           </tbody>
-        </table>
-      </div>
+        </Table>
+      </TableShell>
     </div>
   );
 }

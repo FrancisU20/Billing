@@ -2,6 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signIn } from "@/lib/auth";
 import { useAuth } from "@/lib/auth-context";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { required } from "@/lib/validation";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Field, Input } from "@/components/ui/Form";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -9,11 +15,20 @@ export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError("");
+
+    const nextErrors = {
+      email: required(email, "Correo electrónico"),
+      password: required(password, "Contraseña"),
+    };
+    setFieldErrors(nextErrors);
+    if (nextErrors.email || nextErrors.password) return;
+
     setIsLoading(true);
     try {
       await signIn(email, password);
@@ -26,7 +41,7 @@ export function LoginPage() {
       } else if (msg.includes("UserNotFoundException")) {
         setError("Usuario no encontrado");
       } else {
-        setError(msg || "Error al iniciar sesión");
+        setError(getApiErrorMessage(err, "Error al iniciar sesión"));
       }
     } finally {
       setIsLoading(false);
@@ -34,53 +49,48 @@ export function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-sm space-y-6 rounded-lg border border-border p-8 shadow-sm">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-bold">CodeLabs Billing</h1>
-          <p className="text-sm text-muted-foreground">Inicia sesión en tu cuenta</p>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label htmlFor="email" className="text-sm font-medium">Correo electrónico</label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="tu@empresa.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="password" className="text-sm font-medium">Contraseña</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="••••••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          {error && (
-            <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">
-              {error}
+    <main className="flex min-h-screen items-center justify-center bg-sidebar px-4">
+      <Card className="w-full max-w-md border-white/10 bg-card shadow-lift">
+        <CardContent className="space-y-7 p-8">
+          <div className="space-y-3 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-brand text-sm font-black text-brand-foreground shadow-lift">
+              CL
             </div>
-          )}
-          <button
-            type="submit"
-            disabled={isLoading || !email || !password}
-            className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
-          >
-            {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
-          </button>
-        </form>
-      </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">CodeLabs Billing</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Inicia sesión en tu cuenta</p>
+            </div>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Field label="Correo electrónico" error={fieldErrors.email}>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="tu@empresa.com"
+                value={email}
+                hasError={!!fieldErrors.email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+            </Field>
+            <Field label="Contraseña" error={fieldErrors.password}>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="************"
+                value={password}
+                hasError={!!fieldErrors.password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+            </Field>
+            {error && <Alert tone="danger">{error}</Alert>}
+            <Button type="submit" disabled={!email || !password} isLoading={isLoading} className="w-full">
+              Iniciar sesión
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   );
 }

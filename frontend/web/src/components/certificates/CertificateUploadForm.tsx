@@ -4,19 +4,25 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { certificateTone } from "@/lib/status-styles";
+import { Alert } from "@/components/ui/Alert";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Field, Input } from "@/components/ui/Form";
+import { useToast } from "@/components/ui/Toast";
+import type {
+  Certificate,
+  ConfirmCertificateRequest,
+  UploadCertificateUrlResponse,
+} from "@codelabs-billing/shared";
 
 type UploadStep = "idle" | "uploading" | "confirming" | "done" | "error";
 
-interface CertificateInfo {
-  id: string;
-  nombre: string | null;
-  fecha_emision: string | null;
-  fecha_expiracion: string | null;
-  estado: string;
-}
-
 export function CertificateUploadForm() {
   const queryClient = useQueryClient();
+  const toast = useToast();
   const { user } = useAuth();
   const tenantId = user?.tenantId ?? "";
 
@@ -27,9 +33,9 @@ export function CertificateUploadForm() {
   const [errorMsg, setErrorMsg] = useState("");
   const [certId, setCertId] = useState("");
   const [s3KeyUpload, setS3KeyUpload] = useState("");
-  const { data: certificates = [] } = useQuery<CertificateInfo[]>({
+  const { data: certificates = [] } = useQuery<Certificate[]>({
     queryKey: ["certificates", tenantId],
-    queryFn: () => apiClient.get<CertificateInfo[]>(`/tenants/${tenantId}/certificates`).then((r) => r.data),
+    queryFn: () => apiClient.get<Certificate[]>(`/tenants/${tenantId}/certificates`).then((r) => r.data),
     enabled: !!tenantId,
   });
 
@@ -40,7 +46,7 @@ export function CertificateUploadForm() {
 
     try {
       // Paso 1: Solicitar presigned URL
-      const { data } = await apiClient.post(`/tenants/${tenantId}/certificates/upload-url`);
+      const { data } = await apiClient.post<UploadCertificateUrlResponse>(`/tenants/${tenantId}/certificates/upload-url`);
       setCertId(data.cert_id);
 
       // Paso 2: Subir .p12 directamente a S3 — NUNCA pasa por el backend
@@ -55,28 +61,35 @@ export function CertificateUploadForm() {
       setStep("confirming");
     } catch {
       setStep("error");
-      setErrorMsg("Error al subir el certificado. Intenta de nuevo.");
+      const message = "Error al subir el certificado. Intenta de nuevo.";
+      setErrorMsg(message);
+      toast.error(message);
     }
   };
 
   const confirmMutation = useMutation({
-    mutationFn: () =>
-      apiClient.post(`/tenants/${tenantId}/certificates/confirm`, {
+    mutationFn: () => {
+      const payload: ConfirmCertificateRequest = {
         cert_id: certId,
         s3_key_upload: s3KeyUpload,
         password,
         nombre: nombre || null,
-      }),
+      };
+      return apiClient.post(`/tenants/${tenantId}/certificates/confirm`, payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["certificates"] });
       setStep("done");
       setFile(null);
       setPassword("");
       setNombre("");
+      toast.success("Certificado cargado y validado correctamente");
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       setStep("error");
-      setErrorMsg(err.response?.data?.detail ?? "Contraseña incorrecta o certificado inválido");
+      const message = getApiErrorMessage(err, "Contraseña incorrecta o certificado inválido");
+      setErrorMsg(message);
+      toast.error(message);
     },
   });
 
@@ -92,7 +105,7 @@ export function CertificateUploadForm() {
 
       {/* Certificados existentes */}
       {certificates.length > 0 && (
-        <div className="rounded-lg border border-border divide-y divide-border">
+        <Card className="divide-y divide-border">
           {certificates.map((cert) => (
             <div key={cert.id} className="flex items-center justify-between px-4 py-3">
               <div>
@@ -104,98 +117,82 @@ export function CertificateUploadForm() {
               <CertEstadoBadge estado={cert.estado} />
             </div>
           ))}
-        </div>
+        </Card>
       )}
 
       {/* Formulario de carga */}
       {step === "done" ? (
-        <div className="rounded-lg bg-green-50 border border-green-200 p-4 text-sm text-green-700">
-          ✓ Certificado cargado y validado correctamente.
-          <button
+        <Alert tone="success">
+          Certificado cargado y validado correctamente.
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setStep("idle")}
-            className="ml-4 underline text-green-800"
+            className="ml-2 h-6 px-2"
           >
             Cargar otro
-          </button>
-        </div>
+          </Button>
+        </Alert>
       ) : (
-        <div className="rounded-lg border border-border p-4 space-y-4">
+        <Card>
+          <CardContent className="space-y-4">
           <h3 className="text-sm font-medium">Cargar nuevo certificado</h3>
 
-          <div>
-            <label className="text-sm font-medium">Nombre (opcional)</label>
-            <input
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          <Field label="Nombre (opcional)">
+            <Input
               placeholder="Ej. Certificado BCE 2024"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="text-sm font-medium">Archivo .p12 *</label>
-            <input
+          <Field label="Archivo .p12 *">
+            <Input
               type="file"
               accept=".p12,.pfx"
-              className="mt-1 w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-primary-foreground"
+              className="h-auto file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-primary-foreground"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="text-sm font-medium">Contraseña del certificado *</label>
-            <input
+          <Field label="Contraseña del certificado *" hint="La contraseña se cifra con KMS y se guarda en AWS Secrets Manager, nunca en texto plano.">
+            <Input
               type="password"
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               placeholder="Contraseña del .p12"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <p className="mt-1 text-xs text-muted-foreground">
-              La contraseña se cifra con KMS y se guarda en AWS Secrets Manager — nunca en texto plano.
-            </p>
-          </div>
+          </Field>
 
           {errorMsg && (
-            <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">
-              {errorMsg}
-            </div>
+            <Alert tone="danger">{errorMsg}</Alert>
           )}
 
           <div className="flex gap-3 justify-end">
             {step === "confirming" ? (
-              <button
+              <Button
                 onClick={() => confirmMutation.mutate()}
-                disabled={confirmMutation.isPending}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                isLoading={confirmMutation.isPending}
               >
-                {confirmMutation.isPending ? "Validando..." : "Confirmar carga"}
-              </button>
+                Confirmar carga
+              </Button>
             ) : (
-              <button
+              <Button
                 onClick={handleUpload}
                 disabled={!file || !password || step === "uploading"}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                isLoading={step === "uploading"}
               >
-                {step === "uploading" ? "Subiendo..." : "Subir certificado"}
-              </button>
+                Subir certificado
+              </Button>
             )}
           </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
 }
 
 function CertEstadoBadge({ estado }: { estado: string }) {
-  const colors: Record<string, string> = {
-    ACTIVE: "bg-green-100 text-green-700",
-    EXPIRED: "bg-red-100 text-red-700",
-    REVOKED: "bg-gray-100 text-gray-600",
-  };
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colors[estado] ?? "bg-gray-100 text-gray-600"}`}>
-      {estado}
-    </span>
-  );
+  return <Badge tone={certificateTone(estado)}>{estado}</Badge>;
 }

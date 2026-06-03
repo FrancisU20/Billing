@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth-context";
+import { FullPageLoading } from "@/components/ui/LoadingState";
 
 // Layouts
 import { TenantLayout } from "@/layouts/TenantLayout";
@@ -21,14 +22,14 @@ import { TenantDetailPage } from "@/pages/superadmin/TenantDetailPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Cargando...</div>;
+  if (isLoading) return <FullPageLoading />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 function RequireSuperadmin({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
-  if (isLoading) return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Cargando...</div>;
+  if (isLoading) return <FullPageLoading />;
   if (!user?.isSuperadmin) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }

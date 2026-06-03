@@ -2,19 +2,33 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { apiClient } from "@/lib/api-client";
+import { formatComprobanteNumber } from "@/lib/format";
 import { EstadoBadge } from "@/components/comprobantes/EstadoBadge";
-import type { Comprobante } from "@codelabs-billing/shared";
+import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { FilterChips, type FilterChip } from "@/components/ui/FilterChips";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { Table, TableHead, TableShell, Td, Th, Tr } from "@/components/ui/Table";
+import type { ComprobanteListResponse, EstadoComprobante } from "@codelabs-billing/shared";
 
-const ESTADOS = ["", "AUTHORIZED", "QUEUED", "NOT_AUTHORIZED", "FAILED"];
+type EstadoFilter = EstadoComprobante | "";
+
+const ESTADOS: FilterChip<EstadoFilter>[] = [
+  { value: "", label: "Todos" },
+  { value: "AUTHORIZED", label: "Autorizados" },
+  { value: "QUEUED", label: "En cola" },
+  { value: "NOT_AUTHORIZED", label: "No autorizados" },
+  { value: "FAILED", label: "Fallidos" },
+];
 
 export function ComprobantesPage() {
-  const [estado, setEstado] = useState("");
+  const [estado, setEstado] = useState<EstadoFilter>("");
 
-  const { data, isLoading } = useQuery<{ items: Comprobante[]; total: number }>({
+  const { data, isLoading } = useQuery<ComprobanteListResponse>({
     queryKey: ["comprobantes", estado],
     queryFn: () =>
       apiClient
-        .get<{ items: Comprobante[]; total: number }>("/comprobantes", {
+        .get<ComprobanteListResponse>("/comprobantes", {
           params: { estado: estado || undefined },
         })
         .then((r) => r.data),
@@ -23,69 +37,57 @@ export function ComprobantesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Comprobantes</h1>
-        <Link
-          to="/comprobantes/nuevo"
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-        >
-          Emitir factura
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Facturación electrónica</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight">Comprobantes</h1>
+        </div>
+        <Link to="/comprobantes/nuevo">
+          <Button>Emitir factura</Button>
         </Link>
       </div>
-      <div className="flex gap-2">
-        {ESTADOS.map((e) => (
-          <button
-            key={e}
-            onClick={() => setEstado(e)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              estado === e ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-accent"
-            }`}
-          >
-            {e || "Todos"}
-          </button>
-        ))}
-      </div>
+
+      <FilterChips items={ESTADOS} value={estado} onChange={setEstado} />
+
       {isLoading ? (
-        <p className="text-muted-foreground text-sm">Cargando...</p>
+        <LoadingState />
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/50">
+        <TableShell>
+          <Table>
+            <TableHead>
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Número</th>
-                <th className="px-4 py-3 text-left font-medium">Receptor</th>
-                <th className="px-4 py-3 text-left font-medium">Estado</th>
-                <th className="px-4 py-3 text-left font-medium">Acciones</th>
+                <Th>Número</Th>
+                <Th>Referencia</Th>
+                <Th>Estado</Th>
+                <Th>Acciones</Th>
               </tr>
-            </thead>
+            </TableHead>
             <tbody>
               {(data?.items ?? []).map((comp) => (
-                <tr key={comp.id} className="border-b border-border last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs">
-                    {comp.establecimiento}-{comp.punto_emision}-{comp.secuencial?.padStart(9, "0")}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {(comp as any).datos?.razon_social_comprador ?? "—"}
-                  </td>
-                  <td className="px-4 py-3">
+                <Tr key={comp.id}>
+                  <Td className="font-mono text-xs">
+                    {formatComprobanteNumber(comp.establecimiento, comp.punto_emision, comp.secuencial)}
+                  </Td>
+                  <Td className="text-xs text-muted-foreground">{comp.external_reference ?? "—"}</Td>
+                  <Td>
                     <EstadoBadge estado={comp.estado} />
-                  </td>
-                  <td className="px-4 py-3">
+                  </Td>
+                  <Td>
                     <Link to={`/comprobantes/${comp.id}`} className="text-xs text-primary underline-offset-2 hover:underline">
                       Ver
                     </Link>
-                  </td>
-                </tr>
+                  </Td>
+                </Tr>
               ))}
               {!data?.items?.length && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground text-sm">
-                    No hay comprobantes
-                  </td>
+                  <Td colSpan={4}>
+                    <EmptyState message="No hay comprobantes" />
+                  </Td>
                 </tr>
               )}
             </tbody>
-          </table>
-        </div>
+          </Table>
+        </TableShell>
       )}
     </div>
   );

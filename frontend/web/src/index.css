@@ -4,23 +4,39 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 225 24% 97%;
+    --foreground: 224 24% 8%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
+    --card-foreground: 224 24% 8%;
+    --primary: 224 24% 8%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 225 18% 93%;
+    --secondary-foreground: 224 24% 12%;
+    --muted: 225 18% 94%;
+    --muted-foreground: 225 9% 42%;
+    --accent: 232 70% 96%;
+    --accent-foreground: 239 72% 30%;
+    --accent-strong: 239 84% 92%;
+    --accent-strong-foreground: 241 64% 26%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --success: 145 45% 90%;
+    --success-foreground: 150 62% 24%;
+    --warning: 39 82% 90%;
+    --warning-foreground: 32 78% 26%;
+    --danger: 0 75% 93%;
+    --danger-foreground: 0 68% 33%;
+    --info: 205 70% 92%;
+    --info-foreground: 208 66% 29%;
+    --border: 225 16% 88%;
+    --input: 225 16% 82%;
+    --ring: 239 84% 58%;
+    --brand-indigo: 239 84% 58%;
+    --brand-indigo-foreground: 0 0% 100%;
+    --sidebar: 224 30% 6%;
+    --sidebar-foreground: 225 18% 92%;
+    --sidebar-muted: 224 14% 56%;
+    --sidebar-accent: 239 84% 58%;
     --radius: 0.5rem;
   }
 }
@@ -30,6 +46,12 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  ::selection {
+    background: hsl(var(--brand-indigo));
+    color: hsl(var(--brand-indigo-foreground));
   }
 }

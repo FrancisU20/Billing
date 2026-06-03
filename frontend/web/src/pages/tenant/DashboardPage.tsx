@@ -2,6 +2,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { Link } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/Card";
+import type { ComprobanteListResponse } from "@codelabs-billing/shared";
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -9,31 +11,38 @@ export function DashboardPage() {
   const { data } = useQuery({
     queryKey: ["comprobantes-summary", user?.tenantId],
     queryFn: () =>
-      apiClient.get<{ total: number }>("/comprobantes?limit=1").then((r) => r.data),
+      apiClient.get<ComprobanteListResponse>("/comprobantes?limit=1").then((r) => r.data),
     enabled: !!user?.tenantId,
   });
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <p className="text-xs font-semibold uppercase tracking-wide text-brand">Panel operativo</p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">Bienvenido, {user?.email}</p>
       </div>
       <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-lg border border-border p-4">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total comprobantes</p>
-          <p className="text-3xl font-bold mt-1">{data?.total ?? "—"}</p>
-        </div>
-        <div className="rounded-lg border border-border p-4">
+        <Card>
+          <CardContent className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total comprobantes</p>
+          <p className="text-4xl font-bold tracking-tight">{data?.total ?? "—"}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-2">
           <Link to="/comprobantes/nuevo" className="block h-full">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Acción rápida</p>
-            <p className="text-sm font-medium mt-2 text-primary">+ Emitir factura →</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Acción rápida</p>
+            <p className="mt-3 text-sm font-bold text-primary">Emitir factura →</p>
           </Link>
-        </div>
-        <div className="rounded-lg border border-border p-4">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ambiente SRI</p>
-          <p className="text-sm font-medium mt-2">{user?.tenantId ? "Configurado" : "—"}</p>
-        </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ambiente SRI</p>
+          <p className="mt-3 text-sm font-bold">{user?.tenantId ? "Configurado" : "—"}</p>
+          </CardContent>
+        </Card>
       </div>
       <div>
         <h2 className="text-sm font-semibold mb-2">Accesos rápidos</h2>

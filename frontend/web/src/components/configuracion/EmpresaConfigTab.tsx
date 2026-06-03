@@ -1,107 +1,109 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
-import type { Tenant } from "@codelabs-billing/shared";
+import { getApiErrorMessage } from "@/lib/api-errors";
+import { hasErrors, required, type FieldErrors } from "@/lib/validation";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
+import { Field, Input, Select } from "@/components/ui/Form";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { useToast } from "@/components/ui/Toast";
+import type { AmbienteSri, Tenant, UpdateTenantRequest } from "@codelabs-billing/shared";
+
+type EmpresaForm = {
+  razon_social: string;
+  nombre_comercial: string;
+  ambiente_sri: AmbienteSri;
+};
+
+type EmpresaField = "razon_social";
 
 export function EmpresaConfigTab() {
   const { user } = useAuth();
   const tenantId = user?.tenantId ?? "";
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const [errors, setErrors] = useState<FieldErrors<EmpresaField>>({});
 
-  const { data: tenant } = useQuery<Tenant>({
+  const { data: tenant, isLoading } = useQuery<Tenant>({
     queryKey: ["tenant", tenantId],
     queryFn: () => apiClient.get<Tenant>(`/tenants/${tenantId}`).then((r) => r.data),
     enabled: !!tenantId,
   });
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<EmpresaForm>({
     razon_social: "",
     nombre_comercial: "",
-    ambiente_sri: "PRUEBAS" as "PRUEBAS" | "PRODUCCION",
+    ambiente_sri: "PRUEBAS",
   });
 
   useEffect(() => {
-    if (tenant) {
-      setForm({
-        razon_social: tenant.razon_social,
-        nombre_comercial: tenant.nombre_comercial ?? "",
-        ambiente_sri: tenant.ambiente_sri,
-      });
-    }
+    if (!tenant) return;
+    setForm({
+      razon_social: tenant.razon_social,
+      nombre_comercial: tenant.nombre_comercial ?? "",
+      ambiente_sri: tenant.ambiente_sri,
+    });
   }, [tenant]);
 
   const updateMutation = useMutation({
-    mutationFn: (data: typeof form) =>
-      apiClient.patch(`/tenants/${tenantId}`, data).then((r) => r.data),
+    mutationFn: (data: UpdateTenantRequest) => apiClient.patch(`/tenants/${tenantId}`, data).then((r) => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tenant", tenantId] });
+      toast.success("Datos de empresa actualizados");
     },
+    onError: (error) => toast.error(getApiErrorMessage(error, "No se pudo guardar la empresa")),
   });
 
-  if (!tenant) return <p className="text-sm text-muted-foreground">Cargando...</p>;
+  const submit = () => {
+    const nextErrors = { razon_social: required(form.razon_social, "Razón social") };
+    setErrors(nextErrors);
+    if (hasErrors(nextErrors)) return;
+    updateMutation.mutate(form);
+  };
+
+  if (isLoading) return <LoadingState />;
+  if (!tenant) return <p className="text-sm text-muted-foreground">No se encontró la empresa.</p>;
 
   return (
     <div className="max-w-lg space-y-4">
-      <div>
-        <label className="text-sm font-medium">RUC</label>
-        <input
-          className="mt-1 w-full rounded border border-input bg-muted px-3 py-2 text-sm text-muted-foreground"
-          value={tenant.ruc}
-          disabled
-        />
-        <p className="mt-1 text-xs text-muted-foreground">El RUC no puede modificarse.</p>
-      </div>
+      <Field label="RUC" hint="El RUC no puede modificarse.">
+        <Input value={tenant.ruc} disabled />
+      </Field>
 
-      <div>
-        <label className="text-sm font-medium">Razón social</label>
-        <input
-          className="mt-1 w-full rounded border border-input bg-background px-3 py-2 text-sm"
+      <Field label="Razón social" error={errors.razon_social}>
+        <Input
           value={form.razon_social}
-          onChange={(e) => setForm({ ...form, razon_social: e.target.value })}
+          hasError={!!errors.razon_social}
+          onChange={(event) => setForm({ ...form, razon_social: event.target.value })}
         />
-      </div>
+      </Field>
 
-      <div>
-        <label className="text-sm font-medium">Nombre comercial</label>
-        <input
-          className="mt-1 w-full rounded border border-input bg-background px-3 py-2 text-sm"
+      <Field label="Nombre comercial">
+        <Input
           placeholder="Nombre que aparece en los comprobantes"
           value={form.nombre_comercial}
-          onChange={(e) => setForm({ ...form, nombre_comercial: e.target.value })}
+          onChange={(event) => setForm({ ...form, nombre_comercial: event.target.value })}
         />
-      </div>
+      </Field>
 
-      <div>
-        <label className="text-sm font-medium">Ambiente SRI</label>
-        <select
-          className="mt-1 w-full rounded border border-input bg-background px-3 py-2 text-sm"
-          value={form.ambiente_sri}
-          onChange={(e) => setForm({ ...form, ambiente_sri: e.target.value as "PRUEBAS" | "PRODUCCION" })}
-        >
+      <Field label="Ambiente SRI">
+        <Select value={form.ambiente_sri} onChange={(event) => setForm({ ...form, ambiente_sri: event.target.value as AmbienteSri })}>
           <option value="PRUEBAS">PRUEBAS</option>
           <option value="PRODUCCION">PRODUCCION</option>
-        </select>
-        {form.ambiente_sri === "PRODUCCION" && (
-          <p className="mt-1 text-xs text-orange-600">
-            Atención: en modo PRODUCCION los comprobantes tienen validez tributaria real.
-          </p>
-        )}
-      </div>
+        </Select>
+      </Field>
 
-      <button
-        onClick={() => updateMutation.mutate(form)}
-        disabled={updateMutation.isPending}
-        className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
-      >
-        {updateMutation.isPending ? "Guardando..." : "Guardar cambios"}
-      </button>
-
-      {updateMutation.isSuccess && (
-        <p className="text-sm text-green-600">Cambios guardados correctamente.</p>
+      {form.ambiente_sri === "PRODUCCION" && (
+        <Alert tone="warning">Atención: en modo PRODUCCION los comprobantes tienen validez tributaria real.</Alert>
       )}
+
+      <Button onClick={submit} isLoading={updateMutation.isPending}>
+        Guardar cambios
+      </Button>
     </div>
   );
 }
