@@ -68,6 +68,15 @@ class ApiStack(Stack):
             actions=["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
             resources=[database.connection_secret.secret_arn],
         ))
+        base_role.add_to_policy(iam.PolicyStatement(
+            actions=["kms:Decrypt", "kms:DescribeKey"],
+            resources=[database.db_key.key_arn],
+            conditions={
+                "StringEquals": {
+                    "kms:ViaService": f"secretsmanager.{self.region}.amazonaws.com",
+                },
+            },
+        ))
         # SSM Parameter Store: configuración no-sensible (ej. tarifa IVA vigente)
         base_role.add_to_policy(iam.PolicyStatement(
             actions=["ssm:GetParameter", "ssm:GetParameters"],
