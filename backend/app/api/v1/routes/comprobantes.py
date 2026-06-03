@@ -25,10 +25,10 @@ class CreateComprobanteRequest(BaseModel):
     tipo: str = "01"
     establecimiento: str
     punto_emision: str
-    secuencial: str
     datos: dict
     idempotency_key: str | None = None
     external_reference: str | None = None
+    # secuencial se auto-genera desde la DB — no enviar en el body
 
 
 class RetryRequest(BaseModel):
@@ -65,15 +65,16 @@ async def create_comprobante(
 
     comp_repo = SqlAlchemyComprobanteRepository(db)
     tenant_repo = SqlAlchemyTenantRepository(db)
+    from app.infrastructure.database.repositories.establecimiento_repository import SecuencialRepository
+    sec_repo = SecuencialRepository(db)
 
     try:
-        comp = await CreateComprobanteUseCase(comp_repo, tenant_repo).execute(
+        comp = await CreateComprobanteUseCase(comp_repo, tenant_repo, sec_repo).execute(
             CreateComprobanteCommand(
                 tenant_id=tenant_id,
                 tipo=body.tipo,
                 establecimiento=body.establecimiento,
                 punto_emision=body.punto_emision,
-                secuencial=body.secuencial,
                 datos=body.datos,
                 idempotency_key=idempotency,
                 external_reference=body.external_reference,

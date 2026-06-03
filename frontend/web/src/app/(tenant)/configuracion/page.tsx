@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { CertificateUploadForm } from "@/components/certificates/CertificateUploadForm";
+import { SriConfigTab } from "@/components/configuracion/SriConfigTab";
+import { EmpresaConfigTab } from "@/components/configuracion/EmpresaConfigTab";
 
 export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState<"empresa" | "firma" | "sri">("empresa");
@@ -26,37 +28,9 @@ export default function ConfiguracionPage() {
         ))}
       </div>
 
-      {activeTab === "empresa" && <EmpresaTab />}
+      {activeTab === "empresa" && <EmpresaConfigTab />}
       {activeTab === "firma" && <CertificateUploadForm />}
-      {activeTab === "sri" && <SriTab />}
-    </div>
-  );
-}
-
-function EmpresaTab() {
-  return (
-    <div className="max-w-lg space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Configura los datos de tu empresa que aparecerán en los comprobantes.
-      </p>
-      {/* TODO Fase 2: formulario con logo, colores y datos comerciales */}
-      <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground text-sm">
-        Configuración de empresa — implementar con formulario completo
-      </div>
-    </div>
-  );
-}
-
-function SriTab() {
-  return (
-    <div className="max-w-lg space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Configura los establecimientos y puntos de emisión ante el SRI.
-      </p>
-      {/* TODO Fase 2: formulario de establecimientos, puntos de emisión y secuenciales */}
-      <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground text-sm">
-        Configuración SRI — implementar en Fase 2
-      </div>
+      {activeTab === "sri" && <SriConfigTab />}
     </div>
   );
 }

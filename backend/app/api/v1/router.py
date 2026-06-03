@@ -1,6 +1,17 @@
 from fastapi import APIRouter
 
-from app.api.v1.routes import api_keys, auth, certificates, comprobantes, config, lotes, reportes, tenants
+from app.api.v1.routes import (
+    api_keys,
+    auth,
+    certificates,
+    comprobantes,
+    config,
+    establecimientos,
+    lotes,
+    reportes,
+    tenants,
+    usuarios,
+)
 
 api_router = APIRouter()
 
@@ -12,6 +23,8 @@ api_router.include_router(
     prefix="/tenants/{tenant_id}/certificates",
     tags=["certificates"],
 )
+api_router.include_router(establecimientos.router, prefix="/tenants", tags=["establecimientos"])
+api_router.include_router(usuarios.router, prefix="/tenants", tags=["usuarios"])
 api_router.include_router(comprobantes.router, prefix="/comprobantes", tags=["comprobantes"])
 api_router.include_router(lotes.router, prefix="/lotes", tags=["lotes"])
 api_router.include_router(reportes.router, prefix="/reportes", tags=["reportes"])

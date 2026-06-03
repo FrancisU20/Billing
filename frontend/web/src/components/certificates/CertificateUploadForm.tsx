@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
 
 type UploadStep = "idle" | "uploading" | "confirming" | "done" | "error";
 
@@ -16,6 +17,9 @@ interface CertificateInfo {
 
 export function CertificateUploadForm() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const tenantId = user?.tenantId ?? "";
+
   const [step, setStep] = useState<UploadStep>("idle");
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
@@ -23,9 +27,6 @@ export function CertificateUploadForm() {
   const [errorMsg, setErrorMsg] = useState("");
   const [certId, setCertId] = useState("");
   const [s3KeyUpload, setS3KeyUpload] = useState("");
-
-  // Listar certificados existentes
-  const tenantId = ""; // TODO: obtener del contexto de auth
   const { data: certificates = [] } = useQuery<CertificateInfo[]>({
     queryKey: ["certificates", tenantId],
     queryFn: () => apiClient.get<CertificateInfo[]>(`/tenants/${tenantId}/certificates`).then((r) => r.data),
