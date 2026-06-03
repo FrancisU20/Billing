@@ -64,12 +64,14 @@ class CreateTenantUseCase:
     def _send_welcome_email(self, email: str, razon_social: str, temp_password: str) -> None:
         settings = get_settings()
         credentials = settings.get_email_credentials()
-        if not credentials.get("api_key"):
-            logger.warning("Email credentials not configured — skipping welcome email")
+        smtp_user = credentials.get("smtp_user")
+        smtp_password = credentials.get("smtp_password")
+        if not smtp_user or not smtp_password:
+            logger.warning("SMTP credentials not configured — skipping welcome email")
             return
 
         try:
-            provider = BrevoEmailProvider(api_key=credentials["api_key"])
+            provider = BrevoEmailProvider(smtp_user=smtp_user, smtp_password=smtp_password)
             provider.send(EmailMessage(
                 to=email,
                 subject="Bienvenido a CodeLabs Billing — Tus credenciales de acceso",

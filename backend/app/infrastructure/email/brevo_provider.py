@@ -1,39 +1,38 @@
-import base64
-
-import brevo
-from brevo.rest import ApiException
+import smtplib
+import ssl
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from app.infrastructure.email.provider import EmailMessage, EmailProvider
 from app.shared.logging import logger
+
+_SMTP_HOST = "smtp-relay.brevo.com"
+_SMTP_PORT = 587
 
 
 class BrevoEmailProvider(EmailProvider):
     name = "brevo"
 
-    def __init__(self, api_key: str):
-        configuration = brevo.Configuration()
-        configuration.api_key["api-key"] = api_key
-        self._api = brevo.TransactionalEmailsApi(brevo.ApiClient(configuration))
+    def __init__(self, smtp_user: str, smtp_password: str) -> None:
+        self._smtp_user = smtp_user
+        self._smtp_password = smtp_password
 
     def send(self, message: EmailMessage) -> bool:
-        attachments = [
-            brevo.SendSmtpEmailAttachment(
-                name=att["filename"],
-                content=base64.b64encode(att["content"]).decode(),
-            )
-            for att in message.attachments
-        ]
-        email = brevo.SendSmtpEmail(
-            sender={"name": message.from_name, "email": message.from_email},
-            to=[{"email": message.to}],
-            subject=message.subject,
-            html_content=message.html_body,
-            attachment=attachments or None,
-            reply_to={"email": message.reply_to} if message.reply_to else None,
-        )
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = message.subject
+        msg["From"] = f"{message.from_name} <{message.from_email}>"
+        msg["To"] = message.to
+
+        msg.attach(MIMEText(message.html_body, "html", "utf-8"))
+
         try:
-            self._api.send_transac_email(email)
+            context = ssl.create_default_context()
+            with smtplib.SMTP(_SMTP_HOST, _SMTP_PORT) as server:
+                server.ehlo()
+                server.starttls(context=context)
+                server.login(self._smtp_user, self._smtp_password)
+                server.sendmail(message.from_email, message.to, msg.as_string())
             return True
-        except ApiException as e:
-            logger.warning("Brevo send failed", extra={"error": str(e), "to": message.to})
+        except Exception as e:
+            logger.warning("Brevo SMTP send failed", extra={"error": str(e), "to": message.to})
             return False

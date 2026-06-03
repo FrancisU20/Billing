@@ -2,7 +2,7 @@ import re
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, field_validator
 
 from app.api.v1.deps import CognitoSvc, TenantRepo
 from app.application.use_cases.tenants.create_tenant import CreateTenantCommand, CreateTenantUseCase
@@ -18,7 +18,7 @@ router = APIRouter()
 class CreateTenantRequest(BaseModel):
     ruc: str
     razon_social: str
-    admin_email: EmailStr
+    admin_email: str
     nombre_comercial: str | None = None
     ambiente_sri: AmbienteSri = AmbienteSri.PRUEBAS
 
@@ -28,6 +28,13 @@ class CreateTenantRequest(BaseModel):
         if not re.fullmatch(r"\d{13}", v):
             raise ValueError("RUC debe tener exactamente 13 dígitos")
         return v
+
+    @field_validator("admin_email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", v):
+            raise ValueError("Correo electrónico inválido")
+        return v.lower()
 
 
 class UpdateTenantRequest(BaseModel):
