@@ -16,19 +16,26 @@ import { useToast } from "@/components/ui/Toast";
 import { ambienteSriSchema } from "@codelabs-billing/shared";
 import type { AmbienteSri, CreateTenantRequest, Tenant } from "@codelabs-billing/shared";
 
-type TenantFormField = "ruc" | "razon_social";
+type TenantFormField = "ruc" | "razon_social" | "admin_email";
 
 const initialForm: CreateTenantRequest = {
   ruc: "",
   razon_social: "",
+  admin_email: "",
   nombre_comercial: "",
   ambiente_sri: "PRUEBAS",
 };
 
 function validateTenantForm(form: CreateTenantRequest): FieldErrors<TenantFormField> {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return {
     ruc: exactDigits(form.ruc, 13, "RUC"),
     razon_social: required(form.razon_social, "Razón social"),
+    admin_email: !form.admin_email
+      ? "Correo del administrador es obligatorio"
+      : !emailRegex.test(form.admin_email)
+      ? "Correo electrónico inválido"
+      : undefined,
   };
 }
 
@@ -51,7 +58,7 @@ export function TenantsPage() {
       setShowForm(false);
       setForm(initialForm);
       setErrors({});
-      toast.success("Tenant creado correctamente");
+      toast.success("Tenant creado. Credenciales enviadas al correo del administrador.");
     },
     onError: (error) => toast.error(getApiErrorMessage(error, "No se pudo crear el tenant")),
   });
@@ -110,9 +117,22 @@ export function TenantsPage() {
                   onChange={(event) => setForm({ ...form, nombre_comercial: event.target.value })}
                 />
               </Field>
+              <Field
+                label="Correo del administrador *"
+                hint="El admin recibirá sus credenciales de acceso en este correo."
+                error={errors.admin_email}
+                className="col-span-2"
+              >
+                <Input
+                  type="email"
+                  value={form.admin_email}
+                  hasError={!!errors.admin_email}
+                  onChange={(event) => setForm({ ...form, admin_email: event.target.value })}
+                />
+              </Field>
             </div>
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowForm(false)}>
+              <Button variant="outline" onClick={() => { setShowForm(false); setErrors({}); }}>
                 Cancelar
               </Button>
               <Button onClick={submit} isLoading={createMutation.isPending}>

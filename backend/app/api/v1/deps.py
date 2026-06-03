@@ -8,6 +8,7 @@ from fastapi import Depends
 
 from app.domain.repositories.comprobante_repository import ComprobanteRepository
 from app.domain.repositories.tenant_repository import TenantRepository
+from app.infrastructure.cognito.user_service import CognitoUserService
 from app.infrastructure.database.repositories.certificate_repository import CertificateRepository
 from app.infrastructure.database.repositories.comprobante_repository import SqlAlchemyComprobanteRepository
 from app.infrastructure.database.repositories.establecimiento_repository import (
@@ -53,5 +54,10 @@ def _user_repo(db: DbSession) -> UserRepository:
     return UserRepository(db)
 
 
+def _cognito_user_service() -> CognitoUserService:
+    return CognitoUserService()
+
+
 CertificateRepo = Annotated[CertificateRepository, Depends(_certificate_repo)]
 UserRepo = Annotated[UserRepository, Depends(_user_repo)]
+CognitoSvc = Annotated[CognitoUserService, Depends(_cognito_user_service)]

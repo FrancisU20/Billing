@@ -82,6 +82,21 @@ class ApiStack(Stack):
             actions=["ssm:GetParameter", "ssm:GetParameters"],
             resources=[f"arn:aws:ssm:{self.region}:{self.account}:parameter/codelabs-billing/{env}/*"],
         ))
+        # Secrets Manager: credenciales de email (Brevo API key)
+        base_role.add_to_policy(iam.PolicyStatement(
+            actions=["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+            resources=[f"arn:aws:secretsmanager:{self.region}:{self.account}:secret:codelabs-billing/{env}/email/*"],
+        ))
+        # Cognito: creación y gestión de usuarios de tenant
+        base_role.add_to_policy(iam.PolicyStatement(
+            actions=[
+                "cognito-idp:AdminCreateUser",
+                "cognito-idp:AdminSetUserAttributes",
+                "cognito-idp:AdminSetUserPassword",
+                "cognito-idp:AdminGetUser",
+            ],
+            resources=[auth.user_pool.user_pool_arn],
+        ))
         storage.documents_bucket.grant_read_write(base_role)
         storage.assets_bucket.grant_read_write(base_role)
         storage.batches_bucket.grant_read_write(base_role)
@@ -112,6 +127,7 @@ class ApiStack(Stack):
             "SQS_BATCH_IMPORT_URL": queues.batch_import_queue.queue_url,
             "COGNITO_USER_POOL_ID": auth.user_pool.user_pool_id,
             "COGNITO_WEB_CLIENT_ID": auth.web_client.user_pool_client_id,
+            "EMAIL_SECRET_NAME": f"codelabs-billing/{env}/email/brevo",
             "POWERTOOLS_SERVICE_NAME": "codelabs-billing",
             "POWERTOOLS_LOG_LEVEL": lambda_cfg["powertools_log_level"],
         }

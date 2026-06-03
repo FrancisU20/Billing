@@ -31,6 +31,7 @@ export type Tenant = z.infer<typeof tenantSchema>;
 export const createTenantRequestSchema = z.object({
   ruc: z.string().regex(/^\d{13}$/),
   razon_social: z.string().min(1),
+  admin_email: z.string().email("Correo electrónico inválido"),
   nombre_comercial: z.string().nullable().optional(),
   ambiente_sri: ambienteSriSchema.default("PRUEBAS").optional(),
 });
