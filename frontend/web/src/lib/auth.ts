@@ -57,3 +57,11 @@ export async function getAccessToken(): Promise<string> {
   const session = await getCurrentSession();
   return session.getAccessToken().getJwtToken();
 }
+
+// El ID Token contiene los custom claims de Cognito (custom:tenant_id, custom:role, etc.)
+// que el Lambda Authorizer necesita para extraer el contexto del usuario.
+// Para APIs propias con Cognito como único IdP, enviar el ID Token es el patrón correcto.
+export async function getIdToken(): Promise<string> {
+  const session = await getCurrentSession();
+  return session.getIdToken().getJwtToken();
+}
