@@ -1,5 +1,11 @@
 "use client";
 
+// Static export: no hay paths pre-generados (datos dinámicos del backend)
+// La CloudFront Function reescribe la ruta a /index.html y React Router toma el control
+export function generateStaticParams() {
+  return [];
+}
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { EstadoBadge } from "@/components/comprobantes/EstadoBadge";

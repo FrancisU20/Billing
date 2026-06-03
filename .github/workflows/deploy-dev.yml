@@ -15,15 +15,22 @@ jobs:
   ci-frontend:
     uses: ./.github/workflows/ci-frontend.yml
 
-  deploy:
+  deploy-infra:
+    name: Deploy Infrastructure (CDK)
     needs: [ci-backend, ci-frontend]
     runs-on: ubuntu-latest
     environment: dev
+    outputs:
+      # Exportamos los valores para que el job de frontend los use sin hardcodear nada
+      user_pool_id: ${{ steps.cfn_outputs.outputs.user_pool_id }}
+      web_client_id: ${{ steps.cfn_outputs.outputs.web_client_id }}
+      api_url: ${{ steps.cfn_outputs.outputs.api_url }}
+      web_bucket: ${{ steps.cfn_outputs.outputs.web_bucket }}
+      cf_dist_id: ${{ steps.cfn_outputs.outputs.cf_dist_id }}
 
     steps:
       - uses: actions/checkout@v4
 
-      # Node.js es necesario para el CDK CLI (cdk es un comando npm)
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -43,16 +50,131 @@ jobs:
           .venv/bin/pip install -r requirements.txt
         working-directory: infra
 
+      # Construir Lambda Layers en CI (Linux = mismo SO que Lambda)
+      # core-layer: FastAPI, SQLAlchemy, lxml, cryptography, etc. (~130MB)
+      # batch-layer: pandas, numpy (~69MB) — solo batch_import_worker
+      - name: Build Lambda Layers (core + batch)
+        run: bash scripts/build-lambda-deps.sh
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: sa-east-1
 
-      - name: CDK diff
-        run: cdk diff --context env=dev
+      - name: CDK deploy — infraestructura sa-east-1
+        run: |
+          cdk deploy \
+            CodeLabsBilling-Dev-Network \
+            CodeLabsBilling-Dev-Auth \
+            CodeLabsBilling-Dev-Database \
+            CodeLabsBilling-Dev-Storage \
+            CodeLabsBilling-Dev-Queues \
+            CodeLabsBilling-Dev-Security \
+            CodeLabsBilling-Dev-Api \
+            CodeLabsBilling-Dev-Observability \
+            --context env=dev --require-approval never
         working-directory: infra
 
-      - name: CDK deploy (dev — auto-approve)
-        run: cdk deploy --all --context env=dev --require-approval never
+      - name: CDK deploy — CloudFront + certificado us-east-1
+        run: |
+          cdk deploy \
+            CodeLabsBilling-Dev-Certificate \
+            CodeLabsBilling-Dev-Frontend \
+            --context env=dev --require-approval never
         working-directory: infra
+        env:
+          # CloudFront/Certificate stacks se despliegan en us-east-1
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Leer outputs de CloudFormation
+        id: cfn_outputs
+        run: |
+          # Auth (sa-east-1)
+          USER_POOL_ID=$(aws cloudformation describe-stacks \
+            --stack-name CodeLabsBilling-Dev-Auth \
+            --region sa-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
+            --output text)
+          WEB_CLIENT_ID=$(aws cloudformation describe-stacks \
+            --stack-name CodeLabsBilling-Dev-Auth \
+            --region sa-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey=='WebClientId'].OutputValue" \
+            --output text)
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name CodeLabsBilling-Dev-Api \
+            --region sa-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiCustomDomainUrl'].OutputValue" \
+            --output text)
+
+          # Frontend (us-east-1)
+          WEB_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name CodeLabsBilling-Dev-Frontend \
+            --region us-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey=='WebBucketName'].OutputValue" \
+            --output text)
+          CF_DIST_ID=$(aws cloudformation describe-stacks \
+            --stack-name CodeLabsBilling-Dev-Frontend \
+            --region us-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+            --output text)
+
+          echo "user_pool_id=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "web_client_id=$WEB_CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "web_bucket=$WEB_BUCKET" >> $GITHUB_OUTPUT
+          echo "cf_dist_id=$CF_DIST_ID" >> $GITHUB_OUTPUT
+
+  deploy-frontend:
+    name: Build and Deploy Frontend
+    needs: deploy-infra
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: |
+            frontend/web/package-lock.json
+            frontend/shared/package-lock.json
+
+      - name: Install shared dependencies
+        run: npm ci
+        working-directory: frontend/shared
+
+      - name: Install web dependencies
+        run: npm install
+        working-directory: frontend/web
+
+      - name: Build Next.js (static export)
+        run: npm run build
+        working-directory: frontend/web
+        env:
+          # Valores inyectados desde los outputs de CloudFormation — nada hardcodeado
+          NEXT_PUBLIC_API_URL: ${{ needs.deploy-infra.outputs.api_url }}/api/v1
+          NEXT_PUBLIC_COGNITO_USER_POOL_ID: ${{ needs.deploy-infra.outputs.user_pool_id }}
+          NEXT_PUBLIC_COGNITO_CLIENT_ID: ${{ needs.deploy-infra.outputs.web_client_id }}
+          NEXT_PUBLIC_COGNITO_REGION: sa-east-1
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1  # S3 y CloudFront están en us-east-1
+
+      - name: Deploy a S3
+        run: |
+          aws s3 sync frontend/web/out/ \
+            s3://${{ needs.deploy-infra.outputs.web_bucket }} \
+            --delete \
+            --region us-east-1
+
+      - name: Invalidar cache de CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ needs.deploy-infra.outputs.cf_dist_id }} \
+            --paths "/*"

@@ -1,5 +1,9 @@
 "use client";
 
+export function generateStaticParams() {
+  return [];
+}
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { useState, useEffect } from "react";

@@ -1,5 +1,6 @@
 .PHONY: setup backend-dev backend-test backend-lint frontend-dev frontend-build \
-        infra-synth infra-diff deploy-dev migrate setup-oidc cdk-bootstrap help
+        infra-synth infra-diff deploy-dev migrate setup-oidc cdk-bootstrap \
+        build-lambda-deps help
 
 AWS_PROFILE := codelabs
 AWS_REGION  := sa-east-1
@@ -57,3 +58,6 @@ setup-oidc: ## Crea el rol OIDC de GitHub Actions en AWS (ejecutar UNA VEZ antes
 
 cdk-bootstrap: ## CDK bootstrap en sa-east-1 (ejecutar UNA VEZ por cuenta/región)
 	cd infra && AWS_PROFILE=$(AWS_PROFILE) cdk bootstrap aws://$(shell AWS_PROFILE=$(AWS_PROFILE) aws sts get-caller-identity --query Account --output text)/$(AWS_REGION)
+
+build-lambda-deps: ## Construye los Lambda Layers (core + batch) — ejecutar antes de deploy local
+	bash scripts/build-lambda-deps.sh

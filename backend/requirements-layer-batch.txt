@@ -1,0 +1,6 @@
+# Layer BATCH — solo para batch_import_worker
+# pandas + numpy son las dependencias más pesadas del proyecto (104MB)
+# Al separarlas, el layer core baja de 289MB a ~155MB
+
+pandas==2.2.3
+openpyxl==3.1.5

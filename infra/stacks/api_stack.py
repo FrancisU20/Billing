@@ -1,11 +1,14 @@
 from aws_cdk import (
-    Stack, Duration,
+    Stack, Duration, CfnOutput,
     aws_ec2 as ec2,
     aws_lambda as _lambda,
     aws_apigateway as apigw,
     aws_iam as iam,
     aws_logs as logs,
+    aws_route53 as route53,
+    aws_route53_targets as targets,
 )
+from aws_cdk.aws_certificatemanager import ICertificate
 from constructs import Construct
 from .database_stack import DatabaseStack
 from .storage_stack import StorageStack
@@ -22,6 +25,7 @@ class ApiStack(Stack):
         storage: StorageStack,
         queues: QueuesStack,
         auth: AuthStack,
+        api_cert: ICertificate | None = None,
         **kwargs,
     ):
         super().__init__(scope, construct_id, **kwargs)
@@ -103,7 +107,41 @@ class ApiStack(Stack):
             "POWERTOOLS_LOG_LEVEL": lambda_cfg["powertools_log_level"],
         }
 
+        # Dos Lambda Layers separados para mantener tamaños bajo los 250MB:
+        #   core-layer (~130MB): FastAPI, SQLAlchemy, zeep, lxml, cryptography, etc.
+        #   batch-layer (~69MB): pandas, openpyxl — solo para batch_import_worker
+        # Construidos en CI (GitHub Actions = Linux) — correcto SO para los wheels nativos
+        core_layer = _lambda.LayerVersion(
+            self, "CoreLayer",
+            layer_version_name=f"codelabs-billing-{env}-core",
+            code=_lambda.Code.from_asset("./lambda_layer/core"),
+            compatible_runtimes=[_lambda.Runtime.PYTHON_3_12],
+            description=f"Core Python dependencies — {env}",
+        )
+
+        batch_layer = _lambda.LayerVersion(
+            self, "BatchLayer",
+            layer_version_name=f"codelabs-billing-{env}-batch",
+            code=_lambda.Code.from_asset("./lambda_layer/batch"),
+            compatible_runtimes=[_lambda.Runtime.PYTHON_3_12],
+            description=f"Batch processing Python dependencies (pandas/numpy) — {env}",
+        )
+
+        # Solo código de la aplicación en el zip (<10MB sin dependencias)
+        _APP_CODE_EXCLUDES = [
+            ".venv", "__pycache__", "*.pyc", "*.pyo",
+            ".pytest_cache", "htmlcov", ".coverage",
+            "tests/", "*.egg-info", "dist/", "build/",
+        ]
+
+        def backend_code() -> _lambda.AssetCode:
+            return _lambda.Code.from_asset(
+                "../backend",
+                exclude=_APP_CODE_EXCLUDES,
+            )
+
         lambda_props = dict(
+            layers=[core_layer],
             runtime=_lambda.Runtime.PYTHON_3_12,
             memory_size=lambda_cfg["memory_mb"],
             timeout=Duration.seconds(lambda_cfg["timeout_seconds"]),
@@ -118,7 +156,7 @@ class ApiStack(Stack):
         self.api_function = _lambda.Function(
             self, "ApiFunction",
             function_name=f"codelabs-billing-{env}-api",
-            code=_lambda.Code.from_asset("../backend"),
+            code=backend_code(),
             handler="lambda_handlers.api_handler.handler",
             **lambda_props,
         )
@@ -127,7 +165,7 @@ class ApiStack(Stack):
         self.invoice_worker = _lambda.Function(
             self, "InvoiceWorker",
             function_name=f"codelabs-billing-{env}-invoice-worker",
-            code=_lambda.Code.from_asset("../backend"),
+            code=backend_code(),
             handler="lambda_handlers.invoice_worker_handler.handler",
             runtime=_lambda.Runtime.PYTHON_3_12,
             memory_size=512,  # PDF generation necesita más memoria
@@ -143,7 +181,7 @@ class ApiStack(Stack):
         self.sri_retry_worker = _lambda.Function(
             self, "SriRetryWorker",
             function_name=f"codelabs-billing-{env}-sri-retry-worker",
-            code=_lambda.Code.from_asset("../backend"),
+            code=backend_code(),
             handler="lambda_handlers.sri_retry_handler.handler",
             **lambda_props,
         )
@@ -152,7 +190,7 @@ class ApiStack(Stack):
         self.email_dispatch_worker = _lambda.Function(
             self, "EmailDispatchWorker",
             function_name=f"codelabs-billing-{env}-email-dispatch-worker",
-            code=_lambda.Code.from_asset("../backend"),
+            code=backend_code(),
             handler="lambda_handlers.email_dispatch_handler.handler",
             **lambda_props,
         )
@@ -161,13 +199,15 @@ class ApiStack(Stack):
         self.batch_import_worker = _lambda.Function(
             self, "BatchImportWorker",
             function_name=f"codelabs-billing-{env}-batch-import-worker",
-            code=_lambda.Code.from_asset("../backend"),
+            code=backend_code(),
             handler="lambda_handlers.batch_import_handler.handler",
             runtime=_lambda.Runtime.PYTHON_3_12,
             memory_size=512,
             timeout=Duration.seconds(600),
             role=base_role,
             environment=common_env,
+            # Batch worker necesita ambos layers: core + batch (pandas/numpy)
+            layers=[core_layer, batch_layer],
             log_retention=logs.RetentionDays.ONE_WEEK if env != "prod" else logs.RetentionDays.THREE_MONTHS,
             tracing=_lambda.Tracing.ACTIVE,
             **vpc_config,
@@ -225,7 +265,7 @@ class ApiStack(Stack):
         authorizer_fn = _lambda.Function(
             self, "AuthorizerFunction",
             function_name=f"codelabs-billing-{env}-authorizer",
-            code=_lambda.Code.from_asset("../backend"),
+            code=backend_code(),
             handler="lambda_handlers.authorizer_handler.handler",
             runtime=_lambda.Runtime.PYTHON_3_12,
             memory_size=256,
@@ -252,3 +292,47 @@ class ApiStack(Stack):
         proxy = self.api.root.add_resource("{proxy+}")
         proxy.add_method("ANY", api_integration, authorizer=authorizer)
         self.api.root.add_method("ANY", api_integration, authorizer=authorizer)
+
+        # Custom domain para API Gateway (api-billing-dev.codelabsecuador.com)
+        # Requiere certificado wildcard en sa-east-1 (inyectado desde SecurityStack)
+        domain_cfg = config["domain"]
+        if api_cert is not None:
+            custom_domain = apigw.DomainName(
+                self, "ApiCustomDomain",
+                domain_name=domain_cfg["api"],
+                certificate=api_cert,
+                endpoint_type=apigw.EndpointType.REGIONAL,
+                security_policy=apigw.SecurityPolicy.TLS_1_2,
+            )
+
+            apigw.BasePathMapping(
+                self, "ApiBasePathMapping",
+                domain_name=custom_domain,
+                rest_api=self.api,
+                stage=self.api.deployment_stage,
+            )
+
+            # Route 53 — alias record para el custom domain de API Gateway
+            hosted_zone = route53.HostedZone.from_hosted_zone_attributes(
+                self, "HostedZone",
+                hosted_zone_id=domain_cfg["hosted_zone_id"],
+                zone_name=domain_cfg["hosted_zone"],
+            )
+
+            route53.ARecord(
+                self, "ApiAliasRecord",
+                zone=hosted_zone,
+                record_name=domain_cfg["api"],
+                target=route53.RecordTarget.from_alias(
+                    targets.ApiGatewayDomain(custom_domain)
+                ),
+            )
+
+            CfnOutput(self, "ApiCustomDomainUrl",
+                      value=f"https://{domain_cfg['api']}",
+                      export_name=f"CodeLabsBilling-{env}-ApiCustomDomainUrl")
+
+        # Outputs para CI/CD — leídos dinámicamente en GitHub Actions
+        CfnOutput(self, "ApiGatewayEndpoint",
+                  value=self.api.url,
+                  export_name=f"CodeLabsBilling-{env}-ApiGatewayEndpoint")

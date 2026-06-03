@@ -1,65 +1,55 @@
-# Configuración ambiente dev — Bootstrapping (costo optimizado ~$50/mes)
+# Configuración ambiente dev — Bootstrapping (~$50/mes + CloudFront ~$1/mes)
 env: dev
 region: sa-east-1
 account: ""  # se resuelve via CDK_DEFAULT_ACCOUNT en CI
 
 # Aurora PostgreSQL Serverless v2
-# min_capacity=0 → pausa automática cuando idle (cold start ~25s, aceptable en dev)
 aurora:
   min_capacity: 0
   max_capacity: 4
   database_name: codelabs_billing
 
-# NAT: instancia EC2 t4g.nano en lugar de NAT Gateway (~$4/mes vs $35/mes)
-# Cambiar a nat_gateway: true cuando haya clientes en producción
+# NAT: instancia EC2 t4g.nano (~$4/mes vs $35/mes NAT Gateway)
 network:
-  nat_type: instance          # instance | gateway
+  nat_type: instance
   nat_instance_type: t4g.nano
-  availability_zones: 2       # Aurora requiere mínimo 2 AZs
-  nat_count: 1                # Solo 1 NAT instance aunque haya 2 AZs (~$4/mes)
+  availability_zones: 2
+  nat_count: 1
 
-# WAF: deshabilitado en dev (ahorrar $10/mes)
-# API Gateway tiene throttling básico configurado
 waf:
   enabled: false
 
-# RDS Proxy: deshabilitado en dev (tráfico bajo, ahorrar $8/mes)
 rds_proxy:
   enabled: false
 
-# Lambda
 lambda:
   memory_mb: 256
   timeout_seconds: 30
   powertools_log_level: DEBUG
 
-# CloudWatch
 cloudwatch:
   log_retention_days: 7
-  custom_dashboards: false    # false en dev (ahorrar $6/mes de dashboards)
+  custom_dashboards: false
 
-# S3
 s3:
   lifecycle_transition_ia_days: 90
   lifecycle_transition_glacier_days: 365
-  lifecycle_expiration_days: 2555  # 7 años — cumplimiento tributario Ecuador
+  lifecycle_expiration_days: 2555
 
-# SQS
 sqs:
   invoice_processing_visibility_timeout: 300
   sri_retry_visibility_timeout: 120
   email_dispatch_visibility_timeout: 60
   batch_import_visibility_timeout: 600
-  max_receive_count: 5        # reintentos antes de DLQ
+  max_receive_count: 5
 
-# Cognito
 cognito:
-  mfa_enforcement: "OFF"      # OFF en dev, OPTIONAL en prod
+  mfa_enforcement: "OFF"
 
-# Dominio — dev no tiene CloudFront/Route53, frontend corre local con next dev
-# Los subdominios están definidos para referencia y para CORS de API Gateway
+# Dominio — habilitado para dev con CloudFront + API Gateway custom domain
 domain:
-  enabled: false
+  enabled: true
   hosted_zone: codelabsecuador.com
+  hosted_zone_id: Z04488832YM9VCPO41EJM
   frontend: billing-dev.codelabsecuador.com
   api: api-billing-dev.codelabsecuador.com

@@ -56,5 +56,6 @@ cognito:
 domain:
   enabled: true
   hosted_zone: codelabsecuador.com
+  hosted_zone_id: Z04488832YM9VCPO41EJM
   frontend: billing.codelabsecuador.com
   api: api-billing.codelabsecuador.com
