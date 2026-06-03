@@ -32,6 +32,15 @@ class AuthStack(Stack):
             },
         )
 
+        # read_attributes debe declarar explícitamente los custom attributes para que
+        # Cognito los incluya en el ID Token. Sin esta declaración, solo aparecen los
+        # standard attributes (email, sub) aunque el usuario los tenga configurados.
+        client_read_attrs = (
+            cognito.ClientAttributes()
+            .with_standard_attributes(email=True, email_verified=True)
+            .with_custom_attributes("tenant_id", "role", "is_superadmin")
+        )
+
         self.web_client = self.user_pool.add_client(
             "WebClient",
             user_pool_client_name=f"codelabs-billing-{env}-web",
@@ -40,6 +49,7 @@ class AuthStack(Stack):
                 flows=cognito.OAuthFlows(authorization_code_grant=True),
                 scopes=[cognito.OAuthScope.EMAIL, cognito.OAuthScope.OPENID, cognito.OAuthScope.PROFILE],
             ),
+            read_attributes=client_read_attrs,
             access_token_validity=Duration.hours(1),
             id_token_validity=Duration.hours(1),
             refresh_token_validity=Duration.days(30),
