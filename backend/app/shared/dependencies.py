@@ -2,6 +2,7 @@ from collections.abc import AsyncGenerator
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Request
+from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.database.connection import get_session_factory
@@ -16,6 +17,18 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
+def _claims_from_bearer(request: Request) -> dict:
+    """En local, decodifica el JWT del header Authorization sin verificar firma.
+    En producción el Lambda Authorizer ya verificó — aquí solo leemos claims."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return {}
+    try:
+        return jwt.get_unverified_claims(auth.removeprefix("Bearer ").strip())
+    except Exception:
+        return {}
+
+
 class TenantContext:
     def __init__(
         self,
@@ -25,21 +38,25 @@ class TenantContext:
         apigw_context = (request.scope.get("aws.event") or {}).get("requestContext", {}).get("authorizer", {})
         settings = get_settings()
 
-        tenant_from_jwt = apigw_context.get("tenant_id")
-
-        # X-Tenant-Id solo se acepta en ambiente local.
-        # En cualquier otro ambiente el tenant_id debe venir del Lambda Authorizer
-        # vía requestContext — aceptarlo del cliente sería impersonación de tenant.
-        if tenant_from_jwt:
-            self.tenant_id: str | None = tenant_from_jwt
+        if apigw_context:
+            # Producción: claims inyectados por el Lambda Authorizer
+            tenant_from_jwt = apigw_context.get("tenant_id")
+            self.tenant_id: str | None = tenant_from_jwt or None
+            self.user_id: str | None = apigw_context.get("user_id")
+            self.role: str = apigw_context.get("role", "viewer")
+            self.is_superadmin: bool = apigw_context.get("is_superadmin", "false").lower() == "true"
         elif settings.is_local:
-            self.tenant_id = x_tenant_id
+            # Local: decodificar el JWT del Bearer token (sin verificar firma)
+            claims = _claims_from_bearer(request)
+            self.tenant_id = claims.get("custom:tenant_id") or x_tenant_id
+            self.user_id = claims.get("sub")
+            self.role = claims.get("custom:role", "viewer")
+            self.is_superadmin = claims.get("custom:is_superadmin") in ("true", True)
         else:
             self.tenant_id = None
-
-        self.user_id: str | None = apigw_context.get("user_id")
-        self.role: str = apigw_context.get("role", "viewer")
-        self.is_superadmin: bool = apigw_context.get("is_superadmin", "false").lower() == "true"
+            self.user_id = None
+            self.role = "viewer"
+            self.is_superadmin = False
 
     def require_superadmin(self) -> None:
         if not self.is_superadmin:
