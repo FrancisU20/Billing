@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # Nombre del secret en Secrets Manager para el email provider
     email_secret_name: str = Field(default="")
 
+    # KMS key opcional para secretos de certificados de firma electronica.
+    certificate_secrets_kms_key_arn: str = Field(default="")
+
     @property
     def is_local(self) -> bool:
         return self.env == "local"

@@ -15,6 +15,8 @@ from pydantic import BaseModel
 
 from app.api.v1.deps import CertificateRepo
 from app.infrastructure.security.certificate_service import (
+    CertificatePersistenceError,
+    CertificateValidationError,
     generate_upload_url,
     validate_and_store_certificate,
 )
@@ -30,8 +32,8 @@ class UploadUrlResponse(BaseModel):
 
 
 class ConfirmCertificateRequest(BaseModel):
-    cert_id: str
-    s3_key_upload: str
+    cert_id: UUID
+    s3_key_upload: str | None = None
     password: str
     nombre: str | None = None
 
@@ -64,12 +66,13 @@ async def confirm_certificate(
     try:
         metadata = validate_and_store_certificate(
             tenant_id=str(tenant_id),
-            cert_id=body.cert_id,
-            s3_key_upload=body.s3_key_upload,
+            cert_id=str(body.cert_id),
             password=body.password,
         )
-    except ValueError as e:
+    except CertificateValidationError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    except CertificatePersistenceError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
     cert = await cert_repo.create(
         tenant_id=tenant_id,

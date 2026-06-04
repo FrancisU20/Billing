@@ -4,6 +4,7 @@ from aws_cdk import (
     aws_lambda as _lambda,
     aws_apigateway as apigw,
     aws_iam as iam,
+    aws_kms as kms,
     aws_logs as logs,
     aws_route53 as route53,
     aws_route53_targets as targets,
@@ -26,6 +27,7 @@ class ApiStack(Stack):
         queues: QueuesStack,
         auth: AuthStack,
         api_cert: ICertificate | None = None,
+        certificate_secrets_key: kms.IKey | None = None,
         **kwargs,
     ):
         super().__init__(scope, construct_id, **kwargs)
@@ -87,6 +89,36 @@ class ApiStack(Stack):
             actions=["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
             resources=[f"arn:aws:secretsmanager:{self.region}:{self.account}:secret:codelabs-billing/{env}/email/*"],
         ))
+        # Secrets Manager: contrasenas de certificados de firma electronica.
+        certificate_secret_arn_pattern = (
+            f"arn:aws:secretsmanager:{self.region}:{self.account}:"
+            f"secret:codelabs-billing/{env}/tenant/*/cert/*"
+        )
+        base_role.add_to_policy(iam.PolicyStatement(
+            actions=[
+                "secretsmanager:CreateSecret",
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:PutSecretValue",
+            ],
+            resources=[certificate_secret_arn_pattern],
+        ))
+        if certificate_secrets_key is not None:
+            base_role.add_to_policy(iam.PolicyStatement(
+                actions=[
+                    "kms:Decrypt",
+                    "kms:DescribeKey",
+                    "kms:Encrypt",
+                    "kms:GenerateDataKey*",
+                    "kms:ReEncrypt*",
+                ],
+                resources=[certificate_secrets_key.key_arn],
+                conditions={
+                    "StringEquals": {
+                        "kms:ViaService": f"secretsmanager.{self.region}.amazonaws.com",
+                    },
+                },
+            ))
         # Cognito: creación y gestión de usuarios de tenant
         base_role.add_to_policy(iam.PolicyStatement(
             actions=[
@@ -130,6 +162,7 @@ class ApiStack(Stack):
             "COGNITO_USER_POOL_ID": auth.user_pool.user_pool_id,
             "COGNITO_WEB_CLIENT_ID": auth.web_client.user_pool_client_id,
             "EMAIL_SECRET_NAME": f"codelabs-billing/{env}/email/brevo",
+            "CERTIFICATE_SECRETS_KMS_KEY_ARN": certificate_secrets_key.key_arn if certificate_secrets_key else "",
             "POWERTOOLS_SERVICE_NAME": "codelabs-billing",
             "POWERTOOLS_LOG_LEVEL": lambda_cfg["powertools_log_level"],
         }

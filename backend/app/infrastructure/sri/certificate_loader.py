@@ -6,6 +6,7 @@ import json
 
 import boto3
 
+from app.infrastructure.security.certificate_keys import certificate_secret_name
 from app.shared.config import get_settings
 
 settings = get_settings()
@@ -17,7 +18,7 @@ def cargar_p12(tenant_id: str, cert_id: str) -> tuple[bytes, str]:
     El .p12 está en S3 cifrado con KMS.
     La contraseña está en Secrets Manager.
     """
-    secret_name = f"codelabs-billing/{settings.env}/tenant/{tenant_id}/cert/{cert_id}"
+    secret_name = certificate_secret_name(tenant_id, cert_id)
 
     secrets = boto3.client("secretsmanager")
     response = secrets.get_secret_value(SecretId=secret_name)

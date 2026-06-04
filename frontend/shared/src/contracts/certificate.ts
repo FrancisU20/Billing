@@ -14,7 +14,7 @@ export type UploadCertificateUrlResponse = z.infer<typeof uploadCertificateUrlRe
 
 export const confirmCertificateRequestSchema = z.object({
   cert_id: z.string().uuid(),
-  s3_key_upload: z.string(),
+  s3_key_upload: z.string().optional(),
   password: z.string(),
   nombre: z.string().nullable().optional(),
 });

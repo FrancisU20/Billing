@@ -56,6 +56,7 @@ api = ApiStack(
     queues=queues,
     auth=auth,
     api_cert=security.api_cert,
+    certificate_secrets_key=security.secrets_key,
     env=sa_env,
 )
 observability = ObservabilityStack(
