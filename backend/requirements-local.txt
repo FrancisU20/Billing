@@ -1,0 +1,10 @@
+# Dependencias EXCLUSIVAS del entorno local de desarrollo.
+# NO se usan en CI ni en el Lambda layer.
+#
+# Por qué son necesarias aquí y no en el Lambda:
+#   greenlet  → el wheel binario de SQLAlchemy para Lambda ARM64 ya lo incluye.
+#               En macOS el wheel es diferente y necesita greenlet explícito.
+#   pycognito → auth SRP para local/scripts/auth.py (no corre en Lambda).
+
+greenlet>=3.0.0
+pycognito>=0.4.0

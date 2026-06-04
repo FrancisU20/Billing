@@ -1,11 +1,16 @@
-.PHONY: debug-api token open-aurora close-aurora help
+.PHONY: setup debug-api token open-aurora close-aurora help
 
 PYTHON := ../backend/.venv/bin/python
+PIP    := ../backend/.venv/bin/pip
 SCRIPTS := scripts
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-18s\033[0m %s\n", $$1, $$2}'
+
+setup: ## ⚙️  Instala dependencias locales (greenlet, pycognito) — correr una vez
+	$(PIP) install -r ../backend/requirements-local.txt -q
+	@echo "✅  Dependencias locales instaladas"
 
 debug-api: ## 🚀 Abre Aurora + token + uvicorn (Ctrl+C cierra todo)
 	$(PYTHON) $(SCRIPTS)/debug.py
