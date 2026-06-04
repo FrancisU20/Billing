@@ -1,4 +1,4 @@
-// v2026.06.04c
+// v2026.06.04e
 import { z } from "zod";
 
 export const ambienteSriValues = ["PRUEBAS", "PRODUCCION"] as const;
