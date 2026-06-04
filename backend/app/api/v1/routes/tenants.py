@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, field_validator
 
-from app.api.v1.deps import CognitoSvc, TenantRepo
+from app.api.v1.deps import TenantRepo
 from app.application.use_cases.tenants.create_tenant import CreateTenantCommand, CreateTenantUseCase
 from app.application.use_cases.tenants.get_tenant import GetTenantUseCase, ListTenantsUseCase
 from app.application.use_cases.tenants.update_tenant import UpdateTenantCommand, UpdateTenantUseCase
@@ -57,12 +57,10 @@ class TenantResponse(BaseModel):
 
 
 @router.post("", response_model=TenantResponse, status_code=201)
-async def create_tenant(
-    body: CreateTenantRequest, ctx: TenantCtx, repo: TenantRepo, cognito: CognitoSvc
-):
+async def create_tenant(body: CreateTenantRequest, ctx: TenantCtx, repo: TenantRepo):
     ctx.require_superadmin()
     try:
-        tenant = await CreateTenantUseCase(repo, cognito).execute(
+        tenant = await CreateTenantUseCase(repo).execute(
             CreateTenantCommand(
                 ruc=body.ruc,
                 razon_social=body.razon_social,

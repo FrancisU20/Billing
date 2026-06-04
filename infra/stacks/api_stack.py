@@ -104,6 +104,7 @@ class ApiStack(Stack):
         queues.sri_authorization_queue.grant_send_messages(base_role)
         queues.email_dispatch_queue.grant_send_messages(base_role)
         queues.batch_import_queue.grant_send_messages(base_role)
+        queues.tenant_onboarding_queue.grant_send_messages(base_role)
 
         vpc_config = {
             "vpc": vpc,
@@ -125,6 +126,7 @@ class ApiStack(Stack):
             "SQS_SRI_AUTHORIZATION_URL": queues.sri_authorization_queue.queue_url,
             "SQS_EMAIL_DISPATCH_URL": queues.email_dispatch_queue.queue_url,
             "SQS_BATCH_IMPORT_URL": queues.batch_import_queue.queue_url,
+            "SQS_TENANT_ONBOARDING_URL": queues.tenant_onboarding_queue.queue_url,
             "COGNITO_USER_POOL_ID": auth.user_pool.user_pool_id,
             "COGNITO_WEB_CLIENT_ID": auth.web_client.user_pool_client_id,
             "EMAIL_SECRET_NAME": f"codelabs-billing/{env}/email/brevo",
@@ -250,6 +252,17 @@ class ApiStack(Stack):
         )
         queues.batch_import_queue.grant_consume_messages(self.batch_import_worker)
 
+        # Worker de onboarding de tenants — crea usuario Cognito y envía email bienvenida
+        # Separado del API Lambda para no bloquear la respuesta al superadmin
+        self.tenant_onboarding_worker = _lambda.Function(
+            self, "TenantOnboardingWorker",
+            function_name=f"codelabs-billing-{env}-tenant-onboarding-worker",
+            code=backend_code(),
+            handler="lambda_handlers.tenant_onboarding_handler.handler",
+            **lambda_props,
+        )
+        queues.tenant_onboarding_queue.grant_consume_messages(self.tenant_onboarding_worker)
+
         # SQS event source mappings
         from aws_cdk import aws_lambda_event_sources as event_sources
         self.invoice_worker.add_event_source(
@@ -263,6 +276,9 @@ class ApiStack(Stack):
         )
         self.batch_import_worker.add_event_source(
             event_sources.SqsEventSource(queues.batch_import_queue, batch_size=1)
+        )
+        self.tenant_onboarding_worker.add_event_source(
+            event_sources.SqsEventSource(queues.tenant_onboarding_queue, batch_size=1)
         )
 
         # API Gateway REST

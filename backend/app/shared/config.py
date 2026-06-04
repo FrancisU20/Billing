@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     sqs_sri_authorization_url: str = Field(default="")
     sqs_email_dispatch_url: str = Field(default="")
     sqs_batch_import_url: str = Field(default="")
+    sqs_tenant_onboarding_url: str = Field(default="")
 
     # Cognito
     cognito_user_pool_id: str = Field(default="")

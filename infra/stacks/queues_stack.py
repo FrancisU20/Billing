@@ -54,6 +54,13 @@ class QueuesStack(Stack):
             sqs_cfg["batch_import_visibility_timeout"],
         )
 
+        # Cola de onboarding de nuevos tenants (crear usuario Cognito + email bienvenida)
+        # Standard — las creaciones son independientes entre sí, orden no importa
+        self.tenant_onboarding_queue = make_queue(
+            "tenant-onboarding",
+            sqs_cfg.get("tenant_onboarding_visibility_timeout", 120),
+        )
+
         # EventBridge rule — scheduler de reintentos automáticos (cada 5 minutos)
         # Consulta comprobantes en RETRY_PENDING y los encola en sri-authorization-queue
         retry_scheduler = events.Rule(

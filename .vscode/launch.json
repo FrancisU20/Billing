@@ -45,6 +45,21 @@
       "justMyCode": false
     },
     {
+      "name": "🏢 Debug Tenant Onboarding",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/local/scripts/run_lambda.py",
+      "args": [
+        "lambda_handlers.tenant_onboarding_handler.handler",
+        "${workspaceFolder}/local/events/tenant_onboarding.json"
+      ],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/backend/.env.local",
+      "preLaunchTask": "open-aurora",
+      "postDebugTask": "close-aurora",
+      "justMyCode": false
+    },
+    {
       "name": "🔄 Debug SRI Retry",
       "type": "debugpy",
       "request": "launch",
