@@ -1,4 +1,5 @@
 import json
+import os
 from dataclasses import dataclass
 
 import boto3
@@ -71,7 +72,7 @@ class CreateTenantUseCase:
             return
 
         try:
-            sqs = boto3.client("sqs", region_name=settings.aws_region_name)
+            sqs = boto3.client("sqs", region_name=os.environ.get("AWS_REGION_NAME", "sa-east-1"))
             sqs.send_message(
                 QueueUrl=settings.sqs_email_dispatch_url,
                 MessageBody=json.dumps({
