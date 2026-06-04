@@ -143,6 +143,9 @@ jobs:
           .venv/bin/pip install -r requirements.txt
         working-directory: infra
 
+      - name: Create Lambda layer placeholders (CDK synthesis requirement)
+        run: mkdir -p infra/lambda_layer/core/python infra/lambda_layer/batch/python
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
