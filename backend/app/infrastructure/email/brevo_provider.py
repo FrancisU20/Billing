@@ -1,38 +1,45 @@
-import smtplib
-import ssl
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import requests
 
 from app.infrastructure.email.provider import EmailMessage, EmailProvider
 from app.shared.logging import logger
 
-_SMTP_HOST = "smtp-relay.brevo.com"
-_SMTP_PORT = 587
+_BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email"
 
 
 class BrevoEmailProvider(EmailProvider):
     name = "brevo"
 
-    def __init__(self, smtp_user: str, smtp_password: str) -> None:
-        self._smtp_user = smtp_user
-        self._smtp_password = smtp_password
+    def __init__(self, api_key: str) -> None:
+        self._headers = {
+            "api-key": api_key,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
 
     def send(self, message: EmailMessage) -> bool:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = message.subject
-        msg["From"] = f"{message.from_name} <{message.from_email}>"
-        msg["To"] = message.to
-
-        msg.attach(MIMEText(message.html_body, "html", "utf-8"))
+        payload = {
+            "sender": {"name": message.from_name, "email": message.from_email},
+            "to": [{"email": message.to}],
+            "subject": message.subject,
+            "htmlContent": message.html_body,
+        }
+        if message.reply_to:
+            payload["replyTo"] = {"email": message.reply_to}
 
         try:
-            context = ssl.create_default_context()
-            with smtplib.SMTP(_SMTP_HOST, _SMTP_PORT, timeout=10) as server:
-                server.ehlo()
-                server.starttls(context=context)
-                server.login(self._smtp_user, self._smtp_password)
-                server.sendmail(message.from_email, message.to, msg.as_string())
+            response = requests.post(
+                _BREVO_SEND_URL,
+                json=payload,
+                headers=self._headers,
+                timeout=15,
+            )
+            response.raise_for_status()
             return True
+        except requests.HTTPError as e:
+            logger.warning("Brevo API error", extra={
+                "status": e.response.status_code, "body": e.response.text[:200], "to": message.to,
+            })
+            return False
         except Exception as e:
-            logger.warning("Brevo SMTP send failed", extra={"error": str(e), "to": message.to})
+            logger.warning("Brevo send failed", extra={"error": str(e), "to": message.to})
             return False

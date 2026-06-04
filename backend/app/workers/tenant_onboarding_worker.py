@@ -30,14 +30,13 @@ async def procesar_onboarding(tenant_id: str, razon_social: str, admin_email: st
 def _send_welcome_email(email: str, razon_social: str, temp_password: str) -> None:
     settings = get_settings()
     credentials = settings.get_email_credentials()
-    smtp_user = credentials.get("smtp_user")
-    smtp_password = credentials.get("smtp_password")
+    api_key = credentials.get("api_key")
 
-    if not smtp_user or not smtp_password:
-        logger.warning("SMTP credentials not configured — skipping welcome email")
+    if not api_key:
+        logger.warning("Brevo API key not configured — skipping welcome email")
         return
 
-    provider = BrevoEmailProvider(smtp_user=smtp_user, smtp_password=smtp_password)
+    provider = BrevoEmailProvider(api_key=api_key)
     provider.send(EmailMessage(
         to=email,
         subject="Bienvenido a CodeLabs Billing — Tus credenciales de acceso",
