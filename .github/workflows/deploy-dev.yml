@@ -5,28 +5,57 @@ on:
     branches: [develop]
 
 permissions:
-  id-token: write   # OIDC — sin credenciales IAM estáticas
+  id-token: write
   contents: read
 
 jobs:
+  # ── Detección de cambios ────────────────────────────────────────────────
+  # Determina qué capas del monorepo cambiaron para correr solo lo necesario.
+  # dorny/paths-filter compara el commit actual contra el anterior del push.
+  detect:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend:  ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      infra:    ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # necesario para comparar con el commit anterior
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+            infra:
+              - 'infra/**'
+
+  # ── CI ────────────────────────────────────────────────────────────────────
   ci-backend:
+    needs: detect
+    if: needs.detect.outputs.backend == 'true'
     uses: ./.github/workflows/ci-backend.yml
 
   ci-frontend:
+    needs: detect
+    if: needs.detect.outputs.frontend == 'true'
     uses: ./.github/workflows/ci-frontend.yml
 
+  # ── Deploy Infrastructure (CDK) ──────────────────────────────────────────
+  # Corre si cambiaron backend (código Lambda) o infra (stacks CDK).
   deploy-infra:
     name: Deploy Infrastructure (CDK)
-    needs: [ci-backend, ci-frontend]
+    needs: [detect, ci-backend, ci-frontend]
+    if: |
+      always() && !failure() && !cancelled() &&
+      (needs.detect.outputs.backend == 'true' || needs.detect.outputs.infra == 'true')
     runs-on: ubuntu-latest
     environment: dev
-    outputs:
-      # Exportamos los valores para que el job de frontend los use sin hardcodear nada
-      user_pool_id: ${{ steps.cfn_outputs.outputs.user_pool_id }}
-      web_client_id: ${{ steps.cfn_outputs.outputs.web_client_id }}
-      api_url: ${{ steps.cfn_outputs.outputs.api_url }}
-      web_bucket: ${{ steps.cfn_outputs.outputs.web_bucket }}
-      cf_dist_id: ${{ steps.cfn_outputs.outputs.cf_dist_id }}
 
     steps:
       - uses: actions/checkout@v4
@@ -50,10 +79,7 @@ jobs:
           .venv/bin/pip install -r requirements.txt
         working-directory: infra
 
-      # Construir Lambda Layers en CI (Linux = mismo SO que Lambda)
-      # core-layer: FastAPI, SQLAlchemy, lxml, cryptography, etc. (~130MB)
-      # batch-layer: pandas, numpy (~69MB) — solo batch_import_worker
-      - name: Build Lambda Layers (core + batch)
+      - name: Build Lambda Layers
         run: bash scripts/build-lambda-deps.sh
 
       - name: Configure AWS credentials (OIDC)
@@ -84,52 +110,20 @@ jobs:
             --context env=dev --require-approval never
         working-directory: infra
         env:
-          # CloudFront/Certificate stacks se despliegan en us-east-1
           AWS_DEFAULT_REGION: us-east-1
 
-      - name: Leer outputs de CloudFormation
-        id: cfn_outputs
-        run: |
-          # Auth (sa-east-1)
-          USER_POOL_ID=$(aws cloudformation describe-stacks \
-            --stack-name CodeLabsBilling-Dev-Auth \
-            --region sa-east-1 \
-            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
-            --output text)
-          WEB_CLIENT_ID=$(aws cloudformation describe-stacks \
-            --stack-name CodeLabsBilling-Dev-Auth \
-            --region sa-east-1 \
-            --query "Stacks[0].Outputs[?OutputKey=='WebClientId'].OutputValue" \
-            --output text)
-          API_URL=$(aws cloudformation describe-stacks \
-            --stack-name CodeLabsBilling-Dev-Api \
-            --region sa-east-1 \
-            --query "Stacks[0].Outputs[?OutputKey=='ApiCustomDomainUrl'].OutputValue" \
-            --output text)
-
-          # Frontend (us-east-1)
-          WEB_BUCKET=$(aws cloudformation describe-stacks \
-            --stack-name CodeLabsBilling-Dev-Frontend \
-            --region us-east-1 \
-            --query "Stacks[0].Outputs[?OutputKey=='WebBucketName'].OutputValue" \
-            --output text)
-          CF_DIST_ID=$(aws cloudformation describe-stacks \
-            --stack-name CodeLabsBilling-Dev-Frontend \
-            --region us-east-1 \
-            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
-            --output text)
-
-          echo "user_pool_id=$USER_POOL_ID" >> $GITHUB_OUTPUT
-          echo "web_client_id=$WEB_CLIENT_ID" >> $GITHUB_OUTPUT
-          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
-          echo "web_bucket=$WEB_BUCKET" >> $GITHUB_OUTPUT
-          echo "cf_dist_id=$CF_DIST_ID" >> $GITHUB_OUTPUT
-
+  # ── Migraciones ───────────────────────────────────────────────────────────
+  # Corre después de deploy-infra, solo si backend o infra cambiaron.
   migrate-db:
     name: Run Database Migrations
-    needs: deploy-infra
+    needs: [detect, deploy-infra]
+    if: |
+      always() && !failure() && !cancelled() &&
+      (needs.detect.outputs.backend == 'true' || needs.detect.outputs.infra == 'true') &&
+      needs.deploy-infra.result == 'success'
     runs-on: ubuntu-latest
     environment: dev
+
     steps:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -152,9 +146,16 @@ jobs:
             exit 1
           fi
 
+  # ── Deploy Frontend ───────────────────────────────────────────────────────
+  # Corre si cambiaron frontend o infra (infra puede cambiar URLs/IDs de Cognito).
+  # Lee los outputs de CloudFormation directamente — no depende de deploy-infra
+  # para obtenerlos, funciona tanto si deploy-infra corrió como si fue saltado.
   deploy-frontend:
     name: Build and Deploy Frontend
-    needs: [deploy-infra, migrate-db]
+    needs: [detect, deploy-infra, migrate-db]
+    if: |
+      always() && !failure() && !cancelled() &&
+      (needs.detect.outputs.frontend == 'true' || needs.detect.outputs.infra == 'true')
     runs-on: ubuntu-latest
     environment: dev
 
@@ -177,17 +178,57 @@ jobs:
         run: npm install
         working-directory: frontend/web
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: sa-east-1
+
+      - name: Read CloudFormation outputs
+        id: cfn
+        run: |
+          USER_POOL_ID=$(aws cloudformation describe-stacks \
+            --stack-name CodeLabsBilling-Dev-Auth \
+            --region sa-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey=='UserPoolId'].OutputValue" \
+            --output text)
+          WEB_CLIENT_ID=$(aws cloudformation describe-stacks \
+            --stack-name CodeLabsBilling-Dev-Auth \
+            --region sa-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey=='WebClientId'].OutputValue" \
+            --output text)
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name CodeLabsBilling-Dev-Api \
+            --region sa-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiCustomDomainUrl'].OutputValue" \
+            --output text)
+          WEB_BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name CodeLabsBilling-Dev-Frontend \
+            --region us-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey=='WebBucketName'].OutputValue" \
+            --output text)
+          CF_DIST_ID=$(aws cloudformation describe-stacks \
+            --stack-name CodeLabsBilling-Dev-Frontend \
+            --region us-east-1 \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+            --output text)
+
+          echo "user_pool_id=$USER_POOL_ID" >> $GITHUB_OUTPUT
+          echo "web_client_id=$WEB_CLIENT_ID" >> $GITHUB_OUTPUT
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "web_bucket=$WEB_BUCKET" >> $GITHUB_OUTPUT
+          echo "cf_dist_id=$CF_DIST_ID" >> $GITHUB_OUTPUT
+
       - name: Build (Vite)
         run: npm run build
         working-directory: frontend/web
         env:
-          # Valores inyectados desde outputs de CloudFormation — nada hardcodeado
-          VITE_API_URL: ${{ needs.deploy-infra.outputs.api_url }}/api/v1
-          VITE_COGNITO_USER_POOL_ID: ${{ needs.deploy-infra.outputs.user_pool_id }}
-          VITE_COGNITO_CLIENT_ID: ${{ needs.deploy-infra.outputs.web_client_id }}
+          VITE_API_URL: ${{ steps.cfn.outputs.api_url }}/api/v1
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.cfn.outputs.user_pool_id }}
+          VITE_COGNITO_CLIENT_ID: ${{ steps.cfn.outputs.web_client_id }}
           VITE_COGNITO_REGION: sa-east-1
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials us-east-1 (CloudFront)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
@@ -196,12 +237,12 @@ jobs:
       - name: Deploy a S3
         run: |
           aws s3 sync frontend/web/dist/ \
-            s3://${{ needs.deploy-infra.outputs.web_bucket }} \
+            s3://${{ steps.cfn.outputs.web_bucket }} \
             --delete \
             --region us-east-1
 
       - name: Invalidar cache de CloudFront
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id ${{ needs.deploy-infra.outputs.cf_dist_id }} \
+            --distribution-id ${{ steps.cfn.outputs.cf_dist_id }} \
             --paths "/*"
