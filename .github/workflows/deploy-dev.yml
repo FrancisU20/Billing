@@ -17,9 +17,9 @@ jobs:
     name: "[ 1 ] Detect Changes"
     runs-on: ubuntu-latest
     outputs:
-      backend:  ${{ steps.filter.outputs.backend }}
+      code:     ${{ steps.filter.outputs.code }}
+      config:   ${{ steps.filter.outputs.config }}
       frontend: ${{ steps.filter.outputs.frontend }}
-      infra:    ${{ steps.filter.outputs.infra }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,12 +29,12 @@ jobs:
         id: filter
         with:
           filters: |
-            backend:
+            code:
               - 'backend/**'
+            config:
+              - 'infra/**'
             frontend:
               - 'frontend/**'
-            infra:
-              - 'infra/**'
 
   # ══════════════════════════════════════════════════════════════════
   # FASE 2 · QUALITY GATES — ¿El código es válido?
@@ -42,7 +42,7 @@ jobs:
   ci-backend:
     name: "[ 2 ] CI · Backend"
     needs: detect
-    if: needs.detect.outputs.backend == 'true'
+    if: needs.detect.outputs.code == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -109,16 +109,23 @@ jobs:
           VITE_COGNITO_REGION: sa-east-1
 
   # ══════════════════════════════════════════════════════════════════
-  # FASE 3 · INFRA — ¿La infraestructura está lista?
-  # Corre solo si infra cambió. No toca código Lambda.
-  # Siempre después de los quality gates para no deployar sobre código roto.
+  # FASE 3 · DEPLOY CDK — Infraestructura + Código Lambda
+  #
+  # cdk deploy --all cuando código (backend) O config (infra) cambian.
+  # CDK compara el estado deseado vs AWS y actualiza solo lo necesario:
+  #   - Si solo infra cambió → actualiza los stacks de infra, salta el layer
+  #   - Si solo código cambió → actualiza el Api stack con el nuevo layer
+  #   - Si ambos cambiaron → actualiza todo en el orden correcto
+  #
+  # El Lambda layer siempre se construye: CDK lo necesita para calcular
+  # el hash del asset y decidir si el layer en AWS necesita actualizarse.
   # ══════════════════════════════════════════════════════════════════
-  deploy-infra:
-    name: "[ 3 ] Deploy · Infrastructure"
+  deploy-cdk:
+    name: "[ 3 ] Deploy · CDK (Infrastructure + Lambda)"
     needs: [detect, ci-backend, ci-frontend]
     if: |
       always() && !failure() && !cancelled() &&
-      needs.detect.outputs.infra == 'true'
+      (needs.detect.outputs.code == 'true' || needs.detect.outputs.config == 'true')
     runs-on: ubuntu-latest
     environment: dev
     steps:
@@ -142,12 +149,6 @@ jobs:
           python3 -m venv .venv
           .venv/bin/pip install -r requirements.txt
         working-directory: infra
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: backend/requirements-layer-core.txt
 
       - name: Build Lambda Layer
         run: bash scripts/build-lambda-deps.sh
@@ -158,84 +159,22 @@ jobs:
           role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
           aws-region: sa-east-1
 
-      - name: CDK deploy · Infra stacks (sa-east-1)
-        run: |
-          cdk deploy \
-            CodeLabsBilling-Dev-Network \
-            CodeLabsBilling-Dev-Auth \
-            CodeLabsBilling-Dev-Database \
-            CodeLabsBilling-Dev-Storage \
-            CodeLabsBilling-Dev-Queues \
-            CodeLabsBilling-Dev-Security \
-            CodeLabsBilling-Dev-Observability \
-            --context env=dev --require-approval never
+      - name: CDK deploy --all (sa-east-1)
+        run: cdk deploy --all --context env=dev --require-approval never
         working-directory: infra
 
-      - name: CDK deploy · CloudFront + Certificate (us-east-1)
-        run: |
-          cdk deploy \
-            CodeLabsBilling-Dev-Certificate \
-            CodeLabsBilling-Dev-Frontend \
-            --context env=dev --require-approval never
+      - name: CDK deploy --all (us-east-1 — CloudFront + Certificate)
+        run: cdk deploy --all --context env=dev --require-approval never
         working-directory: infra
         env:
           AWS_DEFAULT_REGION: us-east-1
 
   # ══════════════════════════════════════════════════════════════════
-  # FASE 4 · DEPLOY — ¿El código está en producción?
-  # Backend y Frontend deployean en paralelo.
-  # Ambos esperan la fase de infra (si corrió) para no deployar sobre
-  # infraestructura en proceso de cambio.
+  # FASE 4 · DEPLOY — Aplicaciones
   # ══════════════════════════════════════════════════════════════════
-  deploy-backend:
-    name: "[ 4 ] Deploy · Backend (Lambda)"
-    needs: [detect, ci-backend, deploy-infra]
-    if: |
-      always() && !failure() && !cancelled() &&
-      needs.detect.outputs.backend == 'true' &&
-      needs.ci-backend.result == 'success'
-    runs-on: ubuntu-latest
-    environment: dev
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install CDK CLI
-        run: npm install -g aws-cdk
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: infra/requirements.txt
-
-      - name: Install CDK Python dependencies
-        run: |
-          python3 -m venv .venv
-          .venv/bin/pip install -r requirements.txt
-        working-directory: infra
-
-      - name: Build Lambda Layer (arm64)
-        run: bash scripts/build-lambda-deps.sh
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: sa-east-1
-
-      - name: CDK deploy · Api stack (Lambdas + API Gateway)
-        run: |
-          cdk deploy CodeLabsBilling-Dev-Api \
-            --context env=dev --require-approval never
-        working-directory: infra
-
   deploy-frontend:
     name: "[ 4 ] Deploy · Frontend (S3 + CloudFront)"
-    needs: [detect, ci-frontend, deploy-infra]
+    needs: [detect, ci-frontend, deploy-cdk]
     if: |
       always() && !failure() && !cancelled() &&
       needs.detect.outputs.frontend == 'true' &&
@@ -325,15 +264,15 @@ jobs:
 
   # ══════════════════════════════════════════════════════════════════
   # FASE 5 · DATA — ¿El schema está actualizado?
-  # Siempre después del código. Nunca antes.
+  # Solo cuando código backend cambia — infra pura no toca migraciones.
   # ══════════════════════════════════════════════════════════════════
   migrate-db:
     name: "[ 5 ] Migrate · Database"
-    needs: [detect, deploy-backend]
+    needs: [detect, deploy-cdk]
     if: |
       always() && !failure() && !cancelled() &&
-      needs.detect.outputs.backend == 'true' &&
-      needs.deploy-backend.result == 'success'
+      needs.detect.outputs.code == 'true' &&
+      needs.deploy-cdk.result == 'success'
     runs-on: ubuntu-latest
     environment: dev
     steps:
