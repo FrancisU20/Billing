@@ -94,7 +94,13 @@ async def get_tenant(tenant_id: UUID, ctx: TenantCtx, repo: TenantRepo):
 
 @router.patch("/{tenant_id}", response_model=TenantResponse)
 async def update_tenant(tenant_id: UUID, body: UpdateTenantRequest, ctx: TenantCtx, repo: TenantRepo):
-    ctx.require_superadmin()
+    # Superadmin puede actualizar cualquier tenant (incluyendo estado).
+    # Admin del tenant puede actualizar solo su propio tenant (sin cambiar estado ni ambiente).
+    if not ctx.is_superadmin:
+        if str(tenant_id) != ctx.tenant_id:
+            raise HTTPException(status_code=403, detail="Acceso denegado")
+        body.estado = None       # admin no puede cambiar el estado
+        body.ambiente_sri = None  # admin no puede cambiar el ambiente SRI
     try:
         tenant = await UpdateTenantUseCase(repo).execute(
             UpdateTenantCommand(

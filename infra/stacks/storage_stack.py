@@ -42,6 +42,16 @@ class StorageStack(Stack):
         removal = RemovalPolicy.RETAIN if env == "prod" else RemovalPolicy.DESTROY
         auto_delete = env != "prod"
 
+        # CORS para el bucket de documentos — permite que el frontend suba certificados
+        # directamente a S3 via presigned URL (PUT) sin pasar por el backend.
+        documents_cors = [s3.CorsRule(
+            allowed_methods=[s3.HttpMethods.PUT, s3.HttpMethods.GET, s3.HttpMethods.HEAD],
+            allowed_origins=["*"] if env == "dev" else [f"https://{config['domain']['frontend']}"],
+            allowed_headers=["*"],
+            exposed_headers=["ETag"],
+            max_age=3000,
+        )]
+
         # Bucket principal: XML firmados, XML autorizados, PDF/RIDE, certificados
         self.documents_bucket = s3.Bucket(
             self, "DocumentsBucket",
@@ -51,6 +61,7 @@ class StorageStack(Stack):
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             versioned=True,
             lifecycle_rules=lifecycle_rules,
+            cors=documents_cors,
             removal_policy=removal,
             auto_delete_objects=auto_delete,
             enforce_ssl=True,

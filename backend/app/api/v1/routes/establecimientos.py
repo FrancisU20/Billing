@@ -112,6 +112,21 @@ async def create_punto_emision(
     return await pto_repo.create(est.id, body.codigo)
 
 
+@router.delete(
+    "/{tenant_id}/establecimientos/{est_codigo}/puntos-emision/{pto_codigo}",
+    status_code=204,
+)
+async def delete_punto_emision(
+    tenant_id: UUID, est_codigo: str, pto_codigo: str,
+    ctx: TenantCtx, est_repo: EstablecimientoRepo, pto_repo: PuntoEmisionRepo,
+):
+    _check_access(ctx, tenant_id)
+    est = await est_repo.get(tenant_id, est_codigo)
+    if not est:
+        raise HTTPException(status_code=404, detail="Establecimiento no encontrado")
+    await pto_repo.delete(est.id, pto_codigo)
+
+
 # ── Secuenciales ──────────────────────────────────────────────────────────────
 
 @router.get(

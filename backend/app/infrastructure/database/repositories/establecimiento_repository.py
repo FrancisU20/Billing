@@ -44,6 +44,12 @@ class EstablecimientoRepository:
         est = await self.get(tenant_id, codigo)
         if est:
             est.estado = _ESTADO_INACTIVE
+            # Cascada: desactivar todos los puntos de emisión del establecimiento
+            puntos = await self._session.execute(
+                select(PuntoEmisionModel).where(PuntoEmisionModel.establecimiento_id == est.id)
+            )
+            for pto in puntos.scalars().all():
+                pto.estado = _ESTADO_INACTIVE
             await self._session.flush()
 
 
@@ -76,6 +82,12 @@ class PuntoEmisionRepository:
         self._session.add(model)
         await self._session.flush()
         return model
+
+    async def delete(self, establecimiento_id: UUID, codigo: str) -> None:
+        pto = await self.get(establecimiento_id, codigo)
+        if pto:
+            pto.estado = _ESTADO_INACTIVE
+            await self._session.flush()
 
 
 class SecuencialRepository:

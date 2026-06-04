@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { getApiErrorMessage } from "@/lib/api-errors";
@@ -61,6 +61,17 @@ export function SriConfigTab() {
     onError: (error) => toast.error(getApiErrorMessage(error, "No se pudo crear el establecimiento")),
   });
 
+  const deleteEst = useMutation({
+    mutationFn: (codigo: string) =>
+      apiClient.delete(`/tenants/${tenantId}/establecimientos/${codigo}`),
+    onSuccess: (_, codigo) => {
+      queryClient.invalidateQueries({ queryKey: ["establecimientos", tenantId] });
+      if (expandedEst === codigo) setExpandedEst(null);
+      toast.success("Establecimiento eliminado");
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error, "No se pudo eliminar el establecimiento")),
+  });
+
   const createPto = useMutation({
     mutationFn: ({ estCodigo, ptoCodigo }: { estCodigo: string; ptoCodigo: string }) =>
       apiClient
@@ -74,11 +85,25 @@ export function SriConfigTab() {
     onError: (error) => toast.error(getApiErrorMessage(error, "No se pudo crear el punto de emisión")),
   });
 
+  const deletePto = useMutation({
+    mutationFn: ({ estCodigo, ptoCodigo }: { estCodigo: string; ptoCodigo: string }) =>
+      apiClient.delete(`/tenants/${tenantId}/establecimientos/${estCodigo}/puntos-emision/${ptoCodigo}`),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["puntos-emision", tenantId, vars.estCodigo] });
+      toast.success("Punto de emisión eliminado");
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error, "No se pudo eliminar el punto de emisión")),
+  });
+
   const submitEstablecimiento = () => {
     const nextErrors = { codigo: exactDigits(newEst.codigo, 3, "Código") };
     setEstErrors(nextErrors);
     if (hasErrors(nextErrors)) return;
     createEst.mutate(newEst);
+  };
+
+  const confirmDelete = (message: string, onConfirm: () => void) => {
+    if (window.confirm(message)) onConfirm();
   };
 
   return (
@@ -118,32 +143,56 @@ export function SriConfigTab() {
       <div className="space-y-2">
         {establecimientos.map((est) => (
           <Card key={est.codigo} className="overflow-hidden">
-            <button
-              onClick={() => setExpandedEst(expandedEst === est.codigo ? null : est.codigo)}
-              aria-expanded={expandedEst === est.codigo}
-              aria-controls={`est-content-${est.codigo}`}
-              className="flex w-full items-center justify-between bg-muted/30 px-4 py-3 text-sm hover:bg-muted/50"
-            >
-              <span className="font-mono font-medium">
-                Establecimiento {est.codigo}
-                {est.direccion && <span className="ml-2 font-normal text-muted-foreground">{est.direccion}</span>}
-              </span>
-              {expandedEst === est.codigo ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              )}
-            </button>
+            <div className="flex items-center bg-muted/30 text-sm hover:bg-muted/50">
+              <button
+                onClick={() => setExpandedEst(expandedEst === est.codigo ? null : est.codigo)}
+                aria-expanded={expandedEst === est.codigo}
+                aria-controls={`est-content-${est.codigo}`}
+                className="flex flex-1 items-center justify-between px-4 py-3"
+              >
+                <span className="font-mono font-medium">
+                  Establecimiento {est.codigo}
+                  {est.direccion && <span className="ml-2 font-normal text-muted-foreground">{est.direccion}</span>}
+                </span>
+                {expandedEst === est.codigo ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                )}
+              </button>
+              <button
+                onClick={() => confirmDelete(
+                  `¿Eliminar establecimiento ${est.codigo} y todos sus puntos de emisión?`,
+                  () => deleteEst.mutate(est.codigo)
+                )}
+                aria-label={`Eliminar establecimiento ${est.codigo}`}
+                className="px-3 py-3 text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
 
             {expandedEst === est.codigo && (
               <div id={`est-content-${est.codigo}`} className="space-y-3 px-4 py-3">
                 <div className="space-y-1">
                   {(puntosMap?.[est.codigo] ?? []).map((pto) => (
-                    <div key={pto.codigo} className="flex items-center gap-2 text-sm">
-                      <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs">
-                        {est.codigo}-{pto.codigo}
-                      </span>
-                      <span className="text-xs text-muted-foreground">Punto de emisión activo</span>
+                    <div key={pto.codigo} className="flex items-center justify-between gap-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs">
+                          {est.codigo}-{pto.codigo}
+                        </span>
+                        <span className="text-xs text-muted-foreground">Punto de emisión activo</span>
+                      </div>
+                      <button
+                        onClick={() => confirmDelete(
+                          `¿Eliminar punto de emisión ${est.codigo}-${pto.codigo}?`,
+                          () => deletePto.mutate({ estCodigo: est.codigo, ptoCodigo: pto.codigo })
+                        )}
+                        aria-label={`Eliminar punto de emisión ${pto.codigo}`}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
                     </div>
                   ))}
                 </div>
