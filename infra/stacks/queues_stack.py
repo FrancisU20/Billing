@@ -56,9 +56,10 @@ class QueuesStack(Stack):
 
         # Cola de onboarding de nuevos tenants (crear usuario Cognito + email bienvenida)
         # Standard — las creaciones son independientes entre sí, orden no importa
+        # Visibility timeout = 6× el timeout del Lambda (60s) según recomendación AWS
         self.tenant_onboarding_queue = make_queue(
             "tenant-onboarding",
-            sqs_cfg.get("tenant_onboarding_visibility_timeout", 120),
+            sqs_cfg.get("tenant_onboarding_visibility_timeout", 360),
         )
 
         # EventBridge rule — scheduler de reintentos automáticos (cada 5 minutos)
