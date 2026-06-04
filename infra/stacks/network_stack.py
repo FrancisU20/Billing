@@ -1,4 +1,4 @@
-from aws_cdk import Stack, aws_ec2 as ec2
+from aws_cdk import Stack, aws_ec2 as ec2, aws_iam as iam
 from constructs import Construct
 
 
@@ -46,6 +46,23 @@ class NetworkStack(Stack):
                 ),
             ],
         )
+
+        # SSM en NAT instance — permite SSM port forwarding para acceso local a Aurora
+        # El role del NAT instance lo crea CDK automáticamente; usamos el construct tree
+        # para agregarle AmazonSSMManagedInstanceCore sin cambiar el NatProvider.
+        if nat_type == "instance":
+            ssm_policy = iam.ManagedPolicy.from_aws_managed_policy_name(
+                "AmazonSSMManagedInstanceCore"
+            )
+            for subnet in self.vpc.public_subnets:
+                try:
+                    nat_instance_role = (
+                        subnet.node.find_child("NatInstance")
+                        .node.find_child("InstanceRole")
+                    )
+                    nat_instance_role.add_managed_policy(ssm_policy)
+                except Exception:
+                    pass  # Solo aplica cuando nat_type=instance
 
         # VPC Endpoints — evita tráfico por NAT para servicios AWS internos
         self.vpc.add_gateway_endpoint(
