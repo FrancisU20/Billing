@@ -1,6 +1,6 @@
 .PHONY: setup backend-dev backend-test backend-lint frontend-dev frontend-build \
         infra-synth infra-diff deploy-dev migrate setup-oidc cdk-bootstrap \
-        build-lambda-deps help
+        build-lambda-deps debug-api token open-aurora close-aurora help
 
 AWS_PROFILE := codelabs
 AWS_REGION  := sa-east-1
@@ -61,3 +61,17 @@ cdk-bootstrap: ## CDK bootstrap en sa-east-1 (ejecutar UNA VEZ por cuenta/regió
 
 build-lambda-deps: ## Construye los Lambda Layers (core + batch) — ejecutar antes de deploy local
 	bash scripts/build-lambda-deps.sh
+
+# ── Local Development ─────────────────────────────────────────────────────────
+
+debug-api: ## 🚀 Abre Aurora + token + uvicorn (Ctrl+C cierra todo)
+	$(MAKE) -C local debug-api
+
+token: ## 🔑 Genera Bearer token para Postman
+	$(MAKE) -C local token
+
+open-aurora: ## 🔓 Abre Aurora a tu IP (usar antes de F5 en VS Code)
+	$(MAKE) -C local open-aurora
+
+close-aurora: ## 🔒 Cierra Aurora (remueve tu IP del SG)
+	$(MAKE) -C local close-aurora

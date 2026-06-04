@@ -48,8 +48,9 @@ infra/.venv/
 .Trashes
 Thumbs.db
 
-# IDE
-.vscode/
+# IDE — solo settings personales, no configs del proyecto
+.vscode/settings.json
+.vscode/extensions.json
 .idea/
 *.swp
 *.swo
