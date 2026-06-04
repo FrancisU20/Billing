@@ -27,7 +27,7 @@ class BrevoEmailProvider(EmailProvider):
 
         try:
             context = ssl.create_default_context()
-            with smtplib.SMTP(_SMTP_HOST, _SMTP_PORT) as server:
+            with smtplib.SMTP(_SMTP_HOST, _SMTP_PORT, timeout=10) as server:
                 server.ehlo()
                 server.starttls(context=context)
                 server.login(self._smtp_user, self._smtp_password)

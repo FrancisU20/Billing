@@ -1,13 +1,13 @@
+import json
 from dataclasses import dataclass
 
+import boto3
 from aws_lambda_powertools import Logger
 
 from app.domain.entities.tenant import Tenant
 from app.domain.enums.ambiente_sri import AmbienteSri
 from app.domain.repositories.tenant_repository import TenantRepository
 from app.infrastructure.cognito.user_service import CognitoUserService
-from app.infrastructure.email.brevo_provider import BrevoEmailProvider
-from app.infrastructure.email.provider import EmailMessage
 from app.shared.config import get_settings
 from app.shared.exceptions import DomainError
 
@@ -46,14 +46,15 @@ class CreateTenantUseCase:
         )
         tenant = await self._repo.save(tenant)
 
-        # Crear usuario admin en Cognito
+        # Crear usuario admin en Cognito (síncrono — necesitamos la contraseña)
         temp_password = self._cognito.create_tenant_admin(
             tenant_id=str(tenant.id),
             email=cmd.admin_email,
         )
 
-        # Enviar email de bienvenida con credenciales
-        self._send_welcome_email(
+        # Enviar email de bienvenida de forma asíncrona via SQS.
+        # El email dispatch worker lo procesa sin bloquear la respuesta al superadmin.
+        self._enqueue_welcome_email(
             email=cmd.admin_email,
             razon_social=cmd.razon_social,
             temp_password=temp_password,
@@ -61,49 +62,26 @@ class CreateTenantUseCase:
 
         return tenant
 
-    def _send_welcome_email(self, email: str, razon_social: str, temp_password: str) -> None:
+    def _enqueue_welcome_email(
+        self, email: str, razon_social: str, temp_password: str
+    ) -> None:
         settings = get_settings()
-        credentials = settings.get_email_credentials()
-        smtp_user = credentials.get("smtp_user")
-        smtp_password = credentials.get("smtp_password")
-        if not smtp_user or not smtp_password:
-            logger.warning("SMTP credentials not configured — skipping welcome email")
+        if not settings.sqs_email_dispatch_url:
+            logger.warning("SQS email dispatch URL not configured — skipping welcome email")
             return
 
         try:
-            provider = BrevoEmailProvider(smtp_user=smtp_user, smtp_password=smtp_password)
-            provider.send(EmailMessage(
-                to=email,
-                subject="Bienvenido a CodeLabs Billing — Tus credenciales de acceso",
-                html_body=_welcome_email_html(razon_social, email, temp_password),
-                from_name="CodeLabs Billing",
-                from_email="noreply@codelabsecuador.com",
-                attachments=[],
-            ))
-            logger.info("Welcome email sent", extra={"email": email})
+            sqs = boto3.client("sqs", region_name=settings.aws_region_name)
+            sqs.send_message(
+                QueueUrl=settings.sqs_email_dispatch_url,
+                MessageBody=json.dumps({
+                    "type": "WELCOME",
+                    "email": email,
+                    "razon_social": razon_social,
+                    "temp_password": temp_password,
+                }),
+            )
+            logger.info("Welcome email enqueued", extra={"email": email})
         except Exception as exc:
-            logger.error("Failed to send welcome email", extra={"error": str(exc), "email": email})
-
-
-def _welcome_email_html(razon_social: str, email: str, password: str) -> str:
-    return f"""
-    <html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:auto">
-      <h2 style="color:#1a56db">Bienvenido a CodeLabs Billing</h2>
-      <p>Hola, tu empresa <strong>{razon_social}</strong> ha sido registrada en CodeLabs Billing Cloud.</p>
-      <p>Tus credenciales de acceso son:</p>
-      <table style="border-collapse:collapse;width:100%;margin:16px 0">
-        <tr style="background:#f3f4f6">
-          <td style="padding:10px;font-weight:bold;width:140px">Correo</td>
-          <td style="padding:10px;font-family:monospace">{email}</td>
-        </tr>
-        <tr>
-          <td style="padding:10px;font-weight:bold">Contraseña</td>
-          <td style="padding:10px;font-family:monospace;font-size:16px">{password}</td>
-        </tr>
-      </table>
-      <p>Accede en: <a href="https://billing-dev.codelabsecuador.com">billing-dev.codelabsecuador.com</a></p>
-      <p style="color:#666;font-size:12px">Te recomendamos cambiar tu contraseña en la primera sesión.</p>
-      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
-      <p style="color:#999;font-size:11px">CodeLabs Billing Cloud — Sistema de Facturación Electrónica Ecuador</p>
-    </body></html>
-    """
+            # El email es best-effort — no debe fallar la creación del tenant
+            logger.error("Failed to enqueue welcome email", extra={"error": str(exc), "email": email})

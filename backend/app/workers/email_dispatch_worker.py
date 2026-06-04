@@ -19,6 +19,56 @@ from app.infrastructure.storage.s3_storage import descargar_documento, s3_key_pd
 logger = Logger(service="codelabs-billing-email-dispatch")
 
 
+async def enviar_bienvenida_tenant(email: str, razon_social: str, temp_password: str) -> None:
+    """Envía el email de bienvenida al admin de un tenant recién creado."""
+    from app.infrastructure.email.brevo_provider import BrevoEmailProvider
+    from app.shared.config import get_settings
+
+    settings = get_settings()
+    credentials = settings.get_email_credentials()
+    smtp_user = credentials.get("smtp_user")
+    smtp_password = credentials.get("smtp_password")
+
+    if not smtp_user or not smtp_password:
+        logger.warning("SMTP credentials not configured — skipping welcome email")
+        return
+
+    provider = BrevoEmailProvider(smtp_user=smtp_user, smtp_password=smtp_password)
+    provider.send(EmailMessage(
+        to=email,
+        subject="Bienvenido a CodeLabs Billing — Tus credenciales de acceso",
+        html_body=_welcome_email_html(razon_social, email, temp_password),
+        from_name="CodeLabs Billing",
+        from_email="noreply@codelabsecuador.com",
+        attachments=[],
+    ))
+    logger.info("Welcome email sent", extra={"email": email})
+
+
+def _welcome_email_html(razon_social: str, email: str, password: str) -> str:
+    return f"""
+    <html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:auto">
+      <h2 style="color:#1a56db">Bienvenido a CodeLabs Billing</h2>
+      <p>Hola, tu empresa <strong>{razon_social}</strong> ha sido registrada en CodeLabs Billing Cloud.</p>
+      <p>Tus credenciales de acceso son:</p>
+      <table style="border-collapse:collapse;width:100%;margin:16px 0">
+        <tr style="background:#f3f4f6">
+          <td style="padding:10px;font-weight:bold;width:140px">Correo</td>
+          <td style="padding:10px;font-family:monospace">{email}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px;font-weight:bold">Contraseña</td>
+          <td style="padding:10px;font-family:monospace;font-size:16px">{password}</td>
+        </tr>
+      </table>
+      <p>Accede en: <a href="https://billing-dev.codelabsecuador.com">billing-dev.codelabsecuador.com</a></p>
+      <p style="color:#666;font-size:12px">Te recomendamos cambiar tu contraseña en la primera sesión.</p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+      <p style="color:#999;font-size:11px">CodeLabs Billing Cloud — Sistema de Facturación Electrónica Ecuador</p>
+    </body></html>
+    """
+
+
 async def enviar_comprobante_email(comprobante_id: str, tenant_id: str) -> None:
     async with get_session_factory()() as session, session.begin():
         await _enviar(session, comprobante_id, tenant_id)
