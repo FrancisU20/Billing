@@ -69,6 +69,7 @@ class SqlAlchemyTenantRepository(TenantRepository):
             existing.plan_id = tenant.plan_id
             existing.comprobantes_mes_actual = tenant.comprobantes_mes_actual
             await self._session.flush()
+            await self._session.refresh(existing)
             return _to_entity(existing)
         model = _to_model(tenant)
         self._session.add(model)

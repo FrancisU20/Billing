@@ -16,6 +16,7 @@ El archivo cifrado reside en S3 con clave KMS.
 import json
 
 import boto3
+from botocore.config import Config as BotocoreConfig
 from cryptography.hazmat.primitives.serialization import pkcs12
 
 from app.shared.config import get_settings
@@ -26,7 +27,12 @@ settings = get_settings()
 
 def generate_upload_url(tenant_id: str, cert_id: str, expires_in: int = 300) -> tuple[str, str]:
     """Genera una presigned URL de S3 para que el frontend suba el .p12 directamente."""
-    s3 = boto3.client("s3", region_name=settings.env != "local" and "sa-east-1" or None)
+    # SigV4 obligatorio: el bucket usa KMS y AWS requiere Signature Version 4 para KMS.
+    s3 = boto3.client(
+        "s3",
+        region_name="sa-east-1" if settings.env != "local" else None,
+        config=BotocoreConfig(signature_version="s3v4"),
+    )
     s3_key = f"tenants/{tenant_id}/certs/uploads/{cert_id}.p12"
     url = s3.generate_presigned_url(
         "put_object",
