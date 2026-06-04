@@ -99,6 +99,9 @@ class AuroraGuard:
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            # start_new_session crea un nuevo session leader (proceso independiente)
+            # El túnel SSM sobrevive cuando el script padre termina
+            start_new_session=True,
         )
 
         _PID_FILE.write_text(str(self._process.pid))
@@ -113,16 +116,18 @@ class AuroraGuard:
             )
 
     def close(self) -> None:
+        import os
         pid = self._read_pid()
         if pid:
             try:
-                import os
-                os.killpg(os.getpgid(pid), signal.SIGTERM)
-            except ProcessLookupError:
+                # Con start_new_session=True el proceso es su propio session leader:
+                # pgid == pid, así killpg termina exactamente ese proceso.
+                os.killpg(pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
                 pass
             _PID_FILE.unlink(missing_ok=True)
             self._process = None
-            print(f"🔒  Túnel SSM cerrado")
+            print("🔒  Túnel SSM cerrado")
         else:
             print("ℹ️   No hay túnel SSM activo")
 
