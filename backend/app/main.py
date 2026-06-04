@@ -29,6 +29,10 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-Api-Key", "X-Idempotency-Key"],
 )
 
+if settings.is_local:
+    from app.shared.middleware.local_auth_middleware import LocalAuthMiddleware
+    app.add_middleware(LocalAuthMiddleware)
+
 app.include_router(api_router, prefix="/api/v1")
 
 
