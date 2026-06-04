@@ -252,10 +252,9 @@ class ApiStack(Stack):
         )
         queues.batch_import_queue.grant_consume_messages(self.batch_import_worker)
 
-        # Worker de onboarding de tenants — crea usuario Cognito y envía email bienvenida
-        # Separado del API Lambda para no bloquear la respuesta al superadmin.
-        # Timeout propio de 60s — Cognito + SMTP no necesitan más.
-        # La cola tiene visibility_timeout=360s (6× timeout, recomendación AWS).
+        # Worker de onboarding de tenants — crea usuario Cognito y envía email bienvenida.
+        # NO está en VPC: no accede a Aurora. Solo llama a Cognito y Brevo (endpoints públicos).
+        # Sin VPC → acceso directo a internet por la red de AWS, sin depender del NAT instance.
         self.tenant_onboarding_worker = _lambda.Function(
             self, "TenantOnboardingWorker",
             function_name=f"codelabs-billing-{env}-tenant-onboarding-worker",
@@ -270,7 +269,6 @@ class ApiStack(Stack):
             layers=[core_layer],
             log_retention=logs.RetentionDays.ONE_WEEK if env != "prod" else logs.RetentionDays.THREE_MONTHS,
             tracing=_lambda.Tracing.ACTIVE,
-            **vpc_config,
         )
         queues.tenant_onboarding_queue.grant_consume_messages(self.tenant_onboarding_worker)
 
