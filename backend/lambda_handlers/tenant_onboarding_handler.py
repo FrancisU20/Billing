@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 from aws_lambda_powertools import Logger
@@ -9,12 +10,12 @@ logger = Logger(service="codelabs-billing-tenant-onboarding")
 
 
 @logger.inject_lambda_context(log_event=False)
-async def handler(event: dict, context: LambdaContext) -> dict:
+def handler(event: dict, context: LambdaContext) -> dict:
     for record in event.get("Records", []):
         body = json.loads(record["body"])
-        await procesar_onboarding(
+        asyncio.run(procesar_onboarding(
             tenant_id=body["tenant_id"],
             razon_social=body["razon_social"],
             admin_email=body["admin_email"],
-        )
+        ))
     return {"statusCode": 200}
