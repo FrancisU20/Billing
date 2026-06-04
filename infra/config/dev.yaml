@@ -24,7 +24,7 @@ rds_proxy:
 
 lambda:
   memory_mb: 256
-  timeout_seconds: 60
+  timeout_seconds: 900
   powertools_log_level: DEBUG
 
 cloudwatch:

@@ -4,7 +4,6 @@ import string
 
 import boto3
 from aws_lambda_powertools import Logger
-from botocore.config import Config as BotocoreConfig
 
 from app.shared.config import get_settings
 
@@ -31,11 +30,7 @@ class CognitoUserService:
         settings = get_settings()
         self._user_pool_id = settings.cognito_user_pool_id
         region = os.environ.get("AWS_REGION_NAME", "sa-east-1")
-        self._client = boto3.client(
-            "cognito-idp",
-            region_name=region,
-            config=BotocoreConfig(connect_timeout=10, read_timeout=20, retries={"max_attempts": 2}),
-        )
+        self._client = boto3.client("cognito-idp", region_name=region)
 
     def create_tenant_admin(self, tenant_id: str, email: str) -> str:
         """Crea el usuario admin del tenant en Cognito. Retorna la contraseña temporal."""
@@ -51,10 +46,9 @@ class CognitoUserService:
                 {"Name": "custom:role", "Value": "admin"},
                 {"Name": "custom:is_superadmin", "Value": "false"},
             ],
-            MessageAction="SUPPRESS",  # Enviamos nuestro propio email de bienvenida
+            MessageAction="SUPPRESS",
         )
 
-        # Contraseña permanente — el tenant entra sin necesidad de cambiarla en el primer login
         self._client.admin_set_user_password(
             UserPoolId=self._user_pool_id,
             Username=email,

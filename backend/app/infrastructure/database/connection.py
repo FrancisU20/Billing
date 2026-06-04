@@ -19,14 +19,11 @@ def get_engine():
             f"&sslmode={'require' if settings.env != 'local' else 'disable'}"
         )
         # pool_pre_ping=True detecta conexiones muertas (importante con Aurora que escala a 0)
-        # connect_args timeout: max espera para despertar Aurora desde 0 capacity
         _engine = create_async_engine(
             url,
             pool_pre_ping=True,
             pool_size=settings.db_pool_size,
             max_overflow=settings.db_max_overflow,
-            pool_timeout=50,  # espera hasta 50s para obtener conexión del pool
-            connect_args={"connect_timeout": 45},  # timeout de conexión TCP a Aurora
             echo=settings.env == "local",
         )
     return _engine
