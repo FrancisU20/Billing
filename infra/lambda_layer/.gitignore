@@ -1,5 +1,0 @@
-# Los paquetes Python de los layers se construyen en CI (GitHub Actions = Linux)
-# No se commitean al repo — se generan antes de cada CDK deploy
-# Ver: scripts/build-lambda-deps.sh
-core/python/
-batch/python/
