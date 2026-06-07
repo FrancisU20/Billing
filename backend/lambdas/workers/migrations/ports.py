@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 
 from migrations.context import MigrationResult
 from migrations.definition import Migration
+
 from shared.errors import ConflictError
 
 
