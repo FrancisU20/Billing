@@ -45,3 +45,7 @@ updates:
       - backend
     commit-message:
       prefix: "chore(backend)"
+    ignore:
+      # pydantic-core es transitivo de pydantic — bumpearlo solo rompe el install.
+      # Actualizar pydantic directamente arrastra pydantic-core a la versión correcta.
+      - dependency-name: "pydantic-core"
