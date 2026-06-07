@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class SriEnvironment(str, Enum):
+class SriEnvironment(StrEnum):
     TESTING = "testing"
     PRODUCTION = "production"
 
 
-class TenantStatus(str, Enum):
+class TenantStatus(StrEnum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
     INACTIVE = "inactive"
 
 
-class PlanStatus(str, Enum):
+class PlanStatus(StrEnum):
     ACTIVE = "active"  # plan current and paid
     TRIAL = "trial"  # trial period active
     EXPIRED = "expired"  # payment overdue / expired

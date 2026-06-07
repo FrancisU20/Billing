@@ -47,10 +47,10 @@ env:
 # ── CI Checks (defense in depth — también corren en PR) ───────────────────────
 jobs:
   lint:
-    name: Lint & Format
+    name: 'CI / Lint & Format'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-backend
       - name: ruff format
         working-directory: backend
@@ -60,10 +60,10 @@ jobs:
         run: ruff check .
 
   security:
-    name: Security Scan
+    name: 'CI / Security Scan'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-backend
       - name: bandit
         working-directory: backend
@@ -73,10 +73,10 @@ jobs:
         run: pip-audit -r requirements.txt --strict
 
   unit-tests:
-    name: Unit Tests
+    name: 'CI / Unit Tests'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-backend
 
       - name: Run tests with coverage
@@ -93,7 +93,7 @@ jobs:
           coverage xml
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report-${{ github.sha }}
           path: backend/coverage.xml
@@ -101,17 +101,17 @@ jobs:
 
   # ── CDK Synth (bundling completo con OIDC) ────────────────────────────────
   cdk-synth:
-    name: CDK Synth & Bundle
+    name: 'Build / CDK Synth'
     runs-on: ubuntu-latest
     needs: [lint, security, unit-tests]
     environment: dev
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-cdk
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-cdk-synth-${{ github.run_id }}
@@ -122,7 +122,7 @@ jobs:
         run: cdk synth '*' -c env=${{ env.CDK_ENV }} --quiet
 
       - name: Upload CloudFormation templates
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cfn-templates-${{ github.sha }}
           path: infra/cdk.out/*.template.json
@@ -138,17 +138,17 @@ jobs:
 
   # ── Deploy Database ────────────────────────────────────────────────────────
   deploy-database:
-    name: Deploy Database Stack
+    name: 'Infra / Database'
     runs-on: ubuntu-latest
     needs: [cdk-synth]
     environment: dev
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-cdk
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-deploy-database-${{ github.run_id }}
@@ -167,17 +167,17 @@ jobs:
 
   # ── Deploy Auth ────────────────────────────────────────────────────────────
   deploy-auth:
-    name: Deploy Auth Stack
+    name: 'Infra / Auth'
     runs-on: ubuntu-latest
     needs: [cdk-synth]
     environment: dev
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-cdk
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-deploy-auth-${{ github.run_id }}
@@ -193,17 +193,17 @@ jobs:
 
   # ── Deploy Queues ──────────────────────────────────────────────────────────
   deploy-queues:
-    name: Deploy Queues Stack
+    name: 'Infra / Queues'
     runs-on: ubuntu-latest
     needs: [cdk-synth]
     environment: dev
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-cdk
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-deploy-queues-${{ github.run_id }}
@@ -219,17 +219,17 @@ jobs:
 
   # ── Deploy API (espera los tres stacks base) ───────────────────────────────
   deploy-api:
-    name: Deploy API Stack
+    name: 'App / API'
     runs-on: ubuntu-latest
     needs: [deploy-database, deploy-auth, deploy-queues]
     environment: dev
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-cdk
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-deploy-api-${{ github.run_id }}
@@ -253,7 +253,7 @@ jobs:
           echo "### API desplegada en: ${URL}" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload API outputs artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: api-outputs-${{ github.sha }}
           path: /tmp/api-outputs.json
@@ -267,14 +267,14 @@ jobs:
   # Si el Lambda aún no existe (feature en desarrollo), el step se salta
   # limpiamente y el pipeline continúa.
   run-migrations:
-    name: Run DB Migrations
+    name: 'Verify / Migrations'
     runs-on: ubuntu-latest
     needs: [deploy-api]
     environment: dev
 
     steps:
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-migrations-${{ github.run_id }}
@@ -326,13 +326,13 @@ jobs:
   # En dev se sube directo a S3 (sin CloudFront — domain.enabled: false en dev.yaml).
   # El primer step detecta si frontend/package.json existe; si no, salta todo.
   deploy-frontend:
-    name: Deploy Frontend (Expo Web)
+    name: 'App / Frontend'
     runs-on: ubuntu-latest
     needs: [cdk-synth]
     environment: dev
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check frontend exists
         id: check
@@ -349,7 +349,7 @@ jobs:
 
       - name: Configure AWS credentials via OIDC
         if: steps.check.outputs.exists == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-frontend-${{ github.run_id }}
@@ -393,7 +393,7 @@ jobs:
   # Necesita deploy-api (para acceder a outputs.api-url) y run-migrations
   # (para garantizar que las migraciones ya corrieron).
   smoke-tests:
-    name: Smoke Tests
+    name: 'Verify / Smoke Tests'
     runs-on: ubuntu-latest
     needs: [deploy-api, run-migrations]
 
@@ -435,14 +435,14 @@ jobs:
 
   # ── Summary ────────────────────────────────────────────────────────────────
   summary:
-    name: Deploy Summary
+    name: 'Summary'
     runs-on: ubuntu-latest
     needs: [smoke-tests, deploy-frontend]
     if: always()
 
     steps:
       - name: Write deploy summary
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const needs = ${{ toJSON(needs) }};

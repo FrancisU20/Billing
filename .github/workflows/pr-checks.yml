@@ -36,10 +36,10 @@ defaults:
 jobs:
   # ── Lint & Format ──────────────────────────────────────────────────────────
   lint:
-    name: Lint & Format (ruff)
+    name: 'CI / Lint & Format'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: ./.github/actions/setup-backend
 
@@ -53,10 +53,10 @@ jobs:
 
   # ── Security Scan ──────────────────────────────────────────────────────────
   security:
-    name: Security Scan (bandit + pip-audit)
+    name: 'CI / Security Scan'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: ./.github/actions/setup-backend
 
@@ -70,10 +70,10 @@ jobs:
 
   # ── Unit Tests + Coverage ──────────────────────────────────────────────────
   unit-tests:
-    name: Unit Tests (coverage ≥ 75%)
+    name: 'CI / Unit Tests'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: ./.github/actions/setup-backend
 
@@ -91,7 +91,7 @@ jobs:
           coverage xml
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-report-pr-${{ github.event.pull_request.number }}
@@ -99,7 +99,7 @@ jobs:
           retention-days: 14
 
       - name: Coverage summary in PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         if: always()
         with:
           script: |
@@ -119,13 +119,13 @@ jobs:
 
   # ── CDK Validate ───────────────────────────────────────────────────────────
   cdk-validate:
-    name: CDK Validate (cdk ls)
+    name: 'Build / CDK Validate'
     runs-on: ubuntu-latest
     env:
       CDK_DEFAULT_ACCOUNT: "890763499626"
       CDK_DEFAULT_REGION: "sa-east-1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: ./.github/actions/setup-cdk
 
