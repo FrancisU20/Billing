@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import re
 from decimal import Decimal
 
@@ -7,7 +8,7 @@ from lambdas.plans.domain.plan import Plan
 from lambdas.plans.domain.repositories.i_plan_repository import IPlanRepository
 from shared.errors import ValidationError
 
-_SLUG_RE      = re.compile(r"^[a-z0-9_-]{2,30}$")
+_SLUG_RE = re.compile(r"^[a-z0-9_-]{2,30}$")
 _VALID_CYCLES = {"month", "year"}
 
 

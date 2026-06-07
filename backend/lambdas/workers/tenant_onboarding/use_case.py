@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 OnboardTenantUseCase — creates the owner user in Cognito.
 
@@ -41,9 +42,7 @@ class OnboardTenantUseCase:
     def __init__(self, identity_provider: IdentityProvider) -> None:
         self._identity_provider = identity_provider
 
-    def execute(
-        self, tenant_id: str, email: str, legal_rep_name: str
-    ) -> str | None:
+    def execute(self, tenant_id: str, email: str, legal_rep_name: str) -> str | None:
         """
         Returns temp_password if credentials must be emailed.
         Returns None if the user already completed onboarding.
@@ -71,7 +70,9 @@ class OnboardTenantUseCase:
                     temporary_password=temp_password,
                 )
             except Exception as e:
-                _log.error("error resetting temporary password in Cognito", error=str(e), exc_info=True)
+                _log.error(
+                    "error resetting temporary password in Cognito", error=str(e), exc_info=True
+                )
                 raise InternalError()
 
             if not reset:

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Structured JSON logger with per-invocation context propagation.
 
@@ -23,21 +24,18 @@ import logging
 import os
 import traceback as tb
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
 # Per-invocation context — propagated to all loggers automatically
-_invocation_ctx: ContextVar[dict[str, Any]] = ContextVar(
-    "invocation_ctx", default={}
-)
+_invocation_ctx: ContextVar[dict[str, Any] | None] = ContextVar("invocation_ctx", default=None)
 
 
 def bind_invocation_context(**kwargs: Any) -> None:
     """Bind fields to the current invocation context (request_id, tenant_id, etc.)."""
-    _invocation_ctx.set({**_invocation_ctx.get(), **kwargs})
+    _invocation_ctx.set({**(_invocation_ctx.get() or {}), **kwargs})
 
 
 def clear_invocation_context() -> None:
@@ -63,13 +61,13 @@ class StructuredLogger:
 
     def _emit(self, level: str, message: str, **extra: Any) -> None:
         record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "level":     level,
-            "logger":    self._name,
-            "message":   message,
-            **_invocation_ctx.get(),   # invocation context (request_id, tenant_id…)
-            **self._ctx,               # fixed context of this logger
-            **extra,                   # extra fields from the caller
+            "timestamp": datetime.now(UTC).isoformat(),
+            "level": level,
+            "logger": self._name,
+            "message": message,
+            **(_invocation_ctx.get() or {}),  # invocation context (request_id, tenant_id…)
+            **self._ctx,  # fixed context of this logger
+            **extra,  # extra fields from the caller
         }
         self._logger.log(
             getattr(logging, level.upper(), logging.INFO),

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Worker: tenant onboarding.
 
@@ -25,9 +26,7 @@ _log = get_logger(__name__)
 
 # ── Cold start ────────────────────────────────────────────────────────────────
 _identity_provider = CognitoIdentityProvider()
-_event_publisher   = SQSEventPublisher(
-    queue_url=env("EMAIL_NOTIFICATIONS_QUEUE_URL", "")
-)
+_event_publisher = SQSEventPublisher(queue_url=env("EMAIL_NOTIFICATIONS_QUEUE_URL", ""))
 
 
 @sqs_handler
@@ -38,9 +37,9 @@ def handler(record: SQSRecord, context) -> None:
         _log.warning("unknown event ignored", event_type=event_type)
         return
 
-    data           = record.body.get("data", {})
-    tenant_id      = data.get("tenant_id", "")
-    email          = data.get("email", "")
+    data = record.body.get("data", {})
+    tenant_id = data.get("tenant_id", "")
+    email = data.get("email", "")
     legal_rep_name = data.get("legal_rep_name", "")
 
     temp_password = OnboardTenantUseCase(_identity_provider).execute(

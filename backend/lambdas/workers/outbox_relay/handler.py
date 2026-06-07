@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Worker: outbox relay.
 
@@ -7,7 +8,7 @@ to SQS and marks each record as PUBLISHED. SQS and Lambda are at-least-once, so
 consumers must be idempotent.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import boto3
 from boto3.dynamodb.types import TypeDeserializer
@@ -71,11 +72,11 @@ def _mark_published(item: dict) -> None:
                 ConditionExpression="#status = :pending",
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
-                    ":published":    "PUBLISHED",
-                    ":pending":      "PENDING",
-                    ":published_at": datetime.now(timezone.utc).isoformat(),
-                    ":updated_at":   datetime.now(timezone.utc).isoformat(),
-                    ":one":          1,
+                    ":published": "PUBLISHED",
+                    ":pending": "PENDING",
+                    ":published_at": datetime.now(UTC).isoformat(),
+                    ":updated_at": datetime.now(UTC).isoformat(),
+                    ":one": 1,
                 },
             )
             return
@@ -90,18 +91,17 @@ def _mark_published(item: dict) -> None:
 
 def _mark_skipped(item: dict) -> None:
     try:
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         _outbox_table.update_item(
             Key={"id": item["id"]},
             UpdateExpression=(
-                "SET #status = :skipped, skipped_at = :skipped_at, "
-                "updated_at = :updated_at"
+                "SET #status = :skipped, skipped_at = :skipped_at, updated_at = :updated_at"
             ),
             ConditionExpression="#status = :pending",
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={
-                ":skipped":    "SKIPPED",
-                ":pending":    "PENDING",
+                ":skipped": "SKIPPED",
+                ":pending": "PENDING",
                 ":skipped_at": now,
                 ":updated_at": now,
             },
@@ -119,9 +119,8 @@ def handler(event: dict, context) -> dict:
 
     failures = []
     for record in event.get("Records", []):
-        item_identifier = (
-            record.get("dynamodb", {}).get("SequenceNumber")
-            or record.get("eventID", "")
+        item_identifier = record.get("dynamodb", {}).get("SequenceNumber") or record.get(
+            "eventID", ""
         )
         bind_invocation_context(stream_item_identifier=item_identifier)
         try:
@@ -139,10 +138,18 @@ def handler(event: dict, context) -> dict:
                 # SQS send_message succeeds, Lambda retries the stream record and sends
                 # the message again. All downstream workers MUST be idempotent.
                 _mark_published(item)
-                _log.info("outbox event published", event_id=item.get("id"), event_type=item.get("event_type"))
+                _log.info(
+                    "outbox event published",
+                    event_id=item.get("id"),
+                    event_type=item.get("event_type"),
+                )
             else:
                 _mark_skipped(item)
-                _log.info("outbox event skipped", event_id=item.get("id"), event_type=item.get("event_type"))
+                _log.info(
+                    "outbox event skipped",
+                    event_id=item.get("id"),
+                    event_type=item.get("event_type"),
+                )
 
         except Exception as exc:
             _log.error("outbox relay error", error=str(exc), exc_info=True)

@@ -9,25 +9,31 @@ from tests.unit.support import api_event
 
 class ParserTests(unittest.TestCase):
     def test_body_hash_is_canonical_for_equivalent_json(self) -> None:
-        left = Request.from_event(api_event(
-            method="POST",
-            path="/tenants",
-            body={"a": 1, "b": 2},
-        ))
-        right = Request.from_event(api_event(
-            method="POST",
-            path="/tenants",
-            body={"b": 2, "a": 1},
-        ))
+        left = Request.from_event(
+            api_event(
+                method="POST",
+                path="/tenants",
+                body={"a": 1, "b": 2},
+            )
+        )
+        right = Request.from_event(
+            api_event(
+                method="POST",
+                path="/tenants",
+                body={"b": 2, "a": 1},
+            )
+        )
 
         self.assertEqual(left.body_hash, right.body_hash)
 
     def test_path_includes_sorted_query_params(self) -> None:
-        request = Request.from_event(api_event(
-            method="GET",
-            path="/tenants",
-            query={"z": "last", "a": "first"},
-        ))
+        request = Request.from_event(
+            api_event(
+                method="GET",
+                path="/tenants",
+                query={"z": "last", "a": "first"},
+            )
+        )
 
         self.assertEqual(request.path, "/tenants?a=first&z=last")
 

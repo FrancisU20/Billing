@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Base domain event.
 
@@ -11,14 +12,14 @@ completes — the domain does not know SQS exists.
 Naming convention: <Entity><Action>Event  (TenantCreatedEvent, InvoiceEmittedEvent)
 """
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 
 @dataclass(frozen=True)
 class DomainEvent:
-    event_id:    str      = field(default_factory=lambda: str(uuid4()))
-    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    event_id: str = field(default_factory=lambda: str(uuid4()))
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def event_type(self) -> str:

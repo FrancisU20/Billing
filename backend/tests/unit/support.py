@@ -38,10 +38,12 @@ def tenant_payload(**overrides: Any) -> dict:
 
 def create_tenant_command(**overrides: Any) -> CreateTenantCommand:
     payload = tenant_payload()
-    payload.update({
-        "created_by": "user-1",
-        **overrides,
-    })
+    payload.update(
+        {
+            "created_by": "user-1",
+            **overrides,
+        }
+    )
     return CreateTenantCommand(**payload)
 
 
@@ -107,6 +109,7 @@ class FakeTenantRepository:
 
     def get_by_id(self, tenant_id: str) -> Tenant:
         from lambdas.tenants.domain.errors import TenantNotFoundError
+
         if tenant_id not in self.tenants:
             raise TenantNotFoundError()
         return self.tenants[tenant_id]

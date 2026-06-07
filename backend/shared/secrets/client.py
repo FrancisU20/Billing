@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Secrets Manager client with in-memory cache (configurable TTL).
 
@@ -11,13 +12,13 @@ Usage:
     creds   = get_secret_json("codelabs-billing/dev/db/master")
 """
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import boto3
 
 from shared.logger import get_logger
 
-_log    = get_logger(__name__)
+_log = get_logger(__name__)
 _cache: dict[str, tuple[str, datetime]] = {}
 _client = boto3.client("secretsmanager")
 
@@ -25,13 +26,13 @@ _client = boto3.client("secretsmanager")
 def get_secret(name: str, ttl_minutes: int = 5) -> str:
     if name in _cache:
         value, fetched_at = _cache[name]
-        if datetime.now(timezone.utc) - fetched_at < timedelta(minutes=ttl_minutes):
+        if datetime.now(UTC) - fetched_at < timedelta(minutes=ttl_minutes):
             return value
 
     _log.info("fetching secret from Secrets Manager", name=name)
-    resp  = _client.get_secret_value(SecretId=name)
+    resp = _client.get_secret_value(SecretId=name)
     value = resp["SecretString"]
-    _cache[name] = (value, datetime.now(timezone.utc))
+    _cache[name] = (value, datetime.now(UTC))
     return value
 
 

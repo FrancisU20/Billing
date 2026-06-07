@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Value Object: email address normalized to lowercase."""
 import re
 
@@ -14,8 +15,14 @@ class Email:
             raise ValidationError("Email inválido")
         self.value = value
 
-    def __str__(self)  -> str:  return self.value
-    def __repr__(self) -> str:  return f"Email({self.value!r})"
+    def __str__(self) -> str:
+        return self.value
+
+    def __repr__(self) -> str:
+        return f"Email({self.value!r})"
+
     def __eq__(self, other) -> bool:
         return self.value == (other.value if isinstance(other, Email) else str(other).lower())
-    def __hash__(self) -> int:  return hash(self.value)
+
+    def __hash__(self) -> int:
+        return hash(self.value)

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Domain error hierarchy.
 
@@ -8,7 +9,6 @@ Rules:
 - Never pass dynamic messages to the client — only code + default_message.
 - The full stacktrace always goes to CloudWatch, never to the HTTP response.
 """
-
 
 
 class AppError(Exception):
@@ -23,6 +23,7 @@ class AppError(Exception):
 
 # ── 400 ───────────────────────────────────────────────────────────────────────
 
+
 class ValidationError(AppError):
     code = "VALIDATION_ERROR"
     status_code = 400
@@ -30,6 +31,7 @@ class ValidationError(AppError):
 
 
 # ── 401 ───────────────────────────────────────────────────────────────────────
+
 
 class AuthError(AppError):
     code = "UNAUTHORIZED"
@@ -54,6 +56,7 @@ class MissingTenantContextError(AuthError):
 
 # ── 403 ───────────────────────────────────────────────────────────────────────
 
+
 class ForbiddenError(AppError):
     code = "FORBIDDEN"
     status_code = 403
@@ -62,6 +65,7 @@ class ForbiddenError(AppError):
 
 # ── 404 ───────────────────────────────────────────────────────────────────────
 
+
 class NotFoundError(AppError):
     code = "NOT_FOUND"
     status_code = 404
@@ -69,6 +73,7 @@ class NotFoundError(AppError):
 
 
 # ── 409 ───────────────────────────────────────────────────────────────────────
+
 
 class ConflictError(AppError):
     code = "CONFLICT"
@@ -88,6 +93,7 @@ class IdempotencyKeyReusedError(ConflictError):
 
 # ── 422 ───────────────────────────────────────────────────────────────────────
 
+
 class BusinessError(AppError):
     code = "BUSINESS_ERROR"
     status_code = 422
@@ -95,6 +101,7 @@ class BusinessError(AppError):
 
 
 # ── 500 ───────────────────────────────────────────────────────────────────────
+
 
 class InternalError(AppError):
     code = "INTERNAL_ERROR"
@@ -108,6 +115,7 @@ class ExternalServiceError(InternalError):
 
 
 # ── DynamoDB ──────────────────────────────────────────────────────────────────
+
 
 class OptimisticLockError(ConflictError):
     code = "OPTIMISTIC_LOCK_ERROR"

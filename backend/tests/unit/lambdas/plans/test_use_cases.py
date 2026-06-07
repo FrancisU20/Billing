@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 
 from lambdas.plans.domain.commands import CreatePlanCommand, TogglePlanCommand, UpdatePlanCommand
-from lambdas.plans.domain.errors import PlanNotFoundError, PlanSlugExistsError
+from lambdas.plans.domain.errors import PlanNotFoundError
 from lambdas.plans.domain.plan import Plan
 from lambdas.plans.use_cases.create_plan import CreatePlanUseCase
 from lambdas.plans.use_cases.get_plan import GetPlanBySlugUseCase
@@ -14,12 +14,12 @@ from lambdas.plans.use_cases.toggle_plan import TogglePlanUseCase
 from lambdas.plans.use_cases.update_plan import UpdatePlanUseCase
 from shared.errors import ValidationError
 
-
 # ── Fake ──────────────────────────────────────────────────────────────────────
+
 
 class FakePlanRepository:
     def __init__(self) -> None:
-        self._by_id:   dict[str, Plan] = {}
+        self._by_id: dict[str, Plan] = {}
         self._by_slug: dict[str, Plan] = {}
         self.commit_calls: list[dict[str, Any]] = []
 
@@ -34,7 +34,7 @@ class FakePlanRepository:
         return self._by_slug[slug]
 
     def save(self, plan: Plan) -> None:
-        self._by_id[plan.id]     = plan
+        self._by_id[plan.id] = plan
         self._by_slug[plan.slug] = plan
 
     def commit(self, **kwargs: Any) -> None:
@@ -50,13 +50,22 @@ class FakePlanRepository:
 
 def _cmd(**overrides) -> CreatePlanCommand:
     base = dict(
-        slug="basic", name="Basic", description="For freelancers",
-        monthly_price=Decimal("5.99"), annual_price=Decimal("57.00"),
-        document_limit=50, limit_cycle="month",
-        max_locations=1, max_emission_points=2, max_users=2,
-        includes_credit_notes=True, includes_withholdings=True,
-        includes_delivery_notes=True, includes_api=False,
-        order=1, created_by="admin-1",
+        slug="basic",
+        name="Basic",
+        description="For freelancers",
+        monthly_price=Decimal("5.99"),
+        annual_price=Decimal("57.00"),
+        document_limit=50,
+        limit_cycle="month",
+        max_locations=1,
+        max_emission_points=2,
+        max_users=2,
+        includes_credit_notes=True,
+        includes_withholdings=True,
+        includes_delivery_notes=True,
+        includes_api=False,
+        order=1,
+        created_by="admin-1",
     )
     base.update(overrides)
     return CreatePlanCommand(**base)
@@ -64,13 +73,14 @@ def _cmd(**overrides) -> CreatePlanCommand:
 
 # ── CreatePlanUseCase ─────────────────────────────────────────────────────────
 
+
 class CreatePlanUseCaseTests(unittest.TestCase):
     def test_creates_plan_with_uuid_as_pk(self) -> None:
         repo = FakePlanRepository()
         plan = CreatePlanUseCase(repo).execute(_cmd())
         self.assertEqual(plan.slug, "basic")
-        self.assertEqual(len(plan.id), 36)         # UUID
-        self.assertNotEqual(plan.id, plan.slug)    # PK != slug
+        self.assertEqual(len(plan.id), 36)  # UUID
+        self.assertNotEqual(plan.id, plan.slug)  # PK != slug
 
     def test_create_does_not_persist_before_commit(self) -> None:
         repo = FakePlanRepository()
@@ -108,29 +118,40 @@ class CreatePlanUseCaseTests(unittest.TestCase):
 
     def test_free_plan_year_cycle(self) -> None:
         repo = FakePlanRepository()
-        plan = CreatePlanUseCase(repo).execute(_cmd(
-            slug="free", monthly_price=Decimal("0.00"), annual_price=Decimal("0.00"),
-            document_limit=20, limit_cycle="year", order=0,
-        ))
+        plan = CreatePlanUseCase(repo).execute(
+            _cmd(
+                slug="free",
+                monthly_price=Decimal("0.00"),
+                annual_price=Decimal("0.00"),
+                document_limit=20,
+                limit_cycle="year",
+                order=0,
+            )
+        )
         self.assertEqual(plan.limit_cycle, "year")
 
     def test_unlimited_limit_with_minus_one(self) -> None:
         repo = FakePlanRepository()
-        plan = CreatePlanUseCase(repo).execute(_cmd(
-            slug="enterprise", document_limit=-1,
-            max_locations=-1, max_users=-1,
-        ))
+        plan = CreatePlanUseCase(repo).execute(
+            _cmd(
+                slug="enterprise",
+                document_limit=-1,
+                max_locations=-1,
+                max_users=-1,
+            )
+        )
         self.assertEqual(plan.document_limit, -1)
 
 
 # ── GetPlanBySlugUseCase ──────────────────────────────────────────────────────
+
 
 class GetPlanBySlugUseCaseTests(unittest.TestCase):
     def test_returns_plan_by_slug(self) -> None:
         repo = FakePlanRepository()
         created = CreatePlanUseCase(repo).execute(_cmd())
         repo.save(created)
-        found   = GetPlanBySlugUseCase(repo).execute("basic")
+        found = GetPlanBySlugUseCase(repo).execute("basic")
         self.assertEqual(found.id, created.id)
 
     def test_fails_if_slug_not_found(self) -> None:
@@ -139,6 +160,7 @@ class GetPlanBySlugUseCaseTests(unittest.TestCase):
 
 
 # ── ListPlansUseCase ──────────────────────────────────────────────────────────
+
 
 class ListPlansUseCaseTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -162,6 +184,7 @@ class ListPlansUseCaseTests(unittest.TestCase):
 
 # ── UpdatePlanUseCase ─────────────────────────────────────────────────────────
 
+
 class UpdatePlanUseCaseTests(unittest.TestCase):
     def _repo_with_plan(self) -> tuple[FakePlanRepository, Plan]:
         repo = FakePlanRepository()
@@ -172,17 +195,24 @@ class UpdatePlanUseCaseTests(unittest.TestCase):
     def test_slug_as_id_does_not_find_plan(self) -> None:
         repo, _ = self._repo_with_plan()
         with self.assertRaises(PlanNotFoundError):
-            UpdatePlanUseCase(repo).execute(UpdatePlanCommand(
-                id="basic",  # slug, not UUID → must not be found
-                updated_by="admin-1", name="New Name",
-            ))
+            UpdatePlanUseCase(repo).execute(
+                UpdatePlanCommand(
+                    id="basic",  # slug, not UUID → must not be found
+                    updated_by="admin-1",
+                    name="New Name",
+                )
+            )
 
     def test_updates_name_and_price_by_uuid(self) -> None:
         repo, plan = self._repo_with_plan()
-        updated = UpdatePlanUseCase(repo).execute(UpdatePlanCommand(
-            id=plan.id, updated_by="admin-1",
-            name="Basic Plus", monthly_price=Decimal("6.99"),
-        ))
+        updated = UpdatePlanUseCase(repo).execute(
+            UpdatePlanCommand(
+                id=plan.id,
+                updated_by="admin-1",
+                name="Basic Plus",
+                monthly_price=Decimal("6.99"),
+            )
+        )
         self.assertEqual(updated.name, "Basic Plus")
         self.assertEqual(updated.monthly_price, Decimal("6.99"))
         self.assertGreater(updated.version, 1)
@@ -196,6 +226,7 @@ class UpdatePlanUseCaseTests(unittest.TestCase):
 
 
 # ── TogglePlanUseCase ─────────────────────────────────────────────────────────
+
 
 class TogglePlanUseCaseTests(unittest.TestCase):
     def test_deactivates_by_uuid(self) -> None:
@@ -212,8 +243,12 @@ class TogglePlanUseCaseTests(unittest.TestCase):
         repo = FakePlanRepository()
         plan = CreatePlanUseCase(repo).execute(_cmd())
         repo.save(plan)
-        TogglePlanUseCase(repo).execute(TogglePlanCommand(id=plan.id, active=False, updated_by="admin-1"))
-        result = TogglePlanUseCase(repo).execute(TogglePlanCommand(id=plan.id, active=True, updated_by="admin-1"))
+        TogglePlanUseCase(repo).execute(
+            TogglePlanCommand(id=plan.id, active=False, updated_by="admin-1")
+        )
+        result = TogglePlanUseCase(repo).execute(
+            TogglePlanCommand(id=plan.id, active=True, updated_by="admin-1")
+        )
         self.assertTrue(result.active)
 
 

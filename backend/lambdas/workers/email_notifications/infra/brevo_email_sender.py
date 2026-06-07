@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Brevo implementation of the EmailSender port.
 
@@ -17,16 +18,16 @@ import urllib3
 
 from lambdas.workers.email_notifications.ports import EmailSender
 from shared.config import env
-from shared.logger import get_logger
 from shared.errors import ExternalServiceError
+from shared.logger import get_logger
 from shared.secrets.client import get_secret
 
 _log = get_logger(__name__)
 
 _BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
-_SECRET_NAME   = env("BREVO_SECRET_NAME")
-_SENDER_EMAIL  = env("BREVO_SENDER_EMAIL", "noreply@codelabsecuador.com")
-_SENDER_NAME   = env("BREVO_SENDER_NAME",  "CodeLabs Billing")
+_SECRET_NAME = env("BREVO_SECRET_NAME")
+_SENDER_EMAIL = env("BREVO_SENDER_EMAIL", "noreply@codelabsecuador.com")
+_SENDER_NAME = env("BREVO_SENDER_NAME", "CodeLabs Billing")
 
 _http = urllib3.PoolManager()
 
@@ -112,9 +113,7 @@ def _build_html(legal_rep_name: str, email: str, temp_password: str) -> str:
 
 
 class BrevoEmailSender(EmailSender):
-    def send_welcome(
-        self, *, email: str, legal_rep_name: str, temp_password: str
-    ) -> None:
+    def send_welcome(self, *, email: str, legal_rep_name: str, temp_password: str) -> None:
         api_key = get_secret(_SECRET_NAME)
         # Secrets Manager puede almacenar el valor como string plano o como JSON.
         # Si es JSON {"api_key": "xkeysib-..."} lo extraemos; si ya es string, lo usamos directo.
@@ -128,9 +127,9 @@ class BrevoEmailSender(EmailSender):
             raise ExternalServiceError("BREVO_SECRET_NAME no contiene un API key válido")
 
         payload = {
-            "sender":      {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
-            "to":          [{"email": email, "name": legal_rep_name}],
-            "subject":     "Bienvenido a CodeLabs Billing — tus credenciales de acceso",
+            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "to": [{"email": email, "name": legal_rep_name}],
+            "subject": "Bienvenido a CodeLabs Billing — tus credenciales de acceso",
             "htmlContent": _build_html(legal_rep_name, email, temp_password),
         }
 
@@ -138,9 +137,9 @@ class BrevoEmailSender(EmailSender):
             "POST",
             _BREVO_API_URL,
             headers={
-                "accept":       "application/json",
+                "accept": "application/json",
                 "content-type": "application/json",
-                "api-key":      api_key,
+                "api-key": api_key,
             },
             body=json.dumps(payload).encode("utf-8"),
         )
@@ -148,7 +147,7 @@ class BrevoEmailSender(EmailSender):
         if response.status >= 400:
             _log.error(
                 "Brevo API error",
-                status  = response.status,
+                status=response.status,
             )
             raise ExternalServiceError(f"Brevo responded {response.status}")
 

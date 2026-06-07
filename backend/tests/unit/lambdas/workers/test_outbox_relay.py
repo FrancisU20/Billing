@@ -22,17 +22,16 @@ def _load_outbox_relay_module():
 
 def _stream_event(item: dict, sequence_number: str = "seq-1") -> dict:
     return {
-        "Records": [{
-            "eventID": "event-1",
-            "eventName": "INSERT",
-            "dynamodb": {
-                "SequenceNumber": sequence_number,
-                "NewImage": {
-                    key: _serializer.serialize(value)
-                    for key, value in item.items()
+        "Records": [
+            {
+                "eventID": "event-1",
+                "eventName": "INSERT",
+                "dynamodb": {
+                    "SequenceNumber": sequence_number,
+                    "NewImage": {key: _serializer.serialize(value) for key, value in item.items()},
                 },
-            },
-        }]
+            }
+        ]
     }
 
 
@@ -41,7 +40,7 @@ def _pending_item(event_type: str = "TenantCreatedEvent") -> dict:
         "id": "event-id-1",
         "status": "PENDING",
         "event_type": event_type,
-        "payload": "{\"event_type\":\"TenantCreatedEvent\"}",
+        "payload": '{"event_type":"TenantCreatedEvent"}',
     }
 
 

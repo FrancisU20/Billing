@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Base DynamoDB repository.
 
@@ -27,7 +28,8 @@ Note on pagination and soft delete:
 from abc import ABC, abstractmethod
 from typing import Any
 
-from boto3.dynamodb.conditions import Attr, Key as DKey
+from boto3.dynamodb.conditions import Attr
+from boto3.dynamodb.conditions import Key as DKey
 from botocore.exceptions import ClientError
 
 from shared.audit.writer import audit_item
@@ -40,13 +42,13 @@ _log = get_logger(__name__)
 
 
 class BaseRepository(ABC):
-    _prefix: str = ""   # Override in subclass: "TENANT", "CLIENT", etc.
+    _prefix: str = ""  # Override in subclass: "TENANT", "CLIENT", etc.
 
     def __init__(self, tenant_id: str, table, audit_table=None) -> None:
         if not tenant_id:
             raise ValueError("tenant_id is required in the repository")
-        self._tenant_id   = tenant_id
-        self._table       = table
+        self._tenant_id = tenant_id
+        self._table = table
         self._audit_table = audit_table
 
     # ── keys ──────────────────────────────────────────────────────────────────
@@ -61,9 +63,7 @@ class BaseRepository(ABC):
 
     def _get_raw(self, entity_id: str) -> dict | None:
         try:
-            resp = self._table.get_item(
-                Key={"pk": self._pk(), "sk": self._sk(entity_id)}
-            )
+            resp = self._table.get_item(Key={"pk": self._pk(), "sk": self._sk(entity_id)})
             item = resp.get("Item")
             if not item or item.get("deleted"):
                 return None
@@ -74,7 +74,7 @@ class BaseRepository(ABC):
 
     def _put_raw(
         self,
-        item:      dict,
+        item: dict,
         condition: Any | None = None,
     ) -> None:
         """
@@ -96,8 +96,8 @@ class BaseRepository(ABC):
 
     def _list_raw(
         self,
-        limit:       int = 20,
-        next_token:  str | None = None,
+        limit: int = 20,
+        next_token: str | None = None,
         extra_filter: Any | None = None,
     ) -> tuple[list[dict], str | None]:
         """
@@ -106,14 +106,11 @@ class BaseRepository(ABC):
         """
         # Base filter: exclude soft-deleted at the DynamoDB level (not in Python)
         base_filter = Attr("deleted").eq(False)
-        filter_expr = (
-            base_filter & extra_filter if extra_filter is not None else base_filter
-        )
+        filter_expr = base_filter & extra_filter if extra_filter is not None else base_filter
 
         kwargs: dict[str, Any] = {
             "KeyConditionExpression": (
-                DKey("pk").eq(self._pk())
-                & DKey("sk").begins_with(f"{self._prefix}#")
+                DKey("pk").eq(self._pk()) & DKey("sk").begins_with(f"{self._prefix}#")
             ),
             "FilterExpression": filter_expr,
             "Limit": limit,
@@ -124,7 +121,7 @@ class BaseRepository(ABC):
             kwargs["ExclusiveStartKey"] = cursor
 
         try:
-            resp  = self._table.query(**kwargs)
+            resp = self._table.query(**kwargs)
             return resp.get("Items", []), encode_cursor(resp.get("LastEvaluatedKey"))
         except ClientError as e:
             _log.error("DynamoDB query error", error=str(e))
@@ -134,24 +131,26 @@ class BaseRepository(ABC):
 
     def _audit(
         self,
-        action:    str,
+        action: str,
         entity_id: str,
-        user_id:   str,
-        before:    dict | None,
-        after:     dict | None,
+        user_id: str,
+        before: dict | None,
+        after: dict | None,
     ) -> None:
         if not self._audit_table:
             return
         try:
-            self._audit_table.put_item(Item=audit_item(
-                pk          = f"AUDIT#{self._tenant_id}",
-                entity_type = self._prefix,
-                entity_id   = entity_id,
-                action      = action,
-                changed_by  = user_id,
-                before      = before,
-                after       = after,
-            ))
+            self._audit_table.put_item(
+                Item=audit_item(
+                    pk=f"AUDIT#{self._tenant_id}",
+                    entity_type=self._prefix,
+                    entity_id=entity_id,
+                    action=action,
+                    changed_by=user_id,
+                    before=before,
+                    after=after,
+                )
+            )
         except Exception as e:
             _log.warning("audit log failed (non-blocking)", error=str(e))
 

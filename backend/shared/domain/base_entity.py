@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Base domain entity hierarchy.
 
@@ -14,12 +15,12 @@ Rule: every repository that uses BaseRepository must receive a TenantScopedEntit
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _uuid() -> str:
@@ -29,25 +30,26 @@ def _uuid() -> str:
 @dataclass
 class GlobalEntity:
     """Base for global entities — no tenant isolation."""
-    id:         str      = field(default_factory=_uuid)
+
+    id: str = field(default_factory=_uuid)
     created_at: datetime = field(default_factory=_now)
     updated_at: datetime = field(default_factory=_now)
-    created_by: str      = ""
-    updated_by: str      = ""
-    version:    int      = 1
-    deleted:    bool     = False
+    created_by: str = ""
+    updated_by: str = ""
+    version: int = 1
+    deleted: bool = False
     deleted_at: datetime | None = None
-    deleted_by: str | None      = None
+    deleted_by: str | None = None
 
     def touch(self, updated_by: str) -> None:
         """Record a modification — increments version and timestamp."""
         self.updated_at = _now()
         self.updated_by = updated_by
-        self.version   += 1
+        self.version += 1
 
     def soft_delete(self, deleted_by: str) -> None:
         """Mark as deleted without physically removing the record."""
-        self.deleted    = True
+        self.deleted = True
         self.deleted_at = _now()
         self.deleted_by = deleted_by
         self.touch(deleted_by)
@@ -56,10 +58,9 @@ class GlobalEntity:
 @dataclass
 class TenantScopedEntity(GlobalEntity):
     """Base for entities that belong to a specific tenant."""
+
     tenant_id: str = ""
 
     def __post_init__(self) -> None:
         if not self.tenant_id:
-            raise ValueError(
-                f"{self.__class__.__name__}.tenant_id is required"
-            )
+            raise ValueError(f"{self.__class__.__name__}.tenant_id is required")

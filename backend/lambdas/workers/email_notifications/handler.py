@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Worker: email notifications.
 
@@ -39,7 +40,7 @@ def handler(record: SQSRecord, context) -> None:
 
     data = record.body.get("data", {})
     SendWelcomeEmailUseCase(_email_sender).execute(
-        email          = data.get("email", ""),
-        legal_rep_name = data.get("legal_rep_name", ""),
-        temp_password  = data.get("temp_password", ""),
+        email=data.get("email", ""),
+        legal_rep_name=data.get("legal_rep_name", ""),
+        temp_password=data.get("temp_password", ""),
     )

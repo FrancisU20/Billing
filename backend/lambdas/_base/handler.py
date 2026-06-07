@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 @lambda_handler decorator for HTTP Lambdas (API Gateway).
 
@@ -20,7 +21,7 @@ Usage:
         return ApiResponse.ok(data, request.request_id)
 """
 import functools
-from typing import Callable
+from collections.abc import Callable
 
 from lambdas._base.parser import Request
 from lambdas._base.response import ApiResponse
@@ -35,16 +36,14 @@ def _build_handler(func: Callable, require_tenant: bool) -> Callable:
     def wrapper(event: dict, context) -> dict:
         clear_invocation_context()
 
-        request_id = (
-            event.get("requestContext", {}).get("requestId", "local")
-        )
+        request_id = event.get("requestContext", {}).get("requestId", "local")
         try:
             request = Request.from_event(event, require_tenant=require_tenant)
             bind_invocation_context(
-                request_id  = request_id,
-                tenant_id   = request.tenant_id,
-                user_id     = request.user_id,
-                lambda_name = getattr(context, "function_name", "local"),
+                request_id=request_id,
+                tenant_id=request.tenant_id,
+                user_id=request.user_id,
+                lambda_name=getattr(context, "function_name", "local"),
             )
             _log.info("request received")
             result = func(request, context)

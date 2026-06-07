@@ -4,8 +4,9 @@ import json
 import unittest
 from types import SimpleNamespace
 
-from lambdas._base import idempotency
 from botocore.exceptions import ClientError
+
+from lambdas._base import idempotency
 from shared.errors import IdempotencyKeyReusedError, ValidationError
 
 
@@ -51,15 +52,15 @@ class RaceConditionTable(FakeIdempotencyTable):
     our put_item call."""
 
     def __init__(self, completed_item: dict) -> None:
-        super().__init__(item=None)          # first get_item → None (no item yet)
+        super().__init__(item=None)  # first get_item → None (no item yet)
         self._completed = completed_item
         self._get_count = 0
 
     def get_item(self, **kwargs):
         self._get_count += 1
         if self._get_count == 1:
-            return {}                        # first call: item doesn't exist yet
-        return {"Item": self._completed}     # second call (inside _reserve): COMPLETED
+            return {}  # first call: item doesn't exist yet
+        return {"Item": self._completed}  # second call (inside _reserve): COMPLETED
 
     def put_item(self, **kwargs):
         self.put_calls.append(kwargs)
@@ -85,15 +86,17 @@ class IdempotencyTests(unittest.TestCase):
 
     def test_returns_cached_response_for_completed_matching_request(self) -> None:
         cached_response = {"statusCode": 201, "body": "{}"}
-        table = FakeIdempotencyTable({
-            "pk": "TENANT#tenant-1#idem-1",
-            "method": "POST",
-            "path": "/tenants",
-            "body_hash": "hash-1",
-            "status": "COMPLETED",
-            "response": json.dumps(cached_response),
-            "ttl": 99_999_999_999,
-        })
+        table = FakeIdempotencyTable(
+            {
+                "pk": "TENANT#tenant-1#idem-1",
+                "method": "POST",
+                "path": "/tenants",
+                "body_hash": "hash-1",
+                "status": "COMPLETED",
+                "response": json.dumps(cached_response),
+                "ttl": 99_999_999_999,
+            }
+        )
         idempotency._table = table
         calls = []
 
@@ -104,16 +107,18 @@ class IdempotencyTests(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertEqual(table.put_calls, [])
 
-    def test_race_condition_reserve_returns_cached_response_when_completed_concurrently(self) -> None:
+    def test_race_condition_reserve_returns_cached_response_when_completed_concurrently(
+        self,
+    ) -> None:
         cached_response = {"statusCode": 201, "body": '{"id":"t-1"}'}
         completed_item = {
-            "pk":        "TENANT#tenant-1#idem-1",
-            "method":    "POST",
-            "path":      "/tenants",
+            "pk": "TENANT#tenant-1#idem-1",
+            "method": "POST",
+            "path": "/tenants",
             "body_hash": "hash-1",
-            "status":    "COMPLETED",
-            "response":  json.dumps(cached_response),
-            "ttl":       99_999_999_999,
+            "status": "COMPLETED",
+            "response": json.dumps(cached_response),
+            "ttl": 99_999_999_999,
         }
         idempotency._table = RaceConditionTable(completed_item)
         handler_calls = []
@@ -126,14 +131,16 @@ class IdempotencyTests(unittest.TestCase):
 
     def test_allows_retry_after_failed_operation(self) -> None:
         # Un key en estado FAILED debe permitir que un retry legítimo re-ejecute el handler.
-        table = FakeIdempotencyTable({
-            "pk":        "TENANT#tenant-1#idem-1",
-            "method":    "POST",
-            "path":      "/tenants",
-            "body_hash": "hash-1",
-            "status":    "FAILED",
-            "ttl":       99_999_999_999,
-        })
+        table = FakeIdempotencyTable(
+            {
+                "pk": "TENANT#tenant-1#idem-1",
+                "method": "POST",
+                "path": "/tenants",
+                "body_hash": "hash-1",
+                "status": "FAILED",
+                "ttl": 99_999_999_999,
+            }
+        )
         idempotency._table = table
         calls = []
 
@@ -143,15 +150,17 @@ class IdempotencyTests(unittest.TestCase):
         self.assertEqual(len(calls), 1, "handler debe ejecutarse en un retry después de FAILED")
 
     def test_rejects_reused_key_with_different_body_hash(self) -> None:
-        idempotency._table = FakeIdempotencyTable({
-            "pk": "TENANT#tenant-1#idem-1",
-            "method": "POST",
-            "path": "/tenants",
-            "body_hash": "hash-original",
-            "status": "COMPLETED",
-            "response": "{}",
-            "ttl": 99_999_999_999,
-        })
+        idempotency._table = FakeIdempotencyTable(
+            {
+                "pk": "TENANT#tenant-1#idem-1",
+                "method": "POST",
+                "path": "/tenants",
+                "body_hash": "hash-original",
+                "status": "COMPLETED",
+                "response": "{}",
+                "ttl": 99_999_999_999,
+            }
+        )
         wrapped = idempotency.idempotent(lambda request, context: {"ok": True})
 
         with self.assertRaises(IdempotencyKeyReusedError):

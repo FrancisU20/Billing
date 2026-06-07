@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Helpers to read environment variables.
 
@@ -24,14 +25,12 @@ def env(name: str, default: str | None = None) -> str:
     """
     value = os.environ.get(name, default)
     if value is None:
-        raise RuntimeError(
-            f"Required environment variable not set: {name}"
-        )
+        raise RuntimeError(f"Required environment variable not set: {name}")
     return value
 
 
 # ── Truly global variables (present in all Lambdas) ───────────────────────────
 
-ENV       = env("ENV",        "dev")
-LOG_LEVEL = env("LOG_LEVEL",  "INFO")
-REGION    = env("AWS_REGION", "sa-east-1")
+ENV = env("ENV", "dev")
+LOG_LEVEL = env("LOG_LEVEL", "INFO")
+REGION = env("AWS_REGION", "sa-east-1")

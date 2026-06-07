@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Access control decorators.
 
@@ -20,23 +21,26 @@ Usage:
     def handler(request: Request, context) -> dict: ...
 """
 import functools
-from typing import Callable
+from collections.abc import Callable
 
 from shared.errors import ForbiddenError
 
 
 def require_superadmin(func: Callable) -> Callable:
     """Allow only requests with custom:is_superadmin=true in the JWT."""
+
     @functools.wraps(func)
     def wrapper(request, context):
         if not request.is_superadmin:
             raise ForbiddenError("superadmin access required")
         return func(request, context)
+
     return wrapper
 
 
 def require_role(*allowed_roles: str) -> Callable:
     """Allow superadmin unconditionally, or any of the listed roles."""
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(request, context):
@@ -47,5 +51,7 @@ def require_role(*allowed_roles: str) -> Callable:
                     f"role '{request.role}' has no access — required: {allowed_roles}"
                 )
             return func(request, context)
+
         return wrapper
+
     return decorator

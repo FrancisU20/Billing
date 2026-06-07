@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Tenants Lambda — AWS entry point.
 
@@ -41,10 +42,10 @@ from shared.db.client import get_table
 from shared.errors import ForbiddenError, NotFoundError, ValidationError
 
 # ── Cold start ────────────────────────────────────────────────────────────────
-_TABLE        = get_table("TENANTS_TABLE")
-_PLANS_TABLE  = get_table("PLANS_TABLE")
-_AUDIT_TABLE  = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
-_OUTBOX_TABLE = get_table("OUTBOX_TABLE")    if env("OUTBOX_TABLE", "")    else None
+_TABLE = get_table("TENANTS_TABLE")
+_PLANS_TABLE = get_table("PLANS_TABLE")
+_AUDIT_TABLE = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
+_OUTBOX_TABLE = get_table("OUTBOX_TABLE") if env("OUTBOX_TABLE", "") else None
 
 
 def _repo() -> DynamoTenantRepository:
@@ -71,39 +72,40 @@ def _parse_list_query(params: dict) -> ListTenantsQuery:
             raise ValidationError(f"Estado inválido: {status}") from exc
 
     return ListTenantsQuery(
-        limit      = min(limit, 100),
-        next_token = params.get("next_token"),
-        status     = status,
+        limit=min(limit, 100),
+        next_token=params.get("next_token"),
+        status=status,
     )
 
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
+
 @lambda_handler
 @require_superadmin
 @idempotent
 def _create(request: Request, context) -> dict:
-    body    = parse(CreateTenantRequest, request.body)
+    body = parse(CreateTenantRequest, request.body)
     command = CreateTenantCommand(
-        ruc            = body.ruc,
-        trade_name     = body.trade_name,
-        legal_rep_name = body.legal_rep_name,
-        email          = body.email,
-        phone          = body.phone,
-        address        = body.address,
-        plan_id        = body.plan_id,
-        created_by     = request.user_id,
+        ruc=body.ruc,
+        trade_name=body.trade_name,
+        legal_rep_name=body.legal_rep_name,
+        email=body.email,
+        phone=body.phone,
+        address=body.address,
+        plan_id=body.plan_id,
+        created_by=request.user_id,
     )
     repo = _repo()
     tenant, events = CreateTenantUseCase(repo, _plan_catalog()).execute(command)
     response = ApiResponse.created(tenant.to_dict(), request.request_id)
     repo.commit(
-        tenant      = tenant,
-        user_id     = request.user_id,
-        action      = "CREATE",
-        events      = events,
-        idempotency = require_current_context(),
-        response    = response,
+        tenant=tenant,
+        user_id=request.user_id,
+        action="CREATE",
+        events=events,
+        idempotency=require_current_context(),
+        response=response,
     )
     return response
 
@@ -114,9 +116,9 @@ def _list(request: Request, context) -> dict:
     query = _parse_list_query(request.query_params)
     tenants, next_token = ListTenantsUseCase(_repo()).execute(query)
     return ApiResponse.paginated(
-        items      = [t.to_dict() for t in tenants],
-        next_token = next_token,
-        request_id = request.request_id,
+        items=[t.to_dict() for t in tenants],
+        next_token=next_token,
+        request_id=request.request_id,
     )
 
 
@@ -137,27 +139,27 @@ def _update(request: Request, context) -> dict:
     if not request.is_superadmin and request.tenant_id != tenant_id:
         raise ForbiddenError()
 
-    body    = parse(UpdateTenantRequest, request.body)
+    body = parse(UpdateTenantRequest, request.body)
     command = UpdateTenantCommand(
-        tenant_id      = tenant_id,
-        updated_by     = request.user_id,
-        trade_name     = body.trade_name,
-        legal_rep_name = body.legal_rep_name,
-        email          = body.email,
-        phone          = body.phone,
-        address        = body.address,
-        sri_environment = body.sri_environment,
+        tenant_id=tenant_id,
+        updated_by=request.user_id,
+        trade_name=body.trade_name,
+        legal_rep_name=body.legal_rep_name,
+        email=body.email,
+        phone=body.phone,
+        address=body.address,
+        sri_environment=body.sri_environment,
     )
     repo = _repo()
     tenant, events = UpdateTenantUseCase(repo).execute(command)
     response = ApiResponse.ok(tenant.to_dict(), request.request_id)
     repo.commit(
-        tenant      = tenant,
-        user_id     = request.user_id,
-        action      = "UPDATE",
-        events      = events,
-        idempotency = require_current_context(),
-        response    = response,
+        tenant=tenant,
+        user_id=request.user_id,
+        action="UPDATE",
+        events=events,
+        idempotency=require_current_context(),
+        response=response,
     )
     return response
 
@@ -167,22 +169,22 @@ def _update(request: Request, context) -> dict:
 @idempotent
 def _toggle_status(request: Request, context) -> dict:
     tenant_id = require_path_param(request, "id")
-    body      = parse(ToggleStatusRequest, request.body)
-    command   = ToggleStatusCommand(
-        tenant_id  = tenant_id,
-        new_status = body.status,
-        updated_by = request.user_id,
+    body = parse(ToggleStatusRequest, request.body)
+    command = ToggleStatusCommand(
+        tenant_id=tenant_id,
+        new_status=body.status,
+        updated_by=request.user_id,
     )
     repo = _repo()
     tenant, events = ToggleStatusUseCase(repo).execute(command)
     response = ApiResponse.ok(tenant.to_dict(), request.request_id)
     repo.commit(
-        tenant      = tenant,
-        user_id     = request.user_id,
-        action      = "STATUS",
-        events      = events,
-        idempotency = require_current_context(),
-        response    = response,
+        tenant=tenant,
+        user_id=request.user_id,
+        action="STATUS",
+        events=events,
+        idempotency=require_current_context(),
+        response=response,
     )
     return response
 
@@ -196,37 +198,43 @@ def _delete(request: Request, context) -> dict:
     tenant, events = DeleteTenantUseCase(repo).execute(tenant_id, request.user_id)
     response = ApiResponse.no_content(request.request_id)
     repo.commit(
-        tenant      = tenant,
-        user_id     = request.user_id,
-        action      = "DELETE",
-        events      = events,
-        idempotency = require_current_context(),
-        response    = response,
+        tenant=tenant,
+        user_id=request.user_id,
+        action="DELETE",
+        events=events,
+        idempotency=require_current_context(),
+        response=response,
     )
     return response
 
 
 # ── Entry point AWS ───────────────────────────────────────────────────────────
 
-_ID_PATTERN     = re.compile(r"^/tenants/[^/]+$")
+_ID_PATTERN = re.compile(r"^/tenants/[^/]+$")
 _STATUS_PATTERN = re.compile(r"^/tenants/[^/]+/status$")
 
 
 def handler(event: dict, context) -> dict:
-    ctx    = event.get("requestContext", {})
+    ctx = event.get("requestContext", {})
     method = ctx.get("http", {}).get("method", "")
-    path   = ctx.get("http", {}).get("path", "")
+    path = ctx.get("http", {}).get("path", "")
 
     if path == "/tenants":
-        if method == "POST": return _create(event, context)
-        if method == "GET":  return _list(event, context)
+        if method == "POST":
+            return _create(event, context)
+        if method == "GET":
+            return _list(event, context)
 
     if _STATUS_PATTERN.match(path):
-        if method == "PATCH": return _toggle_status(event, context)
+        if method == "PATCH":
+            return _toggle_status(event, context)
 
     if _ID_PATTERN.match(path):
-        if method == "GET":    return _get(event, context)
-        if method == "PATCH":  return _update(event, context)
-        if method == "DELETE": return _delete(event, context)
+        if method == "GET":
+            return _get(event, context)
+        if method == "PATCH":
+            return _update(event, context)
+        if method == "DELETE":
+            return _delete(event, context)
 
     return ApiResponse.error(NotFoundError(), ctx.get("requestId", "local"))

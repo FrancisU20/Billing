@@ -1,11 +1,11 @@
 from __future__ import annotations
-from shared.domain.events.domain_event import DomainEvent
-from shared.errors import ValidationError
 
 from lambdas.tenants.domain.commands import ToggleStatusCommand
 from lambdas.tenants.domain.enums import TenantStatus
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.tenants.domain.tenant import Tenant
+from shared.domain.events.domain_event import DomainEvent
+from shared.errors import ValidationError
 
 
 class ToggleStatusUseCase:

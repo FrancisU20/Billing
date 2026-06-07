@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Use case: send the welcome email to the owner of a newly created tenant."""
 
 from lambdas.workers.email_notifications.ports import EmailSender
@@ -12,13 +13,9 @@ class SendWelcomeEmailUseCase:
     def __init__(self, email_sender: EmailSender) -> None:
         self._email_sender = email_sender
 
-    def execute(
-        self, *, email: str, legal_rep_name: str, temp_password: str
-    ) -> None:
+    def execute(self, *, email: str, legal_rep_name: str, temp_password: str) -> None:
         if not email or not temp_password:
-            raise ValidationError(
-                "email and temp_password are required to send the welcome email"
-            )
+            raise ValidationError("email and temp_password are required to send the welcome email")
 
         try:
             self._email_sender.send_welcome(

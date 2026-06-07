@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 HTTP idempotency for mutating operations.
 
@@ -13,10 +14,10 @@ Responsibilities:
 
 import functools
 import json
+from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Callable
+from datetime import UTC, datetime
 
 from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
@@ -34,22 +35,21 @@ from shared.logger import get_logger
 _log = get_logger(__name__)
 
 
-class _AlreadyCompleted(Exception):
+class _AlreadyCompletedError(Exception):
     """Internal signal: _reserve() found a COMPLETED record; carry its cached response."""
+
     def __init__(self, cached: str) -> None:
         self.cached = cached
 
 
-_TABLE_ENV                 = "IDEMPOTENCY_TABLE"
-_TABLE_NAME                = env(_TABLE_ENV, "")
-_IN_PROGRESS_TTL_SECONDS   = 900
-_COMPLETED_TTL_SECONDS     = 86_400
-_FAILED_TTL_SECONDS        = 60
+_TABLE_ENV = "IDEMPOTENCY_TABLE"
+_TABLE_NAME = env(_TABLE_ENV, "")
+_IN_PROGRESS_TTL_SECONDS = 900
+_COMPLETED_TTL_SECONDS = 86_400
+_FAILED_TTL_SECONDS = 60
 
 _table = None
-_current_ctx: ContextVar["IdempotencyContext | None"] = ContextVar(
-    "idempotency_ctx", default=None
-)
+_current_ctx: ContextVar[IdempotencyContext | None] = ContextVar("idempotency_ctx", default=None)
 
 
 @dataclass
@@ -71,12 +71,11 @@ def _get_table():
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _epoch_plus(seconds: int) -> int:
     return int(_now().timestamp()) + seconds
-
 
 
 def _scope_for(request) -> str:
@@ -87,12 +86,12 @@ def _scope_for(request) -> str:
 
 def _context_for(request) -> IdempotencyContext:
     return IdempotencyContext(
-        table_name = _TABLE_NAME,
-        pk         = f"{_scope_for(request)}#{request.idempotency_key}",
-        key        = request.idempotency_key,
-        method     = request.method,
-        path       = request.path,
-        body_hash  = request.body_hash,
+        table_name=_TABLE_NAME,
+        pk=f"{_scope_for(request)}#{request.idempotency_key}",
+        key=request.idempotency_key,
+        method=request.method,
+        path=request.path,
+        body_hash=request.body_hash,
     )
 
 
@@ -123,14 +122,14 @@ def _reserve(table, ctx: IdempotencyContext) -> None:
     try:
         table.put_item(
             Item={
-                "pk":         ctx.pk,
-                "key":        ctx.key,
-                "method":     ctx.method,
-                "path":       ctx.path,
-                "body_hash":  ctx.body_hash,
-                "status":     "IN_PROGRESS",
+                "pk": ctx.pk,
+                "key": ctx.key,
+                "method": ctx.method,
+                "path": ctx.path,
+                "body_hash": ctx.body_hash,
+                "status": "IN_PROGRESS",
                 "created_at": now.isoformat(),
-                "ttl":        _epoch_plus(_IN_PROGRESS_TTL_SECONDS),
+                "ttl": _epoch_plus(_IN_PROGRESS_TTL_SECONDS),
             },
             ConditionExpression=(
                 Attr("pk").not_exists()
@@ -144,7 +143,7 @@ def _reserve(table, ctx: IdempotencyContext) -> None:
             if item and not _matches(item, ctx):
                 raise IdempotencyKeyReusedError()
             if item and item.get("status") == "COMPLETED" and item.get("response"):
-                raise _AlreadyCompleted(item["response"])
+                raise _AlreadyCompletedError(item["response"])
             raise IdempotencyInProgressError()
         _log.error("idempotency: error reserving key", error=str(exc))
         raise DatabaseError()
@@ -158,9 +157,9 @@ def _mark_failed(table, ctx: IdempotencyContext) -> None:
             ConditionExpression=Attr("status").eq("IN_PROGRESS"),
             ExpressionAttributeNames={"#status": "status", "#ttl": "ttl"},
             ExpressionAttributeValues={
-                ":status":    "FAILED",
+                ":status": "FAILED",
                 ":failed_at": _now().isoformat(),
-                ":ttl":       _epoch_plus(_FAILED_TTL_SECONDS),
+                ":ttl": _epoch_plus(_FAILED_TTL_SECONDS),
             },
         )
     except ClientError as exc:
@@ -178,10 +177,10 @@ def _mark_completed_non_transactional(table, ctx: IdempotencyContext, response: 
             ConditionExpression=Attr("status").eq("IN_PROGRESS"),
             ExpressionAttributeNames={"#status": "status", "#response": "response", "#ttl": "ttl"},
             ExpressionAttributeValues={
-                ":completed":    "COMPLETED",
-                ":response":     json.dumps(response, default=str),
+                ":completed": "COMPLETED",
+                ":response": json.dumps(response, default=str),
                 ":completed_at": _now().isoformat(),
-                ":ttl":          _epoch_plus(_COMPLETED_TTL_SECONDS),
+                ":ttl": _epoch_plus(_COMPLETED_TTL_SECONDS),
             },
         )
         ctx.completed = True
@@ -221,22 +220,22 @@ def completion_transact_item(ctx: IdempotencyContext, response: dict) -> dict:
                 "AND #path = :path AND #body_hash = :body_hash"
             ),
             "ExpressionAttributeNames": {
-                "#status":    "status",
-                "#path":      "path",
-                "#response":  "response",
-                "#ttl":       "ttl",
-                "#method":    "method",
+                "#status": "status",
+                "#path": "path",
+                "#response": "response",
+                "#ttl": "ttl",
+                "#method": "method",
                 "#body_hash": "body_hash",
             },
             "ExpressionAttributeValues": {
-                ":completed":    "COMPLETED",
-                ":in_progress":  "IN_PROGRESS",
-                ":response":     json.dumps(response, default=str),
+                ":completed": "COMPLETED",
+                ":in_progress": "IN_PROGRESS",
+                ":response": json.dumps(response, default=str),
                 ":completed_at": _now().isoformat(),
-                ":ttl":          _epoch_plus(_COMPLETED_TTL_SECONDS),
-                ":method":       ctx.method,
-                ":path":         ctx.path,
-                ":body_hash":    ctx.body_hash,
+                ":ttl": _epoch_plus(_COMPLETED_TTL_SECONDS),
+                ":method": ctx.method,
+                ":path": ctx.path,
+                ":body_hash": ctx.body_hash,
             },
         }
     }
@@ -263,7 +262,7 @@ def idempotent(func: Callable) -> Callable:
 
         try:
             _reserve(table, ctx)
-        except _AlreadyCompleted as completed:
+        except _AlreadyCompletedError as completed:
             _log.info("idempotency: returning cached response (race)", key=ctx.key)
             return json.loads(completed.cached)
 

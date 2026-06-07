@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 DynamoDB pagination with an opaque cursor (base64 of LastEvaluatedKey).
 
@@ -15,9 +16,7 @@ from shared.errors import ValidationError
 def encode_cursor(last_evaluated_key: dict | None) -> str | None:
     if not last_evaluated_key:
         return None
-    return base64.b64encode(
-        json.dumps(last_evaluated_key, default=str).encode()
-    ).decode()
+    return base64.b64encode(json.dumps(last_evaluated_key, default=str).encode()).decode()
 
 
 def decode_cursor(next_token: str | None) -> dict | None:

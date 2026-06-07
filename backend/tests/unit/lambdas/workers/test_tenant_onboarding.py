@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import importlib
+import json
 import os
 import sys
 import unittest
@@ -14,8 +14,8 @@ from shared.errors import ValidationError
 from shared.logger import clear_invocation_context
 from tests.unit.support import LambdaContext, configure_unit_environment
 
-
 # ── Fakes ─────────────────────────────────────────────────────────────────────
+
 
 class FakeIdentityProvider:
     def __init__(self, *, already_exists: bool = False, reset_allowed: bool = False) -> None:
@@ -27,19 +27,23 @@ class FakeIdentityProvider:
     def create_owner(self, *, tenant_id: str, email: str, temporary_password: str) -> bool:
         if self._already_exists:
             return False
-        self.created_owners.append({
-            "tenant_id": tenant_id,
-            "email":     email,
-        })
+        self.created_owners.append(
+            {
+                "tenant_id": tenant_id,
+                "email": email,
+            }
+        )
         return True
 
     def reset_temporary_password(self, *, email: str, temporary_password: str) -> bool:
         if not self._reset_allowed:
             return False
-        self.reset_passwords.append({
-            "email": email,
-            "password_length": len(temporary_password),
-        })
+        self.reset_passwords.append(
+            {
+                "email": email,
+                "password_length": len(temporary_password),
+            }
+        )
         return True
 
 
@@ -52,6 +56,7 @@ class FakeEventPublisher(EventPublisherPort):
 
 
 # ── Use case ──────────────────────────────────────────────────────────────────
+
 
 class OnboardTenantUseCaseTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -120,40 +125,47 @@ class OnboardTenantUseCaseTests(unittest.TestCase):
 
 # ── Handler ───────────────────────────────────────────────────────────────────
 
+
 class TenantOnboardingHandlerTests(unittest.TestCase):
     def _load_handler_module(self):
         configure_unit_environment()
-        os.environ["COGNITO_USER_POOL_ID"]          = "unit-user-pool"
+        os.environ["COGNITO_USER_POOL_ID"] = "unit-user-pool"
         os.environ["EMAIL_NOTIFICATIONS_QUEUE_URL"] = ""
         sys.modules.pop("lambdas.workers.tenant_onboarding.handler", None)
         return importlib.import_module("lambdas.workers.tenant_onboarding.handler")
 
     def _make_sqs_event(self, data: dict) -> dict:
         return {
-            "Records": [{
-                "messageId":     "msg-1",
-                "receiptHandle": "receipt-1",
-                "attributes":    {},
-                "body": json.dumps({
-                    "event_type": "TenantCreatedEvent",
-                    "data":       data,
-                }),
-            }]
+            "Records": [
+                {
+                    "messageId": "msg-1",
+                    "receiptHandle": "receipt-1",
+                    "attributes": {},
+                    "body": json.dumps(
+                        {
+                            "event_type": "TenantCreatedEvent",
+                            "data": data,
+                        }
+                    ),
+                }
+            ]
         }
 
     def test_creates_owner_and_publishes_owner_created_event(self) -> None:
         mod = self._load_handler_module()
-        idp       = FakeIdentityProvider()
+        idp = FakeIdentityProvider()
         publisher = FakeEventPublisher()
         mod._identity_provider = idp
-        mod._event_publisher   = publisher
+        mod._event_publisher = publisher
 
         result = mod.handler(
-            self._make_sqs_event({
-                "tenant_id":        "tenant-1",
-                "email":            "owner@codelabs.com",
-                "legal_rep_name": "Owner Apellido",
-            }),
+            self._make_sqs_event(
+                {
+                    "tenant_id": "tenant-1",
+                    "email": "owner@codelabs.com",
+                    "legal_rep_name": "Owner Apellido",
+                }
+            ),
             LambdaContext(),
         )
 
@@ -168,17 +180,19 @@ class TenantOnboardingHandlerTests(unittest.TestCase):
 
     def test_does_not_publish_event_when_existing_user_completed_onboarding(self) -> None:
         mod = self._load_handler_module()
-        idp       = FakeIdentityProvider(already_exists=True)
+        idp = FakeIdentityProvider(already_exists=True)
         publisher = FakeEventPublisher()
         mod._identity_provider = idp
-        mod._event_publisher   = publisher
+        mod._event_publisher = publisher
 
         result = mod.handler(
-            self._make_sqs_event({
-                "tenant_id": "tenant-1",
-                "email":     "owner@codelabs.com",
-                "legal_rep_name": "Owner",
-            }),
+            self._make_sqs_event(
+                {
+                    "tenant_id": "tenant-1",
+                    "email": "owner@codelabs.com",
+                    "legal_rep_name": "Owner",
+                }
+            ),
             LambdaContext(),
         )
 
@@ -187,17 +201,19 @@ class TenantOnboardingHandlerTests(unittest.TestCase):
 
     def test_publishes_event_when_existing_user_password_was_reset(self) -> None:
         mod = self._load_handler_module()
-        idp       = FakeIdentityProvider(already_exists=True, reset_allowed=True)
+        idp = FakeIdentityProvider(already_exists=True, reset_allowed=True)
         publisher = FakeEventPublisher()
         mod._identity_provider = idp
-        mod._event_publisher   = publisher
+        mod._event_publisher = publisher
 
         result = mod.handler(
-            self._make_sqs_event({
-                "tenant_id": "tenant-1",
-                "email":     "owner@codelabs.com",
-                "legal_rep_name": "Owner",
-            }),
+            self._make_sqs_event(
+                {
+                    "tenant_id": "tenant-1",
+                    "email": "owner@codelabs.com",
+                    "legal_rep_name": "Owner",
+                }
+            ),
             LambdaContext(),
         )
 
@@ -212,10 +228,14 @@ class TenantOnboardingHandlerTests(unittest.TestCase):
 
         result = mod.handler(
             {
-                "Records": [{
-                    "messageId": "msg-1", "receiptHandle": "r", "attributes": {},
-                    "body": json.dumps({"event_type": "TenantUpdatedEvent", "data": {}}),
-                }]
+                "Records": [
+                    {
+                        "messageId": "msg-1",
+                        "receiptHandle": "r",
+                        "attributes": {},
+                        "body": json.dumps({"event_type": "TenantUpdatedEvent", "data": {}}),
+                    }
+                ]
             },
             LambdaContext(),
         )

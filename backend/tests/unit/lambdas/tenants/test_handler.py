@@ -46,9 +46,11 @@ class TenantsHandlerTests(unittest.TestCase):
             headers={"X-Idempotency-Key": "create-tenant-1"},
         )
 
-        with patch.object(self.handler, "_repo", return_value=repo), \
-                patch.object(self.handler, "_plan_catalog", return_value=FakePlanCatalog()), \
-                patch.object(self.handler, "require_current_context", return_value=idempotency_context):
+        with (
+            patch.object(self.handler, "_repo", return_value=repo),
+            patch.object(self.handler, "_plan_catalog", return_value=FakePlanCatalog()),
+            patch.object(self.handler, "require_current_context", return_value=idempotency_context),
+        ):
             response = self.handler.handler(event, self.context)
 
         body = decode_response(response)
@@ -133,11 +135,12 @@ class TenantsHandlerTests(unittest.TestCase):
             headers={"X-Idempotency-Key": "upd-1"},
         )
 
-        with patch.object(self.handler, "_repo", return_value=repo), \
-                patch.object(self.handler, "require_current_context", return_value=idempotency_context):
+        with (
+            patch.object(self.handler, "_repo", return_value=repo),
+            patch.object(self.handler, "require_current_context", return_value=idempotency_context),
+        ):
             response = self.handler.handler(event, self.context)
 
-        body = decode_response(response)
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(len(repo.commit_calls), 1)
         self.assertEqual(repo.commit_calls[0]["action"], "UPDATE")
@@ -155,11 +158,12 @@ class TenantsHandlerTests(unittest.TestCase):
             headers={"X-Idempotency-Key": "tog-1"},
         )
 
-        with patch.object(self.handler, "_repo", return_value=repo), \
-                patch.object(self.handler, "require_current_context", return_value=idempotency_context):
+        with (
+            patch.object(self.handler, "_repo", return_value=repo),
+            patch.object(self.handler, "require_current_context", return_value=idempotency_context),
+        ):
             response = self.handler.handler(event, self.context)
 
-        body = decode_response(response)
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(repo.commit_calls[0]["action"], "STATUS")
         self.assertEqual(repo.commit_calls[0]["tenant"].status.value, "suspended")
@@ -175,8 +179,10 @@ class TenantsHandlerTests(unittest.TestCase):
             headers={"X-Idempotency-Key": "delete-tenant-1"},
         )
 
-        with patch.object(self.handler, "_repo", return_value=repo), \
-                patch.object(self.handler, "require_current_context", return_value=idempotency_context):
+        with (
+            patch.object(self.handler, "_repo", return_value=repo),
+            patch.object(self.handler, "require_current_context", return_value=idempotency_context),
+        ):
             response = self.handler.handler(event, self.context)
 
         self.assertEqual(response["statusCode"], 204)
@@ -185,7 +191,6 @@ class TenantsHandlerTests(unittest.TestCase):
         self.assertEqual(commit["action"], "DELETE")
         self.assertTrue(commit["tenant"].deleted)
         self.assertEqual(commit["events"], [])
-
 
 
 if __name__ == "__main__":

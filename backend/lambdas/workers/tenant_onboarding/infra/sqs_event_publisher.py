@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Adapter: bridges EventPublisher (shared) → EventPublisherPort (tenant_onboarding domain)."""
 
 from lambdas.workers.tenant_onboarding.ports import EventPublisherPort

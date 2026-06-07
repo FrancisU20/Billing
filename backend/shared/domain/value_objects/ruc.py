@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Value Object: Ecuadorian RUC.
 
@@ -38,10 +39,7 @@ class RUC:
     @staticmethod
     def _modulo10(base: str, check_digit: str) -> bool:
         coef = [2, 1, 2, 1, 2, 1, 2, 1, 2]
-        total = sum(
-            (v - 9 if v >= 10 else v)
-            for v in (int(base[i]) * coef[i] for i in range(9))
-        )
+        total = sum((v - 9 if v >= 10 else v) for v in (int(base[i]) * coef[i] for i in range(9)))
         expected = 0 if total % 10 == 0 else 10 - total % 10
         return expected == int(check_digit)
 
@@ -63,8 +61,14 @@ class RUC:
 
     # ── comparison and representation ─────────────────────────────────────────
 
-    def __str__(self)  -> str:  return self.value
-    def __repr__(self) -> str:  return f"RUC({self.value!r})"
+    def __str__(self) -> str:
+        return self.value
+
+    def __repr__(self) -> str:
+        return f"RUC({self.value!r})"
+
     def __eq__(self, other) -> bool:
         return self.value == (other.value if isinstance(other, RUC) else str(other))
-    def __hash__(self) -> int:  return hash(self.value)
+
+    def __hash__(self) -> int:
+        return hash(self.value)

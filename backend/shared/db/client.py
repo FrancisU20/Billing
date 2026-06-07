@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 DynamoDB client — singleton initialized at cold start.
 

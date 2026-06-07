@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Domain event publisher → SQS.
 
@@ -24,8 +25,9 @@ _log = get_logger(__name__)
 def _serialize_value(v: object) -> object:
     """Convert any value to a JSON-safe type (handles Enum, Decimal, datetime, dataclasses)."""
     import enum
-    from decimal import Decimal
     from datetime import datetime
+    from decimal import Decimal
+
     if isinstance(v, enum.Enum):
         return v.value
     if isinstance(v, Decimal):
@@ -34,7 +36,7 @@ def _serialize_value(v: object) -> object:
         return v.isoformat()
     if dataclasses.is_dataclass(v) and not isinstance(v, type):
         return {k: _serialize_value(val) for k, val in dataclasses.asdict(v).items()}
-    if isinstance(v, (list, tuple)):
+    if isinstance(v, list | tuple):
         return [_serialize_value(i) for i in v]
     if isinstance(v, dict):
         return {k: _serialize_value(val) for k, val in v.items()}
@@ -49,17 +51,17 @@ def event_payload(event: DomainEvent) -> dict:
         if f.name not in ("event_id", "occurred_at")
     }
     return {
-        "event_type":  event.event_type,
-        "event_id":    event.event_id,
+        "event_type": event.event_type,
+        "event_id": event.event_id,
         "occurred_at": event.occurred_at.isoformat(),
-        "data":        data,
+        "data": data,
     }
 
 
 class EventPublisher:
     def __init__(self, queue_url: str) -> None:
         self._queue_url = queue_url
-        self._client    = None
+        self._client = None
 
     def _sqs(self):
         if self._client is None:
@@ -74,12 +76,12 @@ class EventPublisher:
 
         payload = event_payload(event)
         self._sqs().send_message(
-            QueueUrl    = self._queue_url,
-            MessageBody = json.dumps(payload, default=str),
+            QueueUrl=self._queue_url,
+            MessageBody=json.dumps(payload, default=str),
             MessageAttributes={
                 "event_type": {
                     "StringValue": event.event_type,
-                    "DataType":    "String",
+                    "DataType": "String",
                 }
             },
         )

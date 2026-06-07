@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from decimal import Decimal
 
 from lambdas.plans.domain.commands import UpdatePlanCommand

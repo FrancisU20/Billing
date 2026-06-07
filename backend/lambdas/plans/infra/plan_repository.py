@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 PlanRepository — DynamoDB `plans` table.
 
@@ -54,17 +55,16 @@ class DynamoPlanRepository(IPlanRepository):
     def get_by_slug(self, slug: str) -> Plan:
         try:
             response = self._table.query(
-                IndexName              = "slug-index",
-                KeyConditionExpression = Key("slug").eq(slug),
-                Limit                  = 1,
+                IndexName="slug-index",
+                KeyConditionExpression=Key("slug").eq(slug),
+                Limit=1,
             )
         except ClientError as exc:
             _log.error("DynamoDB slug-index query error", error=str(exc))
             raise DatabaseError()
 
         items = [
-            item for item in response.get("Items", [])
-            if item.get("entity_type", "PLAN") == "PLAN"
+            item for item in response.get("Items", []) if item.get("entity_type", "PLAN") == "PLAN"
         ]
         if not items:
             raise PlanNotFoundError()
@@ -90,30 +90,28 @@ class DynamoPlanRepository(IPlanRepository):
             raise DatabaseError()
 
         return [
-            self._from_item(item)
-            for item in items
-            if item.get("entity_type", "PLAN") == "PLAN"
+            self._from_item(item) for item in items if item.get("entity_type", "PLAN") == "PLAN"
         ]
 
     # ── writes ────────────────────────────────────────────────────────────────
 
     def save(self, plan: Plan) -> None:
         self.commit(
-            plan        = plan,
-            user_id     = plan.updated_by or plan.created_by,
-            action      = "SAVE",
-            idempotency = None,
-            response    = None,
+            plan=plan,
+            user_id=plan.updated_by or plan.created_by,
+            action="SAVE",
+            idempotency=None,
+            response=None,
         )
 
     def commit(
         self,
         *,
-        plan:        Plan,
-        user_id:     str,
-        action:      str,
+        plan: Plan,
+        user_id: str,
+        action: str,
         idempotency: IdempotencyContext | None,
-        response:    dict | None,
+        response: dict | None,
     ) -> None:
         item = self._to_item(plan)
         old_raw = self._get_raw(plan.id)
@@ -131,18 +129,20 @@ class DynamoPlanRepository(IPlanRepository):
             transact_items.append(completion_transact_item(idempotency, response))
 
         if self._audit_table:
-            transact_items.append(audit_put_transact_item(
-                self._audit_table.table_name,
-                audit_item(
-                    pk          = "AUDIT#PLAN",
-                    entity_type = "PLAN",
-                    entity_id   = plan.id,
-                    action      = action,
-                    changed_by  = user_id,
-                    before      = old_raw,
-                    after       = item,
-                ),
-            ))
+            transact_items.append(
+                audit_put_transact_item(
+                    self._audit_table.table_name,
+                    audit_item(
+                        pk="AUDIT#PLAN",
+                        entity_type="PLAN",
+                        entity_id=plan.id,
+                        action=action,
+                        changed_by=user_id,
+                        before=old_raw,
+                        after=item,
+                    ),
+                )
+            )
 
         self._transact_write(transact_items, idempotency, is_create)
 
@@ -160,17 +160,17 @@ class DynamoPlanRepository(IPlanRepository):
         return [
             {
                 "Put": {
-                    "TableName":                self._table.table_name,
-                    "Item":                     self._slug_lock_item(plan, user_id),
-                    "ConditionExpression":      "attribute_not_exists(#id)",
+                    "TableName": self._table.table_name,
+                    "Item": self._slug_lock_item(plan, user_id),
+                    "ConditionExpression": "attribute_not_exists(#id)",
                     "ExpressionAttributeNames": {"#id": "id"},
                 }
             },
             {
                 "Put": {
-                    "TableName":                self._table.table_name,
-                    "Item":                     item,
-                    "ConditionExpression":      "attribute_not_exists(#id)",
+                    "TableName": self._table.table_name,
+                    "Item": item,
+                    "ConditionExpression": "attribute_not_exists(#id)",
                     "ExpressionAttributeNames": {"#id": "id"},
                 }
             },
@@ -179,9 +179,9 @@ class DynamoPlanRepository(IPlanRepository):
     def _update_item(self, plan: Plan, item: dict) -> dict:
         return {
             "Put": {
-                "TableName":                self._table.table_name,
-                "Item":                     item,
-                "ConditionExpression":      "attribute_exists(#id) AND #version = :prev",
+                "TableName": self._table.table_name,
+                "Item": item,
+                "ConditionExpression": "attribute_exists(#id) AND #version = :prev",
                 "ExpressionAttributeNames": {"#id": "id", "#version": "version"},
                 "ExpressionAttributeValues": {":prev": plan.version - 1},
             }
@@ -190,8 +190,8 @@ class DynamoPlanRepository(IPlanRepository):
     def _transact_write(
         self,
         transact_items: list[dict],
-        idempotency:    IdempotencyContext | None,
-        is_create:      bool,
+        idempotency: IdempotencyContext | None,
+        is_create: bool,
     ) -> None:
         try:
             self._table.meta.client.transact_write_items(TransactItems=transact_items)
@@ -210,8 +210,12 @@ class DynamoPlanRepository(IPlanRepository):
                     reasons=reasons,
                 )
                 if is_create:
-                    slug_lock_failed = reasons and reasons[0].get("code") == "ConditionalCheckFailed"
-                    plan_failed      = len(reasons) > 1 and reasons[1].get("code") == "ConditionalCheckFailed"
+                    slug_lock_failed = (
+                        reasons and reasons[0].get("code") == "ConditionalCheckFailed"
+                    )
+                    plan_failed = (
+                        len(reasons) > 1 and reasons[1].get("code") == "ConditionalCheckFailed"
+                    )
                     if slug_lock_failed or plan_failed:
                         raise PlanSlugExistsError()
                     raise DatabaseError()
@@ -221,65 +225,65 @@ class DynamoPlanRepository(IPlanRepository):
 
     def _slug_lock_item(self, plan: Plan, user_id: str) -> dict:
         return {
-            "id":          f"PLAN_SLUG#{plan.slug}",
+            "id": f"PLAN_SLUG#{plan.slug}",
             "entity_type": "PLAN_SLUG_LOCK",
-            "plan_id":     plan.id,
+            "plan_id": plan.id,
             "locked_slug": plan.slug,
-            "created_at":  plan.created_at.isoformat(),
-            "created_by":  user_id,
+            "created_at": plan.created_at.isoformat(),
+            "created_by": user_id,
         }
 
     # ── serialisation ─────────────────────────────────────────────────────────
 
     def _to_item(self, plan: Plan) -> dict:
         return {
-            "entity_type":             "PLAN",
-            "id":                      plan.id,
-            "slug":                    plan.slug,
-            "name":                    plan.name,
-            "description":             plan.description,
-            "monthly_price":           str(plan.monthly_price),
-            "annual_price":            str(plan.annual_price),
-            "document_limit":          plan.document_limit,
-            "limit_cycle":             plan.limit_cycle,
-            "max_locations":           plan.max_locations,
-            "max_emission_points":     plan.max_emission_points,
-            "max_users":               plan.max_users,
-            "includes_credit_notes":   plan.includes_credit_notes,
-            "includes_withholdings":   plan.includes_withholdings,
+            "entity_type": "PLAN",
+            "id": plan.id,
+            "slug": plan.slug,
+            "name": plan.name,
+            "description": plan.description,
+            "monthly_price": str(plan.monthly_price),
+            "annual_price": str(plan.annual_price),
+            "document_limit": plan.document_limit,
+            "limit_cycle": plan.limit_cycle,
+            "max_locations": plan.max_locations,
+            "max_emission_points": plan.max_emission_points,
+            "max_users": plan.max_users,
+            "includes_credit_notes": plan.includes_credit_notes,
+            "includes_withholdings": plan.includes_withholdings,
             "includes_delivery_notes": plan.includes_delivery_notes,
-            "includes_api":            plan.includes_api,
-            "active":                  plan.active,
-            "order":                   plan.order,
-            "version":                 plan.version,
-            "created_at":              plan.created_at.isoformat(),
-            "updated_at":              plan.updated_at.isoformat(),
-            "created_by":              plan.created_by,
-            "updated_by":              plan.updated_by,
+            "includes_api": plan.includes_api,
+            "active": plan.active,
+            "order": plan.order,
+            "version": plan.version,
+            "created_at": plan.created_at.isoformat(),
+            "updated_at": plan.updated_at.isoformat(),
+            "created_by": plan.created_by,
+            "updated_by": plan.updated_by,
         }
 
     def _from_item(self, item: dict) -> Plan:
         return Plan(
-            id                      = item["id"],
-            slug                    = item.get("slug", ""),
-            name                    = item.get("name", ""),
-            description             = item.get("description", ""),
-            monthly_price           = Decimal(str(item.get("monthly_price", "0.00"))),
-            annual_price            = Decimal(str(item.get("annual_price", "0.00"))),
-            document_limit          = int(item.get("document_limit", 0)),
-            limit_cycle             = item.get("limit_cycle", "month"),
-            max_locations           = int(item.get("max_locations", 1)),
-            max_emission_points     = int(item.get("max_emission_points", 1)),
-            max_users               = int(item.get("max_users", 1)),
-            includes_credit_notes   = bool(item.get("includes_credit_notes", True)),
-            includes_withholdings   = bool(item.get("includes_withholdings", True)),
-            includes_delivery_notes = bool(item.get("includes_delivery_notes", True)),
-            includes_api            = bool(item.get("includes_api", False)),
-            active                  = bool(item.get("active", True)),
-            order                   = int(item.get("order", 0)),
-            version                 = int(item.get("version", 1)),
-            created_at              = datetime.fromisoformat(item["created_at"]),
-            updated_at              = datetime.fromisoformat(item["updated_at"]),
-            created_by              = item.get("created_by", ""),
-            updated_by              = item.get("updated_by", ""),
+            id=item["id"],
+            slug=item.get("slug", ""),
+            name=item.get("name", ""),
+            description=item.get("description", ""),
+            monthly_price=Decimal(str(item.get("monthly_price", "0.00"))),
+            annual_price=Decimal(str(item.get("annual_price", "0.00"))),
+            document_limit=int(item.get("document_limit", 0)),
+            limit_cycle=item.get("limit_cycle", "month"),
+            max_locations=int(item.get("max_locations", 1)),
+            max_emission_points=int(item.get("max_emission_points", 1)),
+            max_users=int(item.get("max_users", 1)),
+            includes_credit_notes=bool(item.get("includes_credit_notes", True)),
+            includes_withholdings=bool(item.get("includes_withholdings", True)),
+            includes_delivery_notes=bool(item.get("includes_delivery_notes", True)),
+            includes_api=bool(item.get("includes_api", False)),
+            active=bool(item.get("active", True)),
+            order=int(item.get("order", 0)),
+            version=int(item.get("version", 1)),
+            created_at=datetime.fromisoformat(item["created_at"]),
+            updated_at=datetime.fromisoformat(item["updated_at"]),
+            created_by=item.get("created_by", ""),
+            updated_by=item.get("updated_by", ""),
         )
