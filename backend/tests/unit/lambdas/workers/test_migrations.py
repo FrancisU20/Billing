@@ -12,7 +12,7 @@ from migrations.context import MigrationContext, MigrationResult
 from migrations.definition import Migration
 from migrations.versions import v0001_seed_plans
 
-from lambdas.plans.domain.errors import PlanSlugExistsError
+from lambdas.plans.domain.errors import PlanNotFoundError, PlanSlugExistsError
 from lambdas.workers.migrations.infra.dynamo_migration_state_repository import (
     DynamoMigrationStateRepository,
     MigrationAlreadyRunningError,
@@ -70,8 +70,14 @@ class FakePlan:
 
 
 class FakePlanRepository:
-    def __init__(self) -> None:
+    def __init__(self, existing_slugs: set[str] | None = None) -> None:
+        self.existing_slugs = existing_slugs or set()
         self.commits: list[str] = []
+
+    def get_by_slug(self, slug: str) -> FakePlan:
+        if slug in self.existing_slugs:
+            return FakePlan(slug)
+        raise PlanNotFoundError()
 
     def commit(self, **kwargs) -> None:
         self.commits.append(kwargs["plan"].slug)
@@ -156,8 +162,8 @@ class SeedPlansMigrationTests(unittest.TestCase):
         self.assertEqual(repo.commits, ["free", "basic", "pyme", "pro", "enterprise"])
 
     def test_seed_plans_skips_existing_slugs(self) -> None:
-        repo = FakePlanRepository()
-        use_case = FakeCreatePlanUseCase(repo, existing_slugs={"free", "basic"})
+        repo = FakePlanRepository(existing_slugs={"free", "basic"})
+        use_case = FakeCreatePlanUseCase(repo)
 
         with (
             patch.object(v0001_seed_plans, "DynamoPlanRepository", return_value=repo),
@@ -168,6 +174,21 @@ class SeedPlansMigrationTests(unittest.TestCase):
         self.assertEqual(result.created, 3)
         self.assertEqual(result.skipped, 2)
         self.assertEqual(repo.commits, ["pyme", "pro", "enterprise"])
+        self.assertIn("skipped:free:plan-free:already_exists", result.details)
+
+    def test_seed_plans_handles_slug_lock_race(self) -> None:
+        repo = FakePlanRepository()
+        use_case = FakeCreatePlanUseCase(repo, existing_slugs={"free"})
+
+        with (
+            patch.object(v0001_seed_plans, "DynamoPlanRepository", return_value=repo),
+            patch.object(v0001_seed_plans, "CreatePlanUseCase", return_value=use_case),
+        ):
+            result = v0001_seed_plans.run(MigrationContext(tables={"PLANS_TABLE": object()}))
+
+        self.assertEqual(result.created, 4)
+        self.assertEqual(result.skipped, 1)
+        self.assertNotIn("free", repo.commits)
         self.assertIn("skipped:free:already_exists", result.details)
 
 

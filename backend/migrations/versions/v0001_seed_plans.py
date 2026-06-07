@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from lambdas.plans.domain.commands import CreatePlanCommand
-from lambdas.plans.domain.errors import PlanSlugExistsError
+from lambdas.plans.domain.errors import PlanNotFoundError, PlanSlugExistsError
 from lambdas.plans.infra.plan_repository import DynamoPlanRepository
 from lambdas.plans.use_cases.create_plan import CreatePlanUseCase
 from migrations.context import MigrationContext, MigrationResult
@@ -111,6 +111,14 @@ def run(context: MigrationContext) -> MigrationResult:
     details: list[str] = []
 
     for spec in _PLANS:
+        try:
+            existing = repo.get_by_slug(spec["slug"])
+            skipped += 1
+            details.append(f"skipped:{existing.slug}:{existing.id}:already_exists")
+            continue
+        except PlanNotFoundError:
+            pass
+
         cmd = CreatePlanCommand(created_by=f"migration:{MIGRATION_ID}", **spec)
         try:
             plan = use_case.execute(cmd)
