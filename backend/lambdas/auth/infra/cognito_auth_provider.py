@@ -82,6 +82,9 @@ class CognitoAuthProvider(IAuthProvider):
         try:
             self._idp.global_sign_out(AccessToken=command.access_token)
         except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            if code == "NotAuthorizedException":
+                return
             raise self._map_client_error(exc)
 
     def respond_to_challenge(self, command: RespondChallengeCommand) -> AuthOutcome:

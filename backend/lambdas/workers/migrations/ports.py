@@ -6,6 +6,12 @@ from abc import ABC, abstractmethod
 
 from migrations.context import MigrationResult
 from migrations.definition import Migration
+from shared.errors import ConflictError
+
+
+class MigrationAlreadyRunningError(ConflictError):
+    code = "MIGRATION_ALREADY_RUNNING"
+    default_message = "Otra ejecución de migraciones está en proceso."
 
 
 class MigrationStateRepository(ABC):

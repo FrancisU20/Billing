@@ -19,7 +19,6 @@ from lambdas.auth.domain.commands import (
     RefreshCommand,
     RespondChallengeCommand,
 )
-from lambdas.auth.domain.repositories.i_auth_provider import IAuthProvider
 from lambdas.auth.infra.cognito_auth_provider import CognitoAuthProvider
 from lambdas.auth.schemas import ChallengeRequest, LoginRequest, LogoutRequest, RefreshRequest
 from lambdas.auth.use_cases.login import LoginUseCase
@@ -28,20 +27,13 @@ from lambdas.auth.use_cases.refresh import RefreshUseCase
 from lambdas.auth.use_cases.respond_challenge import RespondChallengeUseCase
 from shared.errors import NotFoundError
 
-_provider_instance: IAuthProvider | None = None
-
-
-def _provider() -> IAuthProvider:
-    global _provider_instance
-    if _provider_instance is None:
-        _provider_instance = CognitoAuthProvider()
-    return _provider_instance
+_provider = CognitoAuthProvider()
 
 
 @public_lambda_handler
 def _login(request: Request, context) -> dict:
     body = parse(LoginRequest, request.body)
-    result = LoginUseCase(_provider()).execute(
+    result = LoginUseCase(_provider).execute(
         LoginCommand(username=body.username, password=body.password)
     )
     return ApiResponse.ok(result.to_dict(), request.request_id)
@@ -50,21 +42,21 @@ def _login(request: Request, context) -> dict:
 @public_lambda_handler
 def _refresh(request: Request, context) -> dict:
     body = parse(RefreshRequest, request.body)
-    result = RefreshUseCase(_provider()).execute(RefreshCommand(refresh_token=body.refresh_token))
+    result = RefreshUseCase(_provider).execute(RefreshCommand(refresh_token=body.refresh_token))
     return ApiResponse.ok(result.to_dict(), request.request_id)
 
 
 @public_lambda_handler
 def _logout(request: Request, context) -> dict:
     body = parse(LogoutRequest, request.body)
-    LogoutUseCase(_provider()).execute(LogoutCommand(access_token=body.access_token))
+    LogoutUseCase(_provider).execute(LogoutCommand(access_token=body.access_token))
     return ApiResponse.no_content(request.request_id)
 
 
 @public_lambda_handler
 def _challenge(request: Request, context) -> dict:
     body = parse(ChallengeRequest, request.body)
-    result = RespondChallengeUseCase(_provider()).execute(
+    result = RespondChallengeUseCase(_provider).execute(
         RespondChallengeCommand(
             session=body.session,
             challenge_name=body.challenge_name,

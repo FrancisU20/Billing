@@ -9,8 +9,8 @@ from botocore.exceptions import ClientError
 from migrations.context import MigrationResult
 from migrations.definition import Migration
 
-from lambdas.workers.migrations.ports import MigrationStateRepository
-from shared.errors import ConflictError, DatabaseError
+from lambdas.workers.migrations.ports import MigrationAlreadyRunningError, MigrationStateRepository
+from shared.errors import DatabaseError
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
@@ -33,11 +33,6 @@ def _is_active_lock(item: dict, now: datetime) -> bool:
         return datetime.fromisoformat(lock_expires_at) > now
     except ValueError:
         return True
-
-
-class MigrationAlreadyRunningError(ConflictError):
-    code = "MIGRATION_ALREADY_RUNNING"
-    default_message = "Otra ejecución de migraciones está en proceso."
 
 
 class DynamoMigrationStateRepository(MigrationStateRepository):
