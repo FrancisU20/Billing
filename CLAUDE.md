@@ -663,9 +663,64 @@ de desarrollo/local al runtime Lambda.
   `ExpressionAttributeNames`. Esto aplica a `UpdateExpression` y `ConditionExpression` en el
   cliente low-level; las operaciones de alto nivel (`table.update_item`) manejan esto via `Attr()`.
 
+### 2026-06-07 — Auditoría exhaustiva AST — Fase 1 y 2 (correcciones importantes)
+
+- `plan_repository._transact_write`: inspecciona `cancellation_reasons` por índice (slug lock vs plan
+  vs otro error) en lugar de lanzar `PlanSlugExistsError` para cualquier cancelación.
+- `plan_catalog`: desacoplado de `lambdas.plans.*` — hace `get_item` directo a la tabla de planes
+  sin importar del Lambda de plans; elimina acoplamiento estructural entre Lambdas independientes.
+- `create_plan`: eliminado pre-check TOCTOU del slug (`_slug_exists`); la transacción ya garantiza
+  unicidad atómica con el lock item `PLAN_SLUG#{slug}`.
+- `tenant_repository.list()`: filtro explícito `Attr("entity_type").eq("TENANT")` en vez de depender
+  del comportamiento implícito de DynamoDB con lock items sin campo `deleted`.
+- `brevo_email_sender`: valida formato del API key de Secrets Manager — parsea JSON si el secreto
+  fue almacenado como `{"api_key": "xkeysib-..."}` en lugar de string plano.
+- `FakeTenantRepository.get_by_id`: lanza `TenantNotFoundError` correctamente en vez de `KeyError`.
+- Tests de handler tenants: añadidos `GET /tenants`, `GET /tenants/{id}`, `GET 404`, update y toggle.
+- Tests de handler plans: añadidos update happy path y update 404.
+- `from __future__ import annotations`: se mantiene en todos los archivos — es requerido cuando
+  métodos de clase sombreen builtins como `list` o `dict` (e.g., `IPlanRepository.list`).
+- `audit/writer.py`: TTL de 7 años (retención legal SRI Ecuador).
+- `SQSEventPublisher`: wrapper innecesario eliminado; reemplazado por `EventPublisher` directo
+  (luego corregido a adaptador correcto en segunda auditoría).
+- `shared/decorators/retry.py`: dead code eliminado.
+- `TenantUpdatedEvent`, `TenantDeletedEvent`, `TenantStatusChangedEvent`: eliminados de use cases
+  hasta que haya consumidores reales — no generar outbox items que siempre quedan SKIPPED.
+
+### 2026-06-07 — Auditoría exhaustiva AST — Segunda pasada (correcciones críticas)
+
+- **Race condition idempotencia** (`_base/idempotency.py`): `_reserve()` retornaba `None` cuando
+  detectaba un item COMPLETED durante `ConditionalCheckFailedException`, haciendo que `@idempotent`
+  re-ejecutara el handler. Fix: `_reserve()` lanza `_AlreadyCompleted` (excepción interna privada)
+  que el decorador captura y convierte en devolución de la respuesta cacheada. Test de regresión
+  con `RaceConditionTable` añadido.
+- **CDK AuditTable sin TTL** (`infra/stacks/database_stack.py`): campo `ttl` escrito por
+  `shared/audit/writer.py` era ignorado por DynamoDB. Se agrega `time_to_live_attribute="ttl"`.
+- **`plan_repository.list()` sin paginación**: `scan()` sin `LastEvaluatedKey` → truncación
+  silenciosa a 1MB. Se agrega loop de paginación completo.
+- **`ITenantRepository.delete()`** eliminado de interfaz, implementación y fake — era código muerto
+  que usaba `save()` en lugar de `commit()` con contexto transaccional completo.
+- **`ITenantRepository.commit(**kwargs)`** sin tipado → firma keyword-only tipada, igual que
+  `IPlanRepository.commit()`.
+- **`SQSEventPublisher` recreado como adaptador correcto**: `tenant_onboarding` handler usaba
+  `EventPublisher` concreto de `shared/`, rompiendo la inversión de dependencias. Ahora
+  `SQSEventPublisher(EventPublisherPort)` adapta `EventPublisher` al puerto del worker.
+- **`outbox_relay`**: comentario explícito del riesgo at-least-once — si `_mark_published` falla
+  tras `send_message`, el retry de Lambda duplica el mensaje. Workers downstream deben ser
+  idempotentes obligatoriamente.
+
+### Notas de diseño permanentes (segunda auditoría — decisiones no cambiadas)
+- **Ventana de 48h en `_reserve()`**: `Attr("ttl").lt(...)` permite re-reservar items cuyo TTL
+  expiró pero DynamoDB aún no borró (puede tardar hasta 48h). Comportamiento intencional y correcto.
+- **Lock items de slug sin limpieza**: `PLAN_SLUG#{slug}` persiste indefinidamente. Si en el futuro
+  se implementa soft delete de planes, los slugs no podrían reutilizarse sin un flujo explícito de
+  reactivación (igual que el lock de RUC en tenants). Decisión de diseño explícita.
+
 ## Deuda técnica identificada
 
 - Implementar frontend Expo real (`frontend/`) o ajustar este documento si queda fuera del alcance inmediato.
 - Implementar Lambdas pendientes: `auth`, `clients`, `invoices`, `workers` adicionales.
 - Agregar migraciones de datos cuando existan tenants previos sin lock `RUC#{ruc}`.
 - Agregar pruebas de integración contra AWS dev cuando se cierre el primer flujo end-to-end.
+- Cuando se implemente soft delete de planes: definir flujo explícito de reactivación de slug
+  (análogo al flujo de reactivación de RUC en tenants) en lugar de recreación silenciosa.
