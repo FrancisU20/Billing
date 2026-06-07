@@ -31,6 +31,16 @@ El despliegue normal se hace por GitHub Actions, no con `cdk deploy` local:
 - `release/**` o dispatch manual → workflow `Deploy — Staging` → ambiente `staging`.
 - `master` solo con `workflow_dispatch` y protección de environment → `prod`.
 
+`Deploy — Dev` es selectivo por paths:
+
+- Cambios docs-only (`CLAUDE.md`, `*.md`, `docs/**`, `postman/**`) corren solo
+  detección + summary; no ejecutan CI pesada ni deploy AWS.
+- Cambios en `backend/**` o `infra/**` ejecutan CI/CD y despliegue API según aplique.
+- Cambios en `backend/migrations/**` también invocan el Lambda de migraciones.
+- Cambios en `frontend/**` ejecutan solo el deploy frontend.
+- Cambios en `.github/workflows/**`, `.github/actions/**` o rutas desconocidas se
+  tratan conservadoramente como deployables.
+
 Uso local permitido:
 
 - `cdk synth` / `cdk diff` para validar infraestructura antes de abrir PR.
@@ -538,6 +548,12 @@ La creación de plan debe usar `TransactWriteItems` para insertar ambos ítems c
 no como garantía de unicidad. Las actualizaciones de planes usan optimistic
 locking con `version`.
 
+Compatibilidad legacy: pueden existir planes creados antes del endurecimiento sin
+`entity_type = "PLAN"` ni lock `PLAN_SLUG#{slug}`. `get_by_slug()` debe tratarlos
+como planes válidos igual que `list()`, y cualquier migración/backfill de planes
+debe consultar por slug antes de crear nuevos registros. Nunca asumir que la
+ausencia del lock implica ausencia del plan.
+
 ### Idempotencia HTTP
 
 Las operaciones mutantes con `@idempotent` reservan primero la key en DynamoDB:
@@ -650,6 +666,14 @@ de desarrollo/local al runtime Lambda.
   invoca directamente después de desplegar el stack API
 - Las migraciones deben ser idempotentes: si el dato ya existe, deben reportarlo como
   `skipped` y no fallar el deploy
+- Para seeds de catálogos con identidades naturales (`slug`, `ruc`, etc.), la
+  idempotencia debe validar también el dato existente, no solo el estado en
+  `MIGRATIONS_TABLE`. Ejemplo: `0001_seed_plans` hace `get_by_slug()` antes de
+  crear para no duplicar datos legacy que existan sin lock de unicidad.
+- La tabla `MIGRATIONS_TABLE` es memoria de ejecución por ambiente: una migración
+  en `SUCCESS` no se vuelve a ejecutar en cada deploy. Si se corrige la lógica de
+  una migración ya aplicada, se debe crear una nueva migración correctiva o hacer
+  una limpieza manual controlada; no reusar silenciosamente el mismo `MIGRATION_ID`.
 
 ---
 
@@ -666,6 +690,10 @@ de desarrollo/local al runtime Lambda.
 ### 2026-06-07 — Runner de migraciones
 - Lambda worker de migraciones agregado al stack API
 - `0001_seed_plans` migrado al runner idempotente con estado en DynamoDB
+- `0001_seed_plans` reforzado con pre-check por slug para no duplicar planes legacy
+  que existan sin `PLAN_SLUG#{slug}`
+- Limpieza controlada en dev: se dejaron 5 planes canónicos + 5 locks de slug; los
+  duplicados creados por el primer run fueron eliminados preservando referencias de tenants
 
 ### 2026-06-06 — Endurecimiento backend inicial
 - RUC de tenants protegido con lock transaccional DynamoDB (`RUC#{ruc}`)

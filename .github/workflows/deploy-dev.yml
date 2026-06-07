@@ -7,13 +7,14 @@
 # Autenticación AWS: OIDC (sin credenciales estáticas en Secrets).
 # Rol IAM: configurado en .github/oidc/cfn-oidc-role.yml
 #
-# Flujo de jobs:
+# Flujo de jobs (selectivo por cambios):
 #
-#   lint ─┐
-#   sec  ─┼─→ cdk-synth ─┬─→ deploy-database ─┐
-#   test ─┘              ├─→ deploy-auth       ├─→ deploy-api ─→ run-migrations ─→ smoke-tests ─┐
-#                        ├─→ deploy-queues     ┘                                                 ├─→ summary
-#                        └─→ deploy-frontend ───────────────────────────────────────────────────┘
+#   changes ─┬─→ backend CI ─→ cdk-synth ─┬─→ deploy-database ─┐
+#            │                            ├─→ deploy-auth       ├─→ deploy-api ─→ run-migrations ─→ smoke-tests ─┐
+#            │                            └─→ deploy-queues     ┘                                                 ├─→ summary
+#            └─→ deploy-frontend ─────────────────────────────────────────────────────────────────────────────────┘
+#
+# Docs-only: changes + summary; no CI pesada ni deploy AWS.
 #
 ##############################################################################
 
@@ -46,9 +47,145 @@ env:
 
 # ── CI Checks (defense in depth — también corren en PR) ───────────────────────
 jobs:
+  changes:
+    name: 'Plan / Detect Changes'
+    runs-on: ubuntu-latest
+    outputs:
+      backend_ci:  ${{ steps.flags.outputs.backend_ci }}
+      cdk:         ${{ steps.flags.outputs.cdk }}
+      database:    ${{ steps.flags.outputs.database }}
+      auth:        ${{ steps.flags.outputs.auth }}
+      queues:      ${{ steps.flags.outputs.queues }}
+      api:         ${{ steps.flags.outputs.api }}
+      migrations:  ${{ steps.flags.outputs.migrations }}
+      frontend:    ${{ steps.flags.outputs.frontend }}
+      deployable:  ${{ steps.flags.outputs.deployable }}
+      docs_only:   ${{ steps.flags.outputs.docs_only }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        id: flags
+        run: |
+          set -euo pipefail
+
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+
+          if [ -z "${BEFORE}" ] || [[ "${BEFORE}" =~ ^0+$ ]]; then
+            if git rev-parse "${AFTER}^" >/dev/null 2>&1; then
+              BEFORE="${AFTER}^"
+            else
+              BEFORE="${AFTER}"
+            fi
+          fi
+
+          git diff --name-only "${BEFORE}" "${AFTER}" | tee /tmp/changed-files.txt
+
+          backend=false
+          infra=false
+          frontend=false
+          workflow=false
+          migrations=false
+          docs=false
+          other=false
+
+          while IFS= read -r file; do
+            [ -z "${file}" ] && continue
+            case "${file}" in
+              backend/migrations/*)
+                backend=true
+                migrations=true
+                ;;
+              backend/*|local/*)
+                backend=true
+                ;;
+              infra/*)
+                infra=true
+                ;;
+              frontend/*)
+                frontend=true
+                ;;
+              .github/workflows/*|.github/actions/*)
+                workflow=true
+                ;;
+              CLAUDE.md|README.md|docs/*|postman/*|*.md)
+                docs=true
+                ;;
+              *)
+                # Unknown root-level changes are treated conservatively as deployable.
+                other=true
+                ;;
+            esac
+          done < /tmp/changed-files.txt
+
+          backend_ci=false
+          cdk=false
+          database=false
+          auth=false
+          queues=false
+          api=false
+          run_migrations=false
+          deploy_frontend=false
+          deployable=false
+          docs_only=false
+
+          if [ "${backend}" = true ] || [ "${workflow}" = true ] || [ "${other}" = true ]; then
+            backend_ci=true
+          fi
+          if [ "${backend}" = true ] || [ "${infra}" = true ] || [ "${workflow}" = true ] || [ "${other}" = true ]; then
+            cdk=true
+            api=true
+          fi
+          if [ "${infra}" = true ] || [ "${workflow}" = true ] || [ "${other}" = true ]; then
+            database=true
+            auth=true
+            queues=true
+            run_migrations=true
+          fi
+          if [ "${migrations}" = true ] || [ "${workflow}" = true ] || [ "${other}" = true ]; then
+            run_migrations=true
+          fi
+          if [ "${frontend}" = true ] || [ "${workflow}" = true ] || [ "${other}" = true ]; then
+            deploy_frontend=true
+          fi
+          if [ "${backend}" = true ] || [ "${infra}" = true ] || [ "${frontend}" = true ] || [ "${workflow}" = true ] || [ "${other}" = true ]; then
+            deployable=true
+          fi
+          if [ "${docs}" = true ] && [ "${deployable}" = false ]; then
+            docs_only=true
+          fi
+
+          {
+            echo "backend_ci=${backend_ci}"
+            echo "cdk=${cdk}"
+            echo "database=${database}"
+            echo "auth=${auth}"
+            echo "queues=${queues}"
+            echo "api=${api}"
+            echo "migrations=${run_migrations}"
+            echo "frontend=${deploy_frontend}"
+            echo "deployable=${deployable}"
+            echo "docs_only=${docs_only}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Changed files"
+            echo '```'
+            cat /tmp/changed-files.txt
+            echo '```'
+            echo "deployable=${deployable}"
+            echo "docs_only=${docs_only}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   lint:
     name: 'CI / Lint & Format'
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend_ci == 'true'
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-backend
@@ -62,6 +199,8 @@ jobs:
   security:
     name: 'CI / Security Scan'
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend_ci == 'true'
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-backend
@@ -75,6 +214,8 @@ jobs:
   unit-tests:
     name: 'CI / Unit Tests'
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.backend_ci == 'true'
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/setup-backend
@@ -103,7 +244,12 @@ jobs:
   cdk-synth:
     name: 'Build / CDK Synth'
     runs-on: ubuntu-latest
-    needs: [lint, security, unit-tests]
+    needs: [changes, lint, security, unit-tests]
+    if: |
+      always() &&
+      needs.changes.outputs.cdk == 'true' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
     environment: dev
 
     steps:
@@ -140,7 +286,11 @@ jobs:
   deploy-database:
     name: 'Infra / Database'
     runs-on: ubuntu-latest
-    needs: [cdk-synth]
+    needs: [changes, cdk-synth]
+    if: |
+      always() &&
+      needs.changes.outputs.database == 'true' &&
+      needs.cdk-synth.result == 'success'
     environment: dev
 
     steps:
@@ -169,7 +319,11 @@ jobs:
   deploy-auth:
     name: 'Infra / Auth'
     runs-on: ubuntu-latest
-    needs: [cdk-synth]
+    needs: [changes, cdk-synth]
+    if: |
+      always() &&
+      needs.changes.outputs.auth == 'true' &&
+      needs.cdk-synth.result == 'success'
     environment: dev
 
     steps:
@@ -195,7 +349,11 @@ jobs:
   deploy-queues:
     name: 'Infra / Queues'
     runs-on: ubuntu-latest
-    needs: [cdk-synth]
+    needs: [changes, cdk-synth]
+    if: |
+      always() &&
+      needs.changes.outputs.queues == 'true' &&
+      needs.cdk-synth.result == 'success'
     environment: dev
 
     steps:
@@ -221,7 +379,13 @@ jobs:
   deploy-api:
     name: 'App / API'
     runs-on: ubuntu-latest
-    needs: [deploy-database, deploy-auth, deploy-queues]
+    needs: [changes, cdk-synth, deploy-database, deploy-auth, deploy-queues]
+    if: |
+      always() &&
+      needs.changes.outputs.api == 'true' &&
+      needs.cdk-synth.result == 'success' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
     environment: dev
 
     steps:
@@ -269,7 +433,11 @@ jobs:
   run-migrations:
     name: 'Verify / Migrations'
     runs-on: ubuntu-latest
-    needs: [deploy-api]
+    needs: [changes, deploy-api]
+    if: |
+      always() &&
+      needs.changes.outputs.migrations == 'true' &&
+      needs.deploy-api.result == 'success'
     environment: dev
 
     steps:
@@ -328,7 +496,8 @@ jobs:
   deploy-frontend:
     name: 'App / Frontend'
     runs-on: ubuntu-latest
-    needs: [cdk-synth]
+    needs: [changes]
+    if: needs.changes.outputs.frontend == 'true'
     environment: dev
 
     steps:
@@ -395,7 +564,12 @@ jobs:
   smoke-tests:
     name: 'Verify / Smoke Tests'
     runs-on: ubuntu-latest
-    needs: [deploy-api, run-migrations]
+    needs: [changes, deploy-api, run-migrations]
+    if: |
+      always() &&
+      needs.changes.outputs.api == 'true' &&
+      needs.deploy-api.result == 'success' &&
+      (needs.run-migrations.result == 'success' || needs.run-migrations.result == 'skipped')
 
     steps:
       - name: GET /plans — ruta pública (sin auth)
@@ -437,7 +611,19 @@ jobs:
   summary:
     name: 'Summary'
     runs-on: ubuntu-latest
-    needs: [smoke-tests, deploy-frontend]
+    needs:
+      - changes
+      - lint
+      - security
+      - unit-tests
+      - cdk-synth
+      - deploy-database
+      - deploy-auth
+      - deploy-queues
+      - deploy-api
+      - run-migrations
+      - deploy-frontend
+      - smoke-tests
     if: always()
 
     steps:
@@ -450,6 +636,7 @@ jobs:
             const allPassed = jobs.every(([, j]) => ['success', 'skipped'].includes(j.result));
             const anyFailed = jobs.some(([, j])  => j.result === 'failure');
             const emoji = anyFailed ? '❌' : allPassed ? '✅' : '⚠️';
+            const docsOnly = needs.changes.outputs.docs_only === 'true';
 
             let table = '| Job | Estado |\n|---|---|\n';
             for (const [name, job] of jobs) {
@@ -458,11 +645,13 @@ jobs:
             }
 
             const summary = [
-              `## ${emoji} Deploy Dev — ${anyFailed ? 'Con errores' : allPassed ? 'Exitoso' : 'Parcial'}`,
+              `## ${emoji} Deploy Dev — ${docsOnly ? 'Docs only, deploy skipped' : anyFailed ? 'Con errores' : allPassed ? 'Exitoso' : 'Parcial'}`,
               '',
               `**Commit:** \`${{ github.sha }}\``,
               `**Branch:** \`${{ github.ref_name }}\``,
               `**Actor:** @${{ github.actor }}`,
+              `**Deployable:** \`${needs.changes.outputs.deployable}\``,
+              `**Docs only:** \`${needs.changes.outputs.docs_only}\``,
               '',
               table,
             ].join('\n');
