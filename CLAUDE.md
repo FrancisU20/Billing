@@ -23,6 +23,27 @@ Cuenta GitHub: `FrancisU20` · AWS perfil: `codelabs` · Región: `sa-east-1`
 
 ---
 
+## CI/CD y despliegues
+
+El despliegue normal se hace por GitHub Actions, no con `cdk deploy` local:
+
+- `develop` → workflow `Deploy — Dev` → ambiente `dev`.
+- `release/**` o dispatch manual → workflow `Deploy — Staging` → ambiente `staging`.
+- `master` solo con `workflow_dispatch` y protección de environment → `prod`.
+
+Uso local permitido:
+
+- `cdk synth` / `cdk diff` para validar infraestructura antes de abrir PR.
+- `cdk deploy` local solo si se pide explícitamente como excepción operativa.
+
+Reglas:
+
+- No hacer `git push` sin confirmación explícita.
+- No agregar `Co-Authored-By` en commits.
+- Perfil AWS del proyecto: `codelabs`; región: `sa-east-1`.
+
+---
+
 ## Monorepo
 
 ```
@@ -52,6 +73,38 @@ local/
   authorizer.py  ← valida tokens JWT en local
   Makefile
 ```
+
+---
+
+## Auth Lambda — Cognito SRP
+
+`backend/lambdas/auth/` expone las rutas públicas que generan o renuevan JWT. No usan
+JWT authorizer porque son el punto de entrada para obtener tokens.
+
+| Método | Ruta | Body | Respuesta |
+|---|---|---|---|
+| POST | `/auth/login` | `{ "username": "...", "password": "..." }` | Tokens Cognito o challenge pendiente |
+| POST | `/auth/refresh` | `{ "refresh_token": "..." }` | Nuevo `id_token` y `access_token` |
+| POST | `/auth/logout` | `{ "access_token": "..." }` | `204` y cierre global en Cognito |
+| POST | `/auth/challenge` | `{ "session": "...", "challenge_name": "...", "responses": {...} }` | Tokens o siguiente challenge |
+
+Reglas específicas:
+
+- Login usa `USER_SRP_AUTH` completo en Python puro dentro del Lambda. El frontend
+  nunca llama Cognito directamente y nunca calcula SRP.
+- El token que se usa como Bearer en rutas protegidas es el **ID token**, porque
+  contiene `custom:tenant_id`, `custom:role` y `custom:is_superadmin`.
+- `/auth/challenge` debe soportar `NEW_PASSWORD_REQUIRED` y futuros challenges de
+  Cognito sin agregar rutas nuevas.
+- Nunca devolver al cliente parámetros secretos del challenge SRP: `SALT`, `SRP_B`
+  ni `SECRET_BLOCK`.
+- Validar que Cognito devuelva `IdToken`, `AccessToken`, `ExpiresIn` y `TokenType`
+  antes de responder `200`.
+- Las pruebas unitarias de auth viven en `backend/tests/unit/lambdas/auth/` y deben
+  cubrir handler, provider Cognito, mapeo de errores Cognito y sanitización de
+  challenges.
+- La colección Postman en `postman/CodeLabsBillingCloud.postman_collection.json`
+  tiene una carpeta `Auth` que guarda `id_token` como `{{token}}`.
 
 ---
 

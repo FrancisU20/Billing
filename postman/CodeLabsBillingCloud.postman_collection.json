@@ -6,9 +6,237 @@
   },
   "auth": {
     "type": "bearer",
-    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
   },
   "item": [
+    {
+      "name": "Auth",
+      "description": "Rutas públicas de autenticación. Login usa Cognito USER_SRP_AUTH desde Lambda; el frontend nunca llama Cognito directamente. El ID token se guarda como {{token}} porque contiene los custom claims del tenant y rol.",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{auth_username}}\",\n  \"password\": \"{{auth_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Autentica con SRP vía backend. Responde tokens o challenge pendiente, por ejemplo NEW_PASSWORD_REQUIRED."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('success', () => pm.expect(body.success).to.be.true);",
+                  "if (body.data.id_token) {",
+                  "  pm.environment.set('id_token', body.data.id_token);",
+                  "  pm.environment.set('token', body.data.id_token);",
+                  "}",
+                  "if (body.data.access_token) pm.environment.set('access_token', body.data.access_token);",
+                  "if (body.data.refresh_token) pm.environment.set('refresh_token', body.data.refresh_token);",
+                  "if (body.data.challenge_name) pm.environment.set('auth_challenge_name', body.data.challenge_name);",
+                  "if (body.data.session) pm.environment.set('auth_session', body.data.session);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Renueva ID/access token con el refresh token emitido por Cognito."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('success', () => pm.expect(body.success).to.be.true);",
+                  "if (body.data.id_token) {",
+                  "  pm.environment.set('id_token', body.data.id_token);",
+                  "  pm.environment.set('token', body.data.id_token);",
+                  "}",
+                  "if (body.data.access_token) pm.environment.set('access_token', body.data.access_token);",
+                  "if (body.data.refresh_token) pm.environment.set('refresh_token', body.data.refresh_token);",
+                  "if (body.data.challenge_name) pm.environment.set('auth_challenge_name', body.data.challenge_name);",
+                  "if (body.data.session) pm.environment.set('auth_session', body.data.session);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"access_token\": \"{{access_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Cierra sesión globalmente en Cognito usando el access token enviado en el body."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('204', () => pm.response.to.have.status(204));",
+                  "const body = pm.response.json();",
+                  "pm.test('success', () => pm.expect(body.success).to.be.true);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Challenge - NEW_PASSWORD_REQUIRED",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session\": \"{{auth_session}}\",\n  \"challenge_name\": \"NEW_PASSWORD_REQUIRED\",\n  \"responses\": {\n    \"USERNAME\": \"{{auth_username}}\",\n    \"NEW_PASSWORD\": \"{{auth_new_password}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/challenge",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "challenge"
+              ]
+            },
+            "description": "Completa el challenge NEW_PASSWORD_REQUIRED. También sirve como plantilla para futuros challenges cambiando challenge_name y responses."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('success', () => pm.expect(body.success).to.be.true);",
+                  "if (body.data.id_token) {",
+                  "  pm.environment.set('id_token', body.data.id_token);",
+                  "  pm.environment.set('token', body.data.id_token);",
+                  "}",
+                  "if (body.data.access_token) pm.environment.set('access_token', body.data.access_token);",
+                  "if (body.data.refresh_token) pm.environment.set('refresh_token', body.data.refresh_token);",
+                  "if (body.data.challenge_name) pm.environment.set('auth_challenge_name', body.data.challenge_name);",
+                  "if (body.data.session) pm.environment.set('auth_session', body.data.session);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "Tenants",
       "item": [
@@ -17,28 +245,48 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type",      "value": "application/json" },
-              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"ruc\": \"1003368725001\",\n  \"trade_name\": \"CodeLabs Ecuador\",\n  \"legal_rep_name\": \"Francisco Mateo Ulloa Teran\",\n  \"email\": \"panchoulloateran@gmail.com\",\n  \"phone\": \"0968567684\",\n  \"address\": \"Asunción Oe5-101 y Estados Unidos\",\n  \"plan_id\": \"b7346eba-6e10-4b9c-bc45-9ea1b126844f\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": { "raw": "{{base_url}}/tenants", "host": ["{{base_url}}"], "path": ["tenants"] }
-          },
-          "event": [{
-            "listen": "test",
-            "script": {
-              "exec": [
-                "pm.test('201', () => pm.response.to.have.status(201));",
-                "const body = pm.response.json();",
-                "pm.test('success', () => pm.expect(body.success).to.be.true);",
-                "pm.environment.set('tenant_id', body.data.id);"
+            "url": {
+              "raw": "{{base_url}}/tenants",
+              "host": [
+                "{{base_url}}"
               ],
-              "type": "text/javascript"
+              "path": [
+                "tenants"
+              ]
             }
-          }]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('success', () => pm.expect(body.success).to.be.true);",
+                  "pm.environment.set('tenant_id', body.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Listar Tenants",
@@ -47,26 +295,43 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/tenants?limit=20",
-              "host": ["{{base_url}}"],
-              "path": ["tenants"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tenants"
+              ],
               "query": [
-                { "key": "limit",      "value": "20" },
-                { "key": "next_token", "value": "", "disabled": true },
-                { "key": "status",     "value": "active", "disabled": true }
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "next_token",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "disabled": true
+                }
               ]
             }
           },
-          "event": [{
-            "listen": "test",
-            "script": {
-              "exec": [
-                "pm.test('200', () => pm.response.to.have.status(200));",
-                "const body = pm.response.json();",
-                "pm.test('paginado', () => pm.expect(body.data).to.have.property('items'));"
-              ],
-              "type": "text/javascript"
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('paginado', () => pm.expect(body.data).to.have.property('items'));"
+                ],
+                "type": "text/javascript"
+              }
             }
-          }]
+          ]
         },
         {
           "name": "Ver Tenant",
@@ -75,103 +340,155 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/tenants/{{tenant_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["tenants", "{{tenant_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tenants",
+                "{{tenant_id}}"
+              ]
             }
           },
-          "event": [{
-            "listen": "test",
-            "script": {
-              "exec": [
-                "pm.test('200', () => pm.response.to.have.status(200));",
-                "const body = pm.response.json();",
-                "pm.test('id correcto', () => pm.expect(body.data.id).to.eql(pm.environment.get('tenant_id')));"
-              ],
-              "type": "text/javascript"
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('id correcto', () => pm.expect(body.data.id).to.eql(pm.environment.get('tenant_id')));"
+                ],
+                "type": "text/javascript"
+              }
             }
-          }]
+          ]
         },
         {
           "name": "Actualizar Tenant",
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type",      "value": "application/json" },
-              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"trade_name\": \"CodeLabs Ecuador Actualizado\",\n  \"email\": \"nuevo@codelabs.ec\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{base_url}}/tenants/{{tenant_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["tenants", "{{tenant_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tenants",
+                "{{tenant_id}}"
+              ]
             }
           },
-          "event": [{
-            "listen": "test",
-            "script": {
-              "exec": [
-                "pm.test('200', () => pm.response.to.have.status(200));",
-                "pm.test('version incrementada', () => pm.expect(pm.response.json().data.version).to.be.greaterThan(1));"
-              ],
-              "type": "text/javascript"
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('version incrementada', () => pm.expect(pm.response.json().data.version).to.be.greaterThan(1));"
+                ],
+                "type": "text/javascript"
+              }
             }
-          }]
+          ]
         },
         {
           "name": "Cambiar Estado",
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type",      "value": "application/json" },
-              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"status\": \"suspended\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{base_url}}/tenants/{{tenant_id}}/status",
-              "host": ["{{base_url}}"],
-              "path": ["tenants", "{{tenant_id}}", "status"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tenants",
+                "{{tenant_id}}",
+                "status"
+              ]
             }
           },
-          "event": [{
-            "listen": "test",
-            "script": {
-              "exec": [
-                "pm.test('200', () => pm.response.to.have.status(200));"
-              ],
-              "type": "text/javascript"
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
             }
-          }]
+          ]
         },
         {
           "name": "Eliminar Tenant",
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/tenants/{{tenant_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["tenants", "{{tenant_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tenants",
+                "{{tenant_id}}"
+              ]
             }
           },
-          "event": [{
-            "listen": "test",
-            "script": {
-              "exec": [
-                "pm.test('204', () => pm.response.to.have.status(204));"
-              ],
-              "type": "text/javascript"
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('204', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
             }
-          }]
+          ]
         }
       ]
     },
@@ -181,140 +498,216 @@
         {
           "name": "Listar Plans",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{base_url}}/plans",
-              "host": ["{{base_url}}"],
-              "path": ["plans"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plans"
+              ],
               "query": [
-                { "key": "active_only", "value": "true", "disabled": true }
+                {
+                  "key": "active_only",
+                  "value": "true",
+                  "disabled": true
+                }
               ]
             }
           },
-          "event": [{
-            "listen": "test",
-            "script": {
-              "exec": [
-                "pm.test('200', () => pm.response.to.have.status(200));",
-                "const body = pm.response.json();",
-                "pm.test('lista', () => pm.expect(body.data).to.be.an('array'));",
-                "if (body.data.length > 0) pm.environment.set('plan_id', body.data[0].id);"
-              ],
-              "type": "text/javascript"
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('lista', () => pm.expect(body.data).to.be.an('array'));",
+                  "if (body.data.length > 0) pm.environment.set('plan_id', body.data[0].id);"
+                ],
+                "type": "text/javascript"
+              }
             }
-          }]
+          ]
         },
         {
           "name": "Ver Plan por Slug",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{base_url}}/plans/free",
-              "host": ["{{base_url}}"],
-              "path": ["plans", "free"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plans",
+                "free"
+              ]
             }
           },
-          "event": [{
-            "listen": "test",
-            "script": {
-              "exec": [
-                "pm.test('200', () => pm.response.to.have.status(200));",
-                "pm.test('slug', () => pm.expect(pm.response.json().data.slug).to.eql('free'));"
-              ],
-              "type": "text/javascript"
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('slug', () => pm.expect(pm.response.json().data.slug).to.eql('free'));"
+                ],
+                "type": "text/javascript"
+              }
             }
-          }]
+          ]
         },
         {
           "name": "Crear Plan",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type",      "value": "application/json" },
-              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"slug\": \"starter\",\n  \"name\": \"Starter\",\n  \"description\": \"Plan de inicio para pequeños negocios\",\n  \"monthly_price\": \"15.00\",\n  \"annual_price\": \"150.00\",\n  \"document_limit\": 100,\n  \"limit_cycle\": \"month\",\n  \"max_locations\": 1,\n  \"max_emission_points\": 2,\n  \"max_users\": 3,\n  \"includes_credit_notes\": true,\n  \"includes_withholdings\": true,\n  \"includes_delivery_notes\": false,\n  \"includes_api\": false,\n  \"order\": 1\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": { "raw": "{{base_url}}/plans", "host": ["{{base_url}}"], "path": ["plans"] }
-          },
-          "event": [{
-            "listen": "test",
-            "script": {
-              "exec": [
-                "pm.test('201', () => pm.response.to.have.status(201));",
-                "const body = pm.response.json();",
-                "pm.test('success', () => pm.expect(body.success).to.be.true);",
-                "pm.environment.set('plan_id', body.data.id);"
+            "url": {
+              "raw": "{{base_url}}/plans",
+              "host": [
+                "{{base_url}}"
               ],
-              "type": "text/javascript"
+              "path": [
+                "plans"
+              ]
             }
-          }]
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('success', () => pm.expect(body.success).to.be.true);",
+                  "pm.environment.set('plan_id', body.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
         },
         {
           "name": "Actualizar Plan",
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type",      "value": "application/json" },
-              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Starter Actualizado\",\n  \"monthly_price\": \"19.00\",\n  \"document_limit\": 150\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{base_url}}/plans/{{plan_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["plans", "{{plan_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plans",
+                "{{plan_id}}"
+              ]
             }
           },
-          "event": [{
-            "listen": "test",
-            "script": {
-              "exec": [
-                "pm.test('200', () => pm.response.to.have.status(200));",
-                "pm.test('version incrementada', () => pm.expect(pm.response.json().data.version).to.be.greaterThan(1));"
-              ],
-              "type": "text/javascript"
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('version incrementada', () => pm.expect(pm.response.json().data.version).to.be.greaterThan(1));"
+                ],
+                "type": "text/javascript"
+              }
             }
-          }]
+          ]
         },
         {
           "name": "Activar / Desactivar Plan",
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type",      "value": "application/json" },
-              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"active\": false\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{base_url}}/plans/{{plan_id}}/status",
-              "host": ["{{base_url}}"],
-              "path": ["plans", "{{plan_id}}", "status"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plans",
+                "{{plan_id}}",
+                "status"
+              ]
             }
           },
-          "event": [{
-            "listen": "test",
-            "script": {
-              "exec": [
-                "pm.test('200', () => pm.response.to.have.status(200));"
-              ],
-              "type": "text/javascript"
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
             }
-          }]
+          ]
         }
       ]
     }

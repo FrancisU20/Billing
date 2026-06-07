@@ -35,13 +35,13 @@ from context import LocalContext
 
 import lambdas.tenants.handler as tenants_handler
 import lambdas.plans.handler as plans_handler
-# import lambdas.auth.handler as auth_handler
+import lambdas.auth.handler as auth_handler
 # import lambdas.clients.handler as clients_handler
 
 _LAMBDA_ROUTES: list[tuple[re.Pattern, object]] = [
     (re.compile(r"^/tenants(/.*)?$"), tenants_handler),
     (re.compile(r"^/plans(/.*)?$"),   plans_handler),
-    # (re.compile(r"^/auth(/.*)?$"),    auth_handler),
+    (re.compile(r"^/auth(/.*)?$"),    auth_handler),
     # (re.compile(r"^/clients(/.*)?$"), clients_handler),
 ]
 

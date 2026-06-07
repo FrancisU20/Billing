@@ -324,6 +324,48 @@ class ApiStack(Stack):
                 authorizer  = jwt_authorizer,
             )
 
+        # ── Auth Lambda ───────────────────────────────────────────────────────
+        auth_fn = lmb.Function(
+            self, "AuthFunction",
+            function_name = f"codelabs-billing-{env}-auth",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.auth.handler.handler",
+            timeout       = Duration.seconds(15),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "COGNITO_USER_POOL_ID": auth.user_pool.user_pool_id,
+                "COGNITO_WEB_CLIENT_ID": auth.web_client.user_pool_client_id,
+            },
+        )
+        auth_fn.add_to_role_policy(iam.PolicyStatement(
+            actions   = [
+                "cognito-idp:InitiateAuth",
+                "cognito-idp:RespondToAuthChallenge",
+                "cognito-idp:GlobalSignOut",
+            ],
+            resources = [auth.user_pool.user_pool_arn],
+        ))
+
+        auth_integration = integrations.HttpLambdaIntegration(
+            "AuthIntegration", auth_fn
+        )
+
+        # Public by design: these routes issue or complete Cognito tokens.
+        for route in [
+            "/auth/login",
+            "/auth/refresh",
+            "/auth/logout",
+            "/auth/challenge",
+        ]:
+            api.add_routes(
+                path        = route,
+                methods     = [apigwv2.HttpMethod.POST],
+                integration = auth_integration,
+            )
+
         # ── Plans Lambda ───────────────────────────────────────────────────────
         plans_fn = lmb.Function(
             self, "PlansFunction",
