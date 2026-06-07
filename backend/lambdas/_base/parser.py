@@ -80,7 +80,7 @@ class Request:
     body_hash:       str
 
     @classmethod
-    def from_event(cls, event: dict) -> "Request":
+    def from_event(cls, event: dict, require_tenant: bool = True) -> "Request":
         ctx    = event.get("requestContext", {})
         http   = ctx.get("http", {})
         claims = ctx.get("authorizer", {}).get("jwt", {}).get("claims", {})
@@ -93,7 +93,8 @@ class Request:
         tenant_id     = claims.get("custom:tenant_id", "").strip()
         role          = claims.get("custom:role", "viewer")
 
-        if not is_superadmin and not tenant_id:
+        # Public routes (require_tenant=False) accept anonymous requests with no JWT.
+        if require_tenant and not is_superadmin and not tenant_id:
             raise MissingTenantContextError()
 
         return cls(

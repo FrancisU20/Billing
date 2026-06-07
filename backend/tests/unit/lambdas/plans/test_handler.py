@@ -64,6 +64,22 @@ class PlansHandlerTests(unittest.TestCase):
         self.assertIn("items", body["data"])
         self.assertEqual(len(body["data"]["items"]), 2)
 
+    def test_list_works_for_anonymous_request_without_jwt(self) -> None:
+        # Public pricing: no authorizer claims at all → must not 401
+        mod   = self._load()
+        event = {
+            "version": "2.0",
+            "rawPath": "/plans",
+            "requestContext": {"requestId": "anon-1", "http": {"method": "GET", "path": "/plans"}},
+            "headers": {},
+            "queryStringParameters": None,
+            "pathParameters": None,
+            "body": None,
+            "isBase64Encoded": False,
+        }
+        result = mod.handler(event, LambdaContext())
+        self.assertEqual(result["statusCode"], 200)
+
     def test_get_by_slug_returns_plan(self) -> None:
         mod    = self._load()
         result = mod.handler(api_event(method="GET", path="/plans/free"), LambdaContext())

@@ -29,7 +29,7 @@ from shared.logger import bind_invocation_context, clear_invocation_context, get
 _log = get_logger(__name__)
 
 
-def lambda_handler(func: Callable) -> Callable:
+def _build_handler(func: Callable, require_tenant: bool) -> Callable:
     @functools.wraps(func)
     def wrapper(event: dict, context) -> dict:
         clear_invocation_context()
@@ -38,7 +38,7 @@ def lambda_handler(func: Callable) -> Callable:
             event.get("requestContext", {}).get("requestId", "local")
         )
         try:
-            request = Request.from_event(event)
+            request = Request.from_event(event, require_tenant=require_tenant)
             bind_invocation_context(
                 request_id  = request_id,
                 tenant_id   = request.tenant_id,
@@ -59,3 +59,13 @@ def lambda_handler(func: Callable) -> Callable:
             return ApiResponse.error(InternalError(), request_id)
 
     return wrapper
+
+
+def lambda_handler(func: Callable) -> Callable:
+    """Standard HTTP handler — requires tenant context (JWT-protected routes)."""
+    return _build_handler(func, require_tenant=True)
+
+
+def public_lambda_handler(func: Callable) -> Callable:
+    """Public HTTP handler — accepts anonymous requests (no tenant context required)."""
+    return _build_handler(func, require_tenant=False)

@@ -13,7 +13,7 @@ Mutations use the UUID (id) — stable even if the slug changes.
 """
 import re
 
-from lambdas._base.handler import lambda_handler
+from lambdas._base.handler import lambda_handler, public_lambda_handler
 from lambdas._base.parser import Request, parse
 from lambdas._base.permissions import require_role
 from lambdas._base.response import ApiResponse
@@ -66,14 +66,14 @@ def _create(request: Request, context) -> dict:
     return ApiResponse.created(plan.to_dict(), request.request_id)
 
 
-@lambda_handler
+@public_lambda_handler
 def _list(request: Request, context) -> dict:
     active_only = request.query_params.get("active", "true").lower() != "false"
     plans       = ListPlansUseCase(_repo()).execute(active_only=active_only)
     return ApiResponse.ok({"items": [p.to_dict() for p in plans]}, request.request_id)
 
 
-@lambda_handler
+@public_lambda_handler
 def _get(request: Request, context) -> dict:
     slug = request.path_params.get("id", "")  # APIGW path param is named {id}
     plan = GetPlanBySlugUseCase(_repo()).execute(slug)
