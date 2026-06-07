@@ -687,6 +687,19 @@ de desarrollo/local al runtime Lambda.
 - Frontend migrado de Vite React a Expo Router (web + iOS + Android)
 - Auth: Cognito SRP via Lambda propio — frontend nunca llama Cognito directo
 
+### 2026-06-07 — Lambda auth — login SRP, refresh, logout, challenge
+
+- `lambdas/auth/` implementado con Clean Architecture completa: domain / use_cases / infra
+- 4 rutas públicas (sin JWT authorizer): `POST /auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/challenge`
+- SRP puro en Python sin dependencias extra (`infra/srp.py` — adaptado de `scripts/make_token.py`)
+- `IAuthProvider` (ABC) en `domain/repositories/` — dominio no conoce Cognito
+- `CognitoAuthProvider` acepta `idp=None` en constructor — permite inyectar cliente mock en tests sin parchear boto3
+- `AuthChallenge.parameters` sanitiza `SALT`, `SRP_B`, `SECRET_BLOCK` antes de enviar al frontend
+- `ChallengeRequest.responses` es `dict[str,str]` genérico — soporta cualquier challenge futuro sin cambiar el schema
+- `logout` es best-effort: `NotAuthorizedException` de Cognito (token ya inválido/expirado) se ignora silenciosamente
+- `_provider = CognitoAuthProvider()` al cold start directo — sin lazy singleton global
+- `MigrationAlreadyRunningError` movida de infra a `ports.py` — pertenece al contrato del puerto
+
 ### 2026-06-07 — Runner de migraciones
 - Lambda worker de migraciones agregado al stack API
 - `0001_seed_plans` migrado al runner idempotente con estado en DynamoDB
@@ -814,7 +827,8 @@ de desarrollo/local al runtime Lambda.
 ## Deuda técnica identificada
 
 - Implementar frontend Expo real (`frontend/`) o ajustar este documento si queda fuera del alcance inmediato.
-- Implementar Lambdas pendientes: `auth`, `clients`, `invoices`, `workers` adicionales.
+- Implementar Lambdas pendientes: `clients`, `invoices`, `workers` adicionales.
+- Agregar tests unitarios para `lambdas/auth/` (use cases y handler).
 - Agregar migraciones de datos cuando existan tenants previos sin lock `RUC#{ruc}`.
 - Agregar pruebas de integración contra AWS dev cuando se cierre el primer flujo end-to-end.
 - Cuando se implemente soft delete de planes: definir flujo explícito de reactivación de slug
