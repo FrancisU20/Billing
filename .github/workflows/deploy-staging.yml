@@ -125,7 +125,7 @@ jobs:
 
       - name: CDK Synth
         working-directory: infra
-        run: cdk synth --all -c env=${{ env.CDK_ENV }} --quiet
+        run: cdk synth '*' -c env=${{ env.CDK_ENV }} --quiet
 
       - name: Upload CloudFormation templates
         uses: actions/upload-artifact@v4
@@ -139,7 +139,7 @@ jobs:
         run: |
           echo "## CDK Diff — ${{ env.CDK_ENV }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          cdk diff --all -c env=${{ env.CDK_ENV }} 2>&1 >> $GITHUB_STEP_SUMMARY || true
+          cdk diff '*' -c env=${{ env.CDK_ENV }} 2>&1 >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   # ── Deploy Database ────────────────────────────────────────────────────────

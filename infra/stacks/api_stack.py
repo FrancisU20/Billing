@@ -174,7 +174,7 @@ class ApiStack(Stack):
                 starting_position          = lmb.StartingPosition.TRIM_HORIZON,
                 batch_size                 = 10,
                 report_batch_item_failures = True,
-                bisect_on_error            = True,
+                bisect_batch_on_error      = True,
             )
         )
         database.outbox_table.grant_stream_read(outbox_relay_fn)
