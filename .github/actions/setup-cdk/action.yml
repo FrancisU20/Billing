@@ -1,0 +1,53 @@
+name: Setup CDK
+description: >
+  Instala Node.js, CDK CLI y dependencias Python del proyecto de infra.
+  Usa cache para npm y pip para acelerar ejecuciones sucesivas.
+
+inputs:
+  node-version:
+    description: Node.js version to use
+    default: "22"
+  cdk-version:
+    description: CDK CLI version to pin
+    default: "2.1126.0"
+  python-version:
+    description: Python version for CDK app
+    default: "3.12"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js ${{ inputs.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Cache CDK CLI (npm)
+      uses: actions/cache@v4
+      with:
+        path: ~/.npm
+        key: npm-cdk-${{ runner.os }}-${{ inputs.cdk-version }}
+        restore-keys: npm-cdk-${{ runner.os }}-
+
+    - name: Install CDK CLI
+      shell: bash
+      run: npm install -g aws-cdk@${{ inputs.cdk-version }}
+
+    - name: Setup Python ${{ inputs.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Cache CDK Python dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: pip-cdk-${{ runner.os }}-py${{ inputs.python-version }}-${{ hashFiles('infra/requirements.txt') }}
+        restore-keys: |
+          pip-cdk-${{ runner.os }}-py${{ inputs.python-version }}-
+          pip-cdk-${{ runner.os }}-
+
+    - name: Install CDK Python dependencies
+      shell: bash
+      working-directory: infra
+      run: pip install -r requirements.txt

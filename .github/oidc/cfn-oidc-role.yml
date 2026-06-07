@@ -1,0 +1,73 @@
+##############################################################################
+# CloudFormation — OIDC Role para GitHub Actions (dev + staging + prod)
+#
+# DEPLOY (una sola vez):
+#
+#   aws cloudformation deploy \
+#     --profile codelabs \
+#     --region sa-east-1 \
+#     --stack-name github-oidc-codelabs-billing \
+#     --template-file .github/oidc/cfn-oidc-role.yml \
+#     --capabilities CAPABILITY_NAMED_IAM
+#
+# OBTENER EL ARN:
+#
+#   aws cloudformation describe-stacks \
+#     --profile codelabs \
+#     --region sa-east-1 \
+#     --stack-name github-oidc-codelabs-billing \
+#     --query 'Stacks[0].Outputs[?OutputKey==`RoleArn`].OutputValue' \
+#     --output text
+##############################################################################
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: OIDC Provider + IAM Role para GitHub Actions — CodeLabs Billing Cloud
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Default: FrancisU20
+  GitHubRepo:
+    Type: String
+    Default: CodeLabsBillingCloud
+
+Resources:
+
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea
+
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: github-actions-codelabs-billing
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !GetAtt GitHubOIDCProvider.Arn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+              StringLike:
+                "token.actions.githubusercontent.com:sub":
+                  - !Sub "repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/develop"
+                  - !Sub "repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/master"
+                  - !Sub "repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/release/*"
+                  - !Sub "repo:${GitHubOrg}/${GitHubRepo}:environment:dev"
+                  - !Sub "repo:${GitHubOrg}/${GitHubRepo}:environment:staging"
+                  - !Sub "repo:${GitHubOrg}/${GitHubRepo}:environment:production"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+Outputs:
+  RoleArn:
+    Value: !GetAtt GitHubActionsRole.Arn

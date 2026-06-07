@@ -1,0 +1,25 @@
+env:     staging
+region:  sa-east-1
+account: ""   # resuelto via CDK_DEFAULT_ACCOUNT
+
+dynamodb:
+  billing_mode:            PAY_PER_REQUEST
+  point_in_time_recovery:  true   # habilitado en staging (igual que prod)
+  removal_policy:          RETAIN  # nunca destruir tablas en staging
+
+cognito:
+  mfa: "OFF"
+
+domain:
+  hosted_zone: codelabsecuador.com
+  api:         api-billing-staging.codelabsecuador.com
+  frontend:    billing-staging.codelabsecuador.com
+  enabled:     true   # CloudFront habilitado en staging y prod
+
+cors:
+  origins:
+    - https://billing-staging.codelabsecuador.com
+  headers:
+    - authorization
+    - content-type
+    - x-idempotency-key

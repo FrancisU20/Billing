@@ -1,0 +1,470 @@
+##############################################################################
+# Deploy Dev — CodeLabs Billing Cloud
+#
+# Pipeline completo de CI/CD para el ambiente de desarrollo.
+# Se ejecuta en cada push a la rama `develop`.
+#
+# Autenticación AWS: OIDC (sin credenciales estáticas en Secrets).
+# Rol IAM: configurado en .github/oidc/cfn-oidc-role.yml
+#
+# Flujo de jobs:
+#
+#   lint ─┐
+#   sec  ─┼─→ cdk-synth ─┬─→ deploy-database ─┐
+#   test ─┘              ├─→ deploy-auth       ├─→ deploy-api ─→ run-migrations ─→ smoke-tests ─┐
+#                        ├─→ deploy-queues     ┘                                                 ├─→ summary
+#                        └─→ deploy-frontend ───────────────────────────────────────────────────┘
+#
+##############################################################################
+
+name: Deploy — Dev
+
+on:
+  push:
+    branches: [develop]
+
+# Previene deploys solapados: el deploy en curso se completa antes del siguiente.
+# No se cancela en curso — un deploy a medias es peor que uno en cola.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write   # requerido para OIDC
+  actions: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  AWS_REGION:          sa-east-1
+  CDK_DEFAULT_ACCOUNT: "890763499626"
+  CDK_DEFAULT_REGION:  sa-east-1
+  CDK_ENV:             dev
+
+# ── CI Checks (defense in depth — también corren en PR) ───────────────────────
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-backend
+      - name: ruff format
+        working-directory: backend
+        run: ruff format --check .
+      - name: ruff check
+        working-directory: backend
+        run: ruff check .
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-backend
+      - name: bandit
+        working-directory: backend
+        run: bandit -r lambdas/ shared/ -c pyproject.toml --severity-level medium
+      - name: pip-audit
+        working-directory: backend
+        run: pip-audit -r requirements.txt --strict
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-backend
+
+      - name: Run tests with coverage
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend:${{ github.workspace }}/local
+          AWS_DEFAULT_REGION: sa-east-1
+          AWS_EC2_METADATA_DISABLED: "true"
+        working-directory: backend
+        run: |
+          coverage run \
+            --source=lambdas,shared \
+            -m unittest discover -s tests -p "test_*.py" -v
+          coverage report
+          coverage xml
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ github.sha }}
+          path: backend/coverage.xml
+          retention-days: 30
+
+  # ── CDK Synth (bundling completo con OIDC) ────────────────────────────────
+  cdk-synth:
+    name: CDK Synth & Bundle
+    runs-on: ubuntu-latest
+    needs: [lint, security, unit-tests]
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-cdk
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-cdk-synth-${{ github.run_id }}
+          aws-region:        ${{ env.AWS_REGION }}
+
+      - name: CDK Synth (valida + bundlea todas las Lambdas)
+        working-directory: infra
+        run: cdk synth --all -c env=${{ env.CDK_ENV }} --quiet
+
+      - name: Upload CloudFormation templates
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfn-templates-${{ github.sha }}
+          path: infra/cdk.out/*.template.json
+          retention-days: 30
+
+      - name: CDK Diff → Step Summary
+        working-directory: infra
+        run: |
+          echo "## CDK Diff — ${{ env.CDK_ENV }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cdk diff --all -c env=${{ env.CDK_ENV }} 2>&1 >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ── Deploy Database ────────────────────────────────────────────────────────
+  deploy-database:
+    name: Deploy Database Stack
+    runs-on: ubuntu-latest
+    needs: [cdk-synth]
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-cdk
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-deploy-database-${{ github.run_id }}
+          aws-region:        ${{ env.AWS_REGION }}
+
+      - name: Deploy CodeLabsBilling-Dev-Database
+        working-directory: infra
+        run: |
+          cdk deploy CodeLabsBilling-Dev-Database \
+            -c env=${{ env.CDK_ENV }} \
+            --require-approval never \
+            --progress events \
+            --outputs-file /tmp/database-outputs.json
+          echo "### Database Stack Outputs" >> $GITHUB_STEP_SUMMARY
+          cat /tmp/database-outputs.json >> $GITHUB_STEP_SUMMARY
+
+  # ── Deploy Auth ────────────────────────────────────────────────────────────
+  deploy-auth:
+    name: Deploy Auth Stack
+    runs-on: ubuntu-latest
+    needs: [cdk-synth]
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-cdk
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-deploy-auth-${{ github.run_id }}
+          aws-region:        ${{ env.AWS_REGION }}
+
+      - name: Deploy CodeLabsBilling-Dev-Auth
+        working-directory: infra
+        run: |
+          cdk deploy CodeLabsBilling-Dev-Auth \
+            -c env=${{ env.CDK_ENV }} \
+            --require-approval never \
+            --progress events
+
+  # ── Deploy Queues ──────────────────────────────────────────────────────────
+  deploy-queues:
+    name: Deploy Queues Stack
+    runs-on: ubuntu-latest
+    needs: [cdk-synth]
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-cdk
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-deploy-queues-${{ github.run_id }}
+          aws-region:        ${{ env.AWS_REGION }}
+
+      - name: Deploy CodeLabsBilling-Dev-Queues
+        working-directory: infra
+        run: |
+          cdk deploy CodeLabsBilling-Dev-Queues \
+            -c env=${{ env.CDK_ENV }} \
+            --require-approval never \
+            --progress events
+
+  # ── Deploy API (espera los tres stacks base) ───────────────────────────────
+  deploy-api:
+    name: Deploy API Stack
+    runs-on: ubuntu-latest
+    needs: [deploy-database, deploy-auth, deploy-queues]
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-cdk
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-deploy-api-${{ github.run_id }}
+          aws-region:        ${{ env.AWS_REGION }}
+
+      - name: Deploy CodeLabsBilling-Dev-Api
+        working-directory: infra
+        run: |
+          cdk deploy CodeLabsBilling-Dev-Api \
+            -c env=${{ env.CDK_ENV }} \
+            --require-approval never \
+            --progress events \
+            --outputs-file /tmp/api-outputs.json
+
+      - name: Extract API URL → output
+        id: api-url
+        run: |
+          URL=$(jq -r '."CodeLabsBilling-Dev-Api".ApiCustomDomain //
+                        ."CodeLabsBilling-Dev-Api".ApiUrl' /tmp/api-outputs.json)
+          echo "url=${URL}" >> $GITHUB_OUTPUT
+          echo "### API desplegada en: ${URL}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload API outputs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-outputs-${{ github.sha }}
+          path: /tmp/api-outputs.json
+          retention-days: 7
+
+    outputs:
+      api-url: ${{ steps.api-url.outputs.url }}
+
+  # ── Run Migrations ─────────────────────────────────────────────────────────
+  # Invoca el Lambda de migraciones desplegado en el stack Api.
+  # Si el Lambda aún no existe (feature en desarrollo), el step se salta
+  # limpiamente y el pipeline continúa.
+  run-migrations:
+    name: Run DB Migrations
+    runs-on: ubuntu-latest
+    needs: [deploy-api]
+    environment: dev
+
+    steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-migrations-${{ github.run_id }}
+          aws-region:        ${{ env.AWS_REGION }}
+
+      - name: Check migrations Lambda
+        id: check
+        run: |
+          LAMBDA_NAME="codelabs-billing-${{ env.CDK_ENV }}-migrations"
+          if aws lambda get-function --function-name "${LAMBDA_NAME}" \
+               --query 'Configuration.FunctionName' --output text > /dev/null 2>&1; then
+            echo "exists=true"  >> $GITHUB_OUTPUT
+            echo "name=${LAMBDA_NAME}" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "### Migrations — Skipped (Lambda no desplegado aún)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Invoke migrations Lambda
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          LAMBDA="${{ steps.check.outputs.name }}"
+          echo "Invocando ${LAMBDA}..."
+
+          aws lambda invoke \
+            --function-name "${LAMBDA}" \
+            --payload '{}' \
+            --cli-binary-format raw-in-base64-out \
+            --log-type Tail \
+            --query 'LogResult' \
+            --output text \
+            /tmp/migrations-result.json \
+            | base64 -d | tail -20
+
+          FUNC_ERROR=$(jq -r '.FunctionError // empty' /tmp/migrations-result.json 2>/dev/null || echo "")
+
+          echo "### Migrations" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/migrations-result.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${FUNC_ERROR}" ]; then
+            echo "Migrations Lambda retornó error: ${FUNC_ERROR}"
+            exit 1
+          fi
+          echo "Migrations completadas" >> $GITHUB_STEP_SUMMARY
+
+  # ── Deploy Frontend (Expo Web) ─────────────────────────────────────────────
+  # En dev se sube directo a S3 (sin CloudFront — domain.enabled: false en dev.yaml).
+  # El primer step detecta si frontend/package.json existe; si no, salta todo.
+  deploy-frontend:
+    name: Deploy Frontend (Expo Web)
+    runs-on: ubuntu-latest
+    needs: [cdk-synth]
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check frontend exists
+        id: check
+        run: |
+          if [ -f "frontend/package.json" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "### Frontend — Skipped (frontend/package.json no encontrado)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - uses: ./.github/actions/setup-frontend
+        if: steps.check.outputs.exists == 'true'
+
+      - name: Configure AWS credentials via OIDC
+        if: steps.check.outputs.exists == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-frontend-${{ github.run_id }}
+          aws-region:        ${{ env.AWS_REGION }}
+
+      - name: Build Expo web
+        if: steps.check.outputs.exists == 'true'
+        working-directory: frontend
+        env:
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+        run: npx expo export --platform web
+
+      # Assets con hash en el nombre: inmutable a largo plazo.
+      # index.html + manifests: sin cache para que el cliente siempre
+      # reciba la versión más reciente del entry point.
+      - name: Upload assets to S3 (immutable)
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          aws s3 sync frontend/dist/ "s3://${{ secrets.FRONTEND_BUCKET_NAME }}/" \
+            --delete \
+            --exclude "index.html" \
+            --exclude "*.json" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Upload entry points to S3 (no-cache)
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          aws s3 sync frontend/dist/ "s3://${{ secrets.FRONTEND_BUCKET_NAME }}/" \
+            --include "index.html" \
+            --include "*.json" \
+            --cache-control "no-cache,no-store,must-revalidate"
+
+      - name: Summary
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          echo "### Frontend desplegado (dev)" >> $GITHUB_STEP_SUMMARY
+          echo "S3 bucket: \`${{ secrets.FRONTEND_BUCKET_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "URL: https://billing-dev.codelabsecuador.com" >> $GITHUB_STEP_SUMMARY
+
+  # ── Smoke Tests ────────────────────────────────────────────────────────────
+  # Necesita deploy-api (para acceder a outputs.api-url) y run-migrations
+  # (para garantizar que las migraciones ya corrieron).
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [deploy-api, run-migrations]
+
+    steps:
+      - name: GET /plans — ruta pública (sin auth)
+        run: |
+          API_URL="${{ needs.deploy-api.outputs.api-url }}"
+
+          echo "Probando ${API_URL}/plans ..."
+
+          RESPONSE=$(curl -sf \
+            --max-time 15 \
+            --retry 3 \
+            --retry-delay 5 \
+            --retry-connrefused \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            "${API_URL}/plans" 2>&1 || true)
+
+          HTTP_STATUS=$(echo "${RESPONSE}" | grep "HTTP_STATUS" | cut -d: -f2)
+          BODY=$(echo "${RESPONSE}" | grep -v "HTTP_STATUS")
+
+          echo "HTTP Status: ${HTTP_STATUS}"
+          echo "Body (preview): $(echo "${BODY}" | head -c 200)"
+
+          if [ "${HTTP_STATUS}" != "200" ]; then
+            echo "Smoke test fallido — esperado 200, obtenido ${HTTP_STATUS}"
+            exit 1
+          fi
+
+          python3 -c "
+          import json, sys
+          data = json.loads('''${BODY}''')
+          assert data.get('success') == True, 'success != true'
+          assert 'items' in data.get('data', {}), 'data.items missing'
+          print('Contrato de respuesta correcto')
+          "
+
+          echo "### Smoke Tests — PASSED" >> $GITHUB_STEP_SUMMARY
+
+  # ── Summary ────────────────────────────────────────────────────────────────
+  summary:
+    name: Deploy Summary
+    runs-on: ubuntu-latest
+    needs: [smoke-tests, deploy-frontend]
+    if: always()
+
+    steps:
+      - name: Write deploy summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const needs = ${{ toJSON(needs) }};
+            const jobs  = Object.entries(needs);
+            const allPassed = jobs.every(([, j]) => ['success', 'skipped'].includes(j.result));
+            const anyFailed = jobs.some(([, j])  => j.result === 'failure');
+            const emoji = anyFailed ? '❌' : allPassed ? '✅' : '⚠️';
+
+            let table = '| Job | Estado |\n|---|---|\n';
+            for (const [name, job] of jobs) {
+              const icon = { success: '✅', failure: '❌', skipped: '⏭️', cancelled: '🚫' }[job.result] ?? '❓';
+              table += `| ${name} | ${icon} ${job.result} |\n`;
+            }
+
+            const summary = [
+              `## ${emoji} Deploy Dev — ${anyFailed ? 'Con errores' : allPassed ? 'Exitoso' : 'Parcial'}`,
+              '',
+              `**Commit:** \`${{ github.sha }}\``,
+              `**Branch:** \`${{ github.ref_name }}\``,
+              `**Actor:** @${{ github.actor }}`,
+              '',
+              table,
+            ].join('\n');
+
+            await core.summary.addRaw(summary).write();

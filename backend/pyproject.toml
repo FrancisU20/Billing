@@ -1,0 +1,59 @@
+[tool.ruff]
+target-version = "py312"
+line-length    = 100
+src            = ["lambdas", "shared"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "S",   # flake8-bandit (basic security)
+    "ANN001", "ANN002", "ANN003",  # missing type annotations (args)
+]
+ignore = [
+    "S101",   # assert used — acceptable in tests
+    "S105",   # hardcoded password — false positives on env var names
+    "S106",
+    "S107",
+    "ANN001", # missing annotations on self/cls — too noisy for now
+    "ANN002",
+    "ANN003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "ANN"]  # relax security and annotation rules in tests
+
+[tool.ruff.lint.isort]
+known-first-party = ["lambdas", "shared", "tests"]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+skips        = ["B101", "B601"]  # assert + shell injection (false positives en subprocess CDK)
+
+[tool.coverage.run]
+source    = ["lambdas", "shared"]
+branch    = true
+omit      = [
+    "*/.venv/*",
+    "*/tests/*",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+show_missing   = true
+skip_covered   = false
+fail_under     = 75
+exclude_lines  = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+]
+
+[tool.coverage.xml]
+output = "coverage.xml"
