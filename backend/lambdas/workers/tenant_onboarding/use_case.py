@@ -1,13 +1,13 @@
 """
-OnboardTenantUseCase — crea el usuario owner en Cognito.
+OnboardTenantUseCase — creates the owner user in Cognito.
 
-Recibe el payload del TenantCreatedEvent y:
-1. Genera una contraseña temporal
-2. Crea el usuario en Cognito con rol 'owner' y el tenant_id correcto
-3. Retorna la contraseña temporal para que el handler publique OwnerCreatedEvent
-   → email_notifications worker la usa para enviar el email de bienvenida via Brevo
+Receives the TenantCreatedEvent payload and:
+1. Generates a temporary password
+2. Creates the user in Cognito with role 'owner' and the correct tenant_id
+3. Returns the temporary password so the handler can publish OwnerCreatedEvent
+   → email_notifications worker uses it to send the welcome email via Brevo
 
-Si el usuario ya existe retorna None — el email no se reenvía.
+If the user already exists it returns None — the email is not re-sent.
 """
 from __future__ import annotations
 
@@ -40,14 +40,14 @@ class OnboardTenantUseCase:
         self._identity_provider = identity_provider
 
     def execute(
-        self, tenant_id: str, email: str, nombre_rep_legal: str
+        self, tenant_id: str, email: str, legal_rep_name: str
     ) -> str | None:
         """
-        Retorna temp_password si el owner fue creado, None si ya existía.
-        La contraseña nunca se loguea — viaja en memoria hasta publicarse en SQS SSE.
+        Returns temp_password if the owner was created, None if it already existed.
+        The password is never logged — it stays in memory until published to SQS (SSE).
         """
         if not tenant_id or not email:
-            raise ValidationError("tenant_id y email son requeridos para onboarding")
+            raise ValidationError("tenant_id and email are required for onboarding")
 
         temp_password = _generate_temp_password()
 
@@ -58,11 +58,11 @@ class OnboardTenantUseCase:
                 temporary_password=temp_password,
             )
         except Exception as e:
-            _log.error("error creando usuario en Cognito", error=str(e), exc_info=True)
+            _log.error("error creating user in Cognito", error=str(e), exc_info=True)
             raise InternalError()
 
         if not created:
             return None
 
-        _log.info("tenant onboarding completado", tenant_id=tenant_id, email=email)
+        _log.info("tenant onboarding completed", tenant_id=tenant_id, email=email)
         return temp_password

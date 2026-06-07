@@ -63,7 +63,7 @@ class TenantsHandlerTests(unittest.TestCase):
         event = api_event(
             method="PATCH",
             path="/tenants/tenant-b",
-            body={"nombre_comercial": "No permitido"},
+            body={"trade_name": "Not allowed"},
             claims={
                 "custom:is_superadmin": "false",
                 "custom:tenant_id": "tenant-a",

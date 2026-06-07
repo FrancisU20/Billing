@@ -1,13 +1,13 @@
 """
-Evento de dominio base.
+Base domain event.
 
-Los use cases emiten DomainEvents en lugar de publicar directamente a SQS.
-Esto desacopla el dominio de la infraestructura de mensajería.
+Use cases emit DomainEvents instead of publishing directly to SQS.
+This decouples the domain from the messaging infrastructure.
 
-El handler.py es el responsable de publicar los eventos después de que
-el use case completa — el dominio no sabe que existe SQS.
+handler.py is responsible for publishing events after the use case
+completes — the domain does not know SQS exists.
 
-Convención de nombres: <Entidad><Acción>Event  (TenantCreatedEvent, InvoiceEmittedEvent)
+Naming convention: <Entity><Action>Event  (TenantCreatedEvent, InvoiceEmittedEvent)
 """
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -21,5 +21,5 @@ class DomainEvent:
 
     @property
     def event_type(self) -> str:
-        """Nombre del evento — se usa como MessageAttribute en SQS."""
+        """Event name — used as the MessageAttribute in SQS."""
         return self.__class__.__name__

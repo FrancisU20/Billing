@@ -317,6 +317,51 @@ class ApiStack(Stack):
                 authorizer  = jwt_authorizer,
             )
 
+        # ── Plans Lambda ───────────────────────────────────────────────────────
+        plans_fn = lmb.Function(
+            self, "PlansFunction",
+            function_name = f"codelabs-billing-{env}-plans",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.plans.handler.handler",
+            timeout       = Duration.seconds(15),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "PLANS_TABLE": database.plans_table.table_name,
+            },
+        )
+        database.plans_table.grant_read_write_data(plans_fn)
+
+        plans_integration = integrations.HttpLambdaIntegration(
+            "PlansIntegration", plans_fn
+        )
+
+        # GET /plans y GET /plans/{id} son públicos (sin auth) para mostrar pricing
+        for method, route in [
+            (apigwv2.HttpMethod.GET, "/plans"),
+            (apigwv2.HttpMethod.GET, "/plans/{id}"),
+        ]:
+            api.add_routes(
+                path        = route,
+                methods     = [method],
+                integration = plans_integration,
+            )
+
+        # POST / PATCH requieren superadmin
+        for method, route in [
+            (apigwv2.HttpMethod.POST,  "/plans"),
+            (apigwv2.HttpMethod.PATCH, "/plans/{id}"),
+            (apigwv2.HttpMethod.PATCH, "/plans/{id}/status"),
+        ]:
+            api.add_routes(
+                path        = route,
+                methods     = [method],
+                integration = plans_integration,
+                authorizer  = jwt_authorizer,
+            )
+
         # ── Outputs ───────────────────────────────────────────────────────────
         CfnOutput(self, "ApiUrl",
                   value       = api.url or "",

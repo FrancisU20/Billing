@@ -24,12 +24,12 @@ def configure_unit_environment() -> None:
 def tenant_payload(**overrides: Any) -> dict:
     payload = {
         "ruc": VALID_RUC,
-        "nombre_comercial": "CodeLabs Test",
-        "nombre_rep_legal": "Francis Ulloa",
+        "trade_name": "CodeLabs Test",
+        "legal_rep_name": "Francis Ulloa",
         "email": "OWNER@CODELABS.COM",
-        "telefono": "0999999999",
-        "direccion": "Av Siempre Viva 123",
-        "plan": "basico",
+        "phone": "0999999999",
+        "address": "Av Siempre Viva 123",
+        "plan_id": "",
     }
     payload.update(overrides)
     return payload
@@ -69,9 +69,10 @@ def api_event(
     if claims:
         base_claims.update(claims)
 
+    # Extrae {id} para cualquier patrón /{resource}/{id}[/sub]
     path_params = {}
     parts = path.strip("/").split("/")
-    if len(parts) >= 2 and parts[0] == "tenants":
+    if len(parts) >= 2:
         path_params["id"] = parts[1]
 
     return {
@@ -118,7 +119,7 @@ class FakeTenantRepository:
         self,
         limit: int,
         next_token: str | None,
-        estado: str | None = None,
+        status: str | None = None,
     ) -> tuple[list[Tenant], str | None]:
         return self.list_result
 

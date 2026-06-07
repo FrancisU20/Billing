@@ -4,10 +4,10 @@ from shared.domain.events.domain_event import DomainEvent
 
 @dataclass(frozen=True)
 class TenantCreatedEvent(DomainEvent):
-    tenant_id:        str = ""
-    ruc:              str = ""
-    email:            str = ""
-    nombre_rep_legal: str = ""   # para el email de bienvenida con Brevo
+    tenant_id:      str = ""
+    ruc:            str = ""
+    email:          str = ""
+    legal_rep_name: str = ""
 
 
 @dataclass(frozen=True)
@@ -18,9 +18,9 @@ class TenantUpdatedEvent(DomainEvent):
 
 @dataclass(frozen=True)
 class TenantStatusChangedEvent(DomainEvent):
-    tenant_id:    str = ""
-    nuevo_estado: str = ""
-    updated_by:   str = ""
+    tenant_id:  str = ""
+    new_status: str = ""
+    updated_by: str = ""
 
 
 @dataclass(frozen=True)

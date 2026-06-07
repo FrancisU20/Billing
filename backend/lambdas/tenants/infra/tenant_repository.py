@@ -1,15 +1,15 @@
 """
-Implementación DynamoDB del repositorio de Tenants.
+DynamoDB implementation of the Tenant repository.
 
-No hereda BaseRepository (que es para TenantScopedEntity).
-Tenant es una GlobalEntity — tiene su propia lógica de clave.
+Does not extend BaseRepository (which is for TenantScopedEntity).
+Tenant is a GlobalEntity with its own key logic.
 
-Tabla DynamoDB:
-    PK: id (UUID del tenant)
-    GSI ruc-index: PK=ruc (lookup por RUC)
-    Lock de unicidad: id="RUC#{ruc}" en la misma tabla
+DynamoDB table:
+    PK: id (tenant UUID)
+    GSI ruc-index: PK=ruc (lookup by RUC)
+    RUC uniqueness lock: id="RUC#{ruc}" in the same table
 
-Listing: Scan con FilterExpression (aceptable — pocos tenants en un SaaS B2B).
+Listing: Scan with FilterExpression (acceptable — few tenants in a B2B SaaS).
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from shared.domain.events.outbox import outbox_put_transact_item
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
 
-from lambdas.tenants.domain.enums import AmbienteSri, EstadoTenant
+from lambdas.tenants.domain.enums import SriEnvironment, TenantStatus, PlanStatus
 from lambdas.tenants.domain.errors import TenantNotFoundError, TenantRucAlreadyExistsError
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.tenants.domain.tenant import Tenant
@@ -42,11 +42,11 @@ _serializer = TypeSerializer()
 
 class DynamoTenantRepository(ITenantRepository):
     def __init__(self, table, audit_table=None, outbox_table=None) -> None:
-        self._table       = table
-        self._audit_table = audit_table
+        self._table        = table
+        self._audit_table  = audit_table
         self._outbox_table = outbox_table
 
-    # ── lectura ───────────────────────────────────────────────────────────────
+    # ── reads ─────────────────────────────────────────────────────────────────
 
     def get_by_id(self, tenant_id: str) -> Tenant:
         try:
@@ -62,9 +62,9 @@ class DynamoTenantRepository(ITenantRepository):
 
     def get_by_ruc(self, ruc: str) -> Tenant | None:
         try:
-            resp  = self._table.query(
-                IndexName                  = "ruc-index",
-                KeyConditionExpression     = Key("ruc").eq(ruc),
+            resp = self._table.query(
+                IndexName              = "ruc-index",
+                KeyConditionExpression = Key("ruc").eq(ruc),
             )
         except ClientError as e:
             _log.error("DynamoDB ruc-index query error", error=str(e))
@@ -84,11 +84,11 @@ class DynamoTenantRepository(ITenantRepository):
         self,
         limit:      int,
         next_token: str | None,
-        estado:     str | None = None,
+        status:     str | None = None,
     ) -> tuple[list[Tenant], str | None]:
         filter_expr = Attr("deleted").eq(False)
-        if estado:
-            filter_expr = filter_expr & Attr("estado").eq(estado)
+        if status:
+            filter_expr = filter_expr & Attr("status").eq(status)
 
         kwargs: dict = {"FilterExpression": filter_expr, "Limit": limit}
         cursor = decode_cursor(next_token)
@@ -106,30 +106,30 @@ class DynamoTenantRepository(ITenantRepository):
             encode_cursor(resp.get("LastEvaluatedKey")),
         )
 
-    # ── escritura ─────────────────────────────────────────────────────────────
+    # ── writes ────────────────────────────────────────────────────────────────
 
     def save(self, tenant: Tenant, user_id: str) -> None:
         self.commit(
-            tenant       = tenant,
-            user_id      = user_id,
-            action       = "SAVE",
-            events       = [],
-            idempotency  = None,
-            response     = None,
+            tenant      = tenant,
+            user_id     = user_id,
+            action      = "SAVE",
+            events      = [],
+            idempotency = None,
+            response    = None,
         )
 
     def commit(
         self,
         *,
-        tenant: Tenant,
-        user_id: str,
-        action: str,
-        events: list[DomainEvent],
+        tenant:      Tenant,
+        user_id:     str,
+        action:      str,
+        events:      list[DomainEvent],
         idempotency: IdempotencyContext | None,
-        response: dict | None,
+        response:    dict | None,
     ) -> None:
-        item    = self._to_item(tenant)
-        old_raw = self._get_raw(tenant.id)
+        item      = self._to_item(tenant)
+        old_raw   = self._get_raw(tenant.id)
         is_create = old_raw is None and tenant.version == 1
         transact_items: list[dict] = []
 
@@ -140,7 +140,7 @@ class DynamoTenantRepository(ITenantRepository):
 
         if idempotency is not None:
             if response is None:
-                raise ValueError("response es requerido para completar idempotencia")
+                raise ValueError("response is required to complete idempotency")
             transact_items.append(completion_transact_item(idempotency, response))
 
         if self._outbox_table:
@@ -174,7 +174,7 @@ class DynamoTenantRepository(ITenantRepository):
         tenant.soft_delete(deleted_by)
         self.save(tenant, deleted_by)
 
-    # ── helpers internos ──────────────────────────────────────────────────────
+    # ── internal helpers ──────────────────────────────────────────────────────
 
     def _get_raw(self, tenant_id: str) -> dict | None:
         try:
@@ -189,15 +189,15 @@ class DynamoTenantRepository(ITenantRepository):
         return [
             {
                 "Put": {
-                    "TableName": self._table.table_name,
-                    "Item": self._serialize(lock_item),
+                    "TableName":           self._table.table_name,
+                    "Item":                self._serialize(lock_item),
                     "ConditionExpression": "attribute_not_exists(id)",
                 }
             },
             {
                 "Put": {
-                    "TableName": self._table.table_name,
-                    "Item": self._serialize(item),
+                    "TableName":           self._table.table_name,
+                    "Item":                self._serialize(item),
                     "ConditionExpression": "attribute_not_exists(id)",
                 }
             },
@@ -206,27 +206,21 @@ class DynamoTenantRepository(ITenantRepository):
     def _update_item(self, tenant: Tenant, item: dict) -> dict:
         return {
             "Put": {
-                "TableName": self._table.table_name,
-                "Item": self._serialize(item),
-                "ConditionExpression": (
-                    "attribute_exists(id) AND version = :previous_version"
-                ),
-                "ExpressionAttributeValues": self._serialize({
-                    ":previous_version": tenant.version - 1,
-                }),
+                "TableName":           self._table.table_name,
+                "Item":                self._serialize(item),
+                "ConditionExpression": "attribute_exists(id) AND version = :prev",
+                "ExpressionAttributeValues": self._serialize({":prev": tenant.version - 1}),
             }
         }
 
     def _transact_write(
         self,
         transact_items: list[dict],
-        idempotency: IdempotencyContext | None,
-        is_create: bool,
+        idempotency:    IdempotencyContext | None,
+        is_create:      bool,
     ) -> None:
         try:
-            self._table.meta.client.transact_write_items(
-                TransactItems=transact_items
-            )
+            self._table.meta.client.transact_write_items(TransactItems=transact_items)
             if idempotency is not None:
                 mark_completed()
         except ClientError as e:
@@ -240,7 +234,7 @@ class DynamoTenantRepository(ITenantRepository):
 
     def _ruc_lock_item(self, tenant: Tenant, user_id: str) -> dict:
         return {
-            "id":          self._ruc_lock_id(tenant.ruc),
+            "id":          f"RUC#{tenant.ruc}",
             "entity_type": "TENANT_RUC_LOCK",
             "tenant_id":   tenant.id,
             "locked_ruc":  tenant.ruc,
@@ -248,53 +242,54 @@ class DynamoTenantRepository(ITenantRepository):
             "created_by":  user_id,
         }
 
-    def _ruc_lock_id(self, ruc: str) -> str:
-        return f"RUC#{ruc}"
-
     def _serialize(self, item: dict) -> dict:
         return {key: _serializer.serialize(value) for key, value in item.items()}
 
     def _to_item(self, tenant: Tenant) -> dict:
         return {
-            "entity_type":       "TENANT",
-            "id":               tenant.id,
-            "ruc":              tenant.ruc,
-            "nombre_comercial": tenant.nombre_comercial,
-            "nombre_rep_legal": tenant.nombre_rep_legal,
-            "email":            tenant.email,
-            "telefono":         tenant.telefono,
-            "direccion":        tenant.direccion,
-            "ambiente_sri":     tenant.ambiente_sri.value,
-            "estado":           tenant.estado.value,
-            "plan":             tenant.plan,
-            "version":          tenant.version,
-            "deleted":          tenant.deleted,
-            "created_at":       tenant.created_at.isoformat(),
-            "updated_at":       tenant.updated_at.isoformat(),
-            "created_by":       tenant.created_by,
-            "updated_by":       tenant.updated_by,
-            "deleted_at":       tenant.deleted_at.isoformat() if tenant.deleted_at else None,
-            "deleted_by":       tenant.deleted_by,
+            "entity_type":   "TENANT",
+            "id":            tenant.id,
+            "ruc":           tenant.ruc,
+            "trade_name":    tenant.trade_name,
+            "legal_rep_name": tenant.legal_rep_name,
+            "email":         tenant.email,
+            "phone":         tenant.phone,
+            "address":       tenant.address,
+            "sri_environment": tenant.sri_environment.value,
+            "status":        tenant.status.value,
+            "plan_id":       tenant.plan_id,
+            "plan_status":   tenant.plan_status.value,
+            "trial_ends_at": tenant.trial_ends_at.isoformat() if tenant.trial_ends_at else None,
+            "version":       tenant.version,
+            "deleted":       tenant.deleted,
+            "created_at":    tenant.created_at.isoformat(),
+            "updated_at":    tenant.updated_at.isoformat(),
+            "created_by":    tenant.created_by,
+            "updated_by":    tenant.updated_by,
+            "deleted_at":    tenant.deleted_at.isoformat() if tenant.deleted_at else None,
+            "deleted_by":    tenant.deleted_by,
         }
 
     def _from_item(self, item: dict) -> Tenant:
         return Tenant(
-            id               = item["id"],
-            ruc              = item["ruc"],
-            nombre_comercial = item["nombre_comercial"],
-            nombre_rep_legal = item["nombre_rep_legal"],
-            email            = item["email"],
-            telefono         = item.get("telefono", ""),
-            direccion        = item.get("direccion", ""),
-            ambiente_sri     = AmbienteSri(item.get("ambiente_sri", "pruebas")),
-            estado           = EstadoTenant(item.get("estado", "activo")),
-            plan             = item.get("plan", "basico"),
-            version          = item.get("version", 1),
-            deleted          = item.get("deleted", False),
-            created_at       = datetime.fromisoformat(item["created_at"]),
-            updated_at       = datetime.fromisoformat(item["updated_at"]),
-            created_by       = item.get("created_by", ""),
-            updated_by       = item.get("updated_by", ""),
-            deleted_at       = datetime.fromisoformat(item["deleted_at"]) if item.get("deleted_at") else None,
-            deleted_by       = item.get("deleted_by"),
+            id              = item["id"],
+            ruc             = item["ruc"],
+            trade_name      = item.get("trade_name", ""),
+            legal_rep_name  = item.get("legal_rep_name", ""),
+            email           = item["email"],
+            phone           = item.get("phone", ""),
+            address         = item.get("address", ""),
+            sri_environment = SriEnvironment(item.get("sri_environment", "testing")),
+            status          = TenantStatus(item.get("status", "active")),
+            plan_id         = item.get("plan_id", ""),
+            plan_status     = PlanStatus(item.get("plan_status", "active")),
+            trial_ends_at   = datetime.fromisoformat(item["trial_ends_at"]) if item.get("trial_ends_at") else None,
+            version         = item.get("version", 1),
+            deleted         = item.get("deleted", False),
+            created_at      = datetime.fromisoformat(item["created_at"]),
+            updated_at      = datetime.fromisoformat(item["updated_at"]),
+            created_by      = item.get("created_by", ""),
+            updated_by      = item.get("updated_by", ""),
+            deleted_at      = datetime.fromisoformat(item["deleted_at"]) if item.get("deleted_at") else None,
+            deleted_by      = item.get("deleted_by"),
         )

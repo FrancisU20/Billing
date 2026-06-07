@@ -1,13 +1,13 @@
 """
-Idempotencia HTTP para operaciones mutantes.
+HTTP idempotency for mutating operations.
 
-Responsabilidades:
-- Exigir `X-Idempotency-Key`.
-- Atar la key a method + path + body_hash.
-- Devolver respuesta cacheada si la operación ya completó.
-- Reservar la key como IN_PROGRESS antes de ejecutar el handler.
-- Exponer un contexto para que el repositorio marque COMPLETED dentro de
-  la misma transacción DynamoDB que persiste el cambio de negocio.
+Responsibilities:
+- Require `X-Idempotency-Key`.
+- Bind the key to method + path + body_hash.
+- Return the cached response if the operation already completed.
+- Reserve the key as IN_PROGRESS before running the handler.
+- Expose a context so the repository can mark COMPLETED within the same
+  DynamoDB transaction that persists the business change.
 """
 from __future__ import annotations
 
@@ -112,7 +112,7 @@ def _existing(table, ctx: IdempotencyContext) -> dict | None:
         resp = table.get_item(Key={"pk": ctx.pk}, ConsistentRead=True)
         return resp.get("Item")
     except ClientError as exc:
-        _log.error("idempotency: error leyendo key", error=str(exc))
+        _log.error("idempotency: error reading key", error=str(exc))
         raise DatabaseError()
 
 
@@ -144,7 +144,7 @@ def _reserve(table, ctx: IdempotencyContext) -> None:
             if item and item.get("status") == "COMPLETED" and item.get("response"):
                 return
             raise IdempotencyInProgressError()
-        _log.error("idempotency: error reservando key", error=str(exc))
+        _log.error("idempotency: error reserving key", error=str(exc))
         raise DatabaseError()
 
 
@@ -162,7 +162,7 @@ def _mark_failed(table, ctx: IdempotencyContext) -> None:
             },
         )
     except ClientError as exc:
-        _log.warning("idempotency: no se pudo marcar FAILED", error=str(exc))
+        _log.warning("idempotency: could not mark FAILED", error=str(exc))
 
 
 def _mark_completed_non_transactional(table, ctx: IdempotencyContext, response: dict) -> None:
@@ -184,7 +184,7 @@ def _mark_completed_non_transactional(table, ctx: IdempotencyContext, response: 
         )
         ctx.completed = True
     except ClientError as exc:
-        _log.error("idempotency: no se pudo cachear respuesta", error=str(exc))
+        _log.error("idempotency: could not cache response", error=str(exc))
         raise DatabaseError()
 
 
@@ -205,7 +205,7 @@ def mark_completed() -> None:
 
 
 def completion_transact_item(ctx: IdempotencyContext, response: dict) -> dict:
-    """Retorna el Update transaccional que cierra la idempotencia."""
+    """Return the transactional Update that closes out idempotency."""
     return {
         "Update": {
             "TableName": ctx.table_name,
@@ -251,7 +251,7 @@ def idempotent(func: Callable) -> Callable:
             if not _matches(item, ctx):
                 raise IdempotencyKeyReusedError()
             if item.get("status") == "COMPLETED" and item.get("response"):
-                _log.info("idempotency: devolviendo respuesta cacheada", key=ctx.key)
+                _log.info("idempotency: returning cached response", key=ctx.key)
                 return json.loads(item["response"])
             raise IdempotencyInProgressError()
 

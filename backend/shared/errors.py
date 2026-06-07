@@ -1,11 +1,11 @@
 """
-Jerarquía de errores de dominio.
+Domain error hierarchy.
 
-Reglas:
-- Todo error conocido extiende AppError con un `code` único en SCREAMING_SNAKE_CASE.
-- `default_message` es el mensaje en español que verá el cliente final.
-- Nunca pasar mensajes dinámicos al cliente — solo el code + default_message.
-- El stacktrace completo va siempre a CloudWatch, nunca al HTTP response.
+Rules:
+- Every known error extends AppError with a unique `code` in SCREAMING_SNAKE_CASE.
+- `default_message` is the Spanish message the end client will see.
+- Never pass dynamic messages to the client — only code + default_message.
+- The full stacktrace always goes to CloudWatch, never to the HTTP response.
 """
 from __future__ import annotations
 

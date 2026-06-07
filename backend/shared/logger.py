@@ -1,19 +1,19 @@
 """
-Logger estructurado JSON con propagación de contexto por invocación.
+Structured JSON logger with per-invocation context propagation.
 
-Problema resuelto: `bind()` en el handler debe aparecer en logs de TODOS los módulos
-(use_cases, repositorios, etc.) sin pasarles el contexto manualmente.
+Problem solved: `bind()` in the handler must appear in logs from ALL modules
+(use_cases, repositories, etc.) without passing the context manually.
 
-Solución: `contextvars.ContextVar` — el contexto es por ejecución, no global.
-En Lambda (ejecución síncrona), cada invocación tiene su propio contexto
-que se inicializa en el decorator @lambda_handler.
+Solution: `contextvars.ContextVar` — context is per execution, not global.
+In Lambda (synchronous execution) each invocation has its own context,
+initialized in the @lambda_handler decorator.
 
-Uso:
+Usage:
     from shared.logger import get_logger
     _log = get_logger(__name__)
-    _log.info("tenant creado", tenant_id="t-123")   # request_id aparece automáticamente
+    _log.info("tenant created", tenant_id="t-123")   # request_id appears automatically
 
-Para propagar contexto desde el handler (lo hace @lambda_handler automáticamente):
+To propagate context from the handler (@lambda_handler does this automatically):
     from shared.logger import bind_invocation_context
     bind_invocation_context(request_id="...", tenant_id="...", user_id="...")
 """
@@ -28,19 +28,19 @@ from typing import Any
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
-# Contexto por invocación — se propaga a todos los loggers automáticamente
+# Per-invocation context — propagated to all loggers automatically
 _invocation_ctx: ContextVar[dict[str, Any]] = ContextVar(
     "invocation_ctx", default={}
 )
 
 
 def bind_invocation_context(**kwargs: Any) -> None:
-    """Vincula campos al contexto de la invocación actual (request_id, tenant_id, etc.)."""
+    """Bind fields to the current invocation context (request_id, tenant_id, etc.)."""
     _invocation_ctx.set({**_invocation_ctx.get(), **kwargs})
 
 
 def clear_invocation_context() -> None:
-    """Limpia el contexto al inicio de cada invocación Lambda."""
+    """Clear the context at the start of each Lambda invocation."""
     _invocation_ctx.set({})
 
 
@@ -57,7 +57,7 @@ class StructuredLogger:
             self._logger.propagate = False
 
     def bind(self, **kwargs: Any) -> None:
-        """Agrega campos permanentes a ESTE logger (no se propaga a otros módulos)."""
+        """Add permanent fields to THIS logger (not propagated to other modules)."""
         self._ctx.update(kwargs)
 
     def _emit(self, level: str, message: str, **extra: Any) -> None:
@@ -66,9 +66,9 @@ class StructuredLogger:
             "level":     level,
             "logger":    self._name,
             "message":   message,
-            **_invocation_ctx.get(),   # contexto de invocación (request_id, tenant_id…)
-            **self._ctx,               # contexto fijo de este logger
-            **extra,                   # campos extra del llamante
+            **_invocation_ctx.get(),   # invocation context (request_id, tenant_id…)
+            **self._ctx,               # fixed context of this logger
+            **extra,                   # extra fields from the caller
         }
         self._logger.log(
             getattr(logging, level.upper(), logging.INFO),

@@ -1,9 +1,12 @@
 """
-Implementación Brevo del puerto EmailSender.
+Brevo implementation of the EmailSender port.
 
-Usa urllib3 (ya incluida en el bundle via boto3) para evitar dependencias extra.
-El API key se obtiene de Secrets Manager con cache en memoria (TTL 5 min).
-La contraseña temporal NUNCA se loguea en ningún nivel.
+Uses urllib3 (already bundled via boto3) to avoid extra dependencies.
+The API key is fetched from Secrets Manager with an in-memory cache (TTL 5 min).
+The temporary password is NEVER logged at any level.
+
+Note: the HTML email body is in Spanish on purpose — it is user-facing
+content delivered to Ecuadorian customers, not source code.
 """
 from __future__ import annotations
 
@@ -26,7 +29,7 @@ _SENDER_NAME   = env("BREVO_SENDER_NAME",  "CodeLabs Billing")
 _http = urllib3.PoolManager()
 
 
-def _build_html(nombre_rep_legal: str, email: str, temp_password: str) -> str:
+def _build_html(legal_rep_name: str, email: str, temp_password: str) -> str:
     return f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -51,7 +54,7 @@ def _build_html(nombre_rep_legal: str, email: str, temp_password: str) -> str:
           <tr>
             <td style="padding:40px">
               <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
-                Bienvenido, {nombre_rep_legal}
+                Bienvenido, {legal_rep_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
                 Tu cuenta en CodeLabs Billing ha sido creada exitosamente.
@@ -104,15 +107,15 @@ def _build_html(nombre_rep_legal: str, email: str, temp_password: str) -> str:
 
 class BrevoEmailSender(EmailSender):
     def send_welcome(
-        self, *, email: str, nombre_rep_legal: str, temp_password: str
+        self, *, email: str, legal_rep_name: str, temp_password: str
     ) -> None:
         api_key = get_secret(_SECRET_NAME)
 
         payload = {
             "sender":      {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
-            "to":          [{"email": email, "name": nombre_rep_legal}],
+            "to":          [{"email": email, "name": legal_rep_name}],
             "subject":     "Bienvenido a CodeLabs Billing — tus credenciales de acceso",
-            "htmlContent": _build_html(nombre_rep_legal, email, temp_password),
+            "htmlContent": _build_html(legal_rep_name, email, temp_password),
         }
 
         response = _http.request(
@@ -132,6 +135,6 @@ class BrevoEmailSender(EmailSender):
                 status  = response.status,
                 snippet = response.data.decode("utf-8")[:300],
             )
-            raise RuntimeError(f"Brevo respondió {response.status}")
+            raise RuntimeError(f"Brevo responded {response.status}")
 
-        _log.info("Brevo: email enviado", email=email, status=response.status)
+        _log.info("Brevo: email sent", email=email, status=response.status)

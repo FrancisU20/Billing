@@ -1,13 +1,13 @@
 """
 Worker: tenant onboarding.
 
-Triggered por: SQS ← TenantCreatedEvent (vía OutboxRelayWorker)
+Triggered by: SQS ← TenantCreatedEvent (via OutboxRelayWorker)
 
-Flujo:
-    TenantCreatedEvent en SQS
-        → OnboardTenantUseCase → crea owner en Cognito (SUPPRESS email nativo)
-        → si usuario fue creado → publica OwnerCreatedEvent a email_notifications queue
-        → email_notifications worker → envía email de bienvenida via Brevo
+Flow:
+    TenantCreatedEvent in SQS
+        → OnboardTenantUseCase → creates owner in Cognito (SUPPRESS native email)
+        → if user was created → publishes OwnerCreatedEvent to email_notifications queue
+        → email_notifications worker → sends welcome email via Brevo
 """
 from __future__ import annotations
 
@@ -35,18 +35,18 @@ def handler(record: SQSRecord, context) -> None:
     event_type = record.body.get("event_type")
 
     if event_type != "TenantCreatedEvent":
-        _log.warning("evento desconocido ignorado", event_type=event_type)
+        _log.warning("unknown event ignored", event_type=event_type)
         return
 
-    data             = record.body.get("data", {})
-    tenant_id        = data.get("tenant_id", "")
-    email            = data.get("email", "")
-    nombre_rep_legal = data.get("nombre_rep_legal", "")
+    data           = record.body.get("data", {})
+    tenant_id      = data.get("tenant_id", "")
+    email          = data.get("email", "")
+    legal_rep_name = data.get("legal_rep_name", "")
 
     temp_password = OnboardTenantUseCase(_identity_provider).execute(
         tenant_id=tenant_id,
         email=email,
-        nombre_rep_legal=nombre_rep_legal,
+        legal_rep_name=legal_rep_name,
     )
 
     if temp_password:
@@ -54,7 +54,7 @@ def handler(record: SQSRecord, context) -> None:
             OwnerCreatedEvent(
                 tenant_id=tenant_id,
                 email=email,
-                nombre_rep_legal=nombre_rep_legal,
+                legal_rep_name=legal_rep_name,
                 temp_password=temp_password,
             )
         )

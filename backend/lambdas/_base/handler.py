@@ -1,16 +1,16 @@
 """
-Decorator @lambda_handler para Lambdas HTTP (API Gateway).
+@lambda_handler decorator for HTTP Lambdas (API Gateway).
 
-Responsabilidades:
-1. Limpia el contexto de la invocación anterior (importante en containers reutilizados)
-2. Parsea el event de API Gateway → objeto Request
-3. Propaga request_id, tenant_id, user_id a TODOS los loggers vía contextvars
-4. Ejecuta la función del Lambda
-5. Captura AppError → devuelve ApiResponse.error con el código correcto
-6. Captura Exception genérica → loguea stacktrace completo → InternalError al cliente
-   (el stacktrace NUNCA viaja al HTTP response, solo a CloudWatch)
+Responsibilities:
+1. Clears the previous invocation context (important in reused containers)
+2. Parses the API Gateway event → Request object
+3. Propagates request_id, tenant_id, user_id to ALL loggers via contextvars
+4. Runs the Lambda function
+5. Catches AppError → returns ApiResponse.error with the correct code
+6. Catches generic Exception → logs full stacktrace → InternalError to the client
+   (the stacktrace NEVER travels to the HTTP response, only to CloudWatch)
 
-Uso:
+Usage:
     from lambdas._base.handler import lambda_handler
 
     @lambda_handler
@@ -45,17 +45,17 @@ def lambda_handler(func: Callable) -> Callable:
                 user_id     = request.user_id,
                 lambda_name = getattr(context, "function_name", "local"),
             )
-            _log.info("request recibido")
+            _log.info("request received")
             result = func(request, context)
-            _log.info("request completado")
+            _log.info("request completed")
             return result
 
         except AppError as exc:
-            _log.warning("error de aplicación", code=exc.code, detail=exc.detail)
+            _log.warning("application error", code=exc.code, detail=exc.detail)
             return ApiResponse.error(exc, request_id)
 
         except Exception:
-            _log.error("error inesperado", exc_info=True)
+            _log.error("unexpected error", exc_info=True)
             return ApiResponse.error(InternalError(), request_id)
 
     return wrapper

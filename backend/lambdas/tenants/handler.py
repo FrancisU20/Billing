@@ -1,18 +1,13 @@
 """
-Lambda de Tenants — entry point AWS.
+Tenants Lambda — AWS entry point.
 
-Rutas:
-    POST   /tenants               crear tenant          (superadmin)
-    GET    /tenants               listar todos          (superadmin)
-    GET    /tenants/{id}          obtener por ID        (superadmin | miembros del tenant)
-    PATCH  /tenants/{id}          actualizar            (superadmin | owner | admin)
-    PATCH  /tenants/{id}/status   cambiar estado        (superadmin)
-    DELETE /tenants/{id}          eliminar (soft)       (superadmin)
-
-El routing usa routeKey de HTTP API Gateway (ej. "POST /tenants").
-Para local dev, el servidor uvicorn construye routeKey manualmente.
-
-Inicialización cold start: clientes boto3 y repositorio se crean fuera del handler.
+Routes:
+    POST   /tenants             create tenant        (superadmin)
+    GET    /tenants             list all             (superadmin)
+    GET    /tenants/{id}        get by ID            (superadmin | tenant members)
+    PATCH  /tenants/{id}        update               (superadmin | owner | admin)
+    PATCH  /tenants/{id}/status change status        (superadmin)
+    DELETE /tenants/{id}        soft delete          (superadmin)
 """
 import re
 
@@ -26,7 +21,7 @@ from lambdas.tenants.domain.commands import (
     ToggleStatusCommand,
     UpdateTenantCommand,
 )
-from lambdas.tenants.domain.enums import EstadoTenant
+from lambdas.tenants.domain.enums import TenantStatus
 from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
 from lambdas.tenants.schemas import (
     CreateTenantRequest,
@@ -43,43 +38,39 @@ from shared.config import env
 from shared.db.client import get_table
 from shared.errors import ForbiddenError, NotFoundError, ValidationError
 
-# ── Cold start — inicializado una sola vez por contenedor ─────────────────────
-_TABLE            = get_table("TENANTS_TABLE")
-_audit_table_name = env("AUDIT_LOG_TABLE", "")
-_AUDIT_TABLE      = get_table("AUDIT_LOG_TABLE") if _audit_table_name else None
-_outbox_table_name = env("OUTBOX_TABLE", "")
-_OUTBOX_TABLE      = get_table("OUTBOX_TABLE") if _outbox_table_name else None
+# ── Cold start ────────────────────────────────────────────────────────────────
+_TABLE        = get_table("TENANTS_TABLE")
+_AUDIT_TABLE  = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
+_OUTBOX_TABLE = get_table("OUTBOX_TABLE")    if env("OUTBOX_TABLE", "")    else None
 
-# ── Factory del repositorio por request (inyecta tenant_id del JWT) ───────────
-def _repo():
+
+def _repo() -> DynamoTenantRepository:
     return DynamoTenantRepository(_TABLE, _AUDIT_TABLE, _OUTBOX_TABLE)
 
 
-def _parse_list_query(query_params: dict) -> ListTenantsQuery:
-    raw_limit = query_params.get("limit", 20)
+def _parse_list_query(params: dict) -> ListTenantsQuery:
     try:
-        limit = int(raw_limit)
+        limit = int(params.get("limit", 20))
     except (TypeError, ValueError) as exc:
         raise ValidationError("limit debe ser un número entero") from exc
-
     if limit < 1:
         raise ValidationError("limit debe ser mayor a cero")
 
-    estado = query_params.get("estado")
-    if estado:
+    status = params.get("status")
+    if status:
         try:
-            EstadoTenant(estado)
+            TenantStatus(status)
         except ValueError as exc:
-            raise ValidationError("estado inválido") from exc
+            raise ValidationError(f"Estado inválido: {status}") from exc
 
     return ListTenantsQuery(
         limit      = min(limit, 100),
-        next_token = query_params.get("next_token"),
-        estado     = estado,
+        next_token = params.get("next_token"),
+        status     = status,
     )
 
 
-# ── Handlers por operación ────────────────────────────────────────────────────
+# ── Handlers ──────────────────────────────────────────────────────────────────
 
 @lambda_handler
 @require_role("superadmin")
@@ -87,14 +78,14 @@ def _parse_list_query(query_params: dict) -> ListTenantsQuery:
 def _create(request: Request, context) -> dict:
     body    = parse(CreateTenantRequest, request.body)
     command = CreateTenantCommand(
-        ruc              = body.ruc,
-        nombre_comercial = body.nombre_comercial,
-        nombre_rep_legal = body.nombre_rep_legal,
-        email            = body.email,
-        telefono         = body.telefono,
-        direccion        = body.direccion,
-        plan             = body.plan,
-        created_by       = request.user_id,
+        ruc            = body.ruc,
+        trade_name     = body.trade_name,
+        legal_rep_name = body.legal_rep_name,
+        email          = body.email,
+        phone          = body.phone,
+        address        = body.address,
+        plan_id        = body.plan_id,
+        created_by     = request.user_id,
     )
     repo = _repo()
     tenant, events = CreateTenantUseCase(repo).execute(command)
@@ -125,11 +116,8 @@ def _list(request: Request, context) -> dict:
 @lambda_handler
 def _get(request: Request, context) -> dict:
     tenant_id = request.path_params.get("id", "")
-
-    # superadmin puede ver cualquier tenant; miembros solo el suyo
     if not request.is_superadmin and request.tenant_id != tenant_id:
         raise ForbiddenError()
-
     tenant = GetTenantUseCase(_repo()).execute(tenant_id)
     return ApiResponse.ok(tenant.to_dict(), request.request_id)
 
@@ -139,21 +127,19 @@ def _get(request: Request, context) -> dict:
 @idempotent
 def _update(request: Request, context) -> dict:
     tenant_id = request.path_params.get("id", "")
-
-    # Non-superadmin solo puede actualizar su propio tenant
     if not request.is_superadmin and request.tenant_id != tenant_id:
         raise ForbiddenError()
 
     body    = parse(UpdateTenantRequest, request.body)
     command = UpdateTenantCommand(
-        tenant_id        = tenant_id,
-        updated_by       = request.user_id,
-        nombre_comercial = body.nombre_comercial,
-        nombre_rep_legal = body.nombre_rep_legal,
-        email            = body.email,
-        telefono         = body.telefono,
-        direccion        = body.direccion,
-        ambiente_sri     = body.ambiente_sri,
+        tenant_id      = tenant_id,
+        updated_by     = request.user_id,
+        trade_name     = body.trade_name,
+        legal_rep_name = body.legal_rep_name,
+        email          = body.email,
+        phone          = body.phone,
+        address        = body.address,
+        sri_environment = body.sri_environment,
     )
     repo = _repo()
     tenant, events = UpdateTenantUseCase(repo).execute(command)
@@ -176,9 +162,9 @@ def _toggle_status(request: Request, context) -> dict:
     tenant_id = request.path_params.get("id", "")
     body      = parse(ToggleStatusRequest, request.body)
     command   = ToggleStatusCommand(
-        tenant_id    = tenant_id,
-        nuevo_estado = body.estado,
-        updated_by   = request.user_id,
+        tenant_id  = tenant_id,
+        new_status = body.status,
+        updated_by = request.user_id,
     )
     repo = _repo()
     tenant, events = ToggleStatusUseCase(repo).execute(command)
@@ -236,5 +222,4 @@ def handler(event: dict, context) -> dict:
         if method == "PATCH":  return _update(event, context)
         if method == "DELETE": return _delete(event, context)
 
-    request_id = ctx.get("requestId", "local")
-    return ApiResponse.error(NotFoundError(), request_id)
+    return ApiResponse.error(NotFoundError(), ctx.get("requestId", "local"))

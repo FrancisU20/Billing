@@ -22,7 +22,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"ruc\": \"1790085783001\",\n  \"nombre_comercial\": \"Empresa Demo SA\",\n  \"nombre_rep_legal\": \"Juan Pérez\",\n  \"email\": \"demo@empresa.com\",\n  \"telefono\": \"0987654321\",\n  \"direccion\": \"Av. Amazonas 123, Quito, Ecuador\",\n  \"plan\": \"basico\"\n}",
+              "raw": "{\n  \"ruc\": \"1790085783001\",\n  \"trade_name\": \"Empresa Demo SA\",\n  \"legal_rep_name\": \"Juan Pérez\",\n  \"email\": \"demo@empresa.com\",\n  \"phone\": \"0987654321\",\n  \"address\": \"Av. Amazonas 123, Quito, Ecuador\",\n  \"plan_id\": \"\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{base_url}}/tenants", "host": ["{{base_url}}"], "path": ["tenants"] }
@@ -52,7 +52,7 @@
               "query": [
                 { "key": "limit",      "value": "20" },
                 { "key": "next_token", "value": "", "disabled": true },
-                { "key": "estado",     "value": "activo", "disabled": true }
+                { "key": "status",     "value": "active", "disabled": true }
               ]
             }
           },
@@ -101,7 +101,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nombre_comercial\": \"Empresa Demo SA Actualizada\",\n  \"email\": \"nuevo@empresa.com\"\n}",
+              "raw": "{\n  \"trade_name\": \"Empresa Demo SA Actualizada\",\n  \"email\": \"nuevo@empresa.com\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -131,7 +131,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"estado\": \"suspendido\"\n}",
+              "raw": "{\n  \"status\": \"suspended\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {

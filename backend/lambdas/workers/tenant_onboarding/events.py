@@ -7,5 +7,5 @@ from shared.domain.events.domain_event import DomainEvent
 class OwnerCreatedEvent(DomainEvent):
     tenant_id:        str = ""
     email:            str = ""
-    nombre_rep_legal: str = ""
+    legal_rep_name: str = ""
     temp_password:    str = ""  # viaja cifrado en SQS SSE; nunca se loguea

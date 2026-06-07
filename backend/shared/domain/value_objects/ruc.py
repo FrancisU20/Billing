@@ -1,12 +1,12 @@
 """
-Value Object: RUC ecuatoriano.
+Value Object: Ecuadorian RUC.
 
-Valida el dígito verificador según el algoritmo del SRI para:
-- Persona natural (tipo 0-5): módulo 10
-- Entidad pública (tipo 6):   módulo 11 con coeficientes de entidad pública
-- Persona jurídica (tipo 9):  módulo 11 con coeficientes de jurídica
+Validates the check digit using the SRI algorithm for:
+- Natural person (type 0-5): modulo 10
+- Public entity   (type 6):  modulo 11 with public-entity coefficients
+- Legal entity    (type 9):  modulo 11 with legal-entity coefficients
 
-Referencia: https://www.sri.gob.ec/web/guest/RUC
+Reference: https://www.sri.gob.ec/web/guest/RUC
 """
 from shared.errors import ValidationError
 
@@ -18,49 +18,49 @@ class RUC:
             raise ValidationError("RUC inválido")
         self.value = value
 
-    # ── validación principal ──────────────────────────────────────────────────
+    # ── main validation ───────────────────────────────────────────────────────
 
     def _is_valid(self, ruc: str) -> bool:
         if not ruc.isdigit() or len(ruc) not in (10, 13):
             return False
-        tercero = int(ruc[2])
-        if tercero < 6:
+        third_digit = int(ruc[2])
+        if third_digit < 6:
             return self._modulo10(ruc[:9], ruc[9])
-        if tercero == 6:
-            return self._modulo11_publico(ruc[:8], ruc[8])
-        if tercero == 9:
-            return self._modulo11_juridico(ruc[:9], ruc[9])
+        if third_digit == 6:
+            return self._modulo11_public(ruc[:8], ruc[8])
+        if third_digit == 9:
+            return self._modulo11_legal(ruc[:9], ruc[9])
         return False
 
-    # ── algoritmos SRI ────────────────────────────────────────────────────────
+    # ── SRI algorithms ────────────────────────────────────────────────────────
 
     @staticmethod
-    def _modulo10(cedula: str, digito: str) -> bool:
+    def _modulo10(base: str, check_digit: str) -> bool:
         coef = [2, 1, 2, 1, 2, 1, 2, 1, 2]
-        suma = sum(
+        total = sum(
             (v - 9 if v >= 10 else v)
-            for v in (int(cedula[i]) * coef[i] for i in range(9))
+            for v in (int(base[i]) * coef[i] for i in range(9))
         )
-        esperado = 0 if suma % 10 == 0 else 10 - suma % 10
-        return esperado == int(digito)
+        expected = 0 if total % 10 == 0 else 10 - total % 10
+        return expected == int(check_digit)
 
     @staticmethod
-    def _modulo11_publico(ruc: str, digito: str) -> bool:
+    def _modulo11_public(ruc: str, check_digit: str) -> bool:
         coef = [3, 2, 7, 6, 5, 4, 3, 2]
-        suma = sum(int(ruc[i]) * coef[i] for i in range(8))
-        res  = suma % 11
-        esperado = 0 if res == 0 else 11 - res
-        return esperado == int(digito)
+        total = sum(int(ruc[i]) * coef[i] for i in range(8))
+        remainder = total % 11
+        expected = 0 if remainder == 0 else 11 - remainder
+        return expected == int(check_digit)
 
     @staticmethod
-    def _modulo11_juridico(ruc: str, digito: str) -> bool:
+    def _modulo11_legal(ruc: str, check_digit: str) -> bool:
         coef = [4, 3, 2, 7, 6, 5, 4, 3, 2]
-        suma = sum(int(ruc[i]) * coef[i] for i in range(9))
-        res  = suma % 11
-        esperado = 0 if res == 0 else 11 - res
-        return esperado == int(digito)
+        total = sum(int(ruc[i]) * coef[i] for i in range(9))
+        remainder = total % 11
+        expected = 0 if remainder == 0 else 11 - remainder
+        return expected == int(check_digit)
 
-    # ── comparación y representación ─────────────────────────────────────────
+    # ── comparison and representation ─────────────────────────────────────────
 
     def __str__(self)  -> str:  return self.value
     def __repr__(self) -> str:  return f"RUC({self.value!r})"

@@ -1,10 +1,10 @@
 """
-Servidor local — simula API Gateway HTTP API + Lambda Authorizer.
+Local server — simulates API Gateway HTTP API + Lambda Authorizer.
 
-En local, el trigger SQS no existe. Por defecto los workers no corren inline;
-se pueden activar con LOCAL_RUN_WORKERS_INLINE=true para pruebas puntuales.
+Locally there is no SQS trigger. By default workers do not run inline;
+enable them with LOCAL_RUN_WORKERS_INLINE=true for targeted testing.
 
-Arranque: make run
+Start: make run
 """
 from __future__ import annotations
 
@@ -34,11 +34,13 @@ from event_builder import build_event
 from context import LocalContext
 
 import lambdas.tenants.handler as tenants_handler
+import lambdas.plans.handler as plans_handler
 # import lambdas.auth.handler as auth_handler
 # import lambdas.clients.handler as clients_handler
 
 _LAMBDA_ROUTES: list[tuple[re.Pattern, object]] = [
     (re.compile(r"^/tenants(/.*)?$"), tenants_handler),
+    (re.compile(r"^/plans(/.*)?$"),   plans_handler),
     # (re.compile(r"^/auth(/.*)?$"),    auth_handler),
     # (re.compile(r"^/clients(/.*)?$"), clients_handler),
 ]
@@ -53,15 +55,15 @@ def _find_handler(path: str):
 
 def _trigger_workers(path: str, method: str, response_body: dict) -> None:
     """
-    Llama workers inline solo si LOCAL_RUN_WORKERS_INLINE=true.
-    En producción el flujo es: outbox → OutboxRelay → SQS → Lambda.
+    Runs workers inline only if LOCAL_RUN_WORKERS_INLINE=true.
+    In production the flow is: outbox → OutboxRelay → SQS → Lambda.
 
-    Flujo de notificaciones en local:
-      tenant_onboarding corre inline → crea usuario en Cognito (AWS real)
-                                     → publica OwnerCreatedEvent a EMAIL_NOTIFICATIONS_QUEUE_URL
-      Si EMAIL_NOTIFICATIONS_QUEUE_URL está configurada → la Lambda desplegada
-      procesa el mensaje y envía el email via Brevo.
-      Si está vacía → el evento se descarta y no se envía email (desarrollo sin email).
+    Local notifications flow:
+      tenant_onboarding runs inline → creates the user in Cognito (real AWS)
+                                    → publishes OwnerCreatedEvent to EMAIL_NOTIFICATIONS_QUEUE_URL
+      If EMAIL_NOTIFICATIONS_QUEUE_URL is set → the deployed Lambda
+      processes the message and sends the email via Brevo.
+      If empty → the event is dropped and no email is sent (dev without email).
     """
     if os.environ.get("LOCAL_RUN_WORKERS_INLINE", "false").lower() != "true":
         return
@@ -79,18 +81,18 @@ def _trigger_workers(path: str, method: str, response_body: dict) -> None:
                     "event_id":    str(uuid.uuid4()),
                     "occurred_at": data.get("created_at", ""),
                     "data": {
-                        "tenant_id":        data.get("id", ""),
-                        "ruc":              data.get("ruc", ""),
-                        "email":            data.get("email", ""),
-                        "nombre_rep_legal": data.get("nombre_rep_legal", ""),
+                        "tenant_id":      data.get("id", ""),
+                        "ruc":            data.get("ruc", ""),
+                        "email":          data.get("email", ""),
+                        "legal_rep_name": data.get("legal_rep_name", ""),
                     },
                 }),
                 "attributes": {},
             }]
         }
         onboarding_worker.handler(sqs_event, LocalContext())
-        # email_notifications se dispara vía SQS real (EMAIL_NOTIFICATIONS_QUEUE_URL)
-        # cuando el Lambda está desplegado. En local sin deploy, el evento se descarta.
+        # email_notifications is triggered via real SQS (EMAIL_NOTIFICATIONS_QUEUE_URL)
+        # when the Lambda is deployed. Locally without deploy, the event is dropped.
 
 
 app = FastAPI(title="CodeLabs Billing — Local", version="1.0.0")
@@ -109,7 +111,7 @@ async def proxy(request: Request, path: str) -> Response:
 
     if handler is None:
         return Response(
-            content     = json.dumps({"success": False, "error": {"code": "NOT_FOUND", "message": f"Ruta no registrada: {full_path}"}}),
+            content     = json.dumps({"success": False, "error": {"code": "NOT_FOUND", "message": f"Ruta no registrada: {full_path}"}}),  # noqa: client-facing ES
             status_code = 404,
             media_type  = "application/json",
         )
@@ -121,13 +123,13 @@ async def proxy(request: Request, path: str) -> Response:
     ctx    = LocalContext()
     result = handler.handler(event, ctx)
 
-    # Llamar workers inline después de operaciones exitosas
+    # Run workers inline after successful operations
     if result.get("statusCode", 0) in (200, 201):
         try:
             response_body = json.loads(result.get("body", "{}"))
             _trigger_workers(full_path, request.method, response_body)
         except Exception:
-            print("Worker local falló después de la respuesta HTTP:")
+            print("Local worker failed after the HTTP response:")
             traceback.print_exc()
 
     return Response(

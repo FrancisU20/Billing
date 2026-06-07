@@ -1,15 +1,15 @@
 """
-Jerarquía de entidades base del dominio.
+Base domain entity hierarchy.
 
-GlobalEntity      — entidades raíz del sistema sin dueño (Tenant, Plan, etc.)
-TenantScopedEntity — entidades que pertenecen a un tenant (Client, Invoice, etc.)
+GlobalEntity       — root system entities with no owner (Tenant, Plan, etc.)
+TenantScopedEntity — entities that belong to a tenant (Client, Invoice, etc.)
 
-Árbol de herencia:
+Inheritance tree:
     GlobalEntity
         └── TenantScopedEntity
 
-Regla: todo repositorio que use BaseRepository debe recibir TenantScopedEntity.
-       Los repositorios de GlobalEntity (ej. TenantRepository) son standalone.
+Rule: every repository that uses BaseRepository must receive a TenantScopedEntity.
+      GlobalEntity repositories (e.g. TenantRepository) are standalone.
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def _uuid() -> str:
 
 @dataclass
 class GlobalEntity:
-    """Base para entidades globales — sin aislamiento de tenant."""
+    """Base for global entities — no tenant isolation."""
     id:         str      = field(default_factory=_uuid)
     created_at: datetime = field(default_factory=_now)
     updated_at: datetime = field(default_factory=_now)
@@ -40,13 +40,13 @@ class GlobalEntity:
     deleted_by: str | None      = None
 
     def touch(self, updated_by: str) -> None:
-        """Registra una modificación — incrementa versión y timestamp."""
+        """Record a modification — increments version and timestamp."""
         self.updated_at = _now()
         self.updated_by = updated_by
         self.version   += 1
 
     def soft_delete(self, deleted_by: str) -> None:
-        """Marca como eliminado sin borrar el registro físico."""
+        """Mark as deleted without physically removing the record."""
         self.deleted    = True
         self.deleted_at = _now()
         self.deleted_by = deleted_by
@@ -55,11 +55,11 @@ class GlobalEntity:
 
 @dataclass
 class TenantScopedEntity(GlobalEntity):
-    """Base para entidades que pertenecen a un tenant específico."""
+    """Base for entities that belong to a specific tenant."""
     tenant_id: str = ""
 
     def __post_init__(self) -> None:
         if not self.tenant_id:
             raise ValueError(
-                f"{self.__class__.__name__}.tenant_id es requerido"
+                f"{self.__class__.__name__}.tenant_id is required"
             )

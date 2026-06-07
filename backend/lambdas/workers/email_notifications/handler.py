@@ -1,18 +1,18 @@
 """
 Worker: email notifications.
 
-Triggered por: SQS ← OwnerCreatedEvent (emitido por tenant_onboarding worker)
+Triggered by: SQS ← OwnerCreatedEvent (emitted by tenant_onboarding worker)
 
-Flujo:
-    OwnerCreatedEvent en SQS
-        → extrae email, nombre_rep_legal, temp_password
-        → SendWelcomeEmailUseCase → envía email de bienvenida via Brevo
-        → usuario recibe credenciales de acceso inicial
+Flow:
+    OwnerCreatedEvent in SQS
+        → extracts email, legal_rep_name, temp_password
+        → SendWelcomeEmailUseCase → sends welcome email via Brevo
+        → user receives initial access credentials
 
-Eventos reconocidos:
-    OwnerCreatedEvent — welcome email al owner de un tenant recién creado
+Recognized events:
+    OwnerCreatedEvent — welcome email to the owner of a newly created tenant
 
-Cualquier evento desconocido se ignora (no suma al batch failure).
+Any unknown event is ignored (does not count as a batch failure).
 """
 from __future__ import annotations
 
@@ -34,12 +34,12 @@ def handler(record: SQSRecord, context) -> None:
     event_type = record.body.get("event_type")
 
     if event_type != "OwnerCreatedEvent":
-        _log.warning("evento desconocido ignorado", event_type=event_type)
+        _log.warning("unknown event ignored", event_type=event_type)
         return
 
     data = record.body.get("data", {})
     SendWelcomeEmailUseCase(_email_sender).execute(
-        email            = data.get("email", ""),
-        nombre_rep_legal = data.get("nombre_rep_legal", ""),
-        temp_password    = data.get("temp_password", ""),
+        email          = data.get("email", ""),
+        legal_rep_name = data.get("legal_rep_name", ""),
+        temp_password  = data.get("temp_password", ""),
     )

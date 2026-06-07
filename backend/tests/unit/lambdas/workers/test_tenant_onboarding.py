@@ -46,48 +46,48 @@ class OnboardTenantUseCaseTests(unittest.TestCase):
     def setUp(self) -> None:
         clear_invocation_context()
 
-    def test_retorna_temp_password_cuando_owner_es_creado(self) -> None:
+    def test_returns_temp_password_when_owner_created(self) -> None:
         idp = FakeIdentityProvider()
         result = OnboardTenantUseCase(idp).execute(
             tenant_id="tenant-1",
             email="owner@codelabs.com",
-            nombre_rep_legal="Owner",
+            legal_rep_name="Owner",
         )
         self.assertIsNotNone(result)
         self.assertGreaterEqual(len(result), 16)
         self.assertEqual(len(idp.created_owners), 1)
 
-    def test_retorna_none_cuando_usuario_ya_existe(self) -> None:
+    def test_returns_none_when_user_already_exists(self) -> None:
         idp = FakeIdentityProvider(already_exists=True)
         result = OnboardTenantUseCase(idp).execute(
             tenant_id="tenant-1",
             email="owner@codelabs.com",
-            nombre_rep_legal="Owner",
+            legal_rep_name="Owner",
         )
         self.assertIsNone(result)
 
-    def test_lanza_validacion_si_falta_tenant_id(self) -> None:
+    def test_raises_validation_when_tenant_id_missing(self) -> None:
         with self.assertRaises(ValidationError):
             OnboardTenantUseCase(FakeIdentityProvider()).execute(
                 tenant_id="",
                 email="owner@codelabs.com",
-                nombre_rep_legal="Owner",
+                legal_rep_name="Owner",
             )
 
-    def test_lanza_validacion_si_falta_email(self) -> None:
+    def test_raises_validation_when_email_missing(self) -> None:
         with self.assertRaises(ValidationError):
             OnboardTenantUseCase(FakeIdentityProvider()).execute(
                 tenant_id="tenant-1",
                 email="",
-                nombre_rep_legal="Owner",
+                legal_rep_name="Owner",
             )
 
-    def test_temp_password_cumple_politica_cognito(self) -> None:
+    def test_temp_password_meets_cognito_policy(self) -> None:
         idp = FakeIdentityProvider()
         pwd = OnboardTenantUseCase(idp).execute(
             tenant_id="tenant-1",
             email="owner@codelabs.com",
-            nombre_rep_legal="Owner",
+            legal_rep_name="Owner",
         )
         self.assertTrue(any(c.isupper() for c in pwd))
         self.assertTrue(any(c.islower() for c in pwd))
@@ -118,7 +118,7 @@ class TenantOnboardingHandlerTests(unittest.TestCase):
             }]
         }
 
-    def test_crea_owner_y_publica_owner_created_event(self) -> None:
+    def test_creates_owner_and_publishes_owner_created_event(self) -> None:
         mod = self._load_handler_module()
         idp       = FakeIdentityProvider()
         publisher = FakeEventPublisher()
@@ -129,7 +129,7 @@ class TenantOnboardingHandlerTests(unittest.TestCase):
             self._make_sqs_event({
                 "tenant_id":        "tenant-1",
                 "email":            "owner@codelabs.com",
-                "nombre_rep_legal": "Owner Apellido",
+                "legal_rep_name": "Owner Apellido",
             }),
             LambdaContext(),
         )
@@ -143,7 +143,7 @@ class TenantOnboardingHandlerTests(unittest.TestCase):
         self.assertEqual(event.email, "owner@codelabs.com")
         self.assertGreater(len(event.temp_password), 0)
 
-    def test_no_publica_evento_si_usuario_ya_existe(self) -> None:
+    def test_does_not_publish_event_when_user_exists(self) -> None:
         mod = self._load_handler_module()
         idp       = FakeIdentityProvider(already_exists=True)
         publisher = FakeEventPublisher()
@@ -154,7 +154,7 @@ class TenantOnboardingHandlerTests(unittest.TestCase):
             self._make_sqs_event({
                 "tenant_id": "tenant-1",
                 "email":     "owner@codelabs.com",
-                "nombre_rep_legal": "Owner",
+                "legal_rep_name": "Owner",
             }),
             LambdaContext(),
         )
@@ -162,7 +162,7 @@ class TenantOnboardingHandlerTests(unittest.TestCase):
         self.assertEqual(result, {"batchItemFailures": []})
         self.assertEqual(publisher.published, [])
 
-    def test_ignora_eventos_desconocidos(self) -> None:
+    def test_ignores_unknown_events(self) -> None:
         mod = self._load_handler_module()
         publisher = FakeEventPublisher()
         mod._event_publisher = publisher

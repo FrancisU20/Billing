@@ -23,13 +23,13 @@ class FakeEmailSender(EmailSender):
         self._should_fail = should_fail
 
     def send_welcome(
-        self, *, email: str, nombre_rep_legal: str, temp_password: str
+        self, *, email: str, legal_rep_name: str, temp_password: str
     ) -> None:
         if self._should_fail:
-            raise RuntimeError("Brevo no disponible")
+            raise RuntimeError("Brevo unavailable")
         self.sent.append({
             "email":            email,
-            "nombre_rep_legal": nombre_rep_legal,
+            "legal_rep_name": legal_rep_name,
             "temp_password":    temp_password,
         })
 
@@ -40,41 +40,41 @@ class SendWelcomeEmailUseCaseTests(unittest.TestCase):
     def setUp(self) -> None:
         clear_invocation_context()
 
-    def test_llama_email_sender_con_datos_correctos(self) -> None:
+    def test_calls_email_sender_with_correct_data(self) -> None:
         sender = FakeEmailSender()
         SendWelcomeEmailUseCase(sender).execute(
             email="owner@empresa.com",
-            nombre_rep_legal="Juan Pérez",
+            legal_rep_name="Juan Pérez",
             temp_password="Temp#1234!XY",
         )
         self.assertEqual(len(sender.sent), 1)
         sent = sender.sent[0]
         self.assertEqual(sent["email"], "owner@empresa.com")
-        self.assertEqual(sent["nombre_rep_legal"], "Juan Pérez")
+        self.assertEqual(sent["legal_rep_name"], "Juan Pérez")
         self.assertEqual(sent["temp_password"], "Temp#1234!XY")
 
-    def test_lanza_validacion_si_email_vacio(self) -> None:
+    def test_raises_validation_when_email_empty(self) -> None:
         with self.assertRaises(ValidationError):
             SendWelcomeEmailUseCase(FakeEmailSender()).execute(
                 email="",
-                nombre_rep_legal="Juan",
+                legal_rep_name="Juan",
                 temp_password="Temp#1234!XY",
             )
 
-    def test_lanza_validacion_si_password_vacio(self) -> None:
+    def test_raises_validation_when_password_empty(self) -> None:
         with self.assertRaises(ValidationError):
             SendWelcomeEmailUseCase(FakeEmailSender()).execute(
                 email="owner@empresa.com",
-                nombre_rep_legal="Juan",
+                legal_rep_name="Juan",
                 temp_password="",
             )
 
-    def test_fallo_de_brevo_lanza_internal_error(self) -> None:
+    def test_brevo_failure_raises_internal_error(self) -> None:
         sender = FakeEmailSender(should_fail=True)
         with self.assertRaises(InternalError):
             SendWelcomeEmailUseCase(sender).execute(
                 email="owner@empresa.com",
-                nombre_rep_legal="Juan",
+                legal_rep_name="Juan",
                 temp_password="Temp#1234!XY",
             )
         self.assertEqual(sender.sent, [])
@@ -101,7 +101,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
             }]
         }
 
-    def test_procesa_owner_created_event_y_envia_email(self) -> None:
+    def test_processes_owner_created_event_and_sends_email(self) -> None:
         mod    = self._load_handler_module()
         sender = FakeEmailSender()
         mod._email_sender = sender
@@ -109,7 +109,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         result = mod.handler(
             self._make_sqs_event({
                 "email":            "owner@empresa.com",
-                "nombre_rep_legal": "Juan Pérez",
+                "legal_rep_name": "Juan Pérez",
                 "temp_password":    "Temp#1234!XY",
             }),
             LambdaContext(),
@@ -119,7 +119,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         self.assertEqual(len(sender.sent), 1)
         self.assertEqual(sender.sent[0]["email"], "owner@empresa.com")
 
-    def test_ignora_eventos_desconocidos_sin_error(self) -> None:
+    def test_ignores_unknown_events_without_error(self) -> None:
         mod    = self._load_handler_module()
         sender = FakeEmailSender()
         mod._email_sender = sender
@@ -132,7 +132,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         self.assertEqual(result, {"batchItemFailures": []})
         self.assertEqual(sender.sent, [])
 
-    def test_fallo_de_brevo_marca_record_como_batch_failure(self) -> None:
+    def test_brevo_failure_marks_record_as_batch_failure(self) -> None:
         mod    = self._load_handler_module()
         sender = FakeEmailSender(should_fail=True)
         mod._email_sender = sender
@@ -140,7 +140,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         result = mod.handler(
             self._make_sqs_event({
                 "email":            "owner@empresa.com",
-                "nombre_rep_legal": "Juan",
+                "legal_rep_name": "Juan",
                 "temp_password":    "Temp#1234!XY",
             }),
             LambdaContext(),
@@ -149,12 +149,12 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         self.assertEqual(len(result["batchItemFailures"]), 1)
         self.assertEqual(result["batchItemFailures"][0]["itemIdentifier"], "msg-1")
 
-    def test_partial_batch_failure_solo_falla_records_erroneos(self) -> None:
+    def test_partial_batch_failure_only_fails_bad_records(self) -> None:
         mod = self._load_handler_module()
         calls: list[str] = []
 
         class PartialFakeSender(EmailSender):
-            def send_welcome(self, *, email, nombre_rep_legal, temp_password):
+            def send_welcome(self, *, email, legal_rep_name, temp_password):
                 calls.append(email)
                 if email == "bad@empresa.com":
                     raise RuntimeError("Brevo timeout")
@@ -170,7 +170,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                             "event_type": "OwnerCreatedEvent",
                             "data": {
                                 "email": "ok@empresa.com",
-                                "nombre_rep_legal": "OK",
+                                "legal_rep_name": "OK",
                                 "temp_password": "P#1aB2cD3eF",
                             },
                         }),
@@ -181,7 +181,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                             "event_type": "OwnerCreatedEvent",
                             "data": {
                                 "email": "bad@empresa.com",
-                                "nombre_rep_legal": "Bad",
+                                "legal_rep_name": "Bad",
                                 "temp_password": "P#1aB2cD3eF",
                             },
                         }),

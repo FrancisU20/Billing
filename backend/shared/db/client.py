@@ -1,12 +1,12 @@
 """
-Cliente DynamoDB — singleton inicializado en cold start.
+DynamoDB client — singleton initialized at cold start.
 
-Usa siempre el endpoint regional de AWS resuelto por boto3 con las credenciales
-del ambiente actual. En local se trabaja contra las tablas dev reales.
+Always uses the regional AWS endpoint resolved by boto3 with the current
+environment's credentials. Locally it works against the real dev tables.
 
-Uso:
+Usage:
     from shared.db.client import get_table
-    _table = get_table("TENANTS_TABLE")   # fuera del handler
+    _table = get_table("TENANTS_TABLE")   # outside the handler
 """
 import os
 
@@ -18,10 +18,10 @@ _tables: dict[str, TableResource] = {}
 
 
 def get_table(env_var: str) -> TableResource:
-    """Retorna el Table correspondiente al env_var. Singleton por tabla."""
+    """Return the Table for the given env_var. Singleton per table."""
     if env_var not in _tables:
         table_name = os.environ.get(env_var, "")
         if not table_name:
-            raise RuntimeError(f"Env var '{env_var}' no configurada")
+            raise RuntimeError(f"Env var '{env_var}' not set")
         _tables[env_var] = _dynamodb.Table(table_name)
     return _tables[env_var]

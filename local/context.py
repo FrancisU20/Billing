@@ -1,4 +1,4 @@
-"""Mock del contexto Lambda para ejecución local."""
+"""Mock Lambda context for local execution."""
 from dataclasses import dataclass, field
 from uuid import uuid4
 

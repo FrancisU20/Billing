@@ -93,6 +93,22 @@ class DatabaseStack(Stack):
             removal_policy = removal,
         )
 
+        # ── Plans ──────────────────────────────────────────────────────────────
+        # PK: id (UUID) — FK estable en Tenant.plan_id
+        # GSI slug-index: PK=slug → lookup por slug para rutas públicas
+        self.plans_table = ddb.Table(
+            self, "PlansTable",
+            table_name    = f"codelabs-billing-{env}-plans",
+            partition_key = ddb.Attribute(name="id", type=ddb.AttributeType.STRING),
+            billing_mode  = ddb.BillingMode.PAY_PER_REQUEST,
+            removal_policy = removal,
+        )
+        self.plans_table.add_global_secondary_index(
+            index_name      = "slug-index",
+            partition_key   = ddb.Attribute(name="slug", type=ddb.AttributeType.STRING),
+            projection_type = ddb.ProjectionType.ALL,
+        )
+
         # ── Migrations ─────────────────────────────────────────────────────────
         # PK: id (nombre del script, ej. "0001_create_tables")
         # Trackea qué migraciones de datos corrieron
@@ -120,6 +136,10 @@ class DatabaseStack(Stack):
         CfnOutput(self, "OutboxTableName",
                   value=self.outbox_table.table_name,
                   export_name=f"CodeLabsBilling-{env}-OutboxTableName")
+
+        CfnOutput(self, "PlansTableName",
+                  value=self.plans_table.table_name,
+                  export_name=f"CodeLabsBilling-{env}-PlansTableName")
 
         CfnOutput(self, "MigrationsTableName",
                   value=self.migrations_table.table_name,

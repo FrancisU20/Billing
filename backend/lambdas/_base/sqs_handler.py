@@ -1,13 +1,13 @@
 """
-Decorator @sqs_handler para workers SQS.
+@sqs_handler decorator for SQS workers.
 
-Diferencias con @lambda_handler:
-- El event tiene `Records[]` en lugar de un body HTTP único
-- Cada record se procesa independientemente
-- Soporta partial batch failure: si un record falla, solo ese se reintenta
-- El contexto de invocación se resetea en cada record para evitar contaminación
+Differences from @lambda_handler:
+- The event has `Records[]` instead of a single HTTP body
+- Each record is processed independently
+- Supports partial batch failure: if a record fails, only that one is retried
+- The invocation context is reset on each record to avoid contamination
 
-Uso:
+Usage:
     from lambdas._base.sqs_handler import sqs_handler, SQSRecord
 
     @sqs_handler
@@ -43,8 +43,8 @@ def sqs_handler(func: Callable) -> Callable:
         for raw in records:
             message_id = raw["messageId"]
 
-            # Resetear contexto por record — evita que el message_id
-            # del record anterior contamine los logs del siguiente
+            # Reset context per record — prevents the previous record's
+            # message_id from contaminating the next record's logs
             clear_invocation_context()
             bind_invocation_context(
                 message_id  = message_id,
@@ -59,14 +59,14 @@ def sqs_handler(func: Callable) -> Callable:
                     attributes     = raw.get("attributes", {}),
                 )
                 func(record, context)
-                _log.info("record procesado")
+                _log.info("record processed")
 
             except AppError as exc:
-                _log.warning("error de aplicación en record", code=exc.code)
+                _log.warning("application error in record", code=exc.code)
                 failed_ids.append(message_id)
 
             except Exception:
-                _log.error("error inesperado en record", exc_info=True)
+                _log.error("unexpected error in record", exc_info=True)
                 failed_ids.append(message_id)
 
         return {

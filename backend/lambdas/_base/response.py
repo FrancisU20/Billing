@@ -1,7 +1,7 @@
 """
-Respuestas HTTP estándar para todos los Lambdas.
+Standard HTTP responses for all Lambdas.
 
-Formato único:
+Single format:
     {
         "success": true | false,
         "data":    <payload> | null,
@@ -9,8 +9,8 @@ Formato único:
         "meta":    {"request_id": "...", "timestamp": "..."}
     }
 
-Nunca modificar este formato desde los Lambdas individuales.
-El frontend depende de este contrato.
+Never change this format from individual Lambdas.
+The frontend depends on this contract.
 """
 from __future__ import annotations
 

@@ -1,8 +1,8 @@
 """
-Paginación DynamoDB con cursor opaco (base64 de LastEvaluatedKey).
+DynamoDB pagination with an opaque cursor (base64 of LastEvaluatedKey).
 
-El cliente recibe y envía `next_token` como string opaco.
-Internamente se codifica/decodifica el LastEvaluatedKey de DynamoDB.
+The client receives and sends `next_token` as an opaque string.
+Internally the DynamoDB LastEvaluatedKey is encoded/decoded.
 """
 from __future__ import annotations
 

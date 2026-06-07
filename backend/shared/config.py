@@ -1,16 +1,16 @@
 """
-Helpers para leer variables de entorno.
+Helpers to read environment variables.
 
-Patrón de uso en cada Lambda handler.py (fuera del handler, en cold start):
+Usage pattern in each Lambda handler.py (outside the handler, at cold start):
 
     from shared.config import env, ENV, LOG_LEVEL
 
-    _TABLE  = env("TENANTS_TABLE")          # requerida — falla en cold start si falta
-    _QUEUE  = env("EVENTS_QUEUE_URL", "")   # opcional
+    _TABLE  = env("TENANTS_TABLE")          # required — fails at cold start if missing
+    _QUEUE  = env("EVENTS_QUEUE_URL", "")   # optional
 
-Cada Lambda solo declara las variables que realmente usa.
-No existe un objeto Config global con todas las tablas — eso obligaría a cada Lambda
-a tener env vars que no le corresponden y viola el principio de mínimo privilegio.
+Each Lambda declares only the variables it actually uses.
+There is no global Config object holding all tables — that would force every Lambda
+to carry env vars it does not need and violates the least-privilege principle.
 """
 from __future__ import annotations
 
@@ -19,18 +19,18 @@ import os
 
 def env(name: str, default: str | None = None) -> str:
     """
-    Lee una variable de entorno. Si `default` es None y la variable no existe,
-    lanza RuntimeError inmediatamente (cold start fail-fast).
+    Read an environment variable. If `default` is None and the variable does
+    not exist, raises RuntimeError immediately (cold start fail-fast).
     """
     value = os.environ.get(name, default)
     if value is None:
         raise RuntimeError(
-            f"Variable de entorno requerida no configurada: {name}"
+            f"Required environment variable not set: {name}"
         )
     return value
 
 
-# ── Variables verdaderamente globales (presentes en todos los Lambdas) ────────
+# ── Truly global variables (present in all Lambdas) ───────────────────────────
 
 ENV       = env("ENV",        "dev")
 LOG_LEVEL = env("LOG_LEVEL",  "INFO")

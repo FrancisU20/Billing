@@ -16,11 +16,11 @@ class TenantSuspendedError(BusinessError):
     default_message = "La empresa está suspendida y no puede operar."
 
 
-class TenantInactivoError(BusinessError):
-    code            = "TENANT_INACTIVO"
+class TenantInactiveError(BusinessError):
+    code            = "TENANT_INACTIVE"
     default_message = "La empresa está inactiva."
 
 
-class AmbienteSriInvalidoError(BusinessError):
-    code            = "AMBIENTE_SRI_INVALIDO"
-    default_message = "El ambiente SRI indicado no es válido. Use 'pruebas' o 'produccion'."
+class InvalidSriEnvironmentError(BusinessError):
+    code            = "INVALID_SRI_ENVIRONMENT"
+    default_message = "El ambiente SRI indicado no es válido. Use 'testing' o 'production'."

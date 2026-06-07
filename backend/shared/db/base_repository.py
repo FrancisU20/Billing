@@ -1,26 +1,26 @@
 """
-Repositorio base DynamoDB.
+Base DynamoDB repository.
 
-Proporciona a todos los repositorios concretos:
-- Aislamiento multitenant automático (PK siempre incluye tenant_id)
-- Soft delete — nunca se llama delete_item directamente
-- Optimistic locking con version (ConditionalExpression de boto3)
-- Audit log automático en cada mutación
-- Mapeo de excepciones boto3 → AppError
+Provides every concrete repository with:
+- Automatic multitenant isolation (PK always includes tenant_id)
+- Soft delete — delete_item is never called directly
+- Optimistic locking via version (boto3 ConditionalExpression)
+- Automatic audit log on every mutation
+- boto3 exception → AppError mapping
 
-Convención de claves:
+Key convention:
     PK = "TENANT#{tenant_id}"
     SK = "{PREFIX}#{entity_id}"
 
-Cada repositorio concreto define `_prefix` y los métodos de mapeo
-entidad ↔ ítem DynamoDB (_to_item / _from_item).
+Each concrete repository defines `_prefix` and the mapping methods
+entity ↔ DynamoDB item (_to_item / _from_item).
 
-Nota sobre paginación y soft delete:
-    DynamoDB aplica Limit ANTES de FilterExpression. Por eso el filtro
-    `deleted = false` se envía como FilterExpression (no en Python),
-    lo que reduce el problema pero no lo elimina completamente.
-    Para listas con muchos soft-deleted, usar un GSI con deleted como
-    clave de partición en fases posteriores.
+Note on pagination and soft delete:
+    DynamoDB applies Limit BEFORE FilterExpression. That is why the
+    `deleted = false` filter is sent as a FilterExpression (not in Python),
+    which mitigates the problem but does not fully eliminate it.
+    For lists with many soft-deleted rows, use a GSI with `deleted` as the
+    partition key in later phases.
 """
 from __future__ import annotations
 
@@ -40,16 +40,16 @@ _log = get_logger(__name__)
 
 
 class BaseRepository(ABC):
-    _prefix: str = ""   # Override en subclase: "TENANT", "CLIENT", etc.
+    _prefix: str = ""   # Override in subclass: "TENANT", "CLIENT", etc.
 
     def __init__(self, tenant_id: str, table, audit_table=None) -> None:
         if not tenant_id:
-            raise ValueError("tenant_id es requerido en el repositorio")
+            raise ValueError("tenant_id is required in the repository")
         self._tenant_id   = tenant_id
         self._table       = table
         self._audit_table = audit_table
 
-    # ── claves ────────────────────────────────────────────────────────────────
+    # ── keys ──────────────────────────────────────────────────────────────────
 
     def _pk(self) -> str:
         return f"TENANT#{self._tenant_id}"
@@ -57,7 +57,7 @@ class BaseRepository(ABC):
     def _sk(self, entity_id: str) -> str:
         return f"{self._prefix}#{entity_id}"
 
-    # ── operaciones base ──────────────────────────────────────────────────────
+    # ── base operations ───────────────────────────────────────────────────────
 
     def _get_raw(self, entity_id: str) -> dict | None:
         try:
@@ -78,8 +78,8 @@ class BaseRepository(ABC):
         condition: Any | None = None,
     ) -> None:
         """
-        condition debe ser un objeto de boto3.dynamodb.conditions (Attr/Key),
-        no un string. Ejemplo:
+        condition must be a boto3.dynamodb.conditions object (Attr/Key),
+        not a string. Example:
             Attr("pk").not_exists() | Attr("version").eq(current_version)
         """
         kwargs: dict[str, Any] = {"Item": item}
@@ -101,10 +101,10 @@ class BaseRepository(ABC):
         extra_filter: Any | None = None,
     ) -> tuple[list[dict], str | None]:
         """
-        extra_filter: condición Attr adicional que se combina con el filtro
-        base de soft delete. Ejemplo: Attr("estado").eq("activo")
+        extra_filter: additional Attr condition combined with the base
+        soft-delete filter. Example: Attr("status").eq("active")
         """
-        # Filtro base: excluir soft-deleted a nivel DynamoDB (no en Python)
+        # Base filter: exclude soft-deleted at the DynamoDB level (not in Python)
         base_filter = Attr("deleted").eq(False)
         filter_expr = (
             base_filter & extra_filter if extra_filter is not None else base_filter
@@ -153,14 +153,14 @@ class BaseRepository(ABC):
                 after       = after,
             ))
         except Exception as e:
-            _log.warning("audit log fallido (no bloqueante)", error=str(e))
+            _log.warning("audit log failed (non-blocking)", error=str(e))
 
     # ── abstract ──────────────────────────────────────────────────────────────
 
     @abstractmethod
     def _to_item(self, entity: TenantScopedEntity) -> dict:
-        """Convierte entidad de dominio → ítem DynamoDB."""
+        """Convert domain entity → DynamoDB item."""
 
     @abstractmethod
     def _from_item(self, item: dict) -> TenantScopedEntity:
-        """Convierte ítem DynamoDB → entidad de dominio."""
+        """Convert DynamoDB item → domain entity."""

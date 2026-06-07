@@ -1,8 +1,8 @@
 """
-Construye eventos API Gateway HTTP API v2 a partir de requests HTTP locales.
+Builds API Gateway HTTP API v2 events from local HTTP requests.
 
-También extrae path parameters de rutas conocidas para replicar
-el comportamiento de API Gateway (ej. /tenants/abc-123 → {"id": "abc-123"}).
+Also extracts path parameters from known routes to replicate
+API Gateway behavior (e.g. /tenants/abc-123 → {"id": "abc-123"}).
 """
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ import uuid
 from typing import Any
 
 
-# ── Patrones de extracción de path params ─────────────────────────────────────
-# Orden: más específico primero
+# ── Path param extraction patterns ────────────────────────────────────────────
+# Order: most specific first
 
 _PATH_PARAM_PATTERNS: list[tuple[re.Pattern, list[str]]] = [
     (re.compile(r"^/tenants/([^/]+)/status$"), ["id"]),
     (re.compile(r"^/tenants/([^/]+)$"),        ["id"]),
-    # Agregar patrones de nuevos Lambdas aquí:
-    # (re.compile(r"^/clients/([^/]+)$"), ["id"]),
+    (re.compile(r"^/plans/([^/]+)/status$"),   ["id"]),
+    (re.compile(r"^/plans/([^/]+)$"),          ["id"]),
 ]
 
 
@@ -39,9 +39,9 @@ def build_event(
     body:        bytes,
 ) -> dict[str, Any]:
     """
-    Construye el evento en formato HTTP API Gateway v2.
-    Los claims JWT se inyectan desde variables de entorno del .env local.
-    En local nunca hay un JWT real — las credenciales vienen del .env.
+    Builds the event in HTTP API Gateway v2 format.
+    JWT claims are injected from the local .env environment variables.
+    Locally there is never a real JWT — credentials come from .env.
     """
     claims: dict[str, str] = {
         "sub":                     os.environ.get("LOCAL_USER_ID",       "local-superadmin"),

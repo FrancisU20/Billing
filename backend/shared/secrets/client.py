@@ -1,10 +1,10 @@
 """
-Cliente de Secrets Manager con cache en memoria (TTL configurable).
+Secrets Manager client with in-memory cache (configurable TTL).
 
-El secreto se obtiene UNA vez por contenedor Lambda y se cachea.
-Pasado el TTL se refresca automáticamente en la siguiente llamada.
+The secret is fetched ONCE per Lambda container and cached.
+After the TTL it is refreshed automatically on the next call.
 
-Uso:
+Usage:
     from shared.secrets.client import get_secret, get_secret_json
     api_key = get_secret("codelabs-billing/dev/email/brevo")
     creds   = get_secret_json("codelabs-billing/dev/db/master")
@@ -27,7 +27,7 @@ def get_secret(name: str, ttl_minutes: int = 5) -> str:
         if datetime.now(timezone.utc) - fetched_at < timedelta(minutes=ttl_minutes):
             return value
 
-    _log.info("obteniendo secreto de Secrets Manager", name=name)
+    _log.info("fetching secret from Secrets Manager", name=name)
     resp  = _client.get_secret_value(SecretId=name)
     value = resp["SecretString"]
     _cache[name] = (value, datetime.now(timezone.utc))

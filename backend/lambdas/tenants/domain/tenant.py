@@ -1,12 +1,3 @@
-"""
-Entidad Tenant — empresa que usa el SaaS de facturación.
-
-Hereda GlobalEntity (no TenantScopedEntity) porque el tenant
-ES la raíz del sistema, no pertenece a otro tenant.
-
-Toda validación de negocio vive aquí — las RUC, Email son value objects
-que lanzan ValidationError si el dato es inválido.
-"""
 from dataclasses import dataclass, field
 
 from shared.domain.base_entity import GlobalEntity
@@ -14,85 +5,91 @@ from shared.domain.value_objects.email import Email
 from shared.domain.value_objects.ruc import RUC
 
 from lambdas.tenants.domain.commands import CreateTenantCommand, UpdateTenantCommand
-from lambdas.tenants.domain.enums import AmbienteSri, EstadoTenant
-from lambdas.tenants.domain.errors import AmbienteSriInvalidoError
+from lambdas.tenants.domain.enums import SriEnvironment, TenantStatus, PlanStatus
+from lambdas.tenants.domain.errors import InvalidSriEnvironmentError
 
 
 @dataclass
 class Tenant(GlobalEntity):
-    ruc:              str = ""
-    nombre_comercial: str = ""
-    nombre_rep_legal: str = ""
-    email:            str = ""
-    telefono:         str = ""
-    direccion:        str = ""
-    ambiente_sri:     AmbienteSri  = field(default=AmbienteSri.PRUEBAS)
-    estado:           EstadoTenant = field(default=EstadoTenant.ACTIVO)
-    plan:             str = "basico"
+    ruc:             str = ""
+    trade_name:      str = ""
+    legal_rep_name:  str = ""
+    email:           str = ""
+    phone:           str = ""
+    address:         str = ""
+    sri_environment: SriEnvironment = field(default=SriEnvironment.TESTING)
+    status:          TenantStatus   = field(default=TenantStatus.ACTIVE)
+    plan_id:         str            = ""
+    plan_status:     PlanStatus     = field(default=PlanStatus.ACTIVE)
+    trial_ends_at:   "datetime | None" = None
 
     # ── factory ───────────────────────────────────────────────────────────────
 
     @classmethod
     def create(cls, cmd: CreateTenantCommand) -> "Tenant":
-        ruc   = RUC(cmd.ruc)     # lanza ValidationError si RUC inválido
-        email = Email(cmd.email) # lanza ValidationError si email inválido
+        ruc   = RUC(cmd.ruc)
+        email = Email(cmd.email)
         return cls(
-            ruc              = str(ruc),
-            nombre_comercial = cmd.nombre_comercial.strip(),
-            nombre_rep_legal = cmd.nombre_rep_legal.strip(),
-            email            = str(email),
-            telefono         = cmd.telefono.strip(),
-            direccion        = cmd.direccion.strip(),
-            ambiente_sri     = AmbienteSri.PRUEBAS,  # siempre inicia en pruebas
-            estado           = EstadoTenant.ACTIVO,
-            plan             = cmd.plan,
-            created_by       = cmd.created_by,
-            updated_by       = cmd.created_by,
+            ruc             = str(ruc),
+            trade_name      = cmd.trade_name.strip(),
+            legal_rep_name  = cmd.legal_rep_name.strip(),
+            email           = str(email),
+            phone           = cmd.phone.strip(),
+            address         = cmd.address.strip(),
+            sri_environment = SriEnvironment.TESTING,
+            status          = TenantStatus.ACTIVE,
+            plan_id         = cmd.plan_id,
+            plan_status     = PlanStatus.ACTIVE,
+            trial_ends_at   = None,
+            created_by      = cmd.created_by,
+            updated_by      = cmd.created_by,
         )
 
-    # ── comportamiento de dominio ─────────────────────────────────────────────
+    # ── domain behaviour ──────────────────────────────────────────────────────
 
     def update(self, cmd: UpdateTenantCommand) -> None:
-        if cmd.nombre_comercial is not None:
-            self.nombre_comercial = cmd.nombre_comercial.strip()
-        if cmd.nombre_rep_legal is not None:
-            self.nombre_rep_legal = cmd.nombre_rep_legal.strip()
+        if cmd.trade_name is not None:
+            self.trade_name = cmd.trade_name.strip()
+        if cmd.legal_rep_name is not None:
+            self.legal_rep_name = cmd.legal_rep_name.strip()
         if cmd.email is not None:
             self.email = str(Email(cmd.email))
-        if cmd.telefono is not None:
-            self.telefono = cmd.telefono.strip()
-        if cmd.direccion is not None:
-            self.direccion = cmd.direccion.strip()
-        if cmd.ambiente_sri is not None:
+        if cmd.phone is not None:
+            self.phone = cmd.phone.strip()
+        if cmd.address is not None:
+            self.address = cmd.address.strip()
+        if cmd.sri_environment is not None:
             try:
-                self.ambiente_sri = AmbienteSri(cmd.ambiente_sri)
+                self.sri_environment = SriEnvironment(cmd.sri_environment)
             except ValueError:
-                raise AmbienteSriInvalidoError()
+                raise InvalidSriEnvironmentError()
         self.touch(cmd.updated_by)
 
-    def cambiar_estado(self, nuevo_estado: EstadoTenant, updated_by: str) -> None:
-        self.estado = nuevo_estado
+    def change_status(self, new_status: TenantStatus, updated_by: str) -> None:
+        self.status = new_status
         self.touch(updated_by)
 
-    def es_activo(self) -> bool:
-        return self.estado == EstadoTenant.ACTIVO
+    def is_active(self) -> bool:
+        return self.status == TenantStatus.ACTIVE
 
-    # ── serialización ─────────────────────────────────────────────────────────
+    # ── serialisation ─────────────────────────────────────────────────────────
 
     def to_dict(self) -> dict:
         return {
-            "id":               self.id,
-            "ruc":              self.ruc,
-            "nombre_comercial": self.nombre_comercial,
-            "nombre_rep_legal": self.nombre_rep_legal,
-            "email":            self.email,
-            "telefono":         self.telefono,
-            "direccion":        self.direccion,
-            "ambiente_sri":     self.ambiente_sri.value,
-            "estado":           self.estado.value,
-            "plan":             self.plan,
-            "created_at":       self.created_at.isoformat(),
-            "updated_at":       self.updated_at.isoformat(),
-            "created_by":       self.created_by,
-            "version":          self.version,
+            "id":              self.id,
+            "ruc":             self.ruc,
+            "trade_name":      self.trade_name,
+            "legal_rep_name":  self.legal_rep_name,
+            "email":           self.email,
+            "phone":           self.phone,
+            "address":         self.address,
+            "sri_environment": self.sri_environment.value,
+            "status":          self.status.value,
+            "plan_id":         self.plan_id,
+            "plan_status":     self.plan_status.value,
+            "trial_ends_at":   self.trial_ends_at.isoformat() if self.trial_ends_at else None,
+            "created_at":      self.created_at.isoformat(),
+            "updated_at":      self.updated_at.isoformat(),
+            "created_by":      self.created_by,
+            "version":         self.version,
         }

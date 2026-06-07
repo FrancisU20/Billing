@@ -1,4 +1,4 @@
-"""Construcción centralizada de registros de auditoría."""
+"""Centralized construction of audit records."""
 from __future__ import annotations
 
 from datetime import datetime, timezone

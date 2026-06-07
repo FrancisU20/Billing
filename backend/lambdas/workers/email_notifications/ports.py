@@ -1,4 +1,4 @@
-"""Puertos de aplicación para email_notifications."""
+"""Application ports for email_notifications."""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -7,6 +7,6 @@ from abc import ABC, abstractmethod
 class EmailSender(ABC):
     @abstractmethod
     def send_welcome(
-        self, *, email: str, nombre_rep_legal: str, temp_password: str
+        self, *, email: str, legal_rep_name: str, temp_password: str
     ) -> None:
-        """Envía el email de bienvenida al owner recién creado."""
+        """Send the welcome email to the newly created owner."""

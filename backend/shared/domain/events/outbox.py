@@ -1,4 +1,4 @@
-"""Helpers para guardar DomainEvents en outbox transaccional DynamoDB."""
+"""Helpers to persist DomainEvents in a transactional DynamoDB outbox."""
 from __future__ import annotations
 
 import json

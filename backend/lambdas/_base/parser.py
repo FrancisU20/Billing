@@ -1,16 +1,16 @@
 """
-Parser de eventos HTTP API Gateway v2.
+HTTP API Gateway v2 event parser.
 
-Extrae del event:
+Extracts from the event:
 - body (JSON)
 - path_params, query_params, headers
-- Claims JWT: tenant_id, user_id, role, is_superadmin
-- idempotency_key del header X-Idempotency-Key
+- JWT claims: tenant_id, user_id, role, is_superadmin
+- idempotency_key from the X-Idempotency-Key header
 
-Regla de seguridad: tenant_id SIEMPRE viene del JWT — nunca del body.
-Si el token no tiene tenant_id y no es superadmin, se rechaza con AuthError.
+Security rule: tenant_id ALWAYS comes from the JWT — never from the body.
+If the token has no tenant_id and is not superadmin, it is rejected with AuthError.
 
-También provee parse() para validar el body contra un schema Pydantic.
+Also provides parse() to validate the body against a Pydantic schema.
 """
 from __future__ import annotations
 
@@ -114,7 +114,7 @@ class Request:
 
 
 def parse(schema: Type[T], data: dict) -> T:
-    """Valida `data` contra el schema Pydantic dado. Lanza ValidationError si falla."""
+    """Validate `data` against the given Pydantic schema. Raises ValidationError on failure."""
     try:
         return schema.model_validate(data)
     except PydanticValidationError as exc:

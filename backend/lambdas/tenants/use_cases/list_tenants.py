@@ -9,7 +9,7 @@ from lambdas.tenants.domain.tenant import Tenant
 class ListTenantsQuery:
     limit:      int        = 20
     next_token: str | None = None
-    estado:     str | None = None
+    status:     str | None = None
 
 
 class ListTenantsUseCase:
@@ -20,5 +20,5 @@ class ListTenantsUseCase:
         return self._repo.list(
             limit      = query.limit,
             next_token = query.next_token,
-            estado     = query.estado,
+            status     = query.status,
         )

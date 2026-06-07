@@ -1,4 +1,4 @@
-"""Implementación SQS del puerto EventPublisherPort."""
+"""SQS implementation of the EventPublisherPort."""
 from __future__ import annotations
 
 from lambdas.workers.tenant_onboarding.ports import EventPublisherPort

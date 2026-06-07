@@ -1,4 +1,4 @@
-"""Implementación Cognito del puerto IdentityProvider."""
+"""Cognito implementation of the IdentityProvider port."""
 from __future__ import annotations
 
 import boto3
@@ -23,7 +23,7 @@ class CognitoIdentityProvider(IdentityProvider):
                 UserPoolId        = self._user_pool_id,
                 Username          = email,
                 TemporaryPassword = temporary_password,
-                MessageAction     = "SUPPRESS",  # Brevo maneja el email de bienvenida
+                MessageAction     = "SUPPRESS",  # Brevo handles the welcome email
                 UserAttributes    = [
                     {"Name": "email",                "Value": email},
                     {"Name": "email_verified",       "Value": "true"},
@@ -32,9 +32,9 @@ class CognitoIdentityProvider(IdentityProvider):
                     {"Name": "custom:is_superadmin", "Value": "false"},
                 ],
             )
-            _log.info("tenant owner creado en Cognito", tenant_id=tenant_id, email=email)
+            _log.info("tenant owner created in Cognito", tenant_id=tenant_id, email=email)
             return True
 
         except self._idp.exceptions.UsernameExistsException:
-            _log.warning("usuario ya existe en Cognito — email omitido", email=email)
+            _log.warning("user already exists in Cognito — email skipped", email=email)
             return False

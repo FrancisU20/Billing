@@ -1,4 +1,4 @@
-"""Puertos de aplicación para tenant onboarding."""
+"""Application ports for tenant onboarding."""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -11,12 +11,12 @@ class IdentityProvider(ABC):
     def create_owner(
         self, *, tenant_id: str, email: str, temporary_password: str
     ) -> bool:
-        """Crea el usuario owner del tenant.
-        Retorna True si fue creado, False si ya existía.
+        """Create the tenant owner user.
+        Returns True if created, False if it already existed.
         """
 
 
 class EventPublisherPort(ABC):
     @abstractmethod
     def publish(self, event: DomainEvent) -> None:
-        """Publica un evento de dominio a la cola correspondiente."""
+        """Publish a domain event to the corresponding queue."""

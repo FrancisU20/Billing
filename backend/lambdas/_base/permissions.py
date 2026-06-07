@@ -1,15 +1,15 @@
 """
-Decorator @require_role para control de acceso por rol.
+@require_role decorator for role-based access control.
 
-Debe usarse DESPUÉS de @lambda_handler (orden de decoradores: de abajo hacia arriba).
+Must be used AFTER @lambda_handler (decorator order: bottom to top).
 
-Roles disponibles (definidos en Cognito custom:role):
-    superadmin  — acceso global, omite la verificación de rol
-    owner       — dueño del tenant
-    admin       — administrador del tenant
-    viewer      — solo lectura
+Available roles (defined in Cognito custom:role):
+    superadmin  — global access, skips the role check
+    owner       — tenant owner
+    admin       — tenant administrator
+    viewer      — read only
 
-Uso:
+Usage:
     @lambda_handler
     @require_role("owner", "admin")
     def handler(request: Request, context) -> dict:
@@ -29,7 +29,7 @@ def require_role(*allowed_roles: str) -> Callable:
                 return func(request, context)
             if request.role not in allowed_roles:
                 raise ForbiddenError(
-                    f"rol '{request.role}' no tiene acceso — requerido: {allowed_roles}"
+                    f"role '{request.role}' has no access — required: {allowed_roles}"
                 )
             return func(request, context)
         return wrapper

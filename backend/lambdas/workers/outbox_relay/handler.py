@@ -1,9 +1,9 @@
 """
 Worker: outbox relay.
 
-Triggered por DynamoDB Stream de la tabla outbox. Publica eventos pendientes a
-SQS y marca cada registro como PUBLISHED. SQS y Lambda son at-least-once, por lo
-que los consumidores deben ser idempotentes.
+Triggered by the DynamoDB Stream of the outbox table. Publishes pending events
+to SQS and marks each record as PUBLISHED. SQS and Lambda are at-least-once, so
+consumers must be idempotent.
 """
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def _queue_for(event_type: str) -> str:
 def _publish(item: dict) -> bool:
     queue_url = _queue_for(item.get("event_type", ""))
     if not queue_url:
-        _log.warning("outbox event sin queue configurada", event_type=item.get("event_type"))
+        _log.warning("outbox event has no queue configured", event_type=item.get("event_type"))
         return False
 
     payload = item["payload"]
@@ -74,7 +74,7 @@ def _mark_published(item: dict) -> None:
         )
     except ClientError as exc:
         if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
-            _log.info("outbox event ya procesado", event_id=item.get("id"))
+            _log.info("outbox event already processed", event_id=item.get("id"))
             return
         raise
 
@@ -99,7 +99,7 @@ def _mark_skipped(item: dict) -> None:
         )
     except ClientError as exc:
         if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
-            _log.info("outbox event ya procesado", event_id=item.get("id"))
+            _log.info("outbox event already processed", event_id=item.get("id"))
             return
         raise
 

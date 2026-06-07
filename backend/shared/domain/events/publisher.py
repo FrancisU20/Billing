@@ -1,12 +1,12 @@
 """
-Publicador de eventos de dominio → SQS.
+Domain event publisher → SQS.
 
-Uso en handler.py:
+Usage in handler.py:
     publisher = EventPublisher(queue_url=os.environ["EVENTS_QUEUE_URL"])
     result, events = use_case.execute(command)
     publisher.publish_all(events)
 
-El cliente SQS se inicializa fuera del handler (cold start optimization).
+The SQS client is initialized outside the handler (cold start optimization).
 """
 from __future__ import annotations
 
@@ -47,8 +47,8 @@ class EventPublisher:
 
     def publish(self, event: DomainEvent) -> None:
         if not self._queue_url:
-            # Local dev o workers desactivados — solo loguear
-            _log.debug("events queue sin URL — evento omitido", event_type=event.event_type)
+            # Local dev or workers disabled — just log
+            _log.debug("events queue has no URL — event skipped", event_type=event.event_type)
             return
 
         payload = event_payload(event)

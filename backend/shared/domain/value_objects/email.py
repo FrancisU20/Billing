@@ -1,4 +1,4 @@
-"""Value Object: dirección de email normalizada a minúsculas."""
+"""Value Object: email address normalized to lowercase."""
 import re
 
 from shared.errors import ValidationError

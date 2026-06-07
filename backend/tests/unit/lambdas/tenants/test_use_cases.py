@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from lambdas.tenants.domain.commands import ToggleStatusCommand, UpdateTenantCommand
-from lambdas.tenants.domain.enums import AmbienteSri, EstadoTenant
+from lambdas.tenants.domain.enums import SriEnvironment, TenantStatus
 from lambdas.tenants.domain.errors import TenantRucAlreadyExistsError
 from lambdas.tenants.domain.events import (
     TenantCreatedEvent,
@@ -54,14 +54,14 @@ class TenantMutationUseCaseTests(unittest.TestCase):
         updated, events = UpdateTenantUseCase(repo).execute(UpdateTenantCommand(
             tenant_id="tenant-1",
             updated_by="admin-1",
-            nombre_comercial="Nuevo Nombre",
-            email="nuevo@codelabs.com",
-            ambiente_sri="produccion",
+            trade_name="New Name",
+            email="new@codelabs.com",
+            sri_environment="production",
         ))
 
-        self.assertEqual(updated.nombre_comercial, "Nuevo Nombre")
-        self.assertEqual(updated.email, "nuevo@codelabs.com")
-        self.assertEqual(updated.ambiente_sri, AmbienteSri.PRODUCCION)
+        self.assertEqual(updated.trade_name, "New Name")
+        self.assertEqual(updated.email, "new@codelabs.com")
+        self.assertEqual(updated.sri_environment, SriEnvironment.PRODUCTION)
         self.assertEqual(updated.updated_by, "admin-1")
         self.assertEqual(updated.version, 2)
         self.assertIsInstance(events[0], TenantUpdatedEvent)
@@ -73,13 +73,13 @@ class TenantMutationUseCaseTests(unittest.TestCase):
 
         updated, events = ToggleStatusUseCase(repo).execute(ToggleStatusCommand(
             tenant_id="tenant-1",
-            nuevo_estado="suspendido",
+            new_status="suspended",
             updated_by="superadmin-1",
         ))
 
-        self.assertEqual(updated.estado, EstadoTenant.SUSPENDIDO)
+        self.assertEqual(updated.status, TenantStatus.SUSPENDED)
         self.assertIsInstance(events[0], TenantStatusChangedEvent)
-        self.assertEqual(events[0].nuevo_estado, "suspendido")
+        self.assertEqual(events[0].new_status, "suspended")
 
     def test_toggle_status_rejects_invalid_state(self) -> None:
         repo = FakeTenantRepository()
@@ -87,7 +87,7 @@ class TenantMutationUseCaseTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ToggleStatusUseCase(repo).execute(ToggleStatusCommand(
                 tenant_id="tenant-1",
-                nuevo_estado="bloqueado",
+                new_status="blocked",
                 updated_by="superadmin-1",
             ))
 
@@ -110,7 +110,7 @@ class TenantMutationUseCaseTests(unittest.TestCase):
         tenants, next_token = ListTenantsUseCase(repo).execute(ListTenantsQuery(
             limit=10,
             next_token="cursor-0",
-            estado="activo",
+            status="active",
         ))
 
         self.assertEqual(tenants, [expected])

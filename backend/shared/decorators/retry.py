@@ -1,7 +1,7 @@
 """
-Decorator de reintento con backoff exponencial.
+Retry decorator with exponential backoff.
 
-Uso para llamadas a servicios externos (SRI, Brevo, Secrets Manager):
+For calls to external services (SRI, Brevo, Secrets Manager):
 
     from shared.decorators.retry import retry
 
@@ -35,7 +35,7 @@ def retry(
                     if attempt == max_attempts:
                         raise
                     _log.warning(
-                        "reintentando llamada",
+                        "retrying call",
                         func=func.__name__,
                         attempt=attempt,
                         max_attempts=max_attempts,

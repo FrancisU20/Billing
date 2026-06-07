@@ -13,16 +13,14 @@ class CreateTenantUseCase:
         self._repo = repo
 
     def execute(self, cmd: CreateTenantCommand) -> tuple[Tenant, list[DomainEvent]]:
-        existing = self._repo.get_by_ruc(cmd.ruc)
-        if existing:
+        if self._repo.get_by_ruc(cmd.ruc):
             raise TenantRucAlreadyExistsError()
 
         tenant = Tenant.create(cmd)
-
         events = [TenantCreatedEvent(
-            tenant_id        = tenant.id,
-            ruc              = tenant.ruc,
-            email            = tenant.email,
-            nombre_rep_legal = tenant.nombre_rep_legal,
+            tenant_id      = tenant.id,
+            ruc            = tenant.ruc,
+            email          = tenant.email,
+            legal_rep_name = tenant.legal_rep_name,
         )]
         return tenant, events
