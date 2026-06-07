@@ -637,9 +637,19 @@ de desarrollo/local al runtime Lambda.
 ## Migraciones DynamoDB
 
 - **Schema** (tablas, GSIs): gestionado por CDK — `cdk deploy` aplica cambios
-- **Datos** (seeds, backfills): scripts en `migrations/versions/0001_descripcion.py`
-- El runner trackea migraciones aplicadas en tabla `_migrations` de DynamoDB
-- Se ejecutan en deploy via invocación directa del Lambda de migraciones
+- **Datos** (seeds, backfills): módulos en `migrations/versions/v0001_descripcion.py`
+- Cada migración exporta `MIGRATION_ID`, `DESCRIPTION` y `run(context) -> MigrationResult`
+- Registrar migraciones nuevas en `migrations/registry.py` en orden estricto
+- La definición compartida de migración vive en `migrations/definition.py`; los puertos
+  del runner no deben importar el registry concreto
+- El runner trackea migraciones aplicadas en `MIGRATIONS_TABLE` con estados
+  `IN_PROGRESS`, `SUCCESS` y `FAILED`
+- `IN_PROGRESS` usa `lock_expires_at`; si el lock vence, otro deploy puede reintentar
+  la migración sin intervención manual
+- El Lambda `codelabs-billing-{env}-migrations` no tiene ruta HTTP pública; CI/CD lo
+  invoca directamente después de desplegar el stack API
+- Las migraciones deben ser idempotentes: si el dato ya existe, deben reportarlo como
+  `skipped` y no fallar el deploy
 
 ---
 
@@ -652,6 +662,10 @@ de desarrollo/local al runtime Lambda.
 - Clean Architecture: domain desacoplado de infra en cada Lambda
 - Frontend migrado de Vite React a Expo Router (web + iOS + Android)
 - Auth: Cognito SRP via Lambda propio — frontend nunca llama Cognito directo
+
+### 2026-06-07 — Runner de migraciones
+- Lambda worker de migraciones agregado al stack API
+- `0001_seed_plans` migrado al runner idempotente con estado en DynamoDB
 
 ### 2026-06-06 — Endurecimiento backend inicial
 - RUC de tenants protegido con lock transaccional DynamoDB (`RUC#{ruc}`)

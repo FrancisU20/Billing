@@ -249,6 +249,27 @@ class ApiStack(Stack):
             ],
         ))
 
+        # ── Migrations Worker ─────────────────────────────────────────────────
+        # Invocado por CI/CD después del deploy de API. Registra ejecuciones en
+        # MIGRATIONS_TABLE para que cada migración de datos corra una sola vez.
+        migrations_fn = lmb.Function(
+            self, "MigrationsFunction",
+            function_name = f"codelabs-billing-{env}-migrations",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.workers.migrations.handler.handler",
+            timeout       = Duration.seconds(60),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "MIGRATIONS_TABLE": database.migrations_table.table_name,
+                "PLANS_TABLE":      database.plans_table.table_name,
+            },
+        )
+        database.migrations_table.grant_read_write_data(migrations_fn)
+        database.plans_table.grant_read_write_data(migrations_fn)
+
         # ── Dominio personalizado — ACM + Route53 ─────────────────────────────
         # El certificado va en la misma región que el API Gateway (sa-east-1).
         # Distinto al certificado del frontend (CloudFront), que debe ir en us-east-1.
