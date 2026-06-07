@@ -1,0 +1,179 @@
+{
+  "info": {
+    "name": "CodeLabs Billing Cloud",
+    "_postman_id": "clb-collection-001",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Tenants",
+      "item": [
+        {
+          "name": "Crear Tenant",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",      "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ruc\": \"1790085783001\",\n  \"nombre_comercial\": \"Empresa Demo SA\",\n  \"nombre_rep_legal\": \"Juan Pérez\",\n  \"email\": \"demo@empresa.com\",\n  \"telefono\": \"0987654321\",\n  \"direccion\": \"Av. Amazonas 123, Quito, Ecuador\",\n  \"plan\": \"basico\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/tenants", "host": ["{{base_url}}"], "path": ["tenants"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('201', () => pm.response.to.have.status(201));",
+                "const body = pm.response.json();",
+                "pm.test('success', () => pm.expect(body.success).to.be.true);",
+                "pm.environment.set('tenant_id', body.data.id);"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Listar Tenants",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tenants?limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["tenants"],
+              "query": [
+                { "key": "limit",      "value": "20" },
+                { "key": "next_token", "value": "", "disabled": true },
+                { "key": "estado",     "value": "activo", "disabled": true }
+              ]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('200', () => pm.response.to.have.status(200));",
+                "const body = pm.response.json();",
+                "pm.test('paginado', () => pm.expect(body.data).to.have.property('items'));"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Ver Tenant",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}"]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('200', () => pm.response.to.have.status(200));",
+                "const body = pm.response.json();",
+                "pm.test('id correcto', () => pm.expect(body.data.id).to.eql(pm.environment.get('tenant_id')));"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Actualizar Tenant",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type",      "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre_comercial\": \"Empresa Demo SA Actualizada\",\n  \"email\": \"nuevo@empresa.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}"]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('200', () => pm.response.to.have.status(200));",
+                "pm.test('version incrementada', () => pm.expect(pm.response.json().data.version).to.be.greaterThan(1));"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Cambiar Estado",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type",      "value": "application/json" },
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"suspendido\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}", "status"]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('200', () => pm.response.to.have.status(200));"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Eliminar Tenant",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "X-Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/tenants/{{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["tenants", "{{tenant_id}}"]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('204', () => pm.response.to.have.status(204));"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        }
+      ]
+    }
+  ]
+}

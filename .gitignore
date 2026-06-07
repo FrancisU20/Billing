@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Node / Expo
+node_modules/
+.expo/
+dist/
+.expo-shared/
+
+# CDK
+cdk.out/
+cdk.context.json
+
+# Lambda layers (generados en build)
+backend/lambda_layer/
+
+# AWS
+.aws-sam/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Local dev
+local/.env
+local/tokens/
+scripts/create_superadmin.py
+.venv/
+
+# Claude
+CLAUDE.md
