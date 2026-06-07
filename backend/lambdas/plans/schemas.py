@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from pydantic import BaseModel, Field
 
 
@@ -7,8 +9,8 @@ class CreatePlanRequest(BaseModel):
     slug:                str   = Field(..., pattern=r"^[a-z0-9_-]{2,30}$")
     name:                str   = Field(..., min_length=2, max_length=80)
     description:         str   = Field("", max_length=300)
-    monthly_price:       float = Field(0.0, ge=0)
-    annual_price:        float = Field(0.0, ge=0)
+    monthly_price:       Decimal = Field(Decimal("0.00"), ge=0)
+    annual_price:        Decimal = Field(Decimal("0.00"), ge=0)
     document_limit:      int   = Field(..., ge=-1)
     limit_cycle:         str   = Field("month", pattern=r"^(month|year)$")
     max_locations:       int   = Field(1, ge=-1)
@@ -25,8 +27,8 @@ class UpdatePlanRequest(BaseModel):
     # slug is not here — it is immutable
     name:                str   | None = Field(None, min_length=2, max_length=80)
     description:         str   | None = Field(None, max_length=300)
-    monthly_price:       float | None = Field(None, ge=0)
-    annual_price:        float | None = Field(None, ge=0)
+    monthly_price:       Decimal | None = Field(None, ge=0)
+    annual_price:        Decimal | None = Field(None, ge=0)
     document_limit:      int   | None = Field(None, ge=-1)
     limit_cycle:         str   | None = Field(None, pattern=r"^(month|year)$")
     max_locations:       int   | None = Field(None, ge=-1)

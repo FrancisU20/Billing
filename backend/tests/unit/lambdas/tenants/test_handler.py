@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from tests.unit.support import (
+    FakePlanCatalog,
     FakeTenantRepository,
     LambdaContext,
     api_event,
@@ -20,6 +21,7 @@ from tests.unit.support import (
 def _load_handler_module():
     configure_unit_environment()
     os.environ["TENANTS_TABLE"] = "unit-tenants"
+    os.environ["PLANS_TABLE"] = "unit-plans"
     os.environ["AUDIT_LOG_TABLE"] = "unit-audit"
     os.environ["OUTBOX_TABLE"] = ""
     os.environ.pop("IDEMPOTENCY_TABLE", None)
@@ -45,6 +47,7 @@ class TenantsHandlerTests(unittest.TestCase):
         )
 
         with patch.object(self.handler, "_repo", return_value=repo), \
+                patch.object(self.handler, "_plan_catalog", return_value=FakePlanCatalog()), \
                 patch.object(self.handler, "require_current_context", return_value=idempotency_context):
             response = self.handler.handler(event, self.context)
 

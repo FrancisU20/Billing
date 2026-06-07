@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from decimal import Decimal
 from uuid import uuid4
 
 from lambdas.plans.domain.commands import CreatePlanCommand, UpdatePlanCommand
@@ -32,8 +33,8 @@ class Plan:
     slug:                str   = ""
     name:                str   = ""
     description:         str   = ""
-    monthly_price:       float = 0.0
-    annual_price:        float = 0.0
+    monthly_price:       Decimal = Decimal("0.00")
+    annual_price:        Decimal = Decimal("0.00")
     document_limit:      int   = 0      # -1 = unlimited
     limit_cycle:         str   = "month"  # "month" | "year"
     max_locations:       int   = 1      # -1 = unlimited
@@ -118,8 +119,8 @@ class Plan:
             "slug":                  self.slug,
             "name":                  self.name,
             "description":           self.description,
-            "monthly_price":         self.monthly_price,
-            "annual_price":          self.annual_price,
+            "monthly_price":         str(self.monthly_price),
+            "annual_price":          str(self.annual_price),
             "document_limit":        self.document_limit,
             "limit_cycle":           self.limit_cycle,
             "max_locations":         self.max_locations,

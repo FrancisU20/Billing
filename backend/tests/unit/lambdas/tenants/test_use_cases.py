@@ -18,6 +18,7 @@ from lambdas.tenants.use_cases.toggle_status import ToggleStatusUseCase
 from lambdas.tenants.use_cases.update_tenant import UpdateTenantUseCase
 from shared.errors import ValidationError
 from tests.unit.support import (
+    FakePlanCatalog,
     FakeTenantRepository,
     create_tenant_command,
     make_tenant,
@@ -27,10 +28,13 @@ from tests.unit.support import (
 class CreateTenantUseCaseTests(unittest.TestCase):
     def test_create_returns_tenant_and_event_without_persisting(self) -> None:
         repo = FakeTenantRepository()
-        tenant, events = CreateTenantUseCase(repo).execute(create_tenant_command())
+        catalog = FakePlanCatalog()
+        tenant, events = CreateTenantUseCase(repo, catalog).execute(create_tenant_command())
 
         self.assertEqual(tenant.ruc, create_tenant_command().ruc)
         self.assertEqual(tenant.email, "owner@codelabs.com")
+        self.assertEqual(tenant.plan_id, "uuid-basic")
+        self.assertEqual(catalog.checked_ids, ["uuid-basic"])
         self.assertEqual(repo.save_calls, [])
         self.assertEqual(repo.get_by_ruc_calls, [tenant.ruc])
         self.assertEqual(len(events), 1)
@@ -42,7 +46,17 @@ class CreateTenantUseCaseTests(unittest.TestCase):
         repo.existing_by_ruc = make_tenant()
 
         with self.assertRaises(TenantRucAlreadyExistsError):
-            CreateTenantUseCase(repo).execute(create_tenant_command())
+            CreateTenantUseCase(repo, FakePlanCatalog()).execute(create_tenant_command())
+
+    def test_create_rejects_invalid_plan_before_ruc_lookup(self) -> None:
+        repo = FakeTenantRepository()
+
+        with self.assertRaises(ValidationError):
+            CreateTenantUseCase(repo, FakePlanCatalog(exists=False)).execute(
+                create_tenant_command(plan_id="missing-plan")
+            )
+
+        self.assertEqual(repo.get_by_ruc_calls, [])
 
 
 class TenantMutationUseCaseTests(unittest.TestCase):

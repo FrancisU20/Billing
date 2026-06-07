@@ -1,4 +1,5 @@
 import re
+from decimal import Decimal
 
 from lambdas.plans.domain.commands import CreatePlanCommand
 from lambdas.plans.domain.errors import PlanNotFoundError, PlanSlugExistsError
@@ -21,15 +22,13 @@ class CreatePlanUseCase:
             )
         if cmd.limit_cycle not in _VALID_CYCLES:
             raise ValidationError("El ciclo de límite debe ser 'month' o 'year'.")
-        if cmd.monthly_price < 0 or cmd.annual_price < 0:
+        if cmd.monthly_price < Decimal("0") or cmd.annual_price < Decimal("0"):
             raise ValidationError("Los precios no pueden ser negativos.")
 
         if self._slug_exists(cmd.slug):
             raise PlanSlugExistsError()
 
-        plan = Plan.create(cmd)
-        self._repo.save(plan)
-        return plan
+        return Plan.create(cmd)
 
     def _slug_exists(self, slug: str) -> bool:
         try:

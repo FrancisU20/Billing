@@ -18,9 +18,11 @@ from tests.unit.support import LambdaContext, configure_unit_environment
 # ── Fakes ─────────────────────────────────────────────────────────────────────
 
 class FakeIdentityProvider:
-    def __init__(self, *, already_exists: bool = False) -> None:
+    def __init__(self, *, already_exists: bool = False, reset_allowed: bool = False) -> None:
         self.created_owners: list[dict] = []
         self._already_exists = already_exists
+        self._reset_allowed = reset_allowed
+        self.reset_passwords: list[dict] = []
 
     def create_owner(self, *, tenant_id: str, email: str, temporary_password: str) -> bool:
         if self._already_exists:
@@ -28,6 +30,15 @@ class FakeIdentityProvider:
         self.created_owners.append({
             "tenant_id": tenant_id,
             "email":     email,
+        })
+        return True
+
+    def reset_temporary_password(self, *, email: str, temporary_password: str) -> bool:
+        if not self._reset_allowed:
+            return False
+        self.reset_passwords.append({
+            "email": email,
+            "password_length": len(temporary_password),
         })
         return True
 
@@ -57,7 +68,7 @@ class OnboardTenantUseCaseTests(unittest.TestCase):
         self.assertGreaterEqual(len(result), 16)
         self.assertEqual(len(idp.created_owners), 1)
 
-    def test_returns_none_when_user_already_exists(self) -> None:
+    def test_returns_none_when_existing_user_completed_onboarding(self) -> None:
         idp = FakeIdentityProvider(already_exists=True)
         result = OnboardTenantUseCase(idp).execute(
             tenant_id="tenant-1",
@@ -65,6 +76,18 @@ class OnboardTenantUseCaseTests(unittest.TestCase):
             legal_rep_name="Owner",
         )
         self.assertIsNone(result)
+        self.assertEqual(idp.reset_passwords, [])
+
+    def test_resets_password_when_existing_user_is_still_onboarding(self) -> None:
+        idp = FakeIdentityProvider(already_exists=True, reset_allowed=True)
+        result = OnboardTenantUseCase(idp).execute(
+            tenant_id="tenant-1",
+            email="owner@codelabs.com",
+            legal_rep_name="Owner",
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(idp.reset_passwords[0]["email"], "owner@codelabs.com")
+        self.assertEqual(idp.reset_passwords[0]["password_length"], len(result))
 
     def test_raises_validation_when_tenant_id_missing(self) -> None:
         with self.assertRaises(ValidationError):
@@ -143,7 +166,7 @@ class TenantOnboardingHandlerTests(unittest.TestCase):
         self.assertEqual(event.email, "owner@codelabs.com")
         self.assertGreater(len(event.temp_password), 0)
 
-    def test_does_not_publish_event_when_user_exists(self) -> None:
+    def test_does_not_publish_event_when_existing_user_completed_onboarding(self) -> None:
         mod = self._load_handler_module()
         idp       = FakeIdentityProvider(already_exists=True)
         publisher = FakeEventPublisher()
@@ -161,6 +184,26 @@ class TenantOnboardingHandlerTests(unittest.TestCase):
 
         self.assertEqual(result, {"batchItemFailures": []})
         self.assertEqual(publisher.published, [])
+
+    def test_publishes_event_when_existing_user_password_was_reset(self) -> None:
+        mod = self._load_handler_module()
+        idp       = FakeIdentityProvider(already_exists=True, reset_allowed=True)
+        publisher = FakeEventPublisher()
+        mod._identity_provider = idp
+        mod._event_publisher   = publisher
+
+        result = mod.handler(
+            self._make_sqs_event({
+                "tenant_id": "tenant-1",
+                "email":     "owner@codelabs.com",
+                "legal_rep_name": "Owner",
+            }),
+            LambdaContext(),
+        )
+
+        self.assertEqual(result, {"batchItemFailures": []})
+        self.assertEqual(len(publisher.published), 1)
+        self.assertGreater(len(publisher.published[0].temp_password), 0)
 
     def test_ignores_unknown_events(self) -> None:
         mod = self._load_handler_module()

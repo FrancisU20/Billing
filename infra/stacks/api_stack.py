@@ -140,12 +140,14 @@ class ApiStack(Stack):
             environment   = {
                 **_common_env,
                 "TENANTS_TABLE":     database.tenants_table.table_name,
+                "PLANS_TABLE":       database.plans_table.table_name,
                 "AUDIT_LOG_TABLE":   database.audit_table.table_name,
                 "IDEMPOTENCY_TABLE": database.idempotency_table.table_name,
                 "OUTBOX_TABLE":      database.outbox_table.table_name,
             },
         )
         database.tenants_table.grant_read_write_data(tenants_fn)
+        database.plans_table.grant_read_data(tenants_fn)
         database.audit_table.grant_read_write_data(tenants_fn)
         database.idempotency_table.grant_read_write_data(tenants_fn)
         database.outbox_table.grant_write_data(tenants_fn)
@@ -203,7 +205,11 @@ class ApiStack(Stack):
             )
         )
         onboarding_fn.add_to_role_policy(iam.PolicyStatement(
-            actions   = ["cognito-idp:AdminCreateUser"],
+            actions   = [
+                "cognito-idp:AdminCreateUser",
+                "cognito-idp:AdminGetUser",
+                "cognito-idp:AdminSetUserPassword",
+            ],
             resources = [auth.user_pool.user_pool_arn],
         ))
         queues.email_notifications_queue.grant_send_messages(onboarding_fn)
@@ -223,7 +229,7 @@ class ApiStack(Stack):
             environment   = {
                 **_common_env,
                 "BREVO_SECRET_NAME":  f"codelabs-billing-{env}/brevo-api-key",
-                "BREVO_SENDER_EMAIL": f"noreply@codelabsecuador.com",
+                "BREVO_SENDER_EMAIL": "noreply@codelabsecuador.com",
                 "BREVO_SENDER_NAME":  "CodeLabs Billing",
             },
         )
@@ -329,10 +335,14 @@ class ApiStack(Stack):
             memory_size   = 256,
             environment   = {
                 **_common_env,
-                "PLANS_TABLE": database.plans_table.table_name,
+                "PLANS_TABLE":       database.plans_table.table_name,
+                "AUDIT_LOG_TABLE":   database.audit_table.table_name,
+                "IDEMPOTENCY_TABLE": database.idempotency_table.table_name,
             },
         )
         database.plans_table.grant_read_write_data(plans_fn)
+        database.audit_table.grant_read_write_data(plans_fn)
+        database.idempotency_table.grant_read_write_data(plans_fn)
 
         plans_integration = integrations.HttpLambdaIntegration(
             "PlansIntegration", plans_fn

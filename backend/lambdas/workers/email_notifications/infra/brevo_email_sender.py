@@ -11,6 +11,7 @@ content delivered to Ecuadorian customers, not source code.
 from __future__ import annotations
 
 import json
+from html import escape
 
 import urllib3
 
@@ -30,6 +31,10 @@ _http = urllib3.PoolManager()
 
 
 def _build_html(legal_rep_name: str, email: str, temp_password: str) -> str:
+    safe_name = escape(legal_rep_name, quote=True)
+    safe_email = escape(email, quote=True)
+    safe_temp_password = escape(temp_password, quote=True)
+
     return f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -54,7 +59,7 @@ def _build_html(legal_rep_name: str, email: str, temp_password: str) -> str:
           <tr>
             <td style="padding:40px">
               <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
-                Bienvenido, {legal_rep_name}
+                Bienvenido, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
                 Tu cuenta en CodeLabs Billing ha sido creada exitosamente.
@@ -68,12 +73,12 @@ def _build_html(legal_rep_name: str, email: str, temp_password: str) -> str:
                   Credenciales de acceso
                 </p>
                 <p style="margin:0 0 6px;color:#1a1a2e">
-                  <strong>Usuario:</strong> {email}
+                  <strong>Usuario:</strong> {safe_email}
                 </p>
                 <p style="margin:0;color:#1a1a2e">
                   <strong>Contraseña temporal:</strong>
                   <code style="background:#e9ecef;padding:2px 6px;border-radius:3px;
-                               font-size:15px">{temp_password}</code>
+                               font-size:15px">{safe_temp_password}</code>
                 </p>
               </div>
 
@@ -133,7 +138,6 @@ class BrevoEmailSender(EmailSender):
             _log.error(
                 "Brevo API error",
                 status  = response.status,
-                snippet = response.data.decode("utf-8")[:300],
             )
             raise RuntimeError(f"Brevo responded {response.status}")
 

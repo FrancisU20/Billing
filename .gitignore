@@ -43,8 +43,4 @@ Thumbs.db
 # Local dev
 local/.env
 local/tokens/
-scripts/create_superadmin.py
 .venv/
-
-# Claude
-CLAUDE.md

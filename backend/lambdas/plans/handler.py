@@ -14,6 +14,7 @@ Mutations use the UUID (id) — stable even if the slug changes.
 import re
 
 from lambdas._base.handler import lambda_handler, public_lambda_handler
+from lambdas._base.idempotency import idempotent, require_current_context
 from lambdas._base.parser import Request, parse
 from lambdas._base.permissions import require_role
 from lambdas._base.response import ApiResponse
@@ -29,23 +30,27 @@ from lambdas.plans.use_cases.get_plan import GetPlanBySlugUseCase
 from lambdas.plans.use_cases.list_plans import ListPlansUseCase
 from lambdas.plans.use_cases.toggle_plan import TogglePlanUseCase
 from lambdas.plans.use_cases.update_plan import UpdatePlanUseCase
+from shared.config import env
 from shared.db.client import get_table
 from shared.errors import NotFoundError
 
 _table = get_table("PLANS_TABLE")
+_audit_table = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
 
 
 def _repo() -> DynamoPlanRepository:
-    return DynamoPlanRepository(_table)
+    return DynamoPlanRepository(_table, _audit_table)
 
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
 @lambda_handler
 @require_role("superadmin")
+@idempotent
 def _create(request: Request, context) -> dict:
     body = parse(CreatePlanRequest, request.body)
-    plan = CreatePlanUseCase(_repo()).execute(CreatePlanCommand(
+    repo = _repo()
+    plan = CreatePlanUseCase(repo).execute(CreatePlanCommand(
         slug                    = body.slug,
         name                    = body.name,
         description             = body.description,
@@ -63,7 +68,15 @@ def _create(request: Request, context) -> dict:
         order                   = body.order,
         created_by              = request.user_id,
     ))
-    return ApiResponse.created(plan.to_dict(), request.request_id)
+    response = ApiResponse.created(plan.to_dict(), request.request_id)
+    repo.commit(
+        plan        = plan,
+        user_id     = request.user_id,
+        action      = "CREATE",
+        idempotency = require_current_context(),
+        response    = response,
+    )
+    return response
 
 
 @public_lambda_handler
@@ -82,10 +95,12 @@ def _get(request: Request, context) -> dict:
 
 @lambda_handler
 @require_role("superadmin")
+@idempotent
 def _update(request: Request, context) -> dict:
     plan_id = request.path_params.get("id", "")
     body    = parse(UpdatePlanRequest, request.body)
-    plan    = UpdatePlanUseCase(_repo()).execute(UpdatePlanCommand(
+    repo    = _repo()
+    plan    = UpdatePlanUseCase(repo).execute(UpdatePlanCommand(
         id                      = plan_id,
         updated_by              = request.user_id,
         name                    = body.name,
@@ -103,20 +118,38 @@ def _update(request: Request, context) -> dict:
         includes_api            = body.includes_api,
         order                   = body.order,
     ))
-    return ApiResponse.ok(plan.to_dict(), request.request_id)
+    response = ApiResponse.ok(plan.to_dict(), request.request_id)
+    repo.commit(
+        plan        = plan,
+        user_id     = request.user_id,
+        action      = "UPDATE",
+        idempotency = require_current_context(),
+        response    = response,
+    )
+    return response
 
 
 @lambda_handler
 @require_role("superadmin")
+@idempotent
 def _toggle(request: Request, context) -> dict:
     plan_id = request.path_params.get("id", "")
     body    = parse(TogglePlanRequest, request.body)
-    plan    = TogglePlanUseCase(_repo()).execute(TogglePlanCommand(
+    repo    = _repo()
+    plan    = TogglePlanUseCase(repo).execute(TogglePlanCommand(
         id         = plan_id,
         active     = body.active,
         updated_by = request.user_id,
     ))
-    return ApiResponse.ok(plan.to_dict(), request.request_id)
+    response = ApiResponse.ok(plan.to_dict(), request.request_id)
+    repo.commit(
+        plan        = plan,
+        user_id     = request.user_id,
+        action      = "STATUS",
+        idempotency = require_current_context(),
+        response    = response,
+    )
+    return response
 
 
 # ── Entry point AWS ───────────────────────────────────────────────────────────

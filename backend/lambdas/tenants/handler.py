@@ -22,6 +22,7 @@ from lambdas.tenants.domain.commands import (
     UpdateTenantCommand,
 )
 from lambdas.tenants.domain.enums import TenantStatus
+from lambdas.tenants.infra.plan_catalog import DynamoPlanCatalog
 from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
 from lambdas.tenants.schemas import (
     CreateTenantRequest,
@@ -40,12 +41,17 @@ from shared.errors import ForbiddenError, NotFoundError, ValidationError
 
 # ── Cold start ────────────────────────────────────────────────────────────────
 _TABLE        = get_table("TENANTS_TABLE")
+_PLANS_TABLE  = get_table("PLANS_TABLE")
 _AUDIT_TABLE  = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
 _OUTBOX_TABLE = get_table("OUTBOX_TABLE")    if env("OUTBOX_TABLE", "")    else None
 
 
 def _repo() -> DynamoTenantRepository:
     return DynamoTenantRepository(_TABLE, _AUDIT_TABLE, _OUTBOX_TABLE)
+
+
+def _plan_catalog() -> DynamoPlanCatalog:
+    return DynamoPlanCatalog(_PLANS_TABLE)
 
 
 def _parse_list_query(params: dict) -> ListTenantsQuery:
@@ -88,7 +94,7 @@ def _create(request: Request, context) -> dict:
         created_by     = request.user_id,
     )
     repo = _repo()
-    tenant, events = CreateTenantUseCase(repo).execute(command)
+    tenant, events = CreateTenantUseCase(repo, _plan_catalog()).execute(command)
     response = ApiResponse.created(tenant.to_dict(), request.request_id)
     repo.commit(
         tenant      = tenant,

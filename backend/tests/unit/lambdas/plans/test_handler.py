@@ -5,6 +5,9 @@ import json
 import os
 import sys
 import unittest
+from decimal import Decimal
+from typing import Any
+from unittest.mock import patch
 
 from lambdas.plans.domain.errors import PlanNotFoundError
 from lambdas.plans.domain.plan import Plan
@@ -17,13 +20,14 @@ from tests.unit.support import LambdaContext, api_event, configure_unit_environm
 class FakePlanRepository(IPlanRepository):
     def __init__(self) -> None:
         self._free  = Plan(id="uuid-free", slug="free", name="Free",
-                           monthly_price=0.0, document_limit=20,
+                           monthly_price=Decimal("0.00"), document_limit=20,
                            limit_cycle="year", order=0)
         self._basic = Plan(id="uuid-basic", slug="basic", name="Basic",
-                           monthly_price=5.99, document_limit=50,
+                           monthly_price=Decimal("5.99"), document_limit=50,
                            limit_cycle="month", order=1)
         self._by_id   = {"uuid-free": self._free, "uuid-basic": self._basic}
         self._by_slug = {"free": self._free, "basic": self._basic}
+        self.commit_calls: list[dict[str, Any]] = []
 
     def get_by_id(self, plan_id: str) -> Plan:
         if plan_id not in self._by_id:
@@ -39,6 +43,10 @@ class FakePlanRepository(IPlanRepository):
         self._by_id[plan.id]     = plan
         self._by_slug[plan.slug] = plan
 
+    def commit(self, **kwargs: Any) -> None:
+        self.commit_calls.append(kwargs)
+        self.save(kwargs["plan"])
+
     def list(self, active_only: bool = False) -> list[Plan]:
         return list(self._by_id.values())
 
@@ -49,7 +57,10 @@ class PlansHandlerTests(unittest.TestCase):
     def _load(self):
         configure_unit_environment()
         os.environ["PLANS_TABLE"] = "unit-plans"
+        os.environ["AUDIT_LOG_TABLE"] = ""
+        os.environ.pop("IDEMPOTENCY_TABLE", None)
         sys.modules.pop("lambdas.plans.handler", None)
+        sys.modules.pop("lambdas._base.idempotency", None)
         mod       = importlib.import_module("lambdas.plans.handler")
         fake_repo = FakePlanRepository()
         mod._repo = lambda: fake_repo
@@ -108,33 +119,40 @@ class PlansHandlerTests(unittest.TestCase):
 
     def test_create_superadmin_generates_uuid_as_pk(self) -> None:
         mod    = self._load()
-        result = mod.handler(api_event(
-            method="POST", path="/plans",
-            body={
-                "slug": "pyme", "name": "Pyme", "description": "",
-                "monthly_price": 14.99, "annual_price": 143.0,
-                "document_limit": 300, "limit_cycle": "month",
-                "max_locations": 3, "max_emission_points": 5, "max_users": 5,
-                "includes_credit_notes": True, "includes_withholdings": True,
-                "includes_delivery_notes": True, "includes_api": False, "order": 2,
-            },
-        ), LambdaContext())
+        idempotency_context = object()
+        with patch.object(mod, "require_current_context", return_value=idempotency_context):
+            result = mod.handler(api_event(
+                method="POST", path="/plans",
+                body={
+                    "slug": "pyme", "name": "Pyme", "description": "",
+                    "monthly_price": 14.99, "annual_price": 143.0,
+                    "document_limit": 300, "limit_cycle": "month",
+                    "max_locations": 3, "max_emission_points": 5, "max_users": 5,
+                    "includes_credit_notes": True, "includes_withholdings": True,
+                    "includes_delivery_notes": True, "includes_api": False, "order": 2,
+                },
+            ), LambdaContext())
         body = json.loads(result["body"])
         self.assertEqual(result["statusCode"], 201)
         self.assertEqual(body["data"]["slug"], "pyme")
         self.assertEqual(len(body["data"]["id"]), 36)        # UUID
         self.assertNotEqual(body["data"]["id"], "pyme")      # PK != slug
+        self.assertEqual(self._repo.commit_calls[0]["action"], "CREATE")
+        self.assertIs(self._repo.commit_calls[0]["idempotency"], idempotency_context)
 
     def test_patch_status_uses_uuid(self) -> None:
         mod    = self._load()
-        result = mod.handler(api_event(
-            method="PATCH", path="/plans/uuid-basic/status",
-            body={"active": False},
-        ), LambdaContext())
+        idempotency_context = object()
+        with patch.object(mod, "require_current_context", return_value=idempotency_context):
+            result = mod.handler(api_event(
+                method="PATCH", path="/plans/uuid-basic/status",
+                body={"active": False},
+            ), LambdaContext())
         body = json.loads(result["body"])
         self.assertEqual(result["statusCode"], 200)
         self.assertFalse(body["data"]["active"])
         self.assertEqual(body["data"]["slug"], "basic")  # slug untouched
+        self.assertEqual(self._repo.commit_calls[0]["action"], "STATUS")
 
     def test_patch_with_slug_as_id_returns_404(self) -> None:
         mod    = self._load()

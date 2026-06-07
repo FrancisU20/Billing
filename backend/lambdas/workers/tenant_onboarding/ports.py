@@ -15,6 +15,14 @@ class IdentityProvider(ABC):
         Returns True if created, False if it already existed.
         """
 
+    @abstractmethod
+    def reset_temporary_password(
+        self, *, email: str, temporary_password: str
+    ) -> bool:
+        """Set a new temporary password for users still in onboarding.
+        Returns True if the password was reset and should be emailed.
+        """
+
 
 class EventPublisherPort(ABC):
     @abstractmethod

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 
 @dataclass
@@ -8,8 +9,8 @@ class CreatePlanCommand:
     slug:                str    # immutable — not in UpdatePlanCommand
     name:                str
     description:         str
-    monthly_price:       float
-    annual_price:        float
+    monthly_price:       Decimal
+    annual_price:        Decimal
     document_limit:      int
     limit_cycle:         str
     max_locations:       int
@@ -30,8 +31,8 @@ class UpdatePlanCommand:
     # slug is immutable — cannot be updated
     name:                str | None = None
     description:         str | None = None
-    monthly_price:       float | None = None
-    annual_price:        float | None = None
+    monthly_price:       Decimal | None = None
+    annual_price:        Decimal | None = None
     document_limit:      int | None = None
     limit_cycle:         str | None = None
     max_locations:       int | None = None

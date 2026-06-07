@@ -10,8 +10,8 @@ class CreateTenantCommand:
     email:             str
     phone:             str
     address:           str
+    plan_id:           str
     created_by:        str
-    plan_id:           str = ""   # UUID of the assigned plan
 
 
 @dataclass(frozen=True)

@@ -6,6 +6,7 @@ from typing import Any
 
 from lambdas.tenants.domain.commands import CreateTenantCommand
 from lambdas.tenants.domain.tenant import Tenant
+from shared.errors import ValidationError
 
 VALID_RUC = "1792146739001"
 
@@ -29,7 +30,7 @@ def tenant_payload(**overrides: Any) -> dict:
         "email": "OWNER@CODELABS.COM",
         "phone": "0999999999",
         "address": "Av Siempre Viva 123",
-        "plan_id": "",
+        "plan_id": "uuid-basic",
     }
     payload.update(overrides)
     return payload
@@ -132,3 +133,17 @@ class FakeTenantRepository:
         self.commit_calls.append(kwargs)
         tenant = kwargs["tenant"]
         self.tenants[tenant.id] = tenant
+
+
+class FakePlanCatalog:
+    def __init__(self, *, active: bool = True, exists: bool = True) -> None:
+        self.active = active
+        self.exists = exists
+        self.checked_ids: list[str] = []
+
+    def ensure_active(self, plan_id: str) -> None:
+        self.checked_ids.append(plan_id)
+        if not plan_id or not self.exists:
+            raise ValidationError("plan_id inválido")
+        if not self.active:
+            raise ValidationError("plan_id no está activo")

@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from shared.domain.base_entity import GlobalEntity
 from shared.domain.value_objects.email import Email
@@ -21,7 +22,7 @@ class Tenant(GlobalEntity):
     status:          TenantStatus   = field(default=TenantStatus.ACTIVE)
     plan_id:         str            = ""
     plan_status:     PlanStatus     = field(default=PlanStatus.ACTIVE)
-    trial_ends_at:   "datetime | None" = None
+    trial_ends_at:   datetime | None = None
 
     # ── factory ───────────────────────────────────────────────────────────────
 

@@ -8,6 +8,7 @@ from shared.config import env
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
+_ONBOARDING_STATUSES = {"FORCE_CHANGE_PASSWORD", "RESET_REQUIRED"}
 
 
 class CognitoIdentityProvider(IdentityProvider):
@@ -36,5 +37,34 @@ class CognitoIdentityProvider(IdentityProvider):
             return True
 
         except self._idp.exceptions.UsernameExistsException:
-            _log.warning("user already exists in Cognito — email skipped", email=email)
+            _log.warning("user already exists in Cognito", email=email)
             return False
+
+    def reset_temporary_password(
+        self, *, email: str, temporary_password: str
+    ) -> bool:
+        response = self._idp.admin_get_user(
+            UserPoolId = self._user_pool_id,
+            Username   = email,
+        )
+        status = response.get("UserStatus", "")
+        if status not in _ONBOARDING_STATUSES:
+            _log.info(
+                "existing Cognito user already completed onboarding",
+                email=email,
+                status=status,
+            )
+            return False
+
+        self._idp.admin_set_user_password(
+            UserPoolId = self._user_pool_id,
+            Username   = email,
+            Password   = temporary_password,
+            Permanent  = False,
+        )
+        _log.info(
+            "temporary password reset for existing Cognito user",
+            email=email,
+            status=status,
+        )
+        return True

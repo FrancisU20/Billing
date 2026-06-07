@@ -10,5 +10,4 @@ class TogglePlanUseCase:
     def execute(self, cmd: TogglePlanCommand) -> Plan:
         plan = self._repo.get_by_id(cmd.id)
         plan.toggle(cmd.active, cmd.updated_by)
-        self._repo.save(plan)
         return plan

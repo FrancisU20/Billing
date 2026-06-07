@@ -7,7 +7,9 @@ Receives the TenantCreatedEvent payload and:
 3. Returns the temporary password so the handler can publish OwnerCreatedEvent
    → email_notifications worker uses it to send the welcome email via Brevo
 
-If the user already exists it returns None — the email is not re-sent.
+If the user already exists and already completed onboarding, it returns None.
+If the user already exists but is still in Cognito onboarding state, a new
+temporary password is set and returned so the welcome email can be retried.
 """
 from __future__ import annotations
 
@@ -43,7 +45,8 @@ class OnboardTenantUseCase:
         self, tenant_id: str, email: str, legal_rep_name: str
     ) -> str | None:
         """
-        Returns temp_password if the owner was created, None if it already existed.
+        Returns temp_password if credentials must be emailed.
+        Returns None if the user already completed onboarding.
         The password is never logged — it stays in memory until published to SQS (SSE).
         """
         if not tenant_id or not email:
@@ -62,7 +65,20 @@ class OnboardTenantUseCase:
             raise InternalError()
 
         if not created:
-            return None
+            try:
+                reset = self._identity_provider.reset_temporary_password(
+                    email=email,
+                    temporary_password=temp_password,
+                )
+            except Exception as e:
+                _log.error("error resetting temporary password in Cognito", error=str(e), exc_info=True)
+                raise InternalError()
+
+            if not reset:
+                return None
+
+            _log.info("tenant onboarding credentials refreshed", tenant_id=tenant_id, email=email)
+            return temp_password
 
         _log.info("tenant onboarding completed", tenant_id=tenant_id, email=email)
         return temp_password

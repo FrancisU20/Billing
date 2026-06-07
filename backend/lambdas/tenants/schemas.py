@@ -10,7 +10,7 @@ class CreateTenantRequest(BaseModel):
     email:           str = Field(..., min_length=5,  max_length=200)
     phone:           str = Field(..., min_length=7,  max_length=20)
     address:         str = Field(..., min_length=5,  max_length=500)
-    plan_id:         str = Field("", max_length=36)
+    plan_id:         str = Field(..., min_length=1, max_length=36)
 
 
 class UpdateTenantRequest(BaseModel):
