@@ -99,7 +99,7 @@ jobs:
           coverage report
           coverage xml
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-staging-${{ github.sha }}
           path: backend/coverage.xml
@@ -128,7 +128,7 @@ jobs:
         run: cdk synth '*' -c env=${{ env.CDK_ENV }} --quiet
 
       - name: Upload CloudFormation templates
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cfn-staging-${{ github.sha }}
           path: infra/cdk.out/*.template.json

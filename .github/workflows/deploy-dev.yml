@@ -93,7 +93,7 @@ jobs:
           coverage xml
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report-${{ github.sha }}
           path: backend/coverage.xml
@@ -122,7 +122,7 @@ jobs:
         run: cdk synth '*' -c env=${{ env.CDK_ENV }} --quiet
 
       - name: Upload CloudFormation templates
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cfn-templates-${{ github.sha }}
           path: infra/cdk.out/*.template.json
@@ -253,7 +253,7 @@ jobs:
           echo "### API desplegada en: ${URL}" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload API outputs artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: api-outputs-${{ github.sha }}
           path: /tmp/api-outputs.json
