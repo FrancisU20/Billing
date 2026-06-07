@@ -187,5 +187,6 @@ class TenantsHandlerTests(unittest.TestCase):
         self.assertEqual(commit["events"], [])
 
 
+
 if __name__ == "__main__":
     unittest.main()

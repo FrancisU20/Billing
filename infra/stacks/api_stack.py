@@ -97,7 +97,7 @@ class ApiStack(Stack):
         api_domain = domain_cfg.get("api", "")
         hz_name    = domain_cfg.get("hosted_zone", "")
         cors_origins = cors_cfg.get("origins", ["*"] if env != "prod" else [])
-        cors_headers = cors_cfg.get("headers", ["authorization", "content-type"])
+        cors_headers = cors_cfg.get("headers", ["authorization", "content-type", "x-idempotency-key"])
 
         _common_env = {
             "ENV":       env,
@@ -174,6 +174,7 @@ class ApiStack(Stack):
                 starting_position          = lmb.StartingPosition.TRIM_HORIZON,
                 batch_size                 = 10,
                 report_batch_item_failures = True,
+                bisect_on_error            = True,
             )
         )
         database.outbox_table.grant_stream_read(outbox_relay_fn)

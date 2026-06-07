@@ -120,3 +120,11 @@ def parse(schema: Type[T], data: dict) -> T:
         return schema.model_validate(data)
     except PydanticValidationError as exc:
         raise ValidationError(str(exc)) from exc
+
+
+def require_path_param(request: Request, name: str) -> str:
+    """Extract a required path parameter. Raises ValidationError if missing or empty."""
+    value = request.path_params.get(name, "").strip()
+    if not value:
+        raise ValidationError(f"El parámetro de ruta '{name}' es requerido")
+    return value

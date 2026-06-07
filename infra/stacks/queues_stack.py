@@ -10,6 +10,7 @@ Colas actuales:
 """
 from aws_cdk import (
     Stack, Duration, CfnOutput,
+    aws_cloudwatch as cw,
     aws_kms as kms,
     aws_sqs as sqs,
 )
@@ -76,6 +77,32 @@ class QueuesStack(Stack):
         )
         # Exponer la clave para que los Lambdas puedan hacer grant
         self.email_notifications_key = email_notifications_key
+
+        # ── CloudWatch Alarms — DLQ ───────────────────────────────────────────
+        # Un mensaje en DLQ = 3 reintentos agotados = fallo permanente de entrega.
+        # La alarma dispara cuando hay ≥1 mensaje visible para notificar al equipo.
+        cw.Alarm(
+            self, "TenantOnboardingDlqAlarm",
+            alarm_name        = f"codelabs-billing-{env}-tenant-onboarding-dlq-messages",
+            alarm_description = "Mensajes en DLQ de tenant-onboarding: el onboarding falló permanentemente.",
+            metric            = tenant_onboarding_dlq.metric_approximate_number_of_messages_visible(
+                period=Duration.minutes(1),
+            ),
+            threshold          = 1,
+            evaluation_periods = 1,
+            comparison_operator = cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        )
+        cw.Alarm(
+            self, "EmailNotificationsDlqAlarm",
+            alarm_name        = f"codelabs-billing-{env}-email-notifications-dlq-messages",
+            alarm_description = "Mensajes en DLQ de email-notifications: el email de bienvenida falló permanentemente.",
+            metric            = email_notifications_dlq.metric_approximate_number_of_messages_visible(
+                period=Duration.minutes(1),
+            ),
+            threshold          = 1,
+            evaluation_periods = 1,
+            comparison_operator = cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        )
 
         # ── Outputs ───────────────────────────────────────────────────────────
         CfnOutput(self, "TenantOnboardingQueueUrl",

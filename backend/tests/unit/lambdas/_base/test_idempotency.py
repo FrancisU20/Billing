@@ -124,6 +124,24 @@ class IdempotencyTests(unittest.TestCase):
         self.assertEqual(result, cached_response)
         self.assertEqual(handler_calls, [], "handler must NOT run when race detects COMPLETED")
 
+    def test_allows_retry_after_failed_operation(self) -> None:
+        # Un key en estado FAILED debe permitir que un retry legítimo re-ejecute el handler.
+        table = FakeIdempotencyTable({
+            "pk":        "TENANT#tenant-1#idem-1",
+            "method":    "POST",
+            "path":      "/tenants",
+            "body_hash": "hash-1",
+            "status":    "FAILED",
+            "ttl":       99_999_999_999,
+        })
+        idempotency._table = table
+        calls = []
+
+        wrapped = idempotency.idempotent(lambda req, ctx: calls.append(True) or {"ok": True})
+        wrapped(_request(), object())
+
+        self.assertEqual(len(calls), 1, "handler debe ejecutarse en un retry después de FAILED")
+
     def test_rejects_reused_key_with_different_body_hash(self) -> None:
         idempotency._table = FakeIdempotencyTable({
             "pk": "TENANT#tenant-1#idem-1",

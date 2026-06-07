@@ -21,11 +21,32 @@ from shared.logger import get_logger
 _log = get_logger(__name__)
 
 
+def _serialize_value(v: object) -> object:
+    """Convert any value to a JSON-safe type (handles Enum, Decimal, datetime, dataclasses)."""
+    import enum
+    from decimal import Decimal
+    from datetime import datetime
+    if isinstance(v, enum.Enum):
+        return v.value
+    if isinstance(v, Decimal):
+        return str(v)
+    if isinstance(v, datetime):
+        return v.isoformat()
+    if dataclasses.is_dataclass(v) and not isinstance(v, type):
+        return {k: _serialize_value(val) for k, val in dataclasses.asdict(v).items()}
+    if isinstance(v, (list, tuple)):
+        return [_serialize_value(i) for i in v]
+    if isinstance(v, dict):
+        return {k: _serialize_value(val) for k, val in v.items()}
+    return v
+
+
 def event_payload(event: DomainEvent) -> dict:
-    all_fields = dataclasses.asdict(event)
+    all_fields = dataclasses.fields(event)
     data = {
-        k: v for k, v in all_fields.items()
-        if k not in ("event_id", "occurred_at")
+        f.name: _serialize_value(getattr(event, f.name))
+        for f in all_fields
+        if f.name not in ("event_id", "occurred_at")
     }
     return {
         "event_type":  event.event_type,

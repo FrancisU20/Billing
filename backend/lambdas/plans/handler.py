@@ -16,8 +16,8 @@ import re
 
 from lambdas._base.handler import lambda_handler, public_lambda_handler
 from lambdas._base.idempotency import idempotent, require_current_context
-from lambdas._base.parser import Request, parse
-from lambdas._base.permissions import require_role
+from lambdas._base.parser import Request, parse, require_path_param
+from lambdas._base.permissions import require_role, require_superadmin
 from lambdas._base.response import ApiResponse
 from lambdas.plans.domain.commands import (
     CreatePlanCommand,
@@ -46,7 +46,7 @@ def _repo() -> DynamoPlanRepository:
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
 @lambda_handler
-@require_role("superadmin")
+@require_superadmin
 @idempotent
 def _create(request: Request, context) -> dict:
     body = parse(CreatePlanRequest, request.body)
@@ -89,16 +89,16 @@ def _list(request: Request, context) -> dict:
 
 @public_lambda_handler
 def _get(request: Request, context) -> dict:
-    slug = request.path_params.get("id", "")  # APIGW path param is named {id}
+    slug = require_path_param(request, "id")
     plan = GetPlanBySlugUseCase(_repo()).execute(slug)
     return ApiResponse.ok(plan.to_dict(), request.request_id)
 
 
 @lambda_handler
-@require_role("superadmin")
+@require_superadmin
 @idempotent
 def _update(request: Request, context) -> dict:
-    plan_id = request.path_params.get("id", "")
+    plan_id = require_path_param(request, "id")
     body    = parse(UpdatePlanRequest, request.body)
     repo    = _repo()
     plan    = UpdatePlanUseCase(repo).execute(UpdatePlanCommand(
@@ -131,10 +131,10 @@ def _update(request: Request, context) -> dict:
 
 
 @lambda_handler
-@require_role("superadmin")
+@require_superadmin
 @idempotent
 def _toggle(request: Request, context) -> dict:
-    plan_id = request.path_params.get("id", "")
+    plan_id = require_path_param(request, "id")
     body    = parse(TogglePlanRequest, request.body)
     repo    = _repo()
     plan    = TogglePlanUseCase(repo).execute(TogglePlanCommand(

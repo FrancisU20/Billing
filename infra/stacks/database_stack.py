@@ -80,6 +80,9 @@ class DatabaseStack(Stack):
             partition_key = ddb.Attribute(name="pk", type=ddb.AttributeType.STRING),
             billing_mode  = ddb.BillingMode.PAY_PER_REQUEST,
             time_to_live_attribute = "ttl",
+            point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=pitr,
+            ),
             removal_policy = removal,
         )
 
@@ -92,6 +95,9 @@ class DatabaseStack(Stack):
             billing_mode  = ddb.BillingMode.PAY_PER_REQUEST,
             stream        = ddb.StreamViewType.NEW_IMAGE,
             time_to_live_attribute = "ttl",
+            point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=pitr,
+            ),
             removal_policy = removal,
         )
 
@@ -103,6 +109,9 @@ class DatabaseStack(Stack):
             table_name    = f"codelabs-billing-{env}-plans",
             partition_key = ddb.Attribute(name="id", type=ddb.AttributeType.STRING),
             billing_mode  = ddb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=pitr,
+            ),
             removal_policy = removal,
         )
         self.plans_table.add_global_secondary_index(
@@ -119,6 +128,9 @@ class DatabaseStack(Stack):
             table_name    = f"codelabs-billing-{env}-migrations",
             partition_key = ddb.Attribute(name="id", type=ddb.AttributeType.STRING),
             billing_mode  = ddb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=pitr,
+            ),
             removal_policy = removal,
         )
 

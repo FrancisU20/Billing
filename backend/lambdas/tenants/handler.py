@@ -14,8 +14,8 @@ import re
 
 from lambdas._base.handler import lambda_handler
 from lambdas._base.idempotency import idempotent, require_current_context
-from lambdas._base.parser import Request, parse
-from lambdas._base.permissions import require_role
+from lambdas._base.parser import Request, parse, require_path_param
+from lambdas._base.permissions import require_role, require_superadmin
 from lambdas._base.response import ApiResponse
 from lambdas.tenants.domain.commands import (
     CreateTenantCommand,
@@ -80,7 +80,7 @@ def _parse_list_query(params: dict) -> ListTenantsQuery:
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
 @lambda_handler
-@require_role("superadmin")
+@require_superadmin
 @idempotent
 def _create(request: Request, context) -> dict:
     body    = parse(CreateTenantRequest, request.body)
@@ -109,7 +109,7 @@ def _create(request: Request, context) -> dict:
 
 
 @lambda_handler
-@require_role("superadmin")
+@require_superadmin
 def _list(request: Request, context) -> dict:
     query = _parse_list_query(request.query_params)
     tenants, next_token = ListTenantsUseCase(_repo()).execute(query)
@@ -122,7 +122,7 @@ def _list(request: Request, context) -> dict:
 
 @lambda_handler
 def _get(request: Request, context) -> dict:
-    tenant_id = request.path_params.get("id", "")
+    tenant_id = require_path_param(request, "id")
     if not request.is_superadmin and request.tenant_id != tenant_id:
         raise ForbiddenError()
     tenant = GetTenantUseCase(_repo()).execute(tenant_id)
@@ -133,7 +133,7 @@ def _get(request: Request, context) -> dict:
 @require_role("owner", "admin", "superadmin")
 @idempotent
 def _update(request: Request, context) -> dict:
-    tenant_id = request.path_params.get("id", "")
+    tenant_id = require_path_param(request, "id")
     if not request.is_superadmin and request.tenant_id != tenant_id:
         raise ForbiddenError()
 
@@ -163,10 +163,10 @@ def _update(request: Request, context) -> dict:
 
 
 @lambda_handler
-@require_role("superadmin")
+@require_superadmin
 @idempotent
 def _toggle_status(request: Request, context) -> dict:
-    tenant_id = request.path_params.get("id", "")
+    tenant_id = require_path_param(request, "id")
     body      = parse(ToggleStatusRequest, request.body)
     command   = ToggleStatusCommand(
         tenant_id  = tenant_id,
@@ -188,10 +188,10 @@ def _toggle_status(request: Request, context) -> dict:
 
 
 @lambda_handler
-@require_role("superadmin")
+@require_superadmin
 @idempotent
 def _delete(request: Request, context) -> dict:
-    tenant_id = request.path_params.get("id", "")
+    tenant_id = require_path_param(request, "id")
     repo = _repo()
     tenant, events = DeleteTenantUseCase(repo).execute(tenant_id, request.user_id)
     response = ApiResponse.no_content(request.request_id)

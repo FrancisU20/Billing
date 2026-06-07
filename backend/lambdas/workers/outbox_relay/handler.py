@@ -55,28 +55,37 @@ def _publish(item: dict) -> bool:
 
 
 def _mark_published(item: dict) -> None:
-    try:
-        _outbox_table.update_item(
-            Key={"id": item["id"]},
-            UpdateExpression=(
-                "SET #status = :published, published_at = :published_at, "
-                "updated_at = :updated_at ADD attempts :one"
-            ),
-            ConditionExpression="#status = :pending",
-            ExpressionAttributeNames={"#status": "status"},
-            ExpressionAttributeValues={
-                ":published":    "PUBLISHED",
-                ":pending":      "PENDING",
-                ":published_at": datetime.now(timezone.utc).isoformat(),
-                ":updated_at":   datetime.now(timezone.utc).isoformat(),
-                ":one":          1,
-            },
-        )
-    except ClientError as exc:
-        if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
-            _log.info("outbox event already processed", event_id=item.get("id"))
+    # Retry up to 3 times on transient DynamoDB errors (throttle, timeout).
+    # If _mark_published fails after SQS send_message succeeded, Lambda retries
+    # the stream record and sends the message again (at-least-once delivery).
+    # Retrying here reduces the duplicate window without adding external dependencies.
+    last_exc: ClientError | None = None
+    for attempt in range(3):
+        try:
+            _outbox_table.update_item(
+                Key={"id": item["id"]},
+                UpdateExpression=(
+                    "SET #status = :published, published_at = :published_at, "
+                    "updated_at = :updated_at ADD attempts :one"
+                ),
+                ConditionExpression="#status = :pending",
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":published":    "PUBLISHED",
+                    ":pending":      "PENDING",
+                    ":published_at": datetime.now(timezone.utc).isoformat(),
+                    ":updated_at":   datetime.now(timezone.utc).isoformat(),
+                    ":one":          1,
+                },
+            )
             return
-        raise
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                _log.info("outbox event already processed", event_id=item.get("id"))
+                return
+            last_exc = exc
+            _log.warning("_mark_published transient error", attempt=attempt + 1, error=str(exc))
+    raise last_exc  # type: ignore[misc]
 
 
 def _mark_skipped(item: dict) -> None:

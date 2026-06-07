@@ -102,6 +102,11 @@ class InternalError(AppError):
     default_message = "Ocurrió un error interno. Por favor intenta nuevamente."
 
 
+class ExternalServiceError(InternalError):
+    code = "EXTERNAL_SERVICE_ERROR"
+    default_message = "Un servicio externo respondió con un error. Por favor intenta nuevamente."
+
+
 # ── DynamoDB ──────────────────────────────────────────────────────────────────
 
 class OptimisticLockError(ConflictError):

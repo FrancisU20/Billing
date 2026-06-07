@@ -18,6 +18,7 @@ import urllib3
 from lambdas.workers.email_notifications.ports import EmailSender
 from shared.config import env
 from shared.logger import get_logger
+from shared.errors import ExternalServiceError
 from shared.secrets.client import get_secret
 
 _log = get_logger(__name__)
@@ -124,7 +125,7 @@ class BrevoEmailSender(EmailSender):
             except (json.JSONDecodeError, AttributeError):
                 pass
         if not api_key or not isinstance(api_key, str):
-            raise RuntimeError("BREVO_SECRET_NAME no contiene un API key válido")
+            raise ExternalServiceError("BREVO_SECRET_NAME no contiene un API key válido")
 
         payload = {
             "sender":      {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
@@ -149,6 +150,6 @@ class BrevoEmailSender(EmailSender):
                 "Brevo API error",
                 status  = response.status,
             )
-            raise RuntimeError(f"Brevo responded {response.status}")
+            raise ExternalServiceError(f"Brevo responded {response.status}")
 
         _log.info("Brevo: email sent", email=email, status=response.status)
