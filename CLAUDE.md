@@ -647,6 +647,22 @@ de desarrollo/local al runtime Lambda.
 - `scripts/create_superadmin.py` deja de tener credenciales hardcodeadas y pasa a consumir env vars
 - `local/.env` conserva credenciales locales ignoradas por Git; `local/.env.example` solo documenta nombres vacíos
 
+### 2026-06-07 — Fix doble serialización DynamoDB en transact_write_items
+- `resource.meta.client` (obtenido via `table.meta.client`) hereda los handlers de TypeSerializer
+  registrados por la sesión de boto3 al crear un resource. Llamar a `transact_write_items` a través
+  de este cliente con items ya serializados (`{"S": "..."}`) los re-serializa como `{"M": {...}}`,
+  causando `ValidationError: Type mismatch`.
+- **Regla permanente:** los items pasados a `transact_write_items` via `resource.meta.client` deben
+  ser Python puro (sin TypeSerializer). boto3 serializa una sola vez. No usar `_serialize()` ni
+  `TypeSerializer` para construir los TransactItems — solo para operaciones que usen el cliente
+  standalone (`session.client('dynamodb')`).
+- Se eliminaron `TypeSerializer`, `_serializer` y `_serialize()` de todos los módulos que construyen
+  transact items: `tenant_repository`, `plan_repository`, `idempotency`, `outbox`, `audit`.
+- También se corrigieron palabras reservadas DynamoDB sin escapar en expression strings:
+  `id`, `version`, `response`, `ttl`, `method`, `path`, `body_hash` → usar `#alias` en
+  `ExpressionAttributeNames`. Esto aplica a `UpdateExpression` y `ConditionExpression` en el
+  cliente low-level; las operaciones de alto nivel (`table.update_item`) manejan esto via `Attr()`.
+
 ## Deuda técnica identificada
 
 - Implementar frontend Expo real (`frontend/`) o ajustar este documento si queda fuera del alcance inmediato.
