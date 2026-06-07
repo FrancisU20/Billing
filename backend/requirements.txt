@@ -6,7 +6,7 @@ boto3==1.43.24
 botocore==1.43.24
 jmespath==1.1.0
 pydantic==2.13.4
-pydantic_core==2.46.4
+pydantic_core==2.47.0
 python-dateutil==2.9.0.post0
 s3transfer==0.18.0
 six==1.17.0
