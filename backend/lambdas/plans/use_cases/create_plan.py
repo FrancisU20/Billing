@@ -1,8 +1,8 @@
+from __future__ import annotations
 import re
 from decimal import Decimal
 
 from lambdas.plans.domain.commands import CreatePlanCommand
-from lambdas.plans.domain.errors import PlanNotFoundError, PlanSlugExistsError
 from lambdas.plans.domain.plan import Plan
 from lambdas.plans.domain.repositories.i_plan_repository import IPlanRepository
 from shared.errors import ValidationError
@@ -25,14 +25,4 @@ class CreatePlanUseCase:
         if cmd.monthly_price < Decimal("0") or cmd.annual_price < Decimal("0"):
             raise ValidationError("Los precios no pueden ser negativos.")
 
-        if self._slug_exists(cmd.slug):
-            raise PlanSlugExistsError()
-
         return Plan.create(cmd)
-
-    def _slug_exists(self, slug: str) -> bool:
-        try:
-            self._repo.get_by_slug(slug)
-            return True
-        except PlanNotFoundError:
-            return False

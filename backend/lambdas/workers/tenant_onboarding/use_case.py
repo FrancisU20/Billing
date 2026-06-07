@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 OnboardTenantUseCase — creates the owner user in Cognito.
 
@@ -11,7 +12,6 @@ If the user already exists and already completed onboarding, it returns None.
 If the user already exists but is still in Cognito onboarding state, a new
 temporary password is set and returned so the welcome email can be retried.
 """
-from __future__ import annotations
 
 import secrets
 import string

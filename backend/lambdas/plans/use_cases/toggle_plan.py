@@ -1,3 +1,4 @@
+from __future__ import annotations
 from lambdas.plans.domain.commands import TogglePlanCommand
 from lambdas.plans.domain.plan import Plan
 from lambdas.plans.domain.repositories.i_plan_repository import IPlanRepository

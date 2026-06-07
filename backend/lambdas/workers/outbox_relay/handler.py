@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Worker: outbox relay.
 
@@ -5,7 +6,6 @@ Triggered by the DynamoDB Stream of the outbox table. Publishes pending events
 to SQS and marks each record as PUBLISHED. SQS and Lambda are at-least-once, so
 consumers must be idempotent.
 """
-from __future__ import annotations
 
 from datetime import datetime, timezone
 

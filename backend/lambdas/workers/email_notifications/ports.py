@@ -1,5 +1,5 @@
-"""Application ports for email_notifications."""
 from __future__ import annotations
+"""Application ports for email_notifications."""
 
 from abc import ABC, abstractmethod
 

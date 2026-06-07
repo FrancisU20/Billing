@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Secrets Manager client with in-memory cache (configurable TTL).
 

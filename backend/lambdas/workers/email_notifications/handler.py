@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Worker: email notifications.
 
@@ -14,7 +15,6 @@ Recognized events:
 
 Any unknown event is ignored (does not count as a batch failure).
 """
-from __future__ import annotations
 
 from lambdas._base.sqs_handler import SQSRecord, sqs_handler
 from lambdas.workers.email_notifications.infra.brevo_email_sender import BrevoEmailSender

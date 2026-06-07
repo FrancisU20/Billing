@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Helpers to read environment variables.
 
@@ -12,7 +13,6 @@ Each Lambda declares only the variables it actually uses.
 There is no global Config object holding all tables — that would force every Lambda
 to carry env vars it does not need and violates the least-privilege principle.
 """
-from __future__ import annotations
 
 import os
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Brevo implementation of the EmailSender port.
 
@@ -8,7 +9,6 @@ The temporary password is NEVER logged at any level.
 Note: the HTML email body is in Spanish on purpose — it is user-facing
 content delivered to Ecuadorian customers, not source code.
 """
-from __future__ import annotations
 
 import json
 from html import escape
@@ -115,6 +115,16 @@ class BrevoEmailSender(EmailSender):
         self, *, email: str, legal_rep_name: str, temp_password: str
     ) -> None:
         api_key = get_secret(_SECRET_NAME)
+        # Secrets Manager puede almacenar el valor como string plano o como JSON.
+        # Si es JSON {"api_key": "xkeysib-..."} lo extraemos; si ya es string, lo usamos directo.
+        if isinstance(api_key, str) and api_key.startswith("{"):
+            try:
+                parsed = json.loads(api_key)
+                api_key = parsed.get("api_key") or parsed.get("value") or api_key
+            except (json.JSONDecodeError, AttributeError):
+                pass
+        if not api_key or not isinstance(api_key, str):
+            raise RuntimeError("BREVO_SECRET_NAME no contiene un API key válido")
 
         payload = {
             "sender":      {"name": _SENDER_NAME, "email": _SENDER_EMAIL},

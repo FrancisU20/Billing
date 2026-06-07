@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Worker: tenant onboarding.
 
@@ -9,23 +10,22 @@ Flow:
         → if user was created → publishes OwnerCreatedEvent to email_notifications queue
         → email_notifications worker → sends welcome email via Brevo
 """
-from __future__ import annotations
 
 from lambdas._base.sqs_handler import SQSRecord, sqs_handler
 from lambdas.workers.tenant_onboarding.events import OwnerCreatedEvent
 from lambdas.workers.tenant_onboarding.infra.cognito_identity_provider import (
     CognitoIdentityProvider,
 )
-from lambdas.workers.tenant_onboarding.infra.sqs_event_publisher import SQSEventPublisher
 from lambdas.workers.tenant_onboarding.use_case import OnboardTenantUseCase
 from shared.config import env
+from shared.domain.events.publisher import EventPublisher
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
 
 # ── Cold start ────────────────────────────────────────────────────────────────
 _identity_provider = CognitoIdentityProvider()
-_event_publisher   = SQSEventPublisher(
+_event_publisher   = EventPublisher(
     queue_url=env("EMAIL_NOTIFICATIONS_QUEUE_URL", "")
 )
 

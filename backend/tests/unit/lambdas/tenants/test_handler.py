@@ -82,6 +82,88 @@ class TenantsHandlerTests(unittest.TestCase):
         self.assertEqual(body["error"]["code"], "FORBIDDEN")
         self.assertEqual(repo.commit_calls, [])
 
+    def test_list_returns_paginated_response(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="t-1")
+        repo.list_result = ([tenant], None)
+        event = api_event(method="GET", path="/tenants", query={"limit": "10"})
+
+        with patch.object(self.handler, "_repo", return_value=repo):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 200)
+        self.assertTrue(body["success"])
+        self.assertIn("items", body["data"])
+        self.assertEqual(len(body["data"]["items"]), 1)
+
+    def test_get_returns_tenant_by_id(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="t-get-1")
+        repo.tenants[tenant.id] = tenant
+        event = api_event(method="GET", path="/tenants/t-get-1")
+
+        with patch.object(self.handler, "_repo", return_value=repo):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(body["data"]["id"], "t-get-1")
+
+    def test_get_unknown_tenant_returns_404(self) -> None:
+        repo = FakeTenantRepository()
+        event = api_event(method="GET", path="/tenants/does-not-exist")
+
+        with patch.object(self.handler, "_repo", return_value=repo):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 404)
+        self.assertEqual(body["error"]["code"], "TENANT_NOT_FOUND")
+
+    def test_update_commits_changes(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="t-upd-1")
+        repo.tenants[tenant.id] = tenant
+        idempotency_context = object()
+        event = api_event(
+            method="PATCH",
+            path="/tenants/t-upd-1",
+            body={"trade_name": "Nuevo Nombre"},
+            headers={"X-Idempotency-Key": "upd-1"},
+        )
+
+        with patch.object(self.handler, "_repo", return_value=repo), \
+                patch.object(self.handler, "require_current_context", return_value=idempotency_context):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(len(repo.commit_calls), 1)
+        self.assertEqual(repo.commit_calls[0]["action"], "UPDATE")
+        self.assertEqual(repo.commit_calls[0]["tenant"].trade_name, "Nuevo Nombre")
+
+    def test_toggle_status_commits_status_change(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="t-tog-1")
+        repo.tenants[tenant.id] = tenant
+        idempotency_context = object()
+        event = api_event(
+            method="PATCH",
+            path="/tenants/t-tog-1/status",
+            body={"status": "suspended"},
+            headers={"X-Idempotency-Key": "tog-1"},
+        )
+
+        with patch.object(self.handler, "_repo", return_value=repo), \
+                patch.object(self.handler, "require_current_context", return_value=idempotency_context):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(repo.commit_calls[0]["action"], "STATUS")
+        self.assertEqual(repo.commit_calls[0]["tenant"].status.value, "suspended")
+
     def test_delete_commits_soft_deleted_tenant(self) -> None:
         repo = FakeTenantRepository()
         tenant = make_tenant(id="tenant-1")
@@ -102,7 +184,7 @@ class TenantsHandlerTests(unittest.TestCase):
         commit = repo.commit_calls[0]
         self.assertEqual(commit["action"], "DELETE")
         self.assertTrue(commit["tenant"].deleted)
-        self.assertEqual(commit["events"][0].event_type, "TenantDeletedEvent")
+        self.assertEqual(commit["events"], [])
 
 
 if __name__ == "__main__":

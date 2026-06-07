@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Plan entity — SaaS subscription tiers.
 
@@ -9,7 +10,6 @@ slug: human-readable identifier ("free", "basic") — indexed via GSI.
 Limits: -1 = unlimited.
 limit_cycle: "month" | "year"  (free plan uses "year": 20 docs/year).
 """
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone

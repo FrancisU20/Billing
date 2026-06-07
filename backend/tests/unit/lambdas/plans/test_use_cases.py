@@ -79,11 +79,14 @@ class CreatePlanUseCaseTests(unittest.TestCase):
             repo.get_by_id(plan.id)
         self.assertEqual(repo.commit_calls, [])
 
-    def test_fails_if_slug_already_exists(self) -> None:
+    def test_slug_uniqueness_is_not_checked_by_use_case(self) -> None:
+        # La unicidad del slug la garantiza el lock transaccional en el repositorio,
+        # no el use case. Crear dos planes con el mismo slug en el use case no falla
+        # aquí — el repositorio lanzaría PlanSlugExistsError al hacer commit().
         repo = FakePlanRepository()
-        repo.save(CreatePlanUseCase(repo).execute(_cmd()))
-        with self.assertRaises(PlanSlugExistsError):
-            CreatePlanUseCase(repo).execute(_cmd())
+        p1 = CreatePlanUseCase(repo).execute(_cmd())
+        p2 = CreatePlanUseCase(repo).execute(_cmd())
+        self.assertNotEqual(p1.id, p2.id)  # UUIDs distintos aunque slug igual
 
     def test_different_slug_creates_different_plan(self) -> None:
         repo = FakePlanRepository()

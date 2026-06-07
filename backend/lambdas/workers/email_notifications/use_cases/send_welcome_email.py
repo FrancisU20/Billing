@@ -1,5 +1,5 @@
-"""Use case: send the welcome email to the owner of a newly created tenant."""
 from __future__ import annotations
+"""Use case: send the welcome email to the owner of a newly created tenant."""
 
 from lambdas.workers.email_notifications.ports import EmailSender
 from shared.errors import InternalError, ValidationError

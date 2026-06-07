@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Base domain entity hierarchy.
 
@@ -11,7 +12,6 @@ Inheritance tree:
 Rule: every repository that uses BaseRepository must receive a TenantScopedEntity.
       GlobalEntity repositories (e.g. TenantRepository) are standalone.
 """
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone

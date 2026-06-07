@@ -1,5 +1,5 @@
-"""Helpers to persist DomainEvents in a transactional DynamoDB outbox."""
 from __future__ import annotations
+"""Helpers to persist DomainEvents in a transactional DynamoDB outbox."""
 
 import json
 from datetime import datetime, timezone

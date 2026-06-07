@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 DynamoDB implementation of the Tenant repository.
 
@@ -11,7 +12,6 @@ DynamoDB table:
 
 Listing: Scan with FilterExpression (acceptable — few tenants in a B2B SaaS).
 """
-from __future__ import annotations
 
 from datetime import datetime
 
@@ -84,7 +84,7 @@ class DynamoTenantRepository(ITenantRepository):
         next_token: str | None,
         status:     str | None = None,
     ) -> tuple[list[Tenant], str | None]:
-        filter_expr = Attr("deleted").eq(False)
+        filter_expr = Attr("entity_type").eq("TENANT") & Attr("deleted").eq(False)
         if status:
             filter_expr = filter_expr & Attr("status").eq(status)
 

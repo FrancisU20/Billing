@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Value Object: email address normalized to lowercase."""
 import re
 

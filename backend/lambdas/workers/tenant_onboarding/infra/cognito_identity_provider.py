@@ -1,5 +1,5 @@
-"""Cognito implementation of the IdentityProvider port."""
 from __future__ import annotations
+"""Cognito implementation of the IdentityProvider port."""
 
 import boto3
 

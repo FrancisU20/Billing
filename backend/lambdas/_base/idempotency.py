@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 HTTP idempotency for mutating operations.
 
@@ -9,7 +10,6 @@ Responsibilities:
 - Expose a context so the repository can mark COMPLETED within the same
   DynamoDB transaction that persists the business change.
 """
-from __future__ import annotations
 
 import functools
 import json

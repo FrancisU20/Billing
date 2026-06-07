@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 PlanRepository — DynamoDB `plans` table.
 
@@ -9,7 +10,6 @@ Slug uniqueness is enforced with a transactional lock item:
 
 The GSI is for lookup only; it is not a uniqueness mechanism.
 """
-from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
@@ -192,8 +192,21 @@ class DynamoPlanRepository(IPlanRepository):
         except ClientError as exc:
             code = exc.response["Error"]["Code"]
             if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
+                reasons = [
+                    {"code": r.get("Code", "None"), "msg": r.get("Message", "")}
+                    for r in exc.response.get("CancellationReasons", [])
+                ]
+                _log.error(
+                    "DynamoDB transact_write_items cancelled",
+                    is_create=is_create,
+                    reasons=reasons,
+                )
                 if is_create:
-                    raise PlanSlugExistsError()
+                    slug_lock_failed = reasons and reasons[0].get("code") == "ConditionalCheckFailed"
+                    plan_failed      = len(reasons) > 1 and reasons[1].get("code") == "ConditionalCheckFailed"
+                    if slug_lock_failed or plan_failed:
+                        raise PlanSlugExistsError()
+                    raise DatabaseError()
                 raise OptimisticLockError()
             _log.error("DynamoDB transact_write_items error", error=str(exc))
             raise DatabaseError()

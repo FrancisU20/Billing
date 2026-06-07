@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Base DynamoDB repository.
 
@@ -22,7 +23,6 @@ Note on pagination and soft delete:
     For lists with many soft-deleted rows, use a GSI with `deleted` as the
     partition key in later phases.
 """
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any

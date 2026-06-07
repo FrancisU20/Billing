@@ -1,10 +1,10 @@
+from __future__ import annotations
 """
 DynamoDB pagination with an opaque cursor (base64 of LastEvaluatedKey).
 
 The client receives and sends `next_token` as an opaque string.
 Internally the DynamoDB LastEvaluatedKey is encoded/decoded.
 """
-from __future__ import annotations
 
 import base64
 import json

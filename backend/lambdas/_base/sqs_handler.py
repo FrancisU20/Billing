@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 @sqs_handler decorator for SQS workers.
 

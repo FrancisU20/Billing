@@ -5,12 +5,7 @@ import unittest
 from lambdas.tenants.domain.commands import ToggleStatusCommand, UpdateTenantCommand
 from lambdas.tenants.domain.enums import SriEnvironment, TenantStatus
 from lambdas.tenants.domain.errors import TenantRucAlreadyExistsError
-from lambdas.tenants.domain.events import (
-    TenantCreatedEvent,
-    TenantDeletedEvent,
-    TenantStatusChangedEvent,
-    TenantUpdatedEvent,
-)
+from lambdas.tenants.domain.events import TenantCreatedEvent
 from lambdas.tenants.use_cases.create_tenant import CreateTenantUseCase
 from lambdas.tenants.use_cases.delete_tenant import DeleteTenantUseCase
 from lambdas.tenants.use_cases.list_tenants import ListTenantsQuery, ListTenantsUseCase
@@ -60,7 +55,7 @@ class CreateTenantUseCaseTests(unittest.TestCase):
 
 
 class TenantMutationUseCaseTests(unittest.TestCase):
-    def test_update_changes_allowed_fields_and_emits_event(self) -> None:
+    def test_update_changes_allowed_fields(self) -> None:
         repo = FakeTenantRepository()
         tenant = make_tenant(id="tenant-1")
         repo.tenants[tenant.id] = tenant
@@ -78,9 +73,9 @@ class TenantMutationUseCaseTests(unittest.TestCase):
         self.assertEqual(updated.sri_environment, SriEnvironment.PRODUCTION)
         self.assertEqual(updated.updated_by, "admin-1")
         self.assertEqual(updated.version, 2)
-        self.assertIsInstance(events[0], TenantUpdatedEvent)
+        self.assertEqual(events, [])
 
-    def test_toggle_status_validates_enum_and_emits_event(self) -> None:
+    def test_toggle_status_validates_enum(self) -> None:
         repo = FakeTenantRepository()
         tenant = make_tenant(id="tenant-1")
         repo.tenants[tenant.id] = tenant
@@ -92,8 +87,7 @@ class TenantMutationUseCaseTests(unittest.TestCase):
         ))
 
         self.assertEqual(updated.status, TenantStatus.SUSPENDED)
-        self.assertIsInstance(events[0], TenantStatusChangedEvent)
-        self.assertEqual(events[0].new_status, "suspended")
+        self.assertEqual(events, [])
 
     def test_toggle_status_rejects_invalid_state(self) -> None:
         repo = FakeTenantRepository()
@@ -105,7 +99,7 @@ class TenantMutationUseCaseTests(unittest.TestCase):
                 updated_by="superadmin-1",
             ))
 
-    def test_delete_soft_deletes_and_emits_event(self) -> None:
+    def test_delete_soft_deletes(self) -> None:
         repo = FakeTenantRepository()
         tenant = make_tenant(id="tenant-1")
         repo.tenants[tenant.id] = tenant
@@ -114,7 +108,7 @@ class TenantMutationUseCaseTests(unittest.TestCase):
 
         self.assertTrue(deleted.deleted)
         self.assertEqual(deleted.deleted_by, "superadmin-1")
-        self.assertIsInstance(events[0], TenantDeletedEvent)
+        self.assertEqual(events, [])
 
     def test_list_delegates_query_to_repository(self) -> None:
         repo = FakeTenantRepository()

@@ -1,5 +1,5 @@
-"""Application ports for tenant onboarding."""
 from __future__ import annotations
+"""Application ports for tenant onboarding."""
 
 from abc import ABC, abstractmethod
 

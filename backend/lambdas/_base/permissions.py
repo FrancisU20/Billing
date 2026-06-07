@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 @require_role decorator for role-based access control.
 

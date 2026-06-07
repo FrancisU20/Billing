@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 HTTP API Gateway v2 event parser.
 
@@ -12,7 +13,6 @@ If the token has no tenant_id and is not superadmin, it is rejected with AuthErr
 
 Also provides parse() to validate the body against a Pydantic schema.
 """
-from __future__ import annotations
 
 import json
 import base64

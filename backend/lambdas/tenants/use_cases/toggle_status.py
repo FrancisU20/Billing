@@ -4,7 +4,6 @@ from shared.errors import ValidationError
 
 from lambdas.tenants.domain.commands import ToggleStatusCommand
 from lambdas.tenants.domain.enums import TenantStatus
-from lambdas.tenants.domain.events import TenantStatusChangedEvent
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.tenants.domain.tenant import Tenant
 
@@ -21,10 +20,4 @@ class ToggleStatusUseCase:
 
         tenant = self._repo.get_by_id(cmd.tenant_id)
         tenant.change_status(new_status, cmd.updated_by)
-
-        events = [TenantStatusChangedEvent(
-            tenant_id  = tenant.id,
-            new_status = new_status.value,
-            updated_by = cmd.updated_by,
-        )]
-        return tenant, events
+        return tenant, []

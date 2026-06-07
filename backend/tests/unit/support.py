@@ -106,6 +106,9 @@ class FakeTenantRepository:
         self.get_by_ruc_calls: list[str] = []
 
     def get_by_id(self, tenant_id: str) -> Tenant:
+        from lambdas.tenants.domain.errors import TenantNotFoundError
+        if tenant_id not in self.tenants:
+            raise TenantNotFoundError()
         return self.tenants[tenant_id]
 
     def get_by_ruc(self, ruc: str) -> Tenant | None:

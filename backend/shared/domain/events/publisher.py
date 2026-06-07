@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Domain event publisher → SQS.
 
@@ -8,7 +9,6 @@ Usage in handler.py:
 
 The SQS client is initialized outside the handler (cold start optimization).
 """
-from __future__ import annotations
 
 import dataclasses
 import json

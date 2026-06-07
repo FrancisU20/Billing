@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Plans Lambda — AWS entry point.
 

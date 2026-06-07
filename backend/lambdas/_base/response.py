@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Standard HTTP responses for all Lambdas.
 
@@ -12,7 +13,6 @@ Single format:
 Never change this format from individual Lambdas.
 The frontend depends on this contract.
 """
-from __future__ import annotations
 
 import json
 from datetime import datetime, timezone

@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Domain error hierarchy.
 
@@ -7,7 +8,6 @@ Rules:
 - Never pass dynamic messages to the client — only code + default_message.
 - The full stacktrace always goes to CloudWatch, never to the HTTP response.
 """
-from __future__ import annotations
 
 
 

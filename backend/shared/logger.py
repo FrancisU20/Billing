@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Structured JSON logger with per-invocation context propagation.
 

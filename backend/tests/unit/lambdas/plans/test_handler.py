@@ -162,6 +162,30 @@ class PlansHandlerTests(unittest.TestCase):
         ), LambdaContext())
         self.assertEqual(result["statusCode"], 404)
 
+    def test_update_plan_commits_changes(self) -> None:
+        mod    = self._load()
+        idempotency_context = object()
+        with patch.object(mod, "require_current_context", return_value=idempotency_context):
+            result = mod.handler(api_event(
+                method="PATCH", path="/plans/uuid-basic",
+                body={"name": "Basic Actualizado", "monthly_price": 7.99},
+            ), LambdaContext())
+        body = json.loads(result["body"])
+        self.assertEqual(result["statusCode"], 200)
+        self.assertEqual(body["data"]["name"], "Basic Actualizado")
+        self.assertEqual(self._repo.commit_calls[0]["action"], "UPDATE")
+        self.assertIs(self._repo.commit_calls[0]["idempotency"], idempotency_context)
+
+    def test_update_unknown_plan_returns_404(self) -> None:
+        mod    = self._load()
+        idempotency_context = object()
+        with patch.object(mod, "require_current_context", return_value=idempotency_context):
+            result = mod.handler(api_event(
+                method="PATCH", path="/plans/uuid-nonexistent",
+                body={"name": "No importa"},
+            ), LambdaContext())
+        self.assertEqual(result["statusCode"], 404)
+
 
 if __name__ == "__main__":
     unittest.main()

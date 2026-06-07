@@ -1,3 +1,4 @@
+from __future__ import annotations
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.tenants.domain.tenant import Tenant
 
