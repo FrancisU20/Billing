@@ -2,7 +2,7 @@
 # Runtime deps are in requirements.txt.
 
 # Linting & formatting
-ruff==0.11.13
+ruff==0.15.16
 
 # Security scanning
 bandit[toml]==1.8.3
