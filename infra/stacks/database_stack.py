@@ -57,12 +57,14 @@ class DatabaseStack(Stack):
         # ── Audit Log ──────────────────────────────────────────────────────────
         # PK: "AUDIT#{entity_type}" | SK: "{timestamp}#{action}#{entity_id}"
         # Permite listar auditoría por tipo de entidad ordenada por tiempo
+        # TTL = 7 años (retención legal SRI Ecuador); campo "ttl" escrito por shared/audit/writer.py
         self.audit_table = ddb.Table(
             self, "AuditTable",
-            table_name    = f"codelabs-billing-{env}-audit",
-            partition_key = ddb.Attribute(name="pk", type=ddb.AttributeType.STRING),
-            sort_key      = ddb.Attribute(name="sk", type=ddb.AttributeType.STRING),
-            billing_mode  = ddb.BillingMode.PAY_PER_REQUEST,
+            table_name             = f"codelabs-billing-{env}-audit",
+            partition_key          = ddb.Attribute(name="pk", type=ddb.AttributeType.STRING),
+            sort_key               = ddb.Attribute(name="sk", type=ddb.AttributeType.STRING),
+            billing_mode           = ddb.BillingMode.PAY_PER_REQUEST,
+            time_to_live_attribute = "ttl",
             point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=pitr,
             ),

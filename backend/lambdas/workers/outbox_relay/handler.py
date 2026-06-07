@@ -126,6 +126,9 @@ def handler(event: dict, context) -> dict:
                 continue
 
             if _publish(item):
+                # At-least-once: if _mark_published fails (throttle, timeout) after
+                # SQS send_message succeeds, Lambda retries the stream record and sends
+                # the message again. All downstream workers MUST be idempotent.
                 _mark_published(item)
                 _log.info("outbox event published", event_id=item.get("id"), event_type=item.get("event_type"))
             else:

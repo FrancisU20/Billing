@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from lambdas._base.idempotency import IdempotencyContext
 from lambdas.tenants.domain.tenant import Tenant
+from shared.domain.events.domain_event import DomainEvent
 
 
 class ITenantRepository(ABC):
@@ -29,9 +31,14 @@ class ITenantRepository(ABC):
         """Returns (items, next_token). next_token=None if no more pages."""
 
     @abstractmethod
-    def delete(self, tenant_id: str, deleted_by: str) -> None:
-        """Soft delete. Raises TenantNotFoundError if not found."""
-
-    @abstractmethod
-    def commit(self, **kwargs) -> None:
+    def commit(
+        self,
+        *,
+        tenant:      Tenant,
+        user_id:     str,
+        action:      str,
+        events:      list[DomainEvent],
+        idempotency: IdempotencyContext | None,
+        response:    dict | None,
+    ) -> None:
         """Atomic commit: entity + audit + outbox + idempotency in one transaction."""

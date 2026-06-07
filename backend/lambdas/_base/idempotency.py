@@ -33,6 +33,13 @@ from shared.logger import get_logger
 
 _log = get_logger(__name__)
 
+
+class _AlreadyCompleted(Exception):
+    """Internal signal: _reserve() found a COMPLETED record; carry its cached response."""
+    def __init__(self, cached: str) -> None:
+        self.cached = cached
+
+
 _TABLE_ENV                 = "IDEMPOTENCY_TABLE"
 _TABLE_NAME                = env(_TABLE_ENV, "")
 _IN_PROGRESS_TTL_SECONDS   = 900
@@ -137,7 +144,7 @@ def _reserve(table, ctx: IdempotencyContext) -> None:
             if item and not _matches(item, ctx):
                 raise IdempotencyKeyReusedError()
             if item and item.get("status") == "COMPLETED" and item.get("response"):
-                return
+                raise _AlreadyCompleted(item["response"])
             raise IdempotencyInProgressError()
         _log.error("idempotency: error reserving key", error=str(exc))
         raise DatabaseError()
@@ -254,7 +261,12 @@ def idempotent(func: Callable) -> Callable:
                 return json.loads(item["response"])
             raise IdempotencyInProgressError()
 
-        _reserve(table, ctx)
+        try:
+            _reserve(table, ctx)
+        except _AlreadyCompleted as completed:
+            _log.info("idempotency: returning cached response (race)", key=ctx.key)
+            return json.loads(completed.cached)
+
         token = _current_ctx.set(ctx)
         try:
             response = func(request, context)

@@ -167,11 +167,6 @@ class DynamoTenantRepository(ITenantRepository):
 
         self._transact_write(transact_items, idempotency, is_create)
 
-    def delete(self, tenant_id: str, deleted_by: str) -> None:
-        tenant = self.get_by_id(tenant_id)
-        tenant.soft_delete(deleted_by)
-        self.save(tenant, deleted_by)
-
     # ── internal helpers ──────────────────────────────────────────────────────
 
     def _get_raw(self, tenant_id: str) -> dict | None:

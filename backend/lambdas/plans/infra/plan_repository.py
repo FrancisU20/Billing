@@ -75,15 +75,23 @@ class DynamoPlanRepository(IPlanRepository):
         if active_only:
             filter_expr = filter_expr & Attr("active").eq(True)
 
+        items: list[dict] = []
+        kwargs: dict = {"FilterExpression": filter_expr}
         try:
-            response = self._table.scan(FilterExpression=filter_expr)
+            while True:
+                response = self._table.scan(**kwargs)
+                items.extend(response.get("Items", []))
+                last_key = response.get("LastEvaluatedKey")
+                if not last_key:
+                    break
+                kwargs["ExclusiveStartKey"] = last_key
         except ClientError as exc:
             _log.error("DynamoDB scan error", error=str(exc))
             raise DatabaseError()
 
         return [
             self._from_item(item)
-            for item in response.get("Items", [])
+            for item in items
             if item.get("entity_type", "PLAN") == "PLAN"
         ]
 

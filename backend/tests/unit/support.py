@@ -127,11 +127,6 @@ class FakeTenantRepository:
     ) -> tuple[list[Tenant], str | None]:
         return self.list_result
 
-    def delete(self, tenant_id: str, deleted_by: str) -> None:
-        tenant = self.get_by_id(tenant_id)
-        tenant.soft_delete(deleted_by)
-        self.save(tenant, deleted_by)
-
     def commit(self, **kwargs: Any) -> None:
         self.commit_calls.append(kwargs)
         tenant = kwargs["tenant"]
