@@ -3,15 +3,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from boto3.dynamodb.types import TypeSerializer
-
-_serializer = TypeSerializer()
-
-
-def _serialize(item: dict) -> dict:
-    return {key: _serializer.serialize(value) for key, value in item.items()}
-
-
 def audit_item(
     *,
     pk: str,
@@ -40,6 +31,6 @@ def audit_put_transact_item(table_name: str, item: dict) -> dict:
     return {
         "Put": {
             "TableName": table_name,
-            "Item": _serialize(item),
+            "Item": item,
         }
     }

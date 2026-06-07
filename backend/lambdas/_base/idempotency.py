@@ -19,7 +19,6 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from boto3.dynamodb.conditions import Attr
-from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
 from shared.config import env
@@ -33,7 +32,6 @@ from shared.errors import (
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
-_serializer = TypeSerializer()
 
 _TABLE_ENV                 = "IDEMPOTENCY_TABLE"
 _TABLE_NAME                = env(_TABLE_ENV, "")
@@ -72,9 +70,6 @@ def _now() -> datetime:
 def _epoch_plus(seconds: int) -> int:
     return int(_now().timestamp()) + seconds
 
-
-def _serialize(item: dict) -> dict:
-    return {key: _serializer.serialize(value) for key, value in item.items()}
 
 
 def _scope_for(request) -> str:
@@ -152,9 +147,9 @@ def _mark_failed(table, ctx: IdempotencyContext) -> None:
     try:
         table.update_item(
             Key={"pk": ctx.pk},
-            UpdateExpression="SET #status = :status, failed_at = :failed_at, ttl = :ttl",
+            UpdateExpression="SET #status = :status, failed_at = :failed_at, #ttl = :ttl",
             ConditionExpression=Attr("status").eq("IN_PROGRESS"),
-            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeNames={"#status": "status", "#ttl": "ttl"},
             ExpressionAttributeValues={
                 ":status":    "FAILED",
                 ":failed_at": _now().isoformat(),
@@ -170,11 +165,11 @@ def _mark_completed_non_transactional(table, ctx: IdempotencyContext, response: 
         table.update_item(
             Key={"pk": ctx.pk},
             UpdateExpression=(
-                "SET #status = :completed, response = :response, "
-                "completed_at = :completed_at, ttl = :ttl"
+                "SET #status = :completed, #response = :response, "
+                "completed_at = :completed_at, #ttl = :ttl"
             ),
             ConditionExpression=Attr("status").eq("IN_PROGRESS"),
-            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeNames={"#status": "status", "#response": "response", "#ttl": "ttl"},
             ExpressionAttributeValues={
                 ":completed":    "COMPLETED",
                 ":response":     json.dumps(response, default=str),
@@ -209,20 +204,24 @@ def completion_transact_item(ctx: IdempotencyContext, response: dict) -> dict:
     return {
         "Update": {
             "TableName": ctx.table_name,
-            "Key": _serialize({"pk": ctx.pk}),
+            "Key": {"pk": ctx.pk},
             "UpdateExpression": (
-                "SET #status = :completed, response = :response, "
-                "completed_at = :completed_at, ttl = :ttl"
+                "SET #status = :completed, #response = :response, "
+                "completed_at = :completed_at, #ttl = :ttl"
             ),
             "ConditionExpression": (
-                "#status = :in_progress AND method = :method "
-                "AND #path = :path AND body_hash = :body_hash"
+                "#status = :in_progress AND #method = :method "
+                "AND #path = :path AND #body_hash = :body_hash"
             ),
             "ExpressionAttributeNames": {
-                "#status": "status",
-                "#path":   "path",
+                "#status":    "status",
+                "#path":      "path",
+                "#response":  "response",
+                "#ttl":       "ttl",
+                "#method":    "method",
+                "#body_hash": "body_hash",
             },
-            "ExpressionAttributeValues": _serialize({
+            "ExpressionAttributeValues": {
                 ":completed":    "COMPLETED",
                 ":in_progress":  "IN_PROGRESS",
                 ":response":     json.dumps(response, default=str),
@@ -231,7 +230,7 @@ def completion_transact_item(ctx: IdempotencyContext, response: dict) -> dict:
                 ":method":       ctx.method,
                 ":path":         ctx.path,
                 ":body_hash":    ctx.body_hash,
-            }),
+            },
         }
     }
 

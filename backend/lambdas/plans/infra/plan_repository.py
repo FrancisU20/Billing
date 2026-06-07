@@ -15,7 +15,6 @@ from datetime import datetime
 from decimal import Decimal
 
 from boto3.dynamodb.conditions import Attr, Key
-from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
 from lambdas._base.idempotency import (
@@ -31,7 +30,6 @@ from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
-_serializer = TypeSerializer()
 
 
 class DynamoPlanRepository(IPlanRepository):
@@ -154,16 +152,18 @@ class DynamoPlanRepository(IPlanRepository):
         return [
             {
                 "Put": {
-                    "TableName":           self._table.table_name,
-                    "Item":                self._serialize(self._slug_lock_item(plan, user_id)),
-                    "ConditionExpression": "attribute_not_exists(id)",
+                    "TableName":                self._table.table_name,
+                    "Item":                     self._slug_lock_item(plan, user_id),
+                    "ConditionExpression":      "attribute_not_exists(#id)",
+                    "ExpressionAttributeNames": {"#id": "id"},
                 }
             },
             {
                 "Put": {
-                    "TableName":           self._table.table_name,
-                    "Item":                self._serialize(item),
-                    "ConditionExpression": "attribute_not_exists(id)",
+                    "TableName":                self._table.table_name,
+                    "Item":                     item,
+                    "ConditionExpression":      "attribute_not_exists(#id)",
+                    "ExpressionAttributeNames": {"#id": "id"},
                 }
             },
         ]
@@ -171,10 +171,11 @@ class DynamoPlanRepository(IPlanRepository):
     def _update_item(self, plan: Plan, item: dict) -> dict:
         return {
             "Put": {
-                "TableName":           self._table.table_name,
-                "Item":                self._serialize(item),
-                "ConditionExpression": "attribute_exists(id) AND version = :prev",
-                "ExpressionAttributeValues": self._serialize({":prev": plan.version - 1}),
+                "TableName":                self._table.table_name,
+                "Item":                     item,
+                "ConditionExpression":      "attribute_exists(#id) AND #version = :prev",
+                "ExpressionAttributeNames": {"#id": "id", "#version": "version"},
+                "ExpressionAttributeValues": {":prev": plan.version - 1},
             }
         }
 
@@ -206,9 +207,6 @@ class DynamoPlanRepository(IPlanRepository):
             "created_at":  plan.created_at.isoformat(),
             "created_by":  user_id,
         }
-
-    def _serialize(self, item: dict) -> dict:
-        return {key: _serializer.serialize(value) for key, value in item.items()}
 
     # ── serialisation ─────────────────────────────────────────────────────────
 

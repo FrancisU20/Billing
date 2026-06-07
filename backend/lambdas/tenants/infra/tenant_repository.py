@@ -16,7 +16,6 @@ from __future__ import annotations
 from datetime import datetime
 
 from boto3.dynamodb.conditions import Attr, Key
-from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
 from lambdas._base.idempotency import (
@@ -37,7 +36,6 @@ from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepos
 from lambdas.tenants.domain.tenant import Tenant
 
 _log = get_logger(__name__)
-_serializer = TypeSerializer()
 
 
 class DynamoTenantRepository(ITenantRepository):
@@ -189,16 +187,18 @@ class DynamoTenantRepository(ITenantRepository):
         return [
             {
                 "Put": {
-                    "TableName":           self._table.table_name,
-                    "Item":                self._serialize(lock_item),
-                    "ConditionExpression": "attribute_not_exists(id)",
+                    "TableName":                self._table.table_name,
+                    "Item":                     lock_item,
+                    "ConditionExpression":      "attribute_not_exists(#id)",
+                    "ExpressionAttributeNames": {"#id": "id"},
                 }
             },
             {
                 "Put": {
-                    "TableName":           self._table.table_name,
-                    "Item":                self._serialize(item),
-                    "ConditionExpression": "attribute_not_exists(id)",
+                    "TableName":                self._table.table_name,
+                    "Item":                     item,
+                    "ConditionExpression":      "attribute_not_exists(#id)",
+                    "ExpressionAttributeNames": {"#id": "id"},
                 }
             },
         ]
@@ -206,10 +206,11 @@ class DynamoTenantRepository(ITenantRepository):
     def _update_item(self, tenant: Tenant, item: dict) -> dict:
         return {
             "Put": {
-                "TableName":           self._table.table_name,
-                "Item":                self._serialize(item),
-                "ConditionExpression": "attribute_exists(id) AND version = :prev",
-                "ExpressionAttributeValues": self._serialize({":prev": tenant.version - 1}),
+                "TableName":                self._table.table_name,
+                "Item":                     item,
+                "ConditionExpression":      "attribute_exists(#id) AND #version = :prev",
+                "ExpressionAttributeNames": {"#id": "id", "#version": "version"},
+                "ExpressionAttributeValues": {":prev": tenant.version - 1},
             }
         }
 
@@ -226,8 +227,22 @@ class DynamoTenantRepository(ITenantRepository):
         except ClientError as e:
             code = e.response["Error"]["Code"]
             if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
+                reasons = [
+                    {"code": r.get("Code", "None"), "msg": r.get("Message", "")}
+                    for r in e.response.get("CancellationReasons", [])
+                ]
+                _log.error(
+                    "DynamoDB transact_write_items cancelled",
+                    is_create=is_create,
+                    reasons=reasons,
+                    error=str(e),
+                )
                 if is_create:
-                    raise TenantRucAlreadyExistsError()
+                    ruc_lock_failed = reasons and reasons[0].get("code") == "ConditionalCheckFailed"
+                    tenant_failed   = len(reasons) > 1 and reasons[1].get("code") == "ConditionalCheckFailed"
+                    if ruc_lock_failed or tenant_failed:
+                        raise TenantRucAlreadyExistsError()
+                    raise DatabaseError()
                 raise OptimisticLockError()
             _log.error("DynamoDB transact_write_items error", error=str(e))
             raise DatabaseError()
@@ -241,9 +256,6 @@ class DynamoTenantRepository(ITenantRepository):
             "created_at":  tenant.created_at.isoformat(),
             "created_by":  user_id,
         }
-
-    def _serialize(self, item: dict) -> dict:
-        return {key: _serializer.serialize(value) for key, value in item.items()}
 
     def _to_item(self, tenant: Tenant) -> dict:
         return {
