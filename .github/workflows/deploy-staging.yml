@@ -117,7 +117,7 @@ jobs:
       - uses: ./.github/actions/setup-cdk
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-cdk-synth-staging-${{ github.run_id }}
@@ -154,7 +154,7 @@ jobs:
       - uses: ./.github/actions/setup-cdk
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-db-staging-${{ github.run_id }}
@@ -183,7 +183,7 @@ jobs:
       - uses: ./.github/actions/setup-cdk
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-auth-staging-${{ github.run_id }}
@@ -209,7 +209,7 @@ jobs:
       - uses: ./.github/actions/setup-cdk
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-queues-staging-${{ github.run_id }}
@@ -235,7 +235,7 @@ jobs:
       - uses: ./.github/actions/setup-cdk
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-api-staging-${{ github.run_id }}
@@ -270,7 +270,7 @@ jobs:
 
     steps:
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-migrations-staging-${{ github.run_id }}
@@ -340,7 +340,7 @@ jobs:
 
       - name: Configure AWS credentials via OIDC
         if: steps.check.outputs.exists == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
           role-session-name: github-frontend-staging-${{ github.run_id }}
