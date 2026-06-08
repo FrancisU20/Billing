@@ -209,23 +209,32 @@ function StatusSection({
       </View>
 
       {status === 'inactive' ? (
-        <View
-          style={[
-            styles.inactiveBanner,
-            { backgroundColor: semantic.status.errorBg, borderColor: semantic.status.error },
-          ]}
-        >
-          <Ionicons name="lock-closed-outline" size={18} color={semantic.status.error} />
-          <View style={styles.inactiveBannerCopy}>
-            <Text style={[styles.inactiveBannerTitle, { color: semantic.status.error }]}>
-              Empresa dada de baja definitiva
-            </Text>
-            <Text style={[styles.inactiveBannerBody, { color: semantic.text.secondary }]}>
-              Sus datos y comprobantes se conservan para efectos de auditoría fiscal. Para
-              reactivarla, contacta al equipo de administración.
+        <>
+          <View
+            style={[
+              styles.infoBanner,
+              {
+                backgroundColor: semantic.status.warningBg,
+                borderColor: semantic.status.warning,
+              },
+            ]}
+          >
+            <Ionicons name="information-circle-outline" size={18} color={semantic.status.warning} />
+            <Text style={[styles.infoBannerText, { color: semantic.text.secondary }]}>
+              Esta empresa está dada de baja. Sus datos y comprobantes se conservan para efectos de
+              auditoría fiscal.
             </Text>
           </View>
-        </View>
+          <Button
+            variant="primary"
+            size="md"
+            fullWidth
+            isDisabled={actionPending}
+            onPress={onReactivate}
+          >
+            Reactivar empresa
+          </Button>
+        </>
       ) : (
         <>
           {status === 'active' ? (
@@ -246,8 +255,7 @@ function StatusSection({
           ) : (
             <>
               <Text style={[styles.statusDescription, { color: semantic.text.secondary }]}>
-                La empresa está suspendida y no puede emitir comprobantes. Puedes reactivarla en
-                cualquier momento.
+                La empresa está suspendida temporalmente y no puede emitir comprobantes.
               </Text>
               <Button
                 variant="primary"
@@ -261,24 +269,25 @@ function StatusSection({
             </>
           )}
 
-          <View style={[styles.dangerZoneDivider, { borderTopColor: semantic.border.default }]}>
-            <View style={[styles.dangerZoneLabel, { backgroundColor: semantic.status.warningBg }]}>
-              <Ionicons name="warning-outline" size={13} color={semantic.status.warning} />
-              <Text style={[styles.dangerZoneLabelText, { color: semantic.status.warning }]}>
-                Acción irreversible desde el portal
+          <View style={[styles.separator, { borderTopColor: semantic.border.default }]} />
+
+          <View style={styles.dangerBlock}>
+            <Button
+              variant="danger"
+              size="md"
+              fullWidth
+              isDisabled={actionPending}
+              onPress={onInactivate}
+            >
+              Dar de baja definitiva
+            </Button>
+            <View style={styles.irreversibleNote}>
+              <Ionicons name="ban-outline" size={12} color={semantic.status.error} />
+              <Text style={[styles.irreversibleText, { color: semantic.status.error }]}>
+                Esta acción no puede deshacerse desde el portal
               </Text>
             </View>
           </View>
-
-          <Button
-            variant="danger"
-            size="md"
-            fullWidth
-            isDisabled={actionPending}
-            onPress={onInactivate}
-          >
-            Dar de baja definitiva
-          </Button>
         </>
       )}
     </View>
@@ -379,32 +388,17 @@ const styles = StyleSheet.create({
   },
   fieldValue: { fontSize: typography.size.base },
   mono: { fontFamily: typography.fontFamily.mono, fontSize: typography.size.sm },
-  statusCurrentRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing[2],
-  },
+  statusCurrentRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
   statusCurrentLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
   statusDescription: { fontSize: typography.size.sm, lineHeight: typography.size.sm * 1.6 },
-  dangerZoneDivider: {
-    alignItems: 'center',
-    borderTopWidth: 1,
-    paddingTop: spacing[4],
-  },
-  dangerZoneLabel: {
-    alignItems: 'center',
-    borderRadius: radius.full,
-    flexDirection: 'row',
-    gap: spacing[1],
-    marginTop: -spacing[4] - 11,
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[1],
-  },
-  dangerZoneLabelText: {
+  separator: { borderTopWidth: 1 },
+  dangerBlock: { gap: spacing[2] },
+  irreversibleNote: { alignItems: 'center', flexDirection: 'row', gap: spacing[1] },
+  irreversibleText: {
     fontSize: typography.size.xs,
-    fontWeight: typography.weight.semibold,
+    fontWeight: typography.weight.medium,
   },
-  inactiveBanner: {
+  infoBanner: {
     alignItems: 'flex-start',
     borderRadius: radius.md,
     borderWidth: 1,
@@ -412,7 +406,5 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     padding: spacing[4],
   },
-  inactiveBannerCopy: { flex: 1, gap: spacing[1] },
-  inactiveBannerTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
-  inactiveBannerBody: { fontSize: typography.size.sm, lineHeight: typography.size.sm * 1.6 },
+  infoBannerText: { flex: 1, fontSize: typography.size.sm, lineHeight: typography.size.sm * 1.6 },
 })
