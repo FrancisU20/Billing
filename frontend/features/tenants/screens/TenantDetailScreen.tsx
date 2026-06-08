@@ -209,18 +209,29 @@ function StatusSection({
       </View>
 
       {status === 'inactive' ? (
-        <View
-          style={[
-            styles.infoBanner,
-            { backgroundColor: semantic.status.errorBg, borderColor: semantic.status.error },
-          ]}
-        >
-          <Ionicons name="ban-outline" size={18} color={semantic.status.error} />
-          <Text style={[styles.infoBannerText, { color: semantic.text.secondary }]}>
-            Esta empresa fue dada de baja definitiva. Sus datos y comprobantes se conservan para
-            efectos de auditoría fiscal.
-          </Text>
-        </View>
+        <>
+          <View
+            style={[
+              styles.infoBanner,
+              { backgroundColor: semantic.status.errorBg, borderColor: semantic.status.error },
+            ]}
+          >
+            <Ionicons name="ban-outline" size={18} color={semantic.status.error} />
+            <Text style={[styles.infoBannerText, { color: semantic.text.secondary }]}>
+              Esta empresa tiene el contrato terminado. Sus datos y comprobantes se conservan para
+              efectos de auditoría fiscal.
+            </Text>
+          </View>
+          <Button
+            variant="primary"
+            size="md"
+            fullWidth
+            isDisabled={actionPending}
+            onPress={onReactivate}
+          >
+            Reactivar empresa
+          </Button>
+        </>
       ) : (
         <>
           {status === 'active' ? (
