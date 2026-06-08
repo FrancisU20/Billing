@@ -1,3 +1,10 @@
+// boxShadow es una propiedad CSS web válida en Expo Web aunque no está
+// incluida en el tipo ViewStyle de React Native. Al tipar shadow como
+// Record<..., ShadowStyle>, todos los componentes pueden usar shadow.lg
+// directamente en arrays de style sin necesitar `as any`.
+import type { ViewStyle } from 'react-native'
+export type ShadowStyle = ViewStyle & { boxShadow: string }
+
 export const colors = {
   primary: {
     50: '#EEF2FF',
@@ -253,20 +260,12 @@ export const typography = {
   },
 } as const
 
-export const shadow = {
-  sm: {
-    boxShadow: '0 1px 2px rgba(9,9,11,0.05)',
-  },
-  md: {
-    boxShadow: '0 4px 8px rgba(9,9,11,0.08)',
-  },
-  lg: {
-    boxShadow: '0 8px 16px rgba(9,9,11,0.12)',
-  },
-  xl: {
-    boxShadow: '0 16px 40px rgba(9,9,11,0.14)',
-  },
-} as const
+export const shadow: Record<'sm' | 'md' | 'lg' | 'xl', ShadowStyle> = {
+  sm: { boxShadow: '0 1px 2px rgba(9,9,11,0.05)' },
+  md: { boxShadow: '0 4px 8px rgba(9,9,11,0.08)' },
+  lg: { boxShadow: '0 8px 16px rgba(9,9,11,0.12)' },
+  xl: { boxShadow: '0 16px 40px rgba(9,9,11,0.14)' },
+}
 
 // Colores para superficies siempre oscuras (nav, cards highlighted, dark inputs)
 // Estos valores son independientes del tema light/dark de la app

@@ -45,8 +45,13 @@ export function TenantDashboardScreen() {
   const user = useAuthStore(selectUser)
   const { semantic } = useTheme()
   const roleLabel = user?.role ? RoleLabel[user.role] : 'Sin rol'
-  const { tenant } = useTenant(user?.tenantId ?? null)
-  const companyName = tenant?.trade_name ?? 'Mi Empresa'
+  const { tenant, loading: tenantLoading } = useTenant(user?.tenantId ?? null)
+
+  const companyName = tenantLoading
+    ? '...'
+    : (tenant?.trade_name ?? 'Mi Empresa')
+
+  const sriBadge = tenant?.sri_environment === 'production' ? 'Producción' : 'Pruebas'
 
   return (
     <View style={[staticStyles.container, { backgroundColor: semantic.bg.page }]}>
@@ -64,7 +69,7 @@ export function TenantDashboardScreen() {
             <View style={staticStyles.identity}>
               <Text style={[staticStyles.kicker, { color: semantic.accent.default }]}>Cuenta activa</Text>
               <Text style={[staticStyles.email, { color: semantic.text.primary }]} numberOfLines={1}>
-                {user?.email}
+                {user?.email ?? ''}
               </Text>
             </View>
             <View style={[staticStyles.rolePill, { backgroundColor: semantic.accent.subtle, borderColor: semantic.border.default }]}>
@@ -80,9 +85,9 @@ export function TenantDashboardScreen() {
           </View>
 
           <View style={[staticStyles.heroFooter, { borderTopColor: semantic.border.default }]}>
-            <HeroSignal label="Estado" value="En linea" />
+            <HeroSignal label="Estado" value="En línea" />
             <HeroSignal label="Periodo" value="Actual" />
-            <HeroSignal label="Ambiente" value="SRI" />
+            <HeroSignal label="Ambiente" value={sriBadge} />
           </View>
         </View>
 
@@ -197,7 +202,7 @@ function MetricCard({ icon, label, value, detail, tone }: {
 const staticStyles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { padding: spacing[5], gap: spacing[5], paddingBottom: spacing[12] },
-  hero: { borderRadius: radius['2xl'], borderWidth: 1, padding: spacing[5], gap: spacing[6], overflow: 'hidden', ...(shadow.lg as any) },
+  hero: { borderRadius: radius['2xl'], borderWidth: 1, padding: spacing[5], gap: spacing[6], overflow: 'hidden', ...shadow.lg },
   heroAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   avatar: { width: 52, height: 52, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },

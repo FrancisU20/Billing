@@ -27,7 +27,7 @@ export function Card({ children, elevated = false, padded = true, variant = 'def
       style={[
         staticStyles.base,
         { backgroundColor: variantBg[variant], borderColor: semantic.border.default },
-        elevated && (shadow.lg as any),
+        elevated && shadow.lg,
         padded && staticStyles.padded,
         style,
       ]}

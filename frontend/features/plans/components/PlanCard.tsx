@@ -37,7 +37,7 @@ export function PlanCard({ plan, highlighted = false }: PlanCardProps) {
   ]
 
   return (
-    <View style={[staticStyles.container, highlighted && (shadow.xl as any), { backgroundColor: cardBg, borderColor: cardBorder }]}>
+    <View style={[staticStyles.container, highlighted && shadow.xl, { backgroundColor: cardBg, borderColor: cardBorder }]}>
       <View style={[staticStyles.accentRail, { backgroundColor: highlighted ? semantic.accent.default : semantic.accent.alt }]} />
 
       <View style={staticStyles.topRow}>

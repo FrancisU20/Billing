@@ -70,7 +70,7 @@ export function PricingScreen() {
 
 const staticStyles = StyleSheet.create({
   container: { flex: 1 },
-  hero: { margin: spacing[5], borderRadius: radius['2xl'], borderWidth: 1, padding: spacing[6], paddingTop: spacing[8], gap: spacing[5], ...(shadow.lg as any) },
+  hero: { margin: spacing[5], borderRadius: radius['2xl'], borderWidth: 1, padding: spacing[6], paddingTop: spacing[8], gap: spacing[5], ...shadow.lg },
   heroBadge: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: spacing[1], borderWidth: 1, borderRadius: radius.full, paddingHorizontal: spacing[3], paddingVertical: spacing[2] - 2 },
   heroBadgeText: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
   heroCopy: { gap: spacing[3] },
