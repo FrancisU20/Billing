@@ -60,8 +60,7 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
             response = self._table.query(
                 IndexName="identification-index",
                 KeyConditionExpression=(
-                    Key("tenant_id").eq(self._tenant_id)
-                    & Key("identification").eq(identification)
+                    Key("tenant_id").eq(self._tenant_id) & Key("identification").eq(identification)
                 ),
             )
         except ClientError as exc:
@@ -395,7 +394,10 @@ class _ClientListFilters:
     def matches(self, client: Client) -> bool:
         if self.status and client.status.value != self.status:
             return False
-        if self.identification_type and client.identification_type.value != self.identification_type:
+        if (
+            self.identification_type
+            and client.identification_type.value != self.identification_type
+        ):
             return False
         created_at = client.created_at.isoformat()
         if self.created_from and created_at < self.created_from:

@@ -12,7 +12,9 @@ class IClientRepository(ABC):
         """Raises ClientNotFoundError if not found or soft-deleted."""
 
     @abstractmethod
-    def get_by_identification(self, identification: str, exclude_id: str | None = None) -> Client | None:
+    def get_by_identification(
+        self, identification: str, exclude_id: str | None = None
+    ) -> Client | None:
         """Returns a non-deleted client inside the current tenant."""
 
     @abstractmethod

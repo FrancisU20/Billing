@@ -21,12 +21,7 @@ export default function NewTenantScreen() {
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
-  const {
-    plans,
-    loading: plansLoading,
-    error: plansError,
-    refresh,
-  } = usePlans(ACTIVE_PLANS_FILTER)
+  const { plans, loading: plansLoading, error: plansError, refresh } = usePlans(ACTIVE_PLANS_FILTER)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
 

@@ -75,7 +75,9 @@ class DynamoClientRepositoryTests(unittest.TestCase):
 
     def test_delete_removes_identification_lock_in_same_transaction(self) -> None:
         client = make_client(id="client-1", tenant_id="tenant-1")
-        table = FakeClientsTable(DynamoClientRepository("tenant-1", FakeClientsTable())._to_item(client))
+        table = FakeClientsTable(
+            DynamoClientRepository("tenant-1", FakeClientsTable())._to_item(client)
+        )
         repo = DynamoClientRepository("tenant-1", table)
         client.soft_delete("admin-1")
 
@@ -134,7 +136,9 @@ class DynamoClientRepositoryTests(unittest.TestCase):
     def test_update_version_failure_maps_to_optimistic_lock(self) -> None:
         client = make_client(id="client-1", tenant_id="tenant-1")
         old_item = DynamoClientRepository("tenant-1", FakeClientsTable())._to_item(client)
-        client.update(UpdateClientCommand(client_id="client-1", updated_by="admin-1", trade_name="Nuevo"))
+        client.update(
+            UpdateClientCommand(client_id="client-1", updated_by="admin-1", trade_name="Nuevo")
+        )
         table = FakeClientsTable(
             old_item,
             _transaction_cancelled([{"Code": "ConditionalCheckFailed", "Message": ""}]),

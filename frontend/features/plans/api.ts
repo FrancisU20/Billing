@@ -26,8 +26,7 @@ function listPath(filters: PlanListFilters = {}): string {
 }
 
 export const plansApi = {
-  list: (filters?: PlanListFilters) =>
-    api.get(listPath(filters), plansListSchema, { auth: false }),
+  list: (filters?: PlanListFilters) => api.get(listPath(filters), plansListSchema, { auth: false }),
 
   getBySlug: (slug: string) => api.get(`/plans/${slug}`, planSchema, { auth: false }),
 
