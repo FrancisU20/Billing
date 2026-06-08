@@ -9,13 +9,23 @@ export function useTenant(id: string | null) {
   const [error, setError] = useState<ApiError | null>(null)
 
   useEffect(() => {
-    if (!id) return
+    if (!id) {
+      setTenant(null)
+      setError(null)
+      return
+    }
+
+    let cancelled = false
     setLoading(true)
+    setError(null)
+
     tenantsApi
       .getById(id)
-      .then(setTenant)
-      .catch((e) => setError(toApiError(e)))
-      .finally(() => setLoading(false))
+      .then((data) => { if (!cancelled) setTenant(data) })
+      .catch((e) => { if (!cancelled) setError(toApiError(e)) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+
+    return () => { cancelled = true }
   }, [id])
 
   return { tenant, loading, error }

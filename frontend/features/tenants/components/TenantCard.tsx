@@ -25,13 +25,13 @@ export function TenantCard({ tenant, onPress }: TenantCardProps) {
     >
       <View style={[staticStyles.avatar, { backgroundColor: semantic.accent.subtle }]}>
         <Text style={[staticStyles.avatarText, { color: semantic.accent.default }]}>
-          {initials(tenant.business_name)}
+          {initials(tenant.trade_name)}
         </Text>
       </View>
 
       <View style={staticStyles.body}>
         <Text style={[staticStyles.name, { color: semantic.text.primary }]} numberOfLines={1}>
-          {tenant.business_name}
+          {tenant.trade_name}
         </Text>
         <Text style={[staticStyles.ruc, { color: semantic.text.secondary }]}>
           {formatRuc(tenant.ruc)}

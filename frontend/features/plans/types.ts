@@ -1,3 +1,5 @@
+export type LimitCycle = 'month' | 'year'
+
 export interface Plan {
   id: string
   slug: string
@@ -6,7 +8,7 @@ export interface Plan {
   monthly_price: string
   annual_price: string
   document_limit: number
-  limit_cycle: 'monthly' | 'annual'
+  limit_cycle: LimitCycle
   max_locations: number
   max_emission_points: number
   max_users: number
@@ -16,4 +18,8 @@ export interface Plan {
   includes_api: boolean
   order: number
   active: boolean
+  version: number
+  created_at: string
+  updated_at: string
+  created_by: string
 }
