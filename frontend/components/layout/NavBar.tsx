@@ -57,13 +57,13 @@ export function NavIconButton({ icon, style, ...props }: NavIconButtonProps) {
   return (
     <Pressable
       {...props}
-      style={({ pressed }) => [
+      style={(state) => [
         styles.iconBtn,
         {
-          backgroundColor: pressed ? semantic.bg.muted : semantic.bg.elevated,
+          backgroundColor: state.pressed ? semantic.bg.muted : semantic.bg.elevated,
           borderColor: semantic.border.default,
         },
-        typeof style === 'function' ? style({ pressed, hovered: false }) : style,
+        typeof style === 'function' ? style(state) : style,
       ]}
       hitSlop={8}
     >

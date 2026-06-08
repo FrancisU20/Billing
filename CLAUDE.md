@@ -679,6 +679,28 @@ de desarrollo/local al runtime Lambda.
 
 ## Historial de cambios relevantes
 
+### 2026-06-08 — Fix: TypeScript pipeline — PressableStateCallbackType hovered
+
+- **Síntoma**: CI fallaba en `Frontend / Quality Gate → Typecheck` con
+  `error TS2353: 'hovered' does not exist in type 'PressableStateCallbackType'`
+  en `components/layout/NavBar.tsx:66`.
+- **Causa raíz**: `expo/types/react-native-web.d.ts` augmenta el módulo `react-native`
+  añadiendo `hovered: boolean` a `PressableStateCallbackType`. Este archivo solo se
+  carga localmente porque `expo-env.d.ts` (gitignored) lo referencia via
+  `/// <reference types="expo/types" />`. En CI el archivo no existe, así que el tipo
+  tiene solo `pressed: boolean` (bundled de `react-native@0.85.3`). El código original
+  pasaba `{ pressed, hovered: false }` que fallaba en CI, y el primer intento de fix
+  `{ pressed }` fallaba localmente por la misma discrepancia de tipos.
+- **Fix**: En `NavIconButton`, en vez de destructurar `{ pressed }` y reconstruir el
+  estado al llamar el callback `style`, se pasa `state` entero directamente:
+  `style={(state) => [..., typeof style === 'function' ? style(state) : style]}`.
+  Esto es compatible con cualquier forma del tipo (`PressableStateCallbackType` con o
+  sin `hovered`) y es la forma correcta de componer callbacks de Pressable.
+- **Nota permanente**: `expo-env.d.ts` está en `.gitignore` — en CI no existe y el
+  type augmentation de `expo/types` no se carga. Cualquier código que use
+  `PressableStateCallbackType` debe asumir solo `{ pressed: boolean }` como garantía
+  mínima, o pasar `state` directo sin reconstruirlo.
+
 ### 2026-06-07 — FrontendStack: S3 + CloudFront + Certificate
 
 - `infra/stacks/certificate_stack.py` — ACM cert en us-east-1 (requerido por CloudFront),
