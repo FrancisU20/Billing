@@ -23,7 +23,7 @@ from lambdas.tenants.domain.commands import (
     ToggleStatusCommand,
     UpdateTenantCommand,
 )
-from lambdas.tenants.domain.enums import TenantStatus
+from lambdas.tenants.domain.enums import PlanStatus, SriEnvironment, TenantStatus
 from lambdas.tenants.infra.plan_catalog import DynamoPlanCatalog
 from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
 from lambdas.tenants.schemas import (
@@ -38,6 +38,7 @@ from lambdas.tenants.use_cases.list_tenants import ListTenantsQuery, ListTenants
 from lambdas.tenants.use_cases.toggle_status import ToggleStatusUseCase
 from lambdas.tenants.use_cases.update_tenant import UpdateTenantUseCase
 from shared.config import env
+from shared.dates import parse_date_boundary
 from shared.db.client import get_table
 from shared.errors import ForbiddenError, NotFoundError, ValidationError
 
@@ -71,10 +72,30 @@ def _parse_list_query(params: dict) -> ListTenantsQuery:
         except ValueError as exc:
             raise ValidationError(f"Estado inválido: {status}") from exc
 
+    sri_environment = params.get("sri_environment")
+    if sri_environment:
+        try:
+            SriEnvironment(sri_environment)
+        except ValueError as exc:
+            raise ValidationError("Entorno SRI inválido") from exc
+
+    plan_status = params.get("plan_status")
+    if plan_status:
+        try:
+            PlanStatus(plan_status)
+        except ValueError as exc:
+            raise ValidationError("Estado de plan inválido") from exc
+
     return ListTenantsQuery(
         limit=min(limit, 100),
         next_token=params.get("next_token"),
         status=status,
+        q=params.get("q"),
+        ruc=params.get("ruc"),
+        sri_environment=sri_environment,
+        plan_status=plan_status,
+        created_from=parse_date_boundary(params.get("created_from"), end_of_day=False),
+        created_to=parse_date_boundary(params.get("created_to"), end_of_day=True),
     )
 
 

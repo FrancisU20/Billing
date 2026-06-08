@@ -70,13 +70,27 @@ class DynamoPlanRepository(IPlanRepository):
             raise PlanNotFoundError()
         return self._from_item(items[0])
 
-    def list(self, active_only: bool = False) -> list[Plan]:
-        filter_expr = Attr("entity_type").not_exists() | Attr("entity_type").eq("PLAN")
-        if active_only:
-            filter_expr = filter_expr & Attr("active").eq(True)
+    def list(
+        self,
+        *,
+        status: str | None = None,
+        slug: str | None = None,
+        q: str | None = None,
+        limit_cycle: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+    ) -> list[Plan]:
+        filters = _PlanListFilters(
+            status=status,
+            slug=slug,
+            q=q,
+            limit_cycle=limit_cycle,
+            created_from=created_from,
+            created_to=created_to,
+        )
 
         items: list[dict] = []
-        kwargs: dict = {"FilterExpression": filter_expr}
+        kwargs: dict = {"FilterExpression": filters.to_dynamo_filter()}
         try:
             while True:
                 response = self._table.scan(**kwargs)
@@ -89,9 +103,10 @@ class DynamoPlanRepository(IPlanRepository):
             _log.error("DynamoDB scan error", error=str(exc))
             raise DatabaseError()
 
-        return [
+        plans = [
             self._from_item(item) for item in items if item.get("entity_type", "PLAN") == "PLAN"
         ]
+        return [plan for plan in plans if filters.matches(plan)]
 
     # ── writes ────────────────────────────────────────────────────────────────
 
@@ -286,4 +301,57 @@ class DynamoPlanRepository(IPlanRepository):
             updated_at=datetime.fromisoformat(item["updated_at"]),
             created_by=item.get("created_by", ""),
             updated_by=item.get("updated_by", ""),
+        )
+
+
+class _PlanListFilters:
+    def __init__(
+        self,
+        *,
+        status: str | None,
+        slug: str | None,
+        q: str | None,
+        limit_cycle: str | None,
+        created_from: str | None,
+        created_to: str | None,
+    ) -> None:
+        self.active = {"active": True, "inactive": False}.get(status)
+        self.slug = slug.strip().lower() if slug else None
+        self.needle = q.strip().lower() if q else ""
+        self.limit_cycle = limit_cycle
+        self.created_from = created_from
+        self.created_to = created_to
+
+    def to_dynamo_filter(self):
+        filter_expr = Attr("entity_type").not_exists() | Attr("entity_type").eq("PLAN")
+        if self.active is not None:
+            filter_expr = filter_expr & Attr("active").eq(self.active)
+        if self.slug:
+            filter_expr = filter_expr & Attr("slug").eq(self.slug)
+        if self.limit_cycle:
+            filter_expr = filter_expr & Attr("limit_cycle").eq(self.limit_cycle)
+        if self.created_from:
+            filter_expr = filter_expr & Attr("created_at").gte(self.created_from)
+        if self.created_to:
+            filter_expr = filter_expr & Attr("created_at").lte(self.created_to)
+        return filter_expr
+
+    def matches(self, plan: Plan) -> bool:
+        if self.active is not None and plan.active != self.active:
+            return False
+        if self.slug and plan.slug.lower() != self.slug:
+            return False
+        if self.limit_cycle and plan.limit_cycle != self.limit_cycle:
+            return False
+        created_at = plan.created_at.isoformat()
+        if self.created_from and created_at < self.created_from:
+            return False
+        if self.created_to and created_at > self.created_to:
+            return False
+        if not self.needle:
+            return True
+        return (
+            self.needle in plan.name.lower()
+            or self.needle in plan.description.lower()
+            or self.needle in plan.slug.lower()
         )

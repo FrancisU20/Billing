@@ -152,6 +152,27 @@ class ApiStack(Stack):
         database.idempotency_table.grant_read_write_data(tenants_fn)
         database.outbox_table.grant_write_data(tenants_fn)
 
+        # ── Clients Lambda ─────────────────────────────────────────────────────
+        clients_fn = lmb.Function(
+            self, "ClientsFunction",
+            function_name = f"codelabs-billing-{env}-clients",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.clients.handler.handler",
+            timeout       = Duration.seconds(15),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "CLIENTS_TABLE":     database.clients_table.table_name,
+                "AUDIT_LOG_TABLE":   database.audit_table.table_name,
+                "IDEMPOTENCY_TABLE": database.idempotency_table.table_name,
+            },
+        )
+        database.clients_table.grant_read_write_data(clients_fn)
+        database.audit_table.grant_read_write_data(clients_fn)
+        database.idempotency_table.grant_read_write_data(clients_fn)
+
         # ── Outbox Relay Worker ───────────────────────────────────────────────
         outbox_relay_fn = lmb.Function(
             self, "OutboxRelayWorker",
@@ -265,10 +286,12 @@ class ApiStack(Stack):
                 **_common_env,
                 "MIGRATIONS_TABLE": database.migrations_table.table_name,
                 "PLANS_TABLE":      database.plans_table.table_name,
+                "TENANTS_TABLE":    database.tenants_table.table_name,
             },
         )
         database.migrations_table.grant_read_write_data(migrations_fn)
         database.plans_table.grant_read_write_data(migrations_fn)
+        database.tenants_table.grant_read_write_data(migrations_fn)
 
         # ── Dominio personalizado — ACM + Route53 ─────────────────────────────
         # El certificado va en la misma región que el API Gateway (sa-east-1).
@@ -342,6 +365,24 @@ class ApiStack(Stack):
                 path        = route,
                 methods     = [method],
                 integration = tenants_integration,
+                authorizer  = jwt_authorizer,
+            )
+
+        clients_integration = integrations.HttpLambdaIntegration(
+            "ClientsIntegration", clients_fn
+        )
+
+        for method, route in [
+            (apigwv2.HttpMethod.POST,   "/clients"),
+            (apigwv2.HttpMethod.GET,    "/clients"),
+            (apigwv2.HttpMethod.GET,    "/clients/{id}"),
+            (apigwv2.HttpMethod.PATCH,  "/clients/{id}"),
+            (apigwv2.HttpMethod.DELETE, "/clients/{id}"),
+        ]:
+            api.add_routes(
+                path        = route,
+                methods     = [method],
+                integration = clients_integration,
                 authorizer  = jwt_authorizer,
             )
 

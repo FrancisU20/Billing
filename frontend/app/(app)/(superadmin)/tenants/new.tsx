@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { TenantForm } from '@/features/tenants/components/TenantForm'
 import { tenantsApi } from '@/features/tenants/api'
+import { ACTIVE_PLANS_FILTER } from '@/features/plans/constants'
 import { usePlans } from '@/features/plans/hooks/usePlans'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
@@ -14,21 +15,29 @@ import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useToast } from '@/components/feedback/Toast'
 import { Routes } from '@/constants/routes'
 import { spacing } from '@/constants/tokens'
-import type { CreateTenantInput } from '@/features/tenants/types'
+import { formValuesToCreateTenantInput, type TenantFormValues } from '@/features/tenants/form'
 
 export default function NewTenantScreen() {
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
-  const { plans, loading: plansLoading, error: plansError, refresh } = usePlans()
+  const {
+    plans,
+    loading: plansLoading,
+    error: plansError,
+    refresh,
+  } = usePlans(ACTIVE_PLANS_FILTER)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
 
-  async function handleSubmit(values: CreateTenantInput) {
+  async function handleSubmit(values: TenantFormValues) {
     setSubmitting(true)
     setError(null)
     try {
-      const tenant = await tenantsApi.create(values, createIdempotencyKey('tenant_create'))
+      const tenant = await tenantsApi.create(
+        formValuesToCreateTenantInput(values),
+        createIdempotencyKey('tenant_create'),
+      )
       toast.success('Empresa creada')
       router.replace(Routes.superadmin.tenantDetail(tenant.id))
     } catch (e) {
@@ -55,7 +64,8 @@ export default function NewTenantScreen() {
           />
         ) : (
           <TenantForm
-            plans={plans.filter((plan) => plan.active)}
+            mode="create"
+            plans={plans}
             onSubmit={handleSubmit}
             isLoading={submitting}
             apiError={error}

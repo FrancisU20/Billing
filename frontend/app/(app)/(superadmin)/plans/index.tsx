@@ -1,106 +1,234 @@
-import React from 'react'
+import React, { useMemo, useState } from 'react'
 import { FlatList, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useTheme } from '@/lib/theme-context'
-import { radius, spacing, typography } from '@/constants/tokens'
+import type { Href } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { EmptyState } from '@/components/ui/EmptyState'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
-import { PlanCard } from '@/features/plans/components/PlanCard'
-import { usePlans } from '@/features/plans/hooks/usePlans'
-import { useRouter } from 'expo-router'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useToast } from '@/components/feedback/Toast'
+import { createIdempotencyKey } from '@/lib/api/idempotency'
+import { toApiError, type ApiError } from '@/lib/api/errors'
+import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
+import { radius, spacing, typography } from '@/constants/tokens'
+import { plansApi } from '@/features/plans/api'
+import { PlanListItem } from '@/features/plans/components/PlanListItem'
+import {
+  PlansFilters,
+  emptyPlanFilterDraft,
+  toPlanListFilters,
+  type PlanFilterDraft,
+} from '@/features/plans/components/PlansFilters'
+import { usePlans } from '@/features/plans/hooks/usePlans'
+import type { Plan, PlanListFilters } from '@/features/plans/types'
 
 export default function PlansManagementScreen() {
   const router = useRouter()
-  const { plans, loading, error, refresh } = usePlans()
+  const toast = useToast()
   const { semantic } = useTheme()
-  const activePlans = plans.filter((plan) => plan.active).length
+  const [draft, setDraft] = useState<PlanFilterDraft>(emptyPlanFilterDraft)
+  const [filters, setFilters] = useState<PlanListFilters>({})
+  const [planToToggle, setPlanToToggle] = useState<Plan | null>(null)
+  const [toggling, setToggling] = useState(false)
+  const [actionError, setActionError] = useState<ApiError | null>(null)
+  const { plans, loading, error, refresh } = usePlans(filters)
+
+  const summary = useMemo(() => {
+    const active = plans.filter((plan) => plan.active).length
+    const unlimited = plans.filter((plan) => plan.document_limit === -1).length
+    return { active, unlimited, total: plans.length }
+  }, [plans])
+
+  function applyFilters() {
+    setFilters(toPlanListFilters(draft))
+  }
+
+  function resetFilters() {
+    setDraft(emptyPlanFilterDraft)
+    setFilters({})
+  }
+
+  async function confirmToggle() {
+    if (!planToToggle) return
+    setToggling(true)
+    setActionError(null)
+    try {
+      await plansApi.setStatus(
+        planToToggle.id,
+        !planToToggle.active,
+        createIdempotencyKey('plan_status'),
+      )
+      toast.success(planToToggle.active ? 'Plan desactivado' : 'Plan activado')
+      setPlanToToggle(null)
+      await refresh()
+    } catch (e) {
+      setActionError(toApiError(e))
+    } finally {
+      setToggling(false)
+    }
+  }
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando planes..." />
 
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
-      <AppNavBar title="Planes" subtitle={`${plans.length} planes`} />
+      <AppNavBar
+        title="Planes"
+        subtitle={plans.length ? `${plans.length} resultados` : 'Catálogo SaaS'}
+      />
 
-      {error ? (
-        <View style={styles.errorWrap}>
-          <ApiErrorBanner error={error} />
-        </View>
-      ) : (
-        <FlatList
-          data={plans}
-          keyExtractor={(p) => p.id}
-          renderItem={({ item }) => <PlanCard plan={item} />}
-          contentContainerStyle={styles.list}
-          ListHeaderComponentStyle={styles.listHeader}
-          ListHeaderComponent={
-            <View
-              style={[
-                styles.summary,
-                { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
-              ]}
-            >
-              <View style={[styles.summaryIcon, { backgroundColor: semantic.accent.altSubtle }]}>
-                <Ionicons name="layers-outline" size={20} color={semantic.accent.alt} />
-              </View>
-              <View style={styles.summaryCopy}>
-                <Text style={[styles.summaryTitle, { color: semantic.text.primary }]}>
-                  Catálogo comercial
-                </Text>
-                <Text style={[styles.summarySubtitle, { color: semantic.text.secondary }]}>
-                  {activePlans} activos de {plans.length} configurados
+      <FlatList
+        data={plans}
+        keyExtractor={(plan) => plan.id}
+        renderItem={({ item }) => (
+          <PlanListItem
+            plan={item}
+            onView={() => router.push(Routes.superadmin.planDetail(item.slug) as Href)}
+            onEdit={() => router.push(Routes.superadmin.planEdit(item.slug) as Href)}
+            onToggle={() => setPlanToToggle(item)}
+          />
+        )}
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <View style={styles.heroRow}>
+              <View style={styles.heroCopy}>
+                <View style={styles.kickerRow}>
+                  <Ionicons name="layers-outline" size={16} color={semantic.accent.default} />
+                  <Text style={[styles.kicker, { color: semantic.accent.default }]}>
+                    Catálogo comercial
+                  </Text>
+                </View>
+                <Text style={[styles.heading, { color: semantic.text.primary }]}>
+                  Planes, límites y módulos incluidos
                 </Text>
               </View>
               <Button
                 variant="primary"
-                size="sm"
+                size="md"
                 onPress={() => router.push(Routes.superadmin.planNew)}
               >
-                Nuevo
+                Nuevo plan
               </Button>
             </View>
-          }
-          ItemSeparatorComponent={() => <View style={{ height: spacing[3] }} />}
-          ListEmptyComponent={
-            <EmptyState
-              icon="pricetags-outline"
-              title="Sin planes"
-              description="No hay planes configurados."
+
+            <View style={styles.metricsRow}>
+              <Metric label="Activos" value={summary.active} icon="checkmark-circle-outline" />
+              <Metric label="Ilimitados" value={summary.unlimited} icon="infinite-outline" />
+              <Metric label="Cargados" value={summary.total} icon="layers-outline" />
+            </View>
+
+            <PlansFilters
+              value={draft}
+              onChange={setDraft}
+              onApply={applyFilters}
+              onReset={resetFilters}
             />
-          }
-          refreshing={loading}
-          onRefresh={refresh}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+
+            {error ? <ApiErrorBanner error={error} /> : null}
+            {actionError ? <ApiErrorBanner error={actionError} /> : null}
+          </View>
+        }
+        ItemSeparatorComponent={() => <View style={{ height: spacing[3] }} />}
+        ListEmptyComponent={
+          <EmptyState
+            icon="pricetags-outline"
+            title="Sin planes"
+            description="No hay planes que coincidan con los filtros actuales."
+            action={{ label: 'Crear plan', onPress: () => router.push(Routes.superadmin.planNew) }}
+          />
+        }
+        refreshing={loading}
+        onRefresh={refresh}
+        showsVerticalScrollIndicator={false}
+      />
+
+      <ConfirmDialog
+        visible={!!planToToggle}
+        title={planToToggle?.active ? 'Desactivar plan' : 'Activar plan'}
+        message={`El plan ${planToToggle?.name ?? ''} ${planToToggle?.active ? 'dejará de mostrarse como disponible.' : 'volverá a estar disponible.'}`}
+        confirmLabel={planToToggle?.active ? 'Desactivar' : 'Activar'}
+        icon={planToToggle?.active ? 'pause-circle-outline' : 'play-circle-outline'}
+        isLoading={toggling}
+        onCancel={() => setPlanToToggle(null)}
+        onConfirm={confirmToggle}
+      />
+    </View>
+  )
+}
+
+function Metric({
+  label,
+  value,
+  icon,
+}: {
+  label: string
+  value: number
+  icon: keyof typeof Ionicons.glyphMap
+}) {
+  const { semantic } = useTheme()
+  return (
+    <View
+      style={[
+        styles.metric,
+        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
+      ]}
+    >
+      <View style={[styles.metricIcon, { backgroundColor: semantic.accent.subtle }]}>
+        <Ionicons name={icon} size={16} color={semantic.accent.default} />
+      </View>
+      <View>
+        <Text style={[styles.metricValue, { color: semantic.text.primary }]}>{value}</Text>
+        <Text style={[styles.metricLabel, { color: semantic.text.secondary }]}>{label}</Text>
+      </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  errorWrap: { padding: spacing[5] },
-  list: { padding: spacing[4], paddingBottom: spacing[10] },
-  listHeader: { marginBottom: spacing[3] },
-  summary: {
+  list: { padding: spacing[4], paddingBottom: spacing[12] },
+  header: { gap: spacing[4], marginBottom: spacing[4] },
+  heroRow: {
+    alignItems: 'flex-start',
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[4],
+    justifyContent: 'space-between',
+  },
+  heroCopy: { flex: 1, minWidth: 260, gap: spacing[1] },
+  kickerRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[1] },
+  kicker: {
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.bold,
+    textTransform: 'uppercase',
+  },
+  heading: {
+    fontSize: typography.size['2xl'],
+    fontWeight: typography.weight.bold,
+    lineHeight: typography.size['2xl'] * 1.2,
+  },
+  metricsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
+  metric: {
     alignItems: 'center',
-    gap: spacing[3],
-    borderRadius: radius['2xl'],
+    borderRadius: radius.md,
     borderWidth: 1,
-    padding: spacing[5],
+    flexDirection: 'row',
+    gap: spacing[3],
+    minWidth: 150,
+    padding: spacing[3],
   },
-  summaryIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.lg,
+  metricIcon: {
     alignItems: 'center',
+    borderRadius: radius.md,
+    height: 34,
     justifyContent: 'center',
+    width: 34,
   },
-  summaryCopy: { flex: 1, minWidth: 0, gap: spacing[1] },
-  summaryTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
-  summarySubtitle: { fontSize: typography.size.sm },
+  metricValue: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
+  metricLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
 })

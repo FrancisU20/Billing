@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toApiError, type ApiError } from '@/lib/api/errors'
 import { tenantsApi } from '../api'
-import type { Tenant } from '../types'
+import type { Tenant, TenantListFilters } from '../types'
 
 interface TenantsState {
   tenants: Tenant[]
@@ -12,7 +12,7 @@ interface TenantsState {
   error: ApiError | null
 }
 
-export function useTenants() {
+export function useTenants(filters: TenantListFilters = {}) {
   const [state, setState] = useState<TenantsState>({
     tenants: [],
     nextToken: null,
@@ -25,7 +25,7 @@ export function useTenants() {
   const fetch = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }))
     try {
-      const res = await tenantsApi.list()
+      const res = await tenantsApi.list(filters)
       setState({
         tenants: res.items,
         nextToken: res.next_token,
@@ -37,14 +37,14 @@ export function useTenants() {
     } catch (e) {
       setState((s) => ({ ...s, loading: false, error: toApiError(e) }))
     }
-  }, [])
+  }, [filters])
 
   const fetchMore = useCallback(async () => {
     const { hasMore, loadingMore, nextToken } = state
     if (!hasMore || loadingMore || !nextToken) return
     setState((s) => ({ ...s, loadingMore: true }))
     try {
-      const res = await tenantsApi.list(nextToken)
+      const res = await tenantsApi.list(filters, nextToken)
       setState((s) => ({
         ...s,
         tenants: [...s.tenants, ...res.items],
@@ -55,7 +55,7 @@ export function useTenants() {
     } catch (e) {
       setState((s) => ({ ...s, loadingMore: false, error: toApiError(e) }))
     }
-  }, [state])
+  }, [filters, state])
 
   useEffect(() => {
     fetch()

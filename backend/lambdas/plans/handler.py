@@ -29,12 +29,13 @@ from lambdas.plans.infra.plan_repository import DynamoPlanRepository
 from lambdas.plans.schemas import CreatePlanRequest, TogglePlanRequest, UpdatePlanRequest
 from lambdas.plans.use_cases.create_plan import CreatePlanUseCase
 from lambdas.plans.use_cases.get_plan import GetPlanBySlugUseCase
-from lambdas.plans.use_cases.list_plans import ListPlansUseCase
+from lambdas.plans.use_cases.list_plans import ListPlansQuery, ListPlansUseCase
 from lambdas.plans.use_cases.toggle_plan import TogglePlanUseCase
 from lambdas.plans.use_cases.update_plan import UpdatePlanUseCase
 from shared.config import env
+from shared.dates import parse_date_boundary
 from shared.db.client import get_table
-from shared.errors import NotFoundError
+from shared.errors import NotFoundError, ValidationError
 
 _table = get_table("PLANS_TABLE")
 _audit_table = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
@@ -42,6 +43,25 @@ _audit_table = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else N
 
 def _repo() -> DynamoPlanRepository:
     return DynamoPlanRepository(_table, _audit_table)
+
+
+def _parse_list_query(params: dict) -> ListPlansQuery:
+    status = params.get("status")
+    if status and status not in ("active", "inactive"):
+        raise ValidationError("Estado inválido")
+
+    limit_cycle = params.get("limit_cycle")
+    if limit_cycle and limit_cycle not in ("month", "year"):
+        raise ValidationError("Ciclo de límite inválido")
+
+    return ListPlansQuery(
+        status=status,
+        slug=params.get("slug"),
+        q=params.get("q"),
+        limit_cycle=limit_cycle,
+        created_from=parse_date_boundary(params.get("created_from"), end_of_day=False),
+        created_to=parse_date_boundary(params.get("created_to"), end_of_day=True),
+    )
 
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
@@ -86,8 +106,8 @@ def _create(request: Request, context) -> dict:
 
 @public_lambda_handler
 def _list(request: Request, context) -> dict:
-    active_only = request.query_params.get("active", "true").lower() != "false"
-    plans = ListPlansUseCase(_repo()).execute(active_only=active_only)
+    query = _parse_list_query(request.query_params)
+    plans = ListPlansUseCase(_repo()).execute(query)
     return ApiResponse.ok({"items": [p.to_dict() for p in plans]}, request.request_id)
 
 

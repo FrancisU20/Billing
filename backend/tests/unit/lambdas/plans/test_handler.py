@@ -40,6 +40,7 @@ class FakePlanRepository(IPlanRepository):
         self._by_id = {"uuid-free": self._free, "uuid-basic": self._basic}
         self._by_slug = {"free": self._free, "basic": self._basic}
         self.commit_calls: list[dict[str, Any]] = []
+        self.list_calls: list[dict[str, Any]] = []
 
     def get_by_id(self, plan_id: str) -> Plan:
         if plan_id not in self._by_id:
@@ -59,7 +60,26 @@ class FakePlanRepository(IPlanRepository):
         self.commit_calls.append(kwargs)
         self.save(kwargs["plan"])
 
-    def list(self, active_only: bool = False) -> list[Plan]:
+    def list(
+        self,
+        *,
+        status: str | None = None,
+        slug: str | None = None,
+        q: str | None = None,
+        limit_cycle: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+    ) -> list[Plan]:
+        self.list_calls.append(
+            {
+                "status": status,
+                "slug": slug,
+                "q": q,
+                "limit_cycle": limit_cycle,
+                "created_from": created_from,
+                "created_to": created_to,
+            }
+        )
         return list(self._by_id.values())
 
 
@@ -103,6 +123,63 @@ class PlansHandlerTests(unittest.TestCase):
         }
         result = mod.handler(event, LambdaContext())
         self.assertEqual(result["statusCode"], 200)
+
+    def test_list_passes_status_and_search_filters_to_repo(self) -> None:
+        mod = self._load()
+        result = mod.handler(
+            api_event(
+                method="GET",
+                path="/plans",
+                query={"status": "active", "q": "basic", "limit_cycle": "month", "slug": "Basic"},
+            ),
+            LambdaContext(),
+        )
+        self.assertEqual(result["statusCode"], 200)
+        self.assertEqual(
+            self._repo.list_calls[0],
+            {
+                "status": "active",
+                "slug": "Basic",
+                "q": "basic",
+                "limit_cycle": "month",
+                "created_from": None,
+                "created_to": None,
+            },
+        )
+
+    def test_list_passes_created_at_boundaries_to_repo(self) -> None:
+        mod = self._load()
+        result = mod.handler(
+            api_event(
+                method="GET",
+                path="/plans",
+                query={"created_from": "2026-06-01", "created_to": "2026-06-08"},
+            ),
+            LambdaContext(),
+        )
+        self.assertEqual(result["statusCode"], 200)
+        self.assertEqual(self._repo.list_calls[0]["created_from"], "2026-06-01T00:00:00+00:00")
+        self.assertEqual(self._repo.list_calls[0]["created_to"], "2026-06-08T23:59:59.999999+00:00")
+
+    def test_list_rejects_invalid_status(self) -> None:
+        mod = self._load()
+        result = mod.handler(
+            api_event(method="GET", path="/plans", query={"status": "trial"}),
+            LambdaContext(),
+        )
+        body = json.loads(result["body"])
+        self.assertEqual(result["statusCode"], 400)
+        self.assertEqual(body["error"]["code"], "VALIDATION_ERROR")
+
+    def test_list_rejects_invalid_limit_cycle(self) -> None:
+        mod = self._load()
+        result = mod.handler(
+            api_event(method="GET", path="/plans", query={"limit_cycle": "week"}),
+            LambdaContext(),
+        )
+        body = json.loads(result["body"])
+        self.assertEqual(result["statusCode"], 400)
+        self.assertEqual(body["error"]["code"], "VALIDATION_ERROR")
 
     def test_get_by_slug_returns_plan(self) -> None:
         mod = self._load()

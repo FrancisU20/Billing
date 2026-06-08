@@ -19,7 +19,7 @@ class DynamoPlanCatalog(IPlanCatalog):
     def __init__(self, plans_table) -> None:
         self._table = plans_table
 
-    def ensure_active(self, plan_id: str) -> None:
+    def ensure_active(self, plan_id: str) -> str:
         if not plan_id:
             raise ValidationError("plan_id es requerido")
 
@@ -38,3 +38,5 @@ class DynamoPlanCatalog(IPlanCatalog):
 
         if not item.get("active", True):
             raise ValidationError("plan_id no está activo")
+
+        return item.get("limit_cycle", "month")

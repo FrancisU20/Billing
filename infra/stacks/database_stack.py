@@ -120,6 +120,28 @@ class DatabaseStack(Stack):
             projection_type = ddb.ProjectionType.ALL,
         )
 
+        # ── Clients ───────────────────────────────────────────────────────────
+        # PK: pk="TENANT#{tenant_id}" | SK: sk="CLIENT#{uuid}"
+        # GSI identification-index: PK=tenant_id, SK=identification
+        # Unicidad por tenant: lock transaccional SK="CLIENT_IDENTIFICATION#{identification}"
+        self.clients_table = ddb.Table(
+            self, "ClientsTable",
+            table_name      = f"codelabs-billing-{env}-clients",
+            partition_key   = ddb.Attribute(name="pk", type=ddb.AttributeType.STRING),
+            sort_key        = ddb.Attribute(name="sk", type=ddb.AttributeType.STRING),
+            billing_mode    = ddb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=pitr,
+            ),
+            removal_policy  = removal,
+        )
+        self.clients_table.add_global_secondary_index(
+            index_name      = "identification-index",
+            partition_key   = ddb.Attribute(name="tenant_id", type=ddb.AttributeType.STRING),
+            sort_key        = ddb.Attribute(name="identification", type=ddb.AttributeType.STRING),
+            projection_type = ddb.ProjectionType.ALL,
+        )
+
         # ── Migrations ─────────────────────────────────────────────────────────
         # PK: id (nombre del script, ej. "0001_create_tables")
         # Trackea qué migraciones de datos corrieron
@@ -154,6 +176,10 @@ class DatabaseStack(Stack):
         CfnOutput(self, "PlansTableName",
                   value=self.plans_table.table_name,
                   export_name=f"CodeLabsBilling-{env}-PlansTableName")
+
+        CfnOutput(self, "ClientsTableName",
+                  value=self.clients_table.table_name,
+                  export_name=f"CodeLabsBilling-{env}-ClientsTableName")
 
         CfnOutput(self, "MigrationsTableName",
                   value=self.migrations_table.table_name,

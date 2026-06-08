@@ -30,4 +30,13 @@ class IPlanRepository(ABC):
     ) -> None: ...
 
     @abstractmethod
-    def list(self, active_only: bool = False) -> list[Plan]: ...
+    def list(
+        self,
+        *,
+        status: str | None = None,
+        slug: str | None = None,
+        q: str | None = None,
+        limit_cycle: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+    ) -> list[Plan]: ...

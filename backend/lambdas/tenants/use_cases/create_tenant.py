@@ -15,12 +15,12 @@ class CreateTenantUseCase:
         self._plan_catalog = plan_catalog
 
     def execute(self, cmd: CreateTenantCommand) -> tuple[Tenant, list[DomainEvent]]:
-        self._plan_catalog.ensure_active(cmd.plan_id)
+        plan_limit_cycle = self._plan_catalog.ensure_active(cmd.plan_id)
 
         if self._repo.get_by_ruc(cmd.ruc):
             raise TenantRucAlreadyExistsError()
 
-        tenant = Tenant.create(cmd)
+        tenant = Tenant.create(cmd, plan_limit_cycle=plan_limit_cycle)
         events = [
             TenantCreatedEvent(
                 tenant_id=tenant.id,

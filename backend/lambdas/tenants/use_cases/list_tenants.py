@@ -11,6 +11,12 @@ class ListTenantsQuery:
     limit: int = 20
     next_token: str | None = None
     status: str | None = None
+    q: str | None = None
+    ruc: str | None = None
+    sri_environment: str | None = None
+    plan_status: str | None = None
+    created_from: str | None = None
+    created_to: str | None = None
 
 
 class ListTenantsUseCase:
@@ -22,4 +28,10 @@ class ListTenantsUseCase:
             limit=query.limit,
             next_token=query.next_token,
             status=query.status,
+            q=query.q,
+            ruc=query.ruc,
+            sri_environment=query.sri_environment,
+            plan_status=query.plan_status,
+            created_from=query.created_from,
+            created_to=query.created_to,
         )

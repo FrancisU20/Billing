@@ -126,11 +126,21 @@ class TenantMutationUseCaseTests(unittest.TestCase):
                 limit=10,
                 next_token="cursor-0",
                 status="active",
+                q="codelabs",
+                ruc="1792146739001",
+                sri_environment="testing",
+                plan_status="active",
+                created_from="2026-06-01T00:00:00+00:00",
+                created_to="2026-06-08T23:59:59.999999+00:00",
             )
         )
 
         self.assertEqual(tenants, [expected])
         self.assertEqual(next_token, "cursor-1")
+        self.assertEqual(repo.list_calls[0]["q"], "codelabs")
+        self.assertEqual(repo.list_calls[0]["ruc"], "1792146739001")
+        self.assertEqual(repo.list_calls[0]["sri_environment"], "testing")
+        self.assertEqual(repo.list_calls[0]["plan_status"], "active")
 
 
 if __name__ == "__main__":

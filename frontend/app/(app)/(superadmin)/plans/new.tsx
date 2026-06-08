@@ -10,7 +10,7 @@ import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useToast } from '@/components/feedback/Toast'
 import { Routes } from '@/constants/routes'
 import { spacing } from '@/constants/tokens'
-import type { CreatePlanInput } from '@/features/plans/types'
+import type { CreatePlanInput, UpdatePlanInput } from '@/features/plans/types'
 
 export default function NewPlanScreen() {
   const router = useRouter()
@@ -19,11 +19,11 @@ export default function NewPlanScreen() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
 
-  async function handleSubmit(values: CreatePlanInput) {
+  async function handleSubmit(values: CreatePlanInput | UpdatePlanInput) {
     setSubmitting(true)
     setError(null)
     try {
-      await plansApi.create(values, createIdempotencyKey('plan_create'))
+      await plansApi.create(values as CreatePlanInput, createIdempotencyKey('plan_create'))
       toast.success('Plan creado')
       router.replace(Routes.superadmin.plans)
     } catch (e) {
@@ -37,7 +37,7 @@ export default function NewPlanScreen() {
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar title="Nuevo plan" canGoBack />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <PlanForm onSubmit={handleSubmit} isLoading={submitting} apiError={error} />
+        <PlanForm mode="create" onSubmit={handleSubmit} isLoading={submitting} apiError={error} />
       </ScrollView>
     </View>
   )

@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const tenantStatusSchema = z.enum(['active', 'suspended', 'inactive'])
 export const sriEnvironmentSchema = z.enum(['testing', 'production'])
-export const planStatusSchema = z.enum(['active', 'trial', 'expired', 'cancelled'])
+export const planStatusSchema = z.enum(['active', 'expired'])
 
 export const tenantSchema = z.object({
   id: z.string().min(1),
@@ -16,7 +16,7 @@ export const tenantSchema = z.object({
   status: tenantStatusSchema,
   plan_id: z.string().min(1),
   plan_status: planStatusSchema,
-  trial_ends_at: z.string().nullable(),
+  plan_cycle_ends_at: z.string().nullable(),
   created_at: z.string().min(1),
   updated_at: z.string().min(1),
   created_by: z.string(),

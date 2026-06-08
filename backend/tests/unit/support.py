@@ -4,6 +4,9 @@ import json
 import os
 from typing import Any
 
+from lambdas.clients.domain.commands import CreateClientCommand
+from lambdas.clients.domain.entity import Client
+from lambdas.clients.domain.errors import ClientNotFoundError
 from lambdas.tenants.domain.commands import CreateTenantCommand
 from lambdas.tenants.domain.tenant import Tenant
 from shared.errors import ValidationError
@@ -47,11 +50,46 @@ def create_tenant_command(**overrides: Any) -> CreateTenantCommand:
     return CreateTenantCommand(**payload)
 
 
-def make_tenant(**overrides: Any) -> Tenant:
-    tenant = Tenant.create(create_tenant_command())
+def make_tenant(*, plan_limit_cycle: str = "month", **overrides: Any) -> Tenant:
+    tenant = Tenant.create(create_tenant_command(), plan_limit_cycle=plan_limit_cycle)
     for key, value in overrides.items():
         setattr(tenant, key, value)
     return tenant
+
+
+def client_payload(**overrides: Any) -> dict:
+    payload = {
+        "identification": VALID_RUC,
+        "identification_type": "ruc",
+        "person_type": "juridica",
+        "legal_name": "CodeLabs Cliente S.A.",
+        "trade_name": "Cliente Test",
+        "special_taxpayer": False,
+        "emails": ["CLIENTE@CODELABS.COM"],
+        "phones": ["0999999999"],
+        "addresses": [{"label": "Matriz", "line": "Av Siempre Viva 456", "city": "Quito"}],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def create_client_command(**overrides: Any) -> CreateClientCommand:
+    payload = client_payload()
+    payload.update(
+        {
+            "tenant_id": "tenant-1",
+            "created_by": "user-1",
+            **overrides,
+        }
+    )
+    return CreateClientCommand(**payload)
+
+
+def make_client(**overrides: Any) -> Client:
+    client = Client.create(create_client_command())
+    for key, value in overrides.items():
+        setattr(client, key, value)
+    return client
 
 
 def api_event(
@@ -106,6 +144,7 @@ class FakeTenantRepository:
         self.save_calls: list[tuple[Tenant, str]] = []
         self.commit_calls: list[dict[str, Any]] = []
         self.get_by_ruc_calls: list[str] = []
+        self.list_calls: list[dict[str, Any]] = []
 
     def get_by_id(self, tenant_id: str) -> Tenant:
         from lambdas.tenants.domain.errors import TenantNotFoundError
@@ -127,7 +166,26 @@ class FakeTenantRepository:
         limit: int,
         next_token: str | None,
         status: str | None = None,
+        q: str | None = None,
+        ruc: str | None = None,
+        sri_environment: str | None = None,
+        plan_status: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
     ) -> tuple[list[Tenant], str | None]:
+        self.list_calls.append(
+            {
+                "limit": limit,
+                "next_token": next_token,
+                "status": status,
+                "q": q,
+                "ruc": ruc,
+                "sri_environment": sri_environment,
+                "plan_status": plan_status,
+                "created_from": created_from,
+                "created_to": created_to,
+            }
+        )
         return self.list_result
 
     def commit(self, **kwargs: Any) -> None:
@@ -148,3 +206,66 @@ class FakePlanCatalog:
             raise ValidationError("plan_id inválido")
         if not self.active:
             raise ValidationError("plan_id no está activo")
+
+
+class FakeClientRepository:
+    def __init__(self) -> None:
+        self.clients: dict[str, Client] = {}
+        self.existing_by_identification: Client | None = None
+        self.list_result: tuple[list[Client], str | None] = ([], None)
+        self.commit_calls: list[dict[str, Any]] = []
+        self.get_by_identification_calls: list[tuple[str, str | None]] = []
+        self.list_calls: list[dict[str, Any]] = []
+        self.commit_error: Exception | None = None
+
+    def get_by_id(self, client_id: str) -> Client:
+        if client_id not in self.clients:
+            raise ClientNotFoundError()
+        return self.clients[client_id]
+
+    def get_by_identification(
+        self,
+        identification: str,
+        exclude_id: str | None = None,
+    ) -> Client | None:
+        self.get_by_identification_calls.append((identification, exclude_id))
+        if (
+            self.existing_by_identification is not None
+            and self.existing_by_identification.id != exclude_id
+        ):
+            return self.existing_by_identification
+        return None
+
+    def list(
+        self,
+        limit: int,
+        next_token: str | None,
+        status: str | None = None,
+        q: str | None = None,
+        identification: str | None = None,
+        identification_type: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+    ) -> tuple[list[Client], str | None]:
+        self.list_calls.append(
+            {
+                "limit": limit,
+                "next_token": next_token,
+                "status": status,
+                "q": q,
+                "identification": identification,
+                "identification_type": identification_type,
+                "created_from": created_from,
+                "created_to": created_to,
+            }
+        )
+        return self.list_result
+
+    def save(self, client: Client, user_id: str) -> None:
+        self.clients[client.id] = client
+
+    def commit(self, **kwargs: Any) -> None:
+        if self.commit_error:
+            raise self.commit_error
+        self.commit_calls.append(kwargs)
+        self.clients[kwargs["client"].id] = kwargs["client"]

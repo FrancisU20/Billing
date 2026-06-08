@@ -679,6 +679,52 @@ de desarrollo/local al runtime Lambda.
 
 ## Historial de cambios relevantes
 
+### 2026-06-08 — Rediseño: sin "trial", plan_status calculado + filtros server-side en plans
+
+- **Decisión de negocio confirmada**: no existe "trial". El plan gratuito (y cualquier
+  plan) expira por **ciclo de tiempo** (`Plan.limit_cycle`: `month`/`year`) o por
+  **agotamiento de documentos** (`Plan.document_limit`), lo que ocurra primero. El free
+  plan usa `document_limit=20, limit_cycle="year"`.
+- **`PlanStatus` reducido a `active`/`expired`**: se eliminan `TRIAL` y `CANCELLED` —
+  ninguno tenía flujo real (ni comando, ni use case, ni ruta que los produjera). Es más
+  fácil agregar un estado real después que mantener estados fantasma.
+- **`plan_status` deja de persistirse — se calcula en cada lectura**: el campo mutable
+  nunca tenía ningún flujo que lo transicionara (`Tenant.create()` siempre fijaba
+  `ACTIVE`), así que el filtro de UI nunca podía encontrar `expired`/`cancelled`. Se
+  reemplaza por `Tenant.effective_plan_status(now)`, método de dominio puro que compara
+  `now` contra `plan_cycle_ends_at`. Elimina el bug de raíz por construcción — no puede
+  haber drift porque no hay nada que sincronizar — y no requiere infra nueva (Lambda +
+  regla EventBridge de settlement). `to_dict()` serializa el valor calculado siempre
+  fresco.
+- **Campo muerto `trial_ends_at` renombrado a `plan_cycle_ends_at`**: existía en dominio,
+  repositorio y frontend pero siempre valía `None`. `Tenant.create()` ahora lo calcula
+  como `created_at + relativedelta(years=1|months=1)` según el `limit_cycle` del plan
+  asignado — `IPlanCatalog.ensure_active()` se extiende para devolver el `limit_cycle`
+  validado (ya hacía `get_item` sobre la tabla de planes).
+- **`_TenantListFilters.matches()`** evalúa `plan_status` calculado en memoria
+  (`tenant.effective_plan_status(now).value == self.plan_status`) en vez de `Attr` de
+  DynamoDB — ya no es un atributo almacenado. Mismo patrón que el filtro de texto `q`:
+  la misma función que sirve el dato es la que filtra, así que es correcto por construcción.
+- **Migración `v0002_backfill_plan_cycle_ends_at`**: backfillea tenants existentes con
+  `plan_cycle_ends_at = created_at + duración(limit_cycle del plan asignado)`. Idempotente
+  — reporta `skipped` si el tenant ya tiene el campo.
+- **Filtros de `plans` migrados a server-side** (`_PlanListFilters`, espejo de
+  `_TenantListFilters`/`_ClientListFilters`): `GET /plans` cambia su contrato de
+  `?active=true|false` a `?status=active|inactive&slug=&q=&limit_cycle=&created_from=&created_to=`,
+  alineado con `tenants`/`clients`. Se elimina el filtrado 100% client-side
+  (`applyPlanFilters` + descarga del catálogo completo) que era inconsistente con el
+  patrón establecido.
+- **`_parse_date_boundary` desduplicado**: estaba copiado en `tenants/handler.py` y
+  `clients/handler.py`; se mueve a `shared/dates.py::parse_date_boundary` y los tres
+  handlers (`tenants`, `clients`, `plans`) importan de ahí.
+- **Frontend**: `usePlans(filters)` reemplaza `usePlans(activeOnly)`; nueva constante
+  estable `ACTIVE_PLANS_FILTER = { status: 'active' }` en `features/plans/constants.ts`
+  evita recrear el objeto de filtros en cada render (que dispararía un refetch infinito
+  vía `useCallback`/`useEffect`) — la usan `tenants/new.tsx` y `PricingScreen`, que además
+  pierden su `.filter((p) => p.active)` redundante ahora que el servidor filtra.
+  `toPlanListFilters()` (mirror de `toTenantListFilters`) traduce el draft de filtros UI.
+- **Suite completa**: 149 tests unitarios pasando (`make test`).
+
 ### 2026-06-08 — Fix: TypeScript pipeline — PressableStateCallbackType hovered
 
 - **Síntoma**: CI fallaba en `Frontend / Quality Gate → Typecheck` con
@@ -860,9 +906,124 @@ de desarrollo/local al runtime Lambda.
   se implementa soft delete de planes, los slugs no podrían reutilizarse sin un flujo explícito de
   reactivación (igual que el lock de RUC en tenants). Decisión de diseño explícita.
 
+### 2026-06-08 — Lambda clients — decisiones permanentes
+
+- `clients` modela relaciones reales con compradores; **Consumidor Final no es un Client**. En
+  invoices se emitirá como modo tributario (`tipoIdentificacionComprador=07`,
+  `identificacionComprador=9999999999999`, `client_id=null`).
+- Identificaciones soportadas en clientes: RUC (`04`), cédula (`05`), pasaporte (`06`) e
+  identificación del exterior (`08`). Pasaporte y exterior son tipos SRI distintos; no existe
+  campo derivado `foreign` en el dominio ni en la API.
+- `RUC` exige 13 dígitos completos para facturación. Para RUC de persona natural, los primeros
+  10 dígitos deben ser una cédula válida y el sufijo debe ser `001`.
+- La identificación del cliente es única por tenant con lock transaccional
+  `CLIENT_IDENTIFICATION#{identification}`. A diferencia del RUC del tenant, este lock se libera
+  en soft delete para permitir recrear/reactivar clientes dados de baja.
+- `GET /clients?identification=...` usa el GSI `identification-index` para lookup exacto dentro del
+  tenant. `GET /clients?q=...` es búsqueda simple v1; el repositorio camina páginas DynamoDB hasta
+  llenar el `limit` con coincidencias o agotar los clientes del tenant.
+
+### 2026-06-08 — Lambda clients implementado + UI/UX completo de tenants, plans y clients
+
+Implementación completa del Lambda `clients` (Clean Architecture: domain / use_cases /
+infra / handler) más una revisión integral de las pantallas de superadmin (`tenants`,
+`plans`) y la nueva sección de cliente (`clients`) en el frontend tenant.
+
+**Backend — `lambdas/clients/`**
+- CRUD completo: `POST/GET/PATCH/DELETE /clients` y `GET /clients` paginado con filtros
+  `q`, `identification`, `identification_type`, `status`, `created_from/to`.
+- `DynamoClientRepository` implementa lock transaccional de unicidad por tenant
+  (`CLIENT_IDENTIFICATION#{identification}`, `TransactWriteItems` +
+  `attribute_not_exists`) — mismo patrón que el lock de RUC en `tenants` y de slug en
+  `plans`. Es más robusto que un esquema de "GSI + pre-check": elimina por completo la
+  ventana de carrera entre verificar y escribir.
+- `_transact_write` resuelve el mapeo de errores con `_identification_lock_failed`,
+  que inspeccciona cuál `TransactItem` fue el que disparó `ConditionalCheckFailed`
+  buscando el item con `entity_type == "CLIENT_IDENTIFICATION_LOCK"` por índice de
+  `CancellationReasons`, en lugar de asumir posiciones fijas (`reasons[0]`/`reasons[1]`)
+  como hace `plan_repository`. Es más robusto frente a transacciones de tamaño
+  variable: `_create_items` siempre genera 2 items, pero `_update_items` genera entre
+  1 y 3 según si cambia la `identification` y/o el cliente se está borrando — un mapeo
+  posicional ahí habría sido incorrecto (un update simple sin cambio de identificación
+  genera un único item, y un fallo de `version` se habría reportado como
+  `ClientDuplicateIdentificationError` en lugar de `OptimisticLockError`).
+- Sin eventos de dominio ni outbox — decisión consciente y consistente con la
+  limpieza de `TenantUpdatedEvent`/`TenantDeletedEvent` (auditoría 2026-06-07): no se
+  generan side effects sin consumidor real. `api_stack.py` otorga grants de tabla,
+  audit e idempotencia, pero **no** de outbox.
+- VOs: `Cedula` y `RUC` ahora delegan en
+  `shared/domain/value_objects/ecuador_identification.py` (`is_valid_cedula`,
+  `is_valid_ruc`, `modulo10`, `modulo11_public`, `modulo11_legal`,
+  `is_valid_province_code`) — elimina la duplicación que existía entre los algoritmos
+  de cédula y RUC y unifica la regla de provincia (`01`-`24`) para ambos. `is_valid_ruc`
+  exige que, para personas naturales, los primeros 10 dígitos sean una cédula válida y
+  el sufijo sea `001`, dejando ambos VOs estructuralmente coherentes (ver decisiones
+  permanentes arriba).
+- Tabla `clients` + GSI `identification-index` (PK=`tenant_id`, SK=`identification`)
+  agregados a `database_stack.py`; Lambda y rutas registradas en `api_stack.py`
+  (grants: tabla, audit, idempotencia); handler cableado en `local/server.py`.
+- Tests nuevos en `backend/tests/unit/lambdas/clients/` (use cases, repositorio,
+  handler) y `backend/tests/unit/shared/test_ecuador_identification.py`. Suite
+  completa: **144 tests, OK** (subió de 128 con la primera versión del Lambda).
+
+**Backend — `tenants`: búsqueda y filtrado para el listado de superadmin**
+- `ListTenantsQuery` / `ITenantRepository.list` extendidos con `q`, `ruc`,
+  `sri_environment`, `plan_status`, `created_from`, `created_to`.
+- `handler._parse_date_boundary` normaliza fechas (`YYYY-MM-DD` o ISO completo) a
+  límites UTC de inicio/fin de día antes de pasarlas al repositorio.
+- `DynamoTenantRepository.list`: lookup directo por `ruc` vía `get_by_ruc` (evita scan
+  completo cuando se busca por RUC exacto). El resto de filtros se resuelven con
+  `_TenantListFilters`, que combina `FilterExpression` de DynamoDB (status, entorno
+  SRI, plan_status, rango de fechas) con un filtro en memoria para `q` (busca en
+  `trade_name`, `legal_rep_name`, `email`, `ruc`) y pagina internamente hasta llenar
+  `limit` o agotar resultados — evita que el filtro de texto trunque páginas
+  silenciosamente (mismo cuidado que ya existía en `plan_repository.list`).
+
+**Frontend — UI/UX completo para `clients`, `tenants` y `plans`**
+- Nuevo módulo `features/clients/` completo, con la misma estructura que
+  `tenants`/`plans`: `api.ts`, `schemas.ts` (+ test), `form.ts`, `types.ts`,
+  `constants.ts`, hooks (`useClients`, `useClient`), pantallas (`ClientsListScreen`,
+  `NewClientScreen`, `EditClientScreen`, `ClientDetailScreen`) y componentes
+  (`ClientForm`, `ClientListItem`, `ClientsFilters`, `ClientStatusBadge`).
+- Rutas Expo Router nuevas: `app/(app)/(tenant)/clients/{index,new,[id]/index,[id]/edit}`;
+  entrada "Clientes" agregada a la navegación del tenant (`features/navigation/items.ts`,
+  ícono `people-outline`).
+- `tenants` y `plans` (superadmin) ganan pantallas de detalle y edición que antes no
+  existían: `TenantDetailScreen` / `EditTenantScreen` (+ ruta `tenants/[id]/edit`) y
+  `PlanDetailScreen` / `EditPlanScreen` (+ rutas `plans/[slug]/index`, `plans/[slug]/edit`),
+  además de `TenantsFilters` / `PlansFilters` y `*ListItem` para listas filtrables y
+  paginadas — antes el detalle y la edición compartían pantalla y las listas no tenían
+  filtros.
+- Dos componentes UI nuevos y reutilizables en `components/ui/`: `ConfirmDialog`
+  (modal de confirmación para acciones destructivas, p. ej. soft delete) y
+  `SegmentedControl` (selector tipo tabs para alternar entre vistas o estados).
+- Rutas nuevas registradas en `constants/routes.ts` (`tenantEdit`, `planDetail`,
+  `planEdit`, `tenant.clients*`); token `overlay.scrim.backdrop` agregado a
+  `constants/tokens.ts` para el fondo de `ConfirmDialog`.
+
+**Revisión AST previa a esta entrega**
+
+Se hizo una revisión exhaustiva del Lambda `clients` (lectura completa de cada
+archivo, comparación contra `plan_repository.py` y los precedentes ya documentados
+en este historial) antes del cierre. Se encontraron y corrigieron: eventos de dominio
+sin consumidor real (`ClientCreatedEvent`/`ClientUpdatedEvent`/`ClientDeletedEvent`,
+eliminados del todo — mismo criterio que la limpieza de eventos de tenants en la
+auditoría 2026-06-07), pre-checks TOCTOU redundantes en `create_client`/`update_client`
+(`get_by_identification` antes de la transacción — eliminados, exactamente el patrón
+que ya se había quitado de `create_plan`), mapeo de error incorrecto en
+`_transact_write` (no usaba `is_create` para distinguir un conflicto real de
+identificación de un simple choque de `version` — corregido con
+`_identification_lock_failed`), duplicación entre `Cedula._modulo10` y `RUC._modulo10`
+con reglas de provincia divergentes (unificadas en `ecuador_identification.py`),
+propiedad derivada `foreign` con una correlación cuestionable
+(`identification_type == EXTERIOR`, que excluía a titulares de pasaporte — eliminada;
+no existe ni en dominio ni en API, ver decisiones permanentes), y tipado `Any` en
+`IClientRepository.commit` (corregido a `IdempotencyContext | None`, igual que
+`ITenantRepository`/`IPlanRepository`).
+
 ## Deuda técnica identificada
 
-- Implementar Lambdas pendientes: `clients`, `invoices`, `workers` adicionales.
+- Implementar Lambdas pendientes: `invoices`, `workers` adicionales.
 - Agregar tests unitarios para `lambdas/auth/` (use cases y handler).
 - Agregar migraciones de datos cuando existan tenants previos sin lock `RUC#{ruc}`.
 - Agregar pruebas de integración contra AWS dev cuando se cierre el primer flujo end-to-end.
@@ -870,6 +1031,13 @@ de desarrollo/local al runtime Lambda.
   (análogo al flujo de reactivación de RUC en tenants) en lugar de recreación silenciosa.
 - Actualizar `EXPO_PUBLIC_API_URL=""` en el frontend para usar routing unificado via CloudFront
   (el behavior `/api/*` ya existe — solo falta cambiar la URL en la app).
+- **Expiración de plan por uso (fase 2 — diferida hasta que exista `invoices`)**: hoy
+  `Tenant.effective_plan_status()` solo evalúa expiración por ciclo de tiempo
+  (`plan_cycle_ends_at`). Falta la segunda condición de "lo que ocurra primero":
+  `documents_issued_current_cycle >= plan.document_limit`. Requiere el Lambda `invoices`
+  para tener datos reales de emisión, más un contador con incremento transaccional
+  (outbox/commit, mismo patrón que el resto de mutaciones). Construirlo antes sería
+  código especulativo sin nada que lo incremente.
 
 ### CloudFront path routing — implementado en FrontendStack (2026-06-07)
 

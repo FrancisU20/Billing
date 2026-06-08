@@ -99,6 +99,46 @@ class TenantsHandlerTests(unittest.TestCase):
         self.assertIn("items", body["data"])
         self.assertEqual(len(body["data"]["items"]), 1)
 
+    def test_list_passes_search_and_filter_query(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="t-1")
+        repo.list_result = ([tenant], None)
+        event = api_event(
+            method="GET",
+            path="/tenants",
+            query={
+                "q": "codelabs",
+                "ruc": "1792146739001",
+                "status": "active",
+                "sri_environment": "testing",
+                "plan_status": "active",
+                "created_from": "2026-06-01",
+                "created_to": "2026-06-08",
+            },
+        )
+
+        with patch.object(self.handler, "_repo", return_value=repo):
+            response = self.handler.handler(event, self.context)
+
+        self.assertEqual(response["statusCode"], 200)
+        call = repo.list_calls[0]
+        self.assertEqual(call["q"], "codelabs")
+        self.assertEqual(call["ruc"], "1792146739001")
+        self.assertEqual(call["status"], "active")
+        self.assertEqual(call["sri_environment"], "testing")
+        self.assertEqual(call["plan_status"], "active")
+        self.assertEqual(call["created_from"], "2026-06-01T00:00:00+00:00")
+        self.assertEqual(call["created_to"], "2026-06-08T23:59:59.999999+00:00")
+
+    def test_list_rejects_invalid_plan_status(self) -> None:
+        event = api_event(method="GET", path="/tenants", query={"plan_status": "paused"})
+
+        response = self.handler.handler(event, self.context)
+        body = decode_response(response)
+
+        self.assertEqual(response["statusCode"], 400)
+        self.assertEqual(body["error"]["code"], "VALIDATION_ERROR")
+
     def test_get_returns_tenant_by_id(self) -> None:
         repo = FakeTenantRepository()
         tenant = make_tenant(id="t-get-1")

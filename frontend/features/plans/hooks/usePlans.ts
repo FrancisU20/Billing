@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toApiError, type ApiError } from '@/lib/api/errors'
 import { plansApi } from '../api'
-import type { Plan } from '../types'
+import type { Plan, PlanListFilters } from '../types'
 
 interface PlansState {
   plans: Plan[]
@@ -9,19 +9,19 @@ interface PlansState {
   error: ApiError | null
 }
 
-export function usePlans() {
+export function usePlans(filters: PlanListFilters = {}) {
   const [state, setState] = useState<PlansState>({ plans: [], loading: true, error: null })
 
   const fetch = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }))
     try {
-      const res = await plansApi.list()
+      const res = await plansApi.list(filters)
       const sorted = [...res.items].sort((a, b) => a.order - b.order)
       setState({ plans: sorted, loading: false, error: null })
     } catch (e) {
       setState({ plans: [], loading: false, error: toApiError(e) })
     }
-  }, [])
+  }, [filters])
 
   useEffect(() => {
     fetch()

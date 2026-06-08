@@ -14,7 +14,7 @@ DynamoDB table:
 Listing: Scan with FilterExpression (acceptable — few tenants in a B2B SaaS).
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
@@ -24,7 +24,7 @@ from lambdas._base.idempotency import (
     completion_transact_item,
     mark_completed,
 )
-from lambdas.tenants.domain.enums import PlanStatus, SriEnvironment, TenantStatus
+from lambdas.tenants.domain.enums import SriEnvironment, TenantStatus
 from lambdas.tenants.domain.errors import TenantNotFoundError, TenantRucAlreadyExistsError
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.tenants.domain.tenant import Tenant
@@ -82,26 +82,61 @@ class DynamoTenantRepository(ITenantRepository):
         limit: int,
         next_token: str | None,
         status: str | None = None,
+        q: str | None = None,
+        ruc: str | None = None,
+        sri_environment: str | None = None,
+        plan_status: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
     ) -> tuple[list[Tenant], str | None]:
-        filter_expr = Attr("entity_type").eq("TENANT") & Attr("deleted").eq(False)
-        if status:
-            filter_expr = filter_expr & Attr("status").eq(status)
+        filters = _TenantListFilters(
+            status=status,
+            q=q,
+            sri_environment=sri_environment,
+            plan_status=plan_status,
+            created_from=created_from,
+            created_to=created_to,
+        )
+        now = datetime.now(UTC)
 
-        kwargs: dict = {"FilterExpression": filter_expr, "Limit": limit}
+        if ruc:
+            tenant = self.get_by_ruc(ruc.strip())
+            if not tenant or tenant.deleted:
+                return [], None
+            if not filters.matches(tenant, now=now):
+                return [], None
+            return [tenant], None
+
+        kwargs: dict = {"FilterExpression": filters.to_dynamo_filter(), "Limit": limit}
         cursor = decode_cursor(next_token)
         if cursor:
             kwargs["ExclusiveStartKey"] = cursor
 
-        try:
-            resp = self._table.scan(**kwargs)
-        except ClientError as e:
-            _log.error("DynamoDB scan error", error=str(e))
-            raise DatabaseError()
+        tenants: list[Tenant] = []
+        next_cursor = cursor
+        while len(tenants) < limit:
+            if next_cursor:
+                kwargs["ExclusiveStartKey"] = next_cursor
+            elif "ExclusiveStartKey" in kwargs:
+                del kwargs["ExclusiveStartKey"]
+            kwargs["Limit"] = limit - len(tenants)
 
-        return (
-            [self._from_item(i) for i in resp.get("Items", [])],
-            encode_cursor(resp.get("LastEvaluatedKey")),
-        )
+            try:
+                resp = self._table.scan(**kwargs)
+            except ClientError as e:
+                _log.error("DynamoDB scan error", error=str(e))
+                raise DatabaseError()
+
+            for item in resp.get("Items", []):
+                tenant = self._from_item(item)
+                if filters.matches(tenant, now=now):
+                    tenants.append(tenant)
+
+            next_cursor = resp.get("LastEvaluatedKey")
+            if not next_cursor:
+                break
+
+        return tenants, encode_cursor(next_cursor)
 
     # ── writes ────────────────────────────────────────────────────────────────
 
@@ -268,8 +303,9 @@ class DynamoTenantRepository(ITenantRepository):
             "sri_environment": tenant.sri_environment.value,
             "status": tenant.status.value,
             "plan_id": tenant.plan_id,
-            "plan_status": tenant.plan_status.value,
-            "trial_ends_at": tenant.trial_ends_at.isoformat() if tenant.trial_ends_at else None,
+            "plan_cycle_ends_at": (
+                tenant.plan_cycle_ends_at.isoformat() if tenant.plan_cycle_ends_at else None
+            ),
             "version": tenant.version,
             "deleted": tenant.deleted,
             "created_at": tenant.created_at.isoformat(),
@@ -292,9 +328,8 @@ class DynamoTenantRepository(ITenantRepository):
             sri_environment=SriEnvironment(item.get("sri_environment", "testing")),
             status=TenantStatus(item.get("status", "active")),
             plan_id=item.get("plan_id", ""),
-            plan_status=PlanStatus(item.get("plan_status", "active")),
-            trial_ends_at=datetime.fromisoformat(item["trial_ends_at"])
-            if item.get("trial_ends_at")
+            plan_cycle_ends_at=datetime.fromisoformat(item["plan_cycle_ends_at"])
+            if item.get("plan_cycle_ends_at")
             else None,
             version=item.get("version", 1),
             deleted=item.get("deleted", False),
@@ -306,4 +341,59 @@ class DynamoTenantRepository(ITenantRepository):
             if item.get("deleted_at")
             else None,
             deleted_by=item.get("deleted_by"),
+        )
+
+
+class _TenantListFilters:
+    def __init__(
+        self,
+        *,
+        status: str | None,
+        q: str | None,
+        sri_environment: str | None,
+        plan_status: str | None,
+        created_from: str | None,
+        created_to: str | None,
+    ) -> None:
+        self.status = status
+        self.needle = q.strip().lower() if q else ""
+        self.sri_environment = sri_environment
+        self.plan_status = plan_status
+        self.created_from = created_from
+        self.created_to = created_to
+
+    def to_dynamo_filter(self):
+        # plan_status is computed at read time (Tenant.effective_plan_status) —
+        # it is never stored, so it cannot appear in a DynamoDB FilterExpression.
+        # It is matched in-memory below, alongside the free-text search.
+        filter_expr = Attr("entity_type").eq("TENANT") & Attr("deleted").eq(False)
+        if self.status:
+            filter_expr = filter_expr & Attr("status").eq(self.status)
+        if self.sri_environment:
+            filter_expr = filter_expr & Attr("sri_environment").eq(self.sri_environment)
+        if self.created_from:
+            filter_expr = filter_expr & Attr("created_at").gte(self.created_from)
+        if self.created_to:
+            filter_expr = filter_expr & Attr("created_at").lte(self.created_to)
+        return filter_expr
+
+    def matches(self, tenant: Tenant, *, now: datetime) -> bool:
+        if self.status and tenant.status.value != self.status:
+            return False
+        if self.sri_environment and tenant.sri_environment.value != self.sri_environment:
+            return False
+        if self.plan_status and tenant.effective_plan_status(now).value != self.plan_status:
+            return False
+        created_at = tenant.created_at.isoformat()
+        if self.created_from and created_at < self.created_from:
+            return False
+        if self.created_to and created_at > self.created_to:
+            return False
+        if not self.needle:
+            return True
+        return (
+            self.needle in tenant.trade_name.lower()
+            or self.needle in tenant.legal_rep_name.lower()
+            or self.needle in tenant.email.lower()
+            or self.needle in tenant.ruc.lower()
         )

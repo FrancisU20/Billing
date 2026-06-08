@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
+
+from dateutil.relativedelta import relativedelta
 
 from lambdas.tenants.domain.commands import CreateTenantCommand, UpdateTenantCommand
 from lambdas.tenants.domain.enums import PlanStatus, SriEnvironment, TenantStatus
@@ -9,6 +11,10 @@ from lambdas.tenants.domain.errors import InvalidSriEnvironmentError
 from shared.domain.base_entity import GlobalEntity
 from shared.domain.value_objects.email import Email
 from shared.domain.value_objects.ruc import RUC
+
+
+def _cycle_duration(limit_cycle: str) -> relativedelta:
+    return relativedelta(years=1) if limit_cycle == "year" else relativedelta(months=1)
 
 
 @dataclass
@@ -22,16 +28,15 @@ class Tenant(GlobalEntity):
     sri_environment: SriEnvironment = field(default=SriEnvironment.TESTING)
     status: TenantStatus = field(default=TenantStatus.ACTIVE)
     plan_id: str = ""
-    plan_status: PlanStatus = field(default=PlanStatus.ACTIVE)
-    trial_ends_at: datetime | None = None
+    plan_cycle_ends_at: datetime | None = None
 
     # ── factory ───────────────────────────────────────────────────────────────
 
     @classmethod
-    def create(cls, cmd: CreateTenantCommand) -> Tenant:
+    def create(cls, cmd: CreateTenantCommand, *, plan_limit_cycle: str) -> Tenant:
         ruc = RUC(cmd.ruc)
         email = Email(cmd.email)
-        return cls(
+        tenant = cls(
             ruc=str(ruc),
             trade_name=cmd.trade_name.strip(),
             legal_rep_name=cmd.legal_rep_name.strip(),
@@ -41,11 +46,11 @@ class Tenant(GlobalEntity):
             sri_environment=SriEnvironment.TESTING,
             status=TenantStatus.ACTIVE,
             plan_id=cmd.plan_id,
-            plan_status=PlanStatus.ACTIVE,
-            trial_ends_at=None,
             created_by=cmd.created_by,
             updated_by=cmd.created_by,
         )
+        tenant.plan_cycle_ends_at = tenant.created_at + _cycle_duration(plan_limit_cycle)
+        return tenant
 
     # ── domain behaviour ──────────────────────────────────────────────────────
 
@@ -74,6 +79,17 @@ class Tenant(GlobalEntity):
     def is_active(self) -> bool:
         return self.status == TenantStatus.ACTIVE
 
+    def effective_plan_status(self, now: datetime) -> PlanStatus:
+        """Computed, never persisted — there is nothing to drift out of sync.
+
+        A plan expires once its cycle ends. (Extension point for when the
+        `invoices` Lambda exists: add `documents_issued >= plan.document_limit`
+        as a second condition — expiration triggers on whichever comes first.)
+        """
+        if self.plan_cycle_ends_at and now >= self.plan_cycle_ends_at:
+            return PlanStatus.EXPIRED
+        return PlanStatus.ACTIVE
+
     # ── serialisation ─────────────────────────────────────────────────────────
 
     def to_dict(self) -> dict:
@@ -88,8 +104,10 @@ class Tenant(GlobalEntity):
             "sri_environment": self.sri_environment.value,
             "status": self.status.value,
             "plan_id": self.plan_id,
-            "plan_status": self.plan_status.value,
-            "trial_ends_at": self.trial_ends_at.isoformat() if self.trial_ends_at else None,
+            "plan_status": self.effective_plan_status(datetime.now(UTC)).value,
+            "plan_cycle_ends_at": (
+                self.plan_cycle_ends_at.isoformat() if self.plan_cycle_ends_at else None
+            ),
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "created_by": self.created_by,

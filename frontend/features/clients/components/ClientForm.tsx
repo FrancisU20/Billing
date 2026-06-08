@@ -1,0 +1,384 @@
+import React from 'react'
+import { Controller, useForm, useWatch } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
+import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
+import { Button } from '@/components/ui/Button'
+import { FormField } from '@/components/ui/FormField'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { useTheme } from '@/lib/theme-context'
+import { radius, spacing, typography } from '@/constants/tokens'
+import { clientFormValuesSchema, type ClientFormValues } from '../schemas'
+import {
+  CLIENT_IDENTIFICATION_OPTIONS,
+  CLIENT_PERSON_OPTIONS,
+  CLIENT_STATUS_OPTIONS,
+} from '../constants'
+import { clientToFormValues } from '../form'
+import type { ApiError } from '@/lib/api/errors'
+import type { Client, ClientStatus, PersonType } from '../types'
+
+interface ClientFormProps {
+  mode: 'create' | 'edit'
+  client?: Client | null
+  onSubmit: (values: ClientFormValues) => void
+  isLoading: boolean
+  apiError: ApiError | null
+}
+
+export function ClientForm({ mode, client, onSubmit, isLoading, apiError }: ClientFormProps) {
+  const { semantic } = useTheme()
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<ClientFormValues>({
+    resolver: zodResolver(clientFormValuesSchema),
+    defaultValues: clientToFormValues(client),
+  })
+  const identificationType = useWatch({ control, name: 'identification_type' })
+  const personType = useWatch({ control, name: 'person_type' })
+  const specialTaxpayer = useWatch({ control, name: 'special_taxpayer' })
+  const status = useWatch({ control, name: 'status' })
+
+  return (
+    <View style={styles.container}>
+      <FormSection title="Identificación fiscal" icon="card-outline">
+        <View style={styles.optionGrid}>
+          {CLIENT_IDENTIFICATION_OPTIONS.map((option) => (
+            <OptionTile
+              key={option.value}
+              icon={option.icon}
+              label={option.label}
+              selected={identificationType === option.value}
+              onPress={() =>
+                setValue('identification_type', option.value, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+            />
+          ))}
+        </View>
+
+        <Controller
+          control={control}
+          name="identification"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormField
+              label="Identificación"
+              placeholder={identificationType === 'ruc' ? '1792146739001' : '1710034065'}
+              keyboardType={identificationType === 'pasaporte' ? 'default' : 'number-pad'}
+              autoCapitalize="characters"
+              leftIcon="finger-print-outline"
+              error={errors.identification?.message}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              value={value}
+              required
+            />
+          )}
+        />
+
+        <View style={styles.fieldBlock}>
+          <Text style={[styles.label, { color: semantic.text.primary }]}>Tipo de persona *</Text>
+          <SegmentedControl<PersonType>
+            options={CLIENT_PERSON_OPTIONS}
+            value={personType}
+            onChange={(nextPersonType) =>
+              setValue('person_type', nextPersonType, { shouldDirty: true, shouldValidate: true })
+            }
+          />
+        </View>
+      </FormSection>
+
+      <FormSection title="Datos comerciales" icon="briefcase-outline">
+        <Controller
+          control={control}
+          name="legal_name"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormField
+              label="Razón social / nombres"
+              placeholder="Cliente S.A."
+              leftIcon="business-outline"
+              error={errors.legal_name?.message}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              value={value}
+              required
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="trade_name"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormField
+              label="Nombre comercial"
+              placeholder="Nombre visible"
+              leftIcon="storefront-outline"
+              error={errors.trade_name?.message}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              value={value}
+            />
+          )}
+        />
+        <View
+          style={[
+            styles.switchRow,
+            { backgroundColor: semantic.bg.muted, borderColor: semantic.border.default },
+          ]}
+        >
+          <View style={styles.switchCopy}>
+            <Text style={[styles.switchTitle, { color: semantic.text.primary }]}>
+              Contribuyente especial
+            </Text>
+            <Text style={[styles.switchHint, { color: semantic.text.secondary }]}>
+              Se usará como dato fiscal del cliente.
+            </Text>
+          </View>
+          <Switch
+            value={specialTaxpayer}
+            onValueChange={(next) =>
+              setValue('special_taxpayer', next, { shouldDirty: true, shouldValidate: true })
+            }
+            trackColor={{ false: semantic.border.strong, true: semantic.accent.muted }}
+            thumbColor={specialTaxpayer ? semantic.accent.default : semantic.bg.elevated}
+          />
+        </View>
+      </FormSection>
+
+      <FormSection title="Contacto y dirección" icon="mail-outline">
+        <Controller
+          control={control}
+          name="email"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormField
+              label="Email principal"
+              placeholder="facturacion@cliente.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              leftIcon="mail-outline"
+              error={errors.email?.message}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              value={value}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="phone"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormField
+              label="Teléfono principal"
+              placeholder="0999999999"
+              keyboardType="phone-pad"
+              leftIcon="call-outline"
+              error={errors.phone?.message}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              value={value}
+            />
+          )}
+        />
+        <View style={styles.addressGrid}>
+          <Controller
+            control={control}
+            name="address_label"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <FormField
+                label="Etiqueta"
+                placeholder="Principal"
+                leftIcon="bookmark-outline"
+                error={errors.address_label?.message}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                value={value}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="address_city"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <FormField
+                label="Ciudad"
+                placeholder="Quito"
+                leftIcon="map-outline"
+                error={errors.address_city?.message}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                value={value}
+              />
+            )}
+          />
+        </View>
+        <Controller
+          control={control}
+          name="address_line"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormField
+              label="Dirección"
+              placeholder="Dirección fiscal"
+              leftIcon="location-outline"
+              error={errors.address_line?.message}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              value={value}
+            />
+          )}
+        />
+      </FormSection>
+
+      {mode === 'edit' ? (
+        <FormSection title="Estado" icon="toggle-outline">
+          <SegmentedControl<ClientStatus | 'all'>
+            options={CLIENT_STATUS_OPTIONS.filter((option) => option.value !== 'all')}
+            value={status}
+            onChange={(nextStatus) => {
+              if (nextStatus !== 'all') {
+                setValue('status', nextStatus, { shouldDirty: true, shouldValidate: true })
+              }
+            }}
+          />
+        </FormSection>
+      ) : null}
+
+      {apiError ? <ApiErrorBanner error={apiError} /> : null}
+
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
+        isLoading={isLoading}
+        onPress={handleSubmit(onSubmit)}
+      >
+        {mode === 'create' ? 'Crear cliente' : 'Guardar cambios'}
+      </Button>
+    </View>
+  )
+}
+
+function FormSection({
+  title,
+  icon,
+  children,
+}: {
+  title: string
+  icon: keyof typeof Ionicons.glyphMap
+  children: React.ReactNode
+}) {
+  const { semantic } = useTheme()
+  return (
+    <View
+      style={[
+        styles.section,
+        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
+      ]}
+    >
+      <View style={styles.sectionHeader}>
+        <View style={[styles.sectionIcon, { backgroundColor: semantic.accent.subtle }]}>
+          <Ionicons name={icon} size={17} color={semantic.accent.default} />
+        </View>
+        <Text style={[styles.sectionTitle, { color: semantic.text.primary }]}>{title}</Text>
+      </View>
+      <View style={styles.sectionBody}>{children}</View>
+    </View>
+  )
+}
+
+function OptionTile({
+  icon,
+  label,
+  selected,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap
+  label: string
+  selected: boolean
+  onPress: () => void
+}) {
+  const { semantic } = useTheme()
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.optionTile,
+        {
+          backgroundColor: selected
+            ? semantic.accent.subtle
+            : pressed
+              ? semantic.bg.secondary
+              : semantic.bg.primary,
+          borderColor: selected ? semantic.accent.default : semantic.border.default,
+        },
+      ]}
+    >
+      <Ionicons
+        name={icon}
+        size={18}
+        color={selected ? semantic.accent.default : semantic.text.secondary}
+      />
+      <Text
+        style={[
+          styles.optionLabel,
+          { color: selected ? semantic.accent.default : semantic.text.secondary },
+        ]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  )
+}
+
+const styles = StyleSheet.create({
+  container: { gap: spacing[4] },
+  section: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing[4],
+    padding: spacing[4],
+  },
+  sectionHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
+  sectionIcon: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
+  },
+  sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
+  sectionBody: { gap: spacing[4] },
+  optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
+  optionTile: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing[2],
+    minHeight: 42,
+    minWidth: 132,
+    paddingHorizontal: spacing[3],
+  },
+  optionLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  fieldBlock: { gap: spacing[2] },
+  label: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
+  switchRow: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing[3],
+    justifyContent: 'space-between',
+    padding: spacing[3],
+  },
+  switchCopy: { flex: 1, gap: spacing[1] },
+  switchTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  switchHint: { fontSize: typography.size.xs },
+  addressGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
+})

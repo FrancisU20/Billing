@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createPlanSchema, planSchema, plansListSchema, updatePlanSchema } from './schemas'
+import { formatDocumentLimit, formatPlanLimit, isUnlimitedLimit } from './format'
 
 const plan = {
   id: 'plan-1',
@@ -51,5 +52,13 @@ describe('plan contract schemas', () => {
     ).toThrow()
     expect(() => updatePlanSchema.parse({ monthly_price: '29.99', order: 2 })).not.toThrow()
     expect(() => updatePlanSchema.parse({ slug: 'new-slug' })).toThrow()
+  })
+
+  it('formats -1 limits as unlimited instead of exposing sentinel values', () => {
+    expect(isUnlimitedLimit(-1)).toBe(true)
+    expect(formatDocumentLimit({ document_limit: -1, limit_cycle: 'month' })).toBe(
+      'Docs ilimitados',
+    )
+    expect(formatPlanLimit(-1, 'usuario', 'usuarios')).toBe('Ilimitado')
   })
 })

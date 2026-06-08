@@ -314,6 +314,7 @@ export const overlay = {
     default: 'rgba(255,255,255,0.06)',
     hover: 'rgba(255,255,255,0.09)',
     badge: 'rgba(255,255,255,0.20)',
+    backdrop: 'rgba(9,9,11,0.45)',
   },
 } as const
 

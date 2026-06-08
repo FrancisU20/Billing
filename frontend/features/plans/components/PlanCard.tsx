@@ -5,6 +5,7 @@ import { useTheme } from '@/lib/theme-context'
 import { typography, radius, spacing, shadow } from '@/constants/tokens'
 import { formatCurrency } from '@/lib/utils/format'
 import { Badge } from '@/components/ui/Badge'
+import { formatDocumentLimit, formatPlanLimit } from '../format'
 import type { Plan } from '../types'
 
 interface PlanCardProps {
@@ -36,10 +37,16 @@ export function PlanCard({ plan, highlighted = false }: PlanCardProps) {
   const stats = [
     {
       icon: 'document-text-outline' as const,
-      label: `${plan.document_limit.toLocaleString()} docs/mes`,
+      label: formatDocumentLimit(plan),
     },
-    { icon: 'people-outline' as const, label: `${plan.max_users} usuarios` },
-    { icon: 'business-outline' as const, label: `${plan.max_locations} locales` },
+    {
+      icon: 'people-outline' as const,
+      label: formatPlanLimit(plan.max_users, 'usuario', 'usuarios'),
+    },
+    {
+      icon: 'business-outline' as const,
+      label: formatPlanLimit(plan.max_locations, 'local', 'locales'),
+    },
   ]
 
   return (

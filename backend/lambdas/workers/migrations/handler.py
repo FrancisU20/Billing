@@ -17,6 +17,7 @@ _log = get_logger(__name__)
 
 _migrations_table = get_table("MIGRATIONS_TABLE")
 _plans_table = get_table("PLANS_TABLE")
+_tenants_table = get_table("TENANTS_TABLE")
 
 
 def _repo() -> DynamoMigrationStateRepository:
@@ -27,6 +28,7 @@ def _context() -> MigrationContext:
     return MigrationContext(
         tables={
             "PLANS_TABLE": _plans_table,
+            "TENANTS_TABLE": _tenants_table,
         }
     )
 

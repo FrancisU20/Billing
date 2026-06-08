@@ -26,6 +26,12 @@ class ITenantRepository(ABC):
         limit: int,
         next_token: str | None,
         status: str | None = None,
+        q: str | None = None,
+        ruc: str | None = None,
+        sri_environment: str | None = None,
+        plan_status: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
     ) -> tuple[list[Tenant], str | None]:
         """Returns (items, next_token). next_token=None if no more pages."""
 

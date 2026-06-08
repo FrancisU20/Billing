@@ -9,7 +9,7 @@ from lambdas.plans.domain.errors import PlanNotFoundError
 from lambdas.plans.domain.plan import Plan
 from lambdas.plans.use_cases.create_plan import CreatePlanUseCase
 from lambdas.plans.use_cases.get_plan import GetPlanBySlugUseCase
-from lambdas.plans.use_cases.list_plans import ListPlansUseCase
+from lambdas.plans.use_cases.list_plans import ListPlansQuery, ListPlansUseCase
 from lambdas.plans.use_cases.toggle_plan import TogglePlanUseCase
 from lambdas.plans.use_cases.update_plan import UpdatePlanUseCase
 from shared.errors import ValidationError
@@ -41,10 +41,38 @@ class FakePlanRepository:
         self.commit_calls.append(kwargs)
         self.save(kwargs["plan"])
 
-    def list(self, active_only: bool = False) -> list[Plan]:
+    def list(
+        self,
+        *,
+        status: str | None = None,
+        slug: str | None = None,
+        q: str | None = None,
+        limit_cycle: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+    ) -> list[Plan]:
         plans = list(self._by_id.values())
-        if active_only:
-            plans = [p for p in plans if p.active]
+        if status:
+            active = status == "active"
+            plans = [p for p in plans if p.active == active]
+        if slug:
+            needle = slug.strip().lower()
+            plans = [p for p in plans if p.slug.lower() == needle]
+        if limit_cycle:
+            plans = [p for p in plans if p.limit_cycle == limit_cycle]
+        if created_from:
+            plans = [p for p in plans if p.created_at.isoformat() >= created_from]
+        if created_to:
+            plans = [p for p in plans if p.created_at.isoformat() <= created_to]
+        if q:
+            needle = q.strip().lower()
+            plans = [
+                p
+                for p in plans
+                if needle in p.name.lower()
+                or needle in p.description.lower()
+                or needle in p.slug.lower()
+            ]
         return plans
 
 
@@ -168,16 +196,20 @@ class ListPlansUseCaseTests(unittest.TestCase):
         for slug, active, order in [("free", True, 0), ("basic", True, 1), ("inactive", False, 2)]:
             self.repo.save(Plan(slug=slug, name=slug, active=active, order=order))
 
-    def test_lists_active_only_by_default(self) -> None:
-        plans = ListPlansUseCase(self.repo).execute(active_only=True)
+    def test_filters_by_status_active(self) -> None:
+        plans = ListPlansUseCase(self.repo).execute(ListPlansQuery(status="active"))
         self.assertEqual(len(plans), 2)
         self.assertNotIn("inactive", [p.slug for p in plans])
 
-    def test_lists_all_when_requested(self) -> None:
-        self.assertEqual(len(ListPlansUseCase(self.repo).execute(active_only=False)), 3)
+    def test_filters_by_status_inactive(self) -> None:
+        plans = ListPlansUseCase(self.repo).execute(ListPlansQuery(status="inactive"))
+        self.assertEqual([p.slug for p in plans], ["inactive"])
+
+    def test_lists_all_when_status_omitted(self) -> None:
+        self.assertEqual(len(ListPlansUseCase(self.repo).execute(ListPlansQuery())), 3)
 
     def test_sorted_by_order_field(self) -> None:
-        plans = ListPlansUseCase(self.repo).execute(active_only=True)
+        plans = ListPlansUseCase(self.repo).execute(ListPlansQuery(status="active"))
         self.assertEqual(plans[0].slug, "free")
         self.assertEqual(plans[1].slug, "basic")
 

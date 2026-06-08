@@ -19,7 +19,7 @@ const tenant = {
   status: 'active',
   plan_id: 'plan-1',
   plan_status: 'active',
-  trial_ends_at: null,
+  plan_cycle_ends_at: null,
   created_at: '2026-06-08T00:00:00Z',
   updated_at: '2026-06-08T00:00:00Z',
   created_by: 'user-1',

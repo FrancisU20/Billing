@@ -7,6 +7,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { PlanCard } from '../components/PlanCard'
+import { ACTIVE_PLANS_FILTER } from '../constants'
 import { usePlans } from '../hooks/usePlans'
 
 const pricingSignals = [
@@ -16,10 +17,9 @@ const pricingSignals = [
 ] as const
 
 export function PricingScreen() {
-  const { plans, loading, error, refresh } = usePlans()
+  const { plans, loading, error, refresh } = usePlans(ACTIVE_PLANS_FILTER)
   const { semantic } = useTheme()
-  const activePlans = plans.filter((p) => p.active)
-  const highlightedIndex = activePlans.length > 1 ? 1 : 0
+  const highlightedIndex = plans.length > 1 ? 1 : 0
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando planes..." />
 
@@ -73,7 +73,7 @@ export function PricingScreen() {
         <View style={staticStyles.errorWrap}>
           <ApiErrorBanner error={error} />
         </View>
-      ) : activePlans.length === 0 ? (
+      ) : plans.length === 0 ? (
         <EmptyState
           icon="pricetags-outline"
           title="Sin planes disponibles"
@@ -82,7 +82,7 @@ export function PricingScreen() {
         />
       ) : (
         <FlatList
-          data={activePlans}
+          data={plans}
           keyExtractor={(p) => p.id}
           renderItem={({ item, index }) => (
             <PlanCard plan={item} highlighted={index === highlightedIndex} />
