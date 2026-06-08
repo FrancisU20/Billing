@@ -18,7 +18,7 @@ export function NavigationMenu({ user, visible, onClose }: NavigationMenuProps) 
 
   function navigateTo(item: AppNavigationItem) {
     onClose()
-    router.push(item.href as any)
+    router.push(item.href)
   }
 
   return (

@@ -21,11 +21,19 @@ export function useTenant(id: string | null) {
 
     tenantsApi
       .getById(id)
-      .then((data) => { if (!cancelled) setTenant(data) })
-      .catch((e) => { if (!cancelled) setError(toApiError(e)) })
-      .finally(() => { if (!cancelled) setLoading(false) })
+      .then((data) => {
+        if (!cancelled) setTenant(data)
+      })
+      .catch((e) => {
+        if (!cancelled) setError(toApiError(e))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
   return { tenant, loading, error }

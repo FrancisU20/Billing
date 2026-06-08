@@ -40,10 +40,11 @@ export function useTenants() {
   }, [])
 
   const fetchMore = useCallback(async () => {
-    if (!state.hasMore || state.loadingMore || !state.nextToken) return
+    const { hasMore, loadingMore, nextToken } = state
+    if (!hasMore || loadingMore || !nextToken) return
     setState((s) => ({ ...s, loadingMore: true }))
     try {
-      const res = await tenantsApi.list(state.nextToken!)
+      const res = await tenantsApi.list(nextToken)
       setState((s) => ({
         ...s,
         tenants: [...s.tenants, ...res.items],
@@ -54,9 +55,11 @@ export function useTenants() {
     } catch (e) {
       setState((s) => ({ ...s, loadingMore: false, error: toApiError(e) }))
     }
-  }, [state.hasMore, state.loadingMore, state.nextToken])
+  }, [state])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => {
+    fetch()
+  }, [fetch])
 
   return { ...state, refresh: fetch, fetchMore }
 }

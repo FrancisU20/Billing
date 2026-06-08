@@ -1,18 +1,20 @@
 import type { Ionicons } from '@expo/vector-icons'
+import type { Href } from 'expo-router'
 import { Routes } from '@/constants/routes'
 import type { AuthUser } from '@/features/auth/types'
 
 export interface AppNavigationItem {
   label: string
   icon: keyof typeof Ionicons.glyphMap
-  href: string
+  href: Href
   activeWhen: string
 }
 
 // Deriva el segmento final de una ruta de Routes para usar con pathname.includes().
 // Si la ruta cambia en Routes, activeWhen se actualiza automáticamente.
 function segment(route: string): string {
-  return '/' + route.split('/').pop()!
+  const last = route.split('/').pop()
+  return last ? `/${last}` : '/'
 }
 
 const superadminNavigation: AppNavigationItem[] = [

@@ -1,5 +1,12 @@
 import React from 'react'
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type ViewProps } from 'react-native'
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
+  type ViewProps,
+} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTheme } from '@/lib/theme-context'
 import { spacing } from '@/constants/tokens'
@@ -12,7 +19,15 @@ interface ScreenProps extends ViewProps {
   keyboardAware?: boolean
 }
 
-export function Screen({ children, scrollable = false, padded = true, centered = false, keyboardAware = false, style, ...props }: ScreenProps) {
+export function Screen({
+  children,
+  scrollable = false,
+  padded = true,
+  centered = false,
+  keyboardAware = false,
+  style,
+  ...props
+}: ScreenProps) {
   const { semantic } = useTheme()
 
   const bg = { backgroundColor: semantic.bg.primary }
@@ -27,7 +42,16 @@ export function Screen({ children, scrollable = false, padded = true, centered =
       {children}
     </ScrollView>
   ) : (
-    <View {...props} style={[staticStyles.fill, bg, padded && staticStyles.padded, centered && staticStyles.centered, style]}>
+    <View
+      {...props}
+      style={[
+        staticStyles.fill,
+        bg,
+        padded && staticStyles.padded,
+        centered && staticStyles.centered,
+        style,
+      ]}
+    >
       {children}
     </View>
   )
@@ -35,10 +59,15 @@ export function Screen({ children, scrollable = false, padded = true, centered =
   return (
     <SafeAreaView style={[staticStyles.fill, bg]}>
       {keyboardAware ? (
-        <KeyboardAvoidingView style={staticStyles.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView
+          style={staticStyles.fill}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           {content}
         </KeyboardAvoidingView>
-      ) : content}
+      ) : (
+        content
+      )}
     </SafeAreaView>
   )
 }

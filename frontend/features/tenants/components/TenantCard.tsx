@@ -7,7 +7,10 @@ import { formatRuc, initials } from '@/lib/utils/format'
 import { TenantStatusBadge } from './TenantStatusBadge'
 import type { Tenant } from '../types'
 
-interface TenantCardProps { tenant: Tenant; onPress?: () => void }
+interface TenantCardProps {
+  tenant: Tenant
+  onPress?: () => void
+}
 
 export function TenantCard({ tenant, onPress }: TenantCardProps) {
   const { semantic } = useTheme()
@@ -61,7 +64,13 @@ const staticStyles = StyleSheet.create({
     borderWidth: 1,
     padding: spacing[4],
   },
-  avatar: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatarText: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
   body: { flex: 1, gap: 3 },
   name: { fontSize: typography.size.base, fontWeight: typography.weight.semibold },

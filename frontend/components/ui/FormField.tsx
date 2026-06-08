@@ -15,20 +15,38 @@ interface FormFieldProps extends TextInputProps {
   dark?: boolean
 }
 
-export function FormField({ label, error, hint, required, isDisabled, leftIcon, dark, ...inputProps }: FormFieldProps) {
+export function FormField({
+  label,
+  error,
+  hint,
+  required,
+  isDisabled,
+  leftIcon,
+  dark,
+  ...inputProps
+}: FormFieldProps) {
   const { semantic } = useTheme()
 
   const labelColor = dark ? overlay.text.label : semantic.text.primary
-  const hintColor  = dark ? overlay.text.faint  : semantic.text.secondary
+  const hintColor = dark ? overlay.text.faint : semantic.text.secondary
 
   return (
     <View style={staticStyles.container}>
       <View style={staticStyles.labelRow}>
         <Text style={[staticStyles.label, { color: labelColor }]}>{label}</Text>
-        {required ? <Text style={{ color: semantic.status.error, fontSize: typography.size.sm }}> *</Text> : null}
+        {required ? (
+          <Text style={{ color: semantic.status.error, fontSize: typography.size.sm }}> *</Text>
+        ) : null}
       </View>
 
-      <Input {...inputProps} hasError={!!error} isDisabled={isDisabled} leftIcon={leftIcon} dark={dark} accessibilityLabel={label} />
+      <Input
+        {...inputProps}
+        hasError={!!error}
+        isDisabled={isDisabled}
+        leftIcon={leftIcon}
+        dark={dark}
+        accessibilityLabel={label}
+      />
 
       {error ? (
         <View style={staticStyles.feedbackRow}>

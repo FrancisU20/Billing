@@ -14,8 +14,20 @@ export function UserAvatar({ user, size = 'sm' }: UserAvatarProps) {
   const { semantic } = useTheme()
 
   return (
-    <View style={[styles.avatar, size === 'lg' && styles.avatarLg, { backgroundColor: semantic.accent.default }]}>
-      <Text style={[styles.avatarText, size === 'lg' && styles.avatarTextLg, { color: semantic.text.onDark }]}>
+    <View
+      style={[
+        styles.avatar,
+        size === 'lg' && styles.avatarLg,
+        { backgroundColor: semantic.accent.default },
+      ]}
+    >
+      <Text
+        style={[
+          styles.avatarText,
+          size === 'lg' && styles.avatarTextLg,
+          { color: semantic.text.onDark },
+        ]}
+      >
         {getUserInitial(user)}
       </Text>
     </View>
@@ -23,7 +35,13 @@ export function UserAvatar({ user, size = 'sm' }: UserAvatarProps) {
 }
 
 const styles = StyleSheet.create({
-  avatar: { width: 32, height: 32, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatarLg: { width: 44, height: 44 },
   avatarText: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
   avatarTextLg: { fontSize: typography.size.md },

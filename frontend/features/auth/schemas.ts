@@ -19,5 +19,24 @@ export const newPasswordSchema = z
     path: ['confirmPassword'],
   })
 
+export const authTokensResponseSchema = z.object({
+  id_token: z.string().min(1),
+  access_token: z.string().min(1),
+  refresh_token: z.string().min(1),
+})
+
+export const authChallengeResponseSchema = z.object({
+  challenge_name: z.string().min(1),
+  session: z.string().min(1),
+  parameters: z.record(z.string(), z.string()).optional().default({}),
+})
+
+export const loginResponseSchema = z.union([authChallengeResponseSchema, authTokensResponseSchema])
+
+export const refreshResponseSchema = z.object({
+  id_token: z.string().min(1),
+  access_token: z.string().min(1),
+})
+
 export type LoginFormValues = z.infer<typeof loginSchema>
 export type NewPasswordFormValues = z.infer<typeof newPasswordSchema>

@@ -1,0 +1,66 @@
+import { describe, expect, it } from 'vitest'
+import {
+  createTenantSchema,
+  tenantSchema,
+  tenantsPageSchema,
+  toggleTenantStatusSchema,
+  updateTenantSchema,
+} from './schemas'
+
+const tenant = {
+  id: 'tenant-1',
+  ruc: '1790012345001',
+  trade_name: 'CodeLabs',
+  legal_rep_name: 'Pancho Ulloa',
+  email: 'admin@codelabs.ec',
+  phone: '0999999999',
+  address: 'Quito',
+  sri_environment: 'testing',
+  status: 'active',
+  plan_id: 'plan-1',
+  plan_status: 'active',
+  trial_ends_at: null,
+  created_at: '2026-06-08T00:00:00Z',
+  updated_at: '2026-06-08T00:00:00Z',
+  created_by: 'user-1',
+  version: '3',
+}
+
+describe('tenant contract schemas', () => {
+  it('accepts the backend tenant shape', () => {
+    expect(tenantSchema.parse(tenant)).toEqual({ ...tenant, version: 3 })
+  })
+
+  it('rejects stale frontend fields that are not in the backend contract', () => {
+    expect(() => tenantSchema.parse({ ...tenant, business_name: 'Legacy' })).not.toThrow()
+    expect(() => tenantSchema.parse({ ...tenant, status: 'pending' })).toThrow()
+  })
+
+  it('validates paginated list metadata', () => {
+    expect(tenantsPageSchema.parse({ items: [tenant], next_token: null, has_more: false })).toEqual(
+      {
+        items: [{ ...tenant, version: 3 }],
+        next_token: null,
+        has_more: false,
+      },
+    )
+  })
+
+  it('keeps create and update payloads scoped to writable fields', () => {
+    const createPayload = {
+      ruc: '1790012345001',
+      trade_name: 'CodeLabs',
+      legal_rep_name: 'Pancho Ulloa',
+      email: 'admin@codelabs.ec',
+      phone: '0999999999',
+      address: 'Quito',
+      plan_id: 'plan-1',
+    }
+
+    expect(() => createTenantSchema.parse(createPayload)).not.toThrow()
+    expect(() => createTenantSchema.parse({ ...createPayload, id: 'tenant-1' })).toThrow()
+    expect(() => updateTenantSchema.parse({ sri_environment: 'production' })).not.toThrow()
+    expect(() => updateTenantSchema.parse({ created_at: '2026-06-08T00:00:00Z' })).toThrow()
+    expect(() => toggleTenantStatusSchema.parse({ status: 'inactive' })).not.toThrow()
+  })
+})

@@ -1,19 +1,30 @@
 import { api } from '@/lib/api/client'
-import type { PaginatedData } from '@/lib/api/types'
-import type { Tenant } from './types'
+import {
+  createTenantSchema,
+  tenantSchema,
+  tenantsPageSchema,
+  toggleTenantStatusSchema,
+  updateTenantSchema,
+} from './schemas'
+import type { CreateTenantInput, ToggleTenantStatusInput, UpdateTenantInput } from './types'
+
+function listPath(nextToken?: string): string {
+  return `/tenants${nextToken ? `?next_token=${encodeURIComponent(nextToken)}` : ''}`
+}
 
 export const tenantsApi = {
-  list: (nextToken?: string) =>
-    api.get<PaginatedData<Tenant>>(`/tenants${nextToken ? `?next_token=${nextToken}` : ''}`),
+  list: (nextToken?: string) => api.get(listPath(nextToken), tenantsPageSchema),
 
-  getById: (id: string) => api.get<Tenant>(`/tenants/${id}`),
+  getById: (id: string) => api.get(`/tenants/${id}`, tenantSchema),
 
-  create: (body: Partial<Tenant>, idempotencyKey: string) =>
-    api.post<Tenant>('/tenants', body, { idempotencyKey }),
+  create: (body: CreateTenantInput, idempotencyKey: string) =>
+    api.post('/tenants', createTenantSchema.parse(body), tenantSchema, { idempotencyKey }),
 
-  update: (id: string, body: Partial<Tenant>, idempotencyKey: string) =>
-    api.patch<Tenant>(`/tenants/${id}`, body, { idempotencyKey }),
+  update: (id: string, body: UpdateTenantInput, idempotencyKey: string) =>
+    api.patch(`/tenants/${id}`, updateTenantSchema.parse(body), tenantSchema, { idempotencyKey }),
 
-  setStatus: (id: string, status: 'active' | 'suspended', idempotencyKey: string) =>
-    api.patch<Tenant>(`/tenants/${id}/status`, { status }, { idempotencyKey }),
+  setStatus: (id: string, status: ToggleTenantStatusInput['status'], idempotencyKey: string) =>
+    api.patch(`/tenants/${id}/status`, toggleTenantStatusSchema.parse({ status }), tenantSchema, {
+      idempotencyKey,
+    }),
 }

@@ -1,5 +1,12 @@
 import React, { forwardRef, useState } from 'react'
-import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native'
+import {
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+  type TextInputProps,
+  type TextStyle,
+} from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/lib/theme-context'
 import { overlay, typography, radius, spacing } from '@/constants/tokens'
@@ -12,8 +19,23 @@ interface InputProps extends TextInputProps {
   dark?: boolean
 }
 
+type WebTextInputStyle = Omit<TextStyle, 'outlineColor' | 'outlineStyle' | 'outlineWidth'> & {
+  outlineColor?: string
+  outlineStyle?: 'solid'
+  outlineWidth?: number
+}
+
+const webTextInputReset: WebTextInputStyle = {
+  outlineColor: 'transparent',
+  outlineStyle: 'solid',
+  outlineWidth: 0,
+}
+
 export const Input = forwardRef<TextInput, InputProps>(
-  ({ hasError, isDisabled, leftIcon, rightElement, secureTextEntry, dark, style, value, ...props }, ref) => {
+  (
+    { hasError, isDisabled, leftIcon, rightElement, secureTextEntry, dark, style, value, ...props },
+    ref,
+  ) => {
     const { semantic } = useTheme()
     const [focused, setFocused] = useState(false)
     const [visible, setVisible] = useState(false)
@@ -22,20 +44,33 @@ export const Input = forwardRef<TextInput, InputProps>(
       ? semantic.status.error
       : focused
         ? semantic.border.focus
-        : dark ? overlay.border.hover : semantic.border.default
+        : dark
+          ? overlay.border.hover
+          : semantic.border.default
 
     const bg = dark
-      ? focused ? overlay.surface.hover : overlay.surface.default
-      : hasError ? semantic.status.errorBg : semantic.bg.primary
+      ? focused
+        ? overlay.surface.hover
+        : overlay.surface.default
+      : hasError
+        ? semantic.status.errorBg
+        : semantic.bg.primary
 
     const iconColor = hasError
       ? semantic.status.error
       : focused
         ? semantic.accent.default
-        : dark ? overlay.text.icon : semantic.text.tertiary
+        : dark
+          ? overlay.text.icon
+          : semantic.text.tertiary
 
     return (
-      <View style={[staticStyles.container, { borderColor, backgroundColor: bg, opacity: isDisabled ? 0.5 : 1 }]}>
+      <View
+        style={[
+          staticStyles.container,
+          { borderColor, backgroundColor: bg, opacity: isDisabled ? 0.5 : 1 },
+        ]}
+      >
         {leftIcon ? (
           <Ionicons name={leftIcon} size={18} color={iconColor} style={staticStyles.leftIcon} />
         ) : null}
@@ -46,16 +81,31 @@ export const Input = forwardRef<TextInput, InputProps>(
           value={value ?? ''}
           editable={!isDisabled}
           secureTextEntry={secureTextEntry && !visible}
-          onFocus={(e) => { setFocused(true); props.onFocus?.(e) }}
-          onBlur={(e) => { setFocused(false); props.onBlur?.(e) }}
-          style={[staticStyles.input, { color: dark ? overlay.text.primary : semantic.text.primary }, style]}
+          onFocus={(e) => {
+            setFocused(true)
+            props.onFocus?.(e)
+          }}
+          onBlur={(e) => {
+            setFocused(false)
+            props.onBlur?.(e)
+          }}
+          style={[
+            staticStyles.input,
+            webTextInputReset,
+            { color: dark ? overlay.text.primary : semantic.text.primary },
+            style,
+          ]}
           placeholderTextColor={dark ? overlay.text.placeholder : semantic.text.tertiary}
           selectionColor={semantic.accent.default}
         />
 
         {secureTextEntry ? (
           <Pressable onPress={() => setVisible((v) => !v)} style={staticStyles.rightEl}>
-            <Ionicons name={visible ? 'eye-outline' : 'eye-off-outline'} size={18} color={iconColor} />
+            <Ionicons
+              name={visible ? 'eye-outline' : 'eye-off-outline'}
+              size={18}
+              color={iconColor}
+            />
           </Pressable>
         ) : rightElement ? (
           <View style={staticStyles.rightEl}>{rightElement}</View>
@@ -82,8 +132,6 @@ const staticStyles = StyleSheet.create({
     fontSize: typography.size.base,
     paddingVertical: spacing[3],
     includeFontPadding: false,
-    outlineWidth: 0,
-    outlineStyle: 'none',
-  } as any,
+  },
   rightEl: { marginLeft: spacing[2] },
 })

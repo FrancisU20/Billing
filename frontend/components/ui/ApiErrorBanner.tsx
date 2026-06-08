@@ -9,10 +9,15 @@ export function ApiErrorBanner({ error }: { error: ApiError }) {
   const { semantic } = useTheme()
 
   return (
-    <View style={[staticStyles.container, {
-      backgroundColor: semantic.status.errorBg,
-      borderLeftColor: semantic.status.error,
-    }]}>
+    <View
+      style={[
+        staticStyles.container,
+        {
+          backgroundColor: semantic.status.errorBg,
+          borderLeftColor: semantic.status.error,
+        },
+      ]}
+    >
       <Ionicons name="alert-circle" size={16} color={semantic.status.error} />
       <Text style={[staticStyles.message, { color: semantic.status.error }]}>{error.message}</Text>
     </View>

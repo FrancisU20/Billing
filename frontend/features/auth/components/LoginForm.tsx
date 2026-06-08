@@ -68,7 +68,13 @@ export function LoginForm({ onSubmit, isLoading, apiError, dark }: LoginFormProp
 
       {apiError ? <ApiErrorBanner error={apiError} /> : null}
 
-      <Button variant="primary" size="lg" fullWidth isLoading={isLoading} onPress={handleSubmit(onSubmit)}>
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
+        isLoading={isLoading}
+        onPress={handleSubmit(onSubmit)}
+      >
         Iniciar sesión
       </Button>
     </View>

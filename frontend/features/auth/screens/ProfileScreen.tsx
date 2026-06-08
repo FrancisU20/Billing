@@ -39,10 +39,24 @@ export function ProfileScreen() {
           <View style={[styles.divider, { backgroundColor: semantic.border.default }]} />
 
           <ProfileRow icon="person-circle-outline" label="Rol" value={roleLabel} />
-          <ProfileRow icon="business-outline" label="Tenant" value={user?.tenantId ?? 'No asignado'} />
-          <ProfileRow icon="shield-checkmark-outline" label="Acceso" value={getUserAccessLabel(user)} />
+          <ProfileRow
+            icon="business-outline"
+            label="Tenant"
+            value={user?.tenantId ?? 'No asignado'}
+          />
+          <ProfileRow
+            icon="shield-checkmark-outline"
+            label="Acceso"
+            value={getUserAccessLabel(user)}
+          />
 
-          <Button variant="outline" size="md" onPress={logout} isLoading={loading} style={styles.logoutButton as any}>
+          <Button
+            variant="outline"
+            size="md"
+            onPress={logout}
+            isLoading={loading}
+            style={styles.logoutButton}
+          >
             Cerrar sesión
           </Button>
         </Card>
@@ -51,7 +65,15 @@ export function ProfileScreen() {
   )
 }
 
-function ProfileRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
+function ProfileRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof Ionicons.glyphMap
+  label: string
+  value: string
+}) {
   const { semantic } = useTheme()
 
   return (
@@ -61,7 +83,9 @@ function ProfileRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphM
       </View>
       <View style={styles.rowCopy}>
         <Text style={[styles.rowLabel, { color: semantic.text.secondary }]}>{label}</Text>
-        <Text style={[styles.rowValue, { color: semantic.text.primary }]} numberOfLines={1}>{value}</Text>
+        <Text style={[styles.rowValue, { color: semantic.text.primary }]} numberOfLines={1}>
+          {value}
+        </Text>
       </View>
     </View>
   )
@@ -72,13 +96,25 @@ const styles = StyleSheet.create({
   content: { padding: spacing[5] },
   profileCard: { gap: spacing[4] },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing[4] },
-  avatar: { width: 64, height: 64, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
+  avatar: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   avatarText: { fontSize: typography.size['2xl'], fontWeight: typography.weight.bold },
   identity: { flex: 1, minWidth: 0, gap: spacing[2] },
   email: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
   divider: { height: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
-  rowIcon: { width: 40, height: 40, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  rowIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rowCopy: { flex: 1, minWidth: 0, gap: spacing[1] },
   rowLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
   rowValue: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },

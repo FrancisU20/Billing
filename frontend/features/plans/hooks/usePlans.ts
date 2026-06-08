@@ -23,7 +23,9 @@ export function usePlans() {
     }
   }, [])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => {
+    fetch()
+  }, [fetch])
 
   return { ...state, refresh: fetch }
 }

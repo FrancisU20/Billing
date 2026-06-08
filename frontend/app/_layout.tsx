@@ -30,7 +30,6 @@ function AppShell() {
   useEffect(() => {
     configureApiClient({
       getIdToken: () => useAuthStore.getState().idToken,
-      getRefreshToken: () => useAuthStore.getState().refreshToken,
       onRefresh: async () => {
         const currentRefresh = useAuthStore.getState().refreshToken
         if (!currentRefresh) return false

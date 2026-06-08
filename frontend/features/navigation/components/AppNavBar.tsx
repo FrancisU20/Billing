@@ -21,9 +21,10 @@ export function AppNavBar({ title, subtitle, canGoBack }: AppNavBarProps) {
   const [navigationOpen, setNavigationOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
 
-  const leftContent = user && !canGoBack ? (
-    <NavIconButton icon="menu-outline" onPress={() => setNavigationOpen(true)} />
-  ) : undefined
+  const leftContent =
+    user && !canGoBack ? (
+      <NavIconButton icon="menu-outline" onPress={() => setNavigationOpen(true)} />
+    ) : undefined
 
   const rightContent = user ? (
     <AccountButton onPress={() => setAccountOpen(true)} user={user} />
@@ -31,11 +32,21 @@ export function AppNavBar({ title, subtitle, canGoBack }: AppNavBarProps) {
 
   return (
     <>
-      <NavBar title={title} subtitle={subtitle} canGoBack={canGoBack} leftContent={leftContent} rightContent={rightContent} />
+      <NavBar
+        title={title}
+        subtitle={subtitle}
+        canGoBack={canGoBack}
+        leftContent={leftContent}
+        rightContent={rightContent}
+      />
 
       {user ? (
         <>
-          <NavigationMenu user={user} visible={navigationOpen} onClose={() => setNavigationOpen(false)} />
+          <NavigationMenu
+            user={user}
+            visible={navigationOpen}
+            onClose={() => setNavigationOpen(false)}
+          />
           <AccountMenu user={user} visible={accountOpen} onClose={() => setAccountOpen(false)} />
         </>
       ) : null}
@@ -43,10 +54,7 @@ export function AppNavBar({ title, subtitle, canGoBack }: AppNavBarProps) {
   )
 }
 
-function AccountButton({ user, onPress }: {
-  user: AuthUser
-  onPress: () => void
-}) {
+function AccountButton({ user, onPress }: { user: AuthUser; onPress: () => void }) {
   const { semantic } = useTheme()
 
   return (

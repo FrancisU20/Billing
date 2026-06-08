@@ -12,7 +12,14 @@ interface CardProps extends ViewProps {
   variant?: CardVariant
 }
 
-export function Card({ children, elevated = false, padded = true, variant = 'default', style, ...props }: CardProps) {
+export function Card({
+  children,
+  elevated = false,
+  padded = true,
+  variant = 'default',
+  style,
+  ...props
+}: CardProps) {
   const { semantic } = useTheme()
 
   const variantBg: Record<CardVariant, string> = {

@@ -53,10 +53,25 @@ export function MenuDivider() {
   return <View style={[styles.menuDivider, { backgroundColor: semantic.border.default }]} />
 }
 
-export function MenuItem({ icon, label, active = false, danger = false, disabled = false, onPress }: MenuItemProps) {
+export function MenuItem({
+  icon,
+  label,
+  active = false,
+  danger = false,
+  disabled = false,
+  onPress,
+}: MenuItemProps) {
   const { semantic } = useTheme()
-  const color = danger ? semantic.status.error : active ? semantic.accent.default : semantic.text.primary
-  const iconColor = danger ? semantic.status.error : active ? semantic.accent.default : semantic.text.secondary
+  const color = danger
+    ? semantic.status.error
+    : active
+      ? semantic.accent.default
+      : semantic.text.primary
+  const iconColor = danger
+    ? semantic.status.error
+    : active
+      ? semantic.accent.default
+      : semantic.text.secondary
 
   return (
     <Pressable
@@ -78,7 +93,12 @@ export function MenuItem({ icon, label, active = false, danger = false, disabled
 
 export const menuLayoutStyles = StyleSheet.create({
   menuItems: { gap: spacing[1] },
-  accountHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], padding: spacing[2] },
+  accountHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    padding: spacing[2],
+  },
   accountCopy: { flex: 1, minWidth: 0, gap: spacing[1] },
   accountEmail: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
   accountRole: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
@@ -87,11 +107,30 @@ export const menuLayoutStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   modalOverlay: { flex: 1 },
   modalBackdrop: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
-  menuPanel: { position: 'absolute', top: spacing[20], minWidth: 240, borderWidth: 1, borderRadius: radius.xl, padding: spacing[3] },
+  menuPanel: {
+    position: 'absolute',
+    top: spacing[20],
+    minWidth: 240,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing[3],
+  },
   leftPanel: { left: spacing[5] },
   rightPanel: { right: spacing[5], width: 300 },
-  menuEyebrow: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold, paddingHorizontal: spacing[2], paddingVertical: spacing[2] },
+  menuEyebrow: {
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.semibold,
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[2],
+  },
   menuDivider: { height: 1, marginVertical: spacing[2] },
-  menuItem: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing[3], borderRadius: radius.md, paddingHorizontal: spacing[3] },
+  menuItem: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    borderRadius: radius.md,
+    paddingHorizontal: spacing[3],
+  },
   menuItemText: { flex: 1, fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
 })

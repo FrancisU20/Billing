@@ -20,9 +20,7 @@ export interface AuthChallenge {
   parameters: Record<string, string>
 }
 
-export type LoginResult =
-  | { type: 'success' }
-  | { type: 'challenge'; challenge: AuthChallenge }
+export type LoginResult = { type: 'success' } | { type: 'challenge'; challenge: AuthChallenge }
 
 export interface LoginCredentials {
   username: string

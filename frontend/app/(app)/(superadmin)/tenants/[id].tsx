@@ -27,7 +27,7 @@ export default function TenantDetailScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
-      <AppNavBar title={tenant?.business_name ?? '—'} canGoBack />
+      <AppNavBar title={tenant?.trade_name ?? '—'} canGoBack />
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {tenant ? (
@@ -36,13 +36,17 @@ export default function TenantDetailScreen() {
               <View style={styles.headerCard}>
                 <View style={[styles.avatar, { backgroundColor: semantic.accent.subtle }]}>
                   <Text style={[styles.avatarText, { color: semantic.accent.default }]}>
-                    {tenant.business_name.charAt(0).toUpperCase()}
+                    {tenant.trade_name.charAt(0).toUpperCase()}
                   </Text>
                 </View>
                 <View style={styles.headerInfo}>
-                  <Text style={[styles.businessName, { color: semantic.text.primary }]}>{tenant.business_name}</Text>
-                  {tenant.trade_name ? (
-                    <Text style={[styles.tradeName, { color: semantic.text.secondary }]}>{tenant.trade_name}</Text>
+                  <Text style={[styles.businessName, { color: semantic.text.primary }]}>
+                    {tenant.trade_name}
+                  </Text>
+                  {tenant.legal_rep_name ? (
+                    <Text style={[styles.tradeName, { color: semantic.text.secondary }]}>
+                      {tenant.legal_rep_name}
+                    </Text>
                   ) : null}
                   <TenantStatusBadge status={tenant.status} />
                 </View>
@@ -50,7 +54,9 @@ export default function TenantDetailScreen() {
             </Card>
 
             <Card>
-              <Text style={[styles.sectionTitle, { color: semantic.text.secondary }]}>Información fiscal</Text>
+              <Text style={[styles.sectionTitle, { color: semantic.text.secondary }]}>
+                Información fiscal
+              </Text>
               <Divider />
               <View style={styles.fields}>
                 <Field label="RUC" value={formatRuc(tenant.ruc)} mono />
@@ -61,7 +67,9 @@ export default function TenantDetailScreen() {
             </Card>
 
             <Card>
-              <Text style={[styles.sectionTitle, { color: semantic.text.secondary }]}>Metadata</Text>
+              <Text style={[styles.sectionTitle, { color: semantic.text.secondary }]}>
+                Metadata
+              </Text>
               <Divider />
               <View style={styles.fields}>
                 <Field label="ID" value={tenant.id} mono />
@@ -84,7 +92,9 @@ function Field({ label, value, mono = false }: { label: string; value: string; m
   return (
     <View style={fieldStyles.container}>
       <Text style={[fieldStyles.label, { color: semantic.text.secondary }]}>{label}</Text>
-      <Text style={[fieldStyles.value, mono && fieldStyles.mono, { color: semantic.text.primary }]}>{value}</Text>
+      <Text style={[fieldStyles.value, mono && fieldStyles.mono, { color: semantic.text.primary }]}>
+        {value}
+      </Text>
     </View>
   )
 }

@@ -59,10 +59,6 @@ export const tokenStorage = {
   },
 
   clearAll: async (): Promise<void> => {
-    await Promise.all([
-      remove(KEY_ID_TOKEN),
-      remove(KEY_ACCESS_TOKEN),
-      remove(KEY_REFRESH_TOKEN),
-    ])
+    await Promise.all([remove(KEY_ID_TOKEN), remove(KEY_ACCESS_TOKEN), remove(KEY_REFRESH_TOKEN)])
   },
 }

@@ -7,10 +7,14 @@ import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
+import { Button } from '@/components/ui/Button'
 import { PlanCard } from '@/features/plans/components/PlanCard'
 import { usePlans } from '@/features/plans/hooks/usePlans'
+import { useRouter } from 'expo-router'
+import { Routes } from '@/constants/routes'
 
 export default function PlansManagementScreen() {
+  const router = useRouter()
   const { plans, loading, error, refresh } = usePlans()
   const { semantic } = useTheme()
   const activePlans = plans.filter((plan) => plan.active).length
@@ -33,16 +37,30 @@ export default function PlansManagementScreen() {
           contentContainerStyle={styles.list}
           ListHeaderComponentStyle={styles.listHeader}
           ListHeaderComponent={
-            <View style={[styles.summary, { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default }]}>
+            <View
+              style={[
+                styles.summary,
+                { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
+              ]}
+            >
               <View style={[styles.summaryIcon, { backgroundColor: semantic.accent.altSubtle }]}>
                 <Ionicons name="layers-outline" size={20} color={semantic.accent.alt} />
               </View>
               <View style={styles.summaryCopy}>
-                <Text style={[styles.summaryTitle, { color: semantic.text.primary }]}>Catálogo comercial</Text>
+                <Text style={[styles.summaryTitle, { color: semantic.text.primary }]}>
+                  Catálogo comercial
+                </Text>
                 <Text style={[styles.summarySubtitle, { color: semantic.text.secondary }]}>
                   {activePlans} activos de {plans.length} configurados
                 </Text>
               </View>
+              <Button
+                variant="primary"
+                size="sm"
+                onPress={() => router.push(Routes.superadmin.planNew)}
+              >
+                Nuevo
+              </Button>
             </View>
           }
           ItemSeparatorComponent={() => <View style={{ height: spacing[3] }} />}
@@ -67,8 +85,21 @@ const styles = StyleSheet.create({
   errorWrap: { padding: spacing[5] },
   list: { padding: spacing[4], paddingBottom: spacing[10] },
   listHeader: { marginBottom: spacing[3] },
-  summary: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], borderRadius: radius['2xl'], borderWidth: 1, padding: spacing[5] },
-  summaryIcon: { width: 44, height: 44, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  summary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    borderRadius: radius['2xl'],
+    borderWidth: 1,
+    padding: spacing[5],
+  },
+  summaryIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   summaryCopy: { flex: 1, minWidth: 0, gap: spacing[1] },
   summaryTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   summarySubtitle: { fontSize: typography.size.sm },

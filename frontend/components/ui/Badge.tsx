@@ -17,9 +17,9 @@ export function Badge({ label, variant = 'neutral', size = 'md' }: BadgeProps) {
   const variantMap: Record<BadgeVariant, { bg: string; text: string }> = {
     success: { bg: semantic.status.successBg, text: semantic.status.success },
     warning: { bg: semantic.status.warningBg, text: semantic.status.warning },
-    error:   { bg: semantic.status.errorBg,   text: semantic.status.error },
-    neutral: { bg: semantic.bg.tertiary,       text: semantic.text.secondary },
-    primary: { bg: semantic.accent.subtle,     text: semantic.accent.default },
+    error: { bg: semantic.status.errorBg, text: semantic.status.error },
+    neutral: { bg: semantic.bg.tertiary, text: semantic.text.secondary },
+    primary: { bg: semantic.accent.subtle, text: semantic.accent.default },
   }
 
   const { bg, text } = variantMap[variant]

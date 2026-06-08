@@ -12,7 +12,12 @@ interface EmptyStateProps {
   action?: { label: string; onPress: () => void }
 }
 
-export function EmptyState({ icon = 'file-tray-outline', title, description, action }: EmptyStateProps) {
+export function EmptyState({
+  icon = 'file-tray-outline',
+  title,
+  description,
+  action,
+}: EmptyStateProps) {
   const { semantic } = useTheme()
 
   return (
@@ -21,9 +26,18 @@ export function EmptyState({ icon = 'file-tray-outline', title, description, act
         <Ionicons name={icon} size={40} color={semantic.text.tertiary} />
       </View>
       <Text style={[staticStyles.title, { color: semantic.text.primary }]}>{title}</Text>
-      {description ? <Text style={[staticStyles.description, { color: semantic.text.secondary }]}>{description}</Text> : null}
+      {description ? (
+        <Text style={[staticStyles.description, { color: semantic.text.secondary }]}>
+          {description}
+        </Text>
+      ) : null}
       {action ? (
-        <Button variant="outline" size="sm" onPress={action.onPress} style={{ marginTop: spacing[2] } as any}>
+        <Button
+          variant="outline"
+          size="sm"
+          onPress={action.onPress}
+          style={{ marginTop: spacing[2] }}
+        >
           {action.label}
         </Button>
       ) : null}
@@ -32,8 +46,27 @@ export function EmptyState({ icon = 'file-tray-outline', title, description, act
 }
 
 const staticStyles = StyleSheet.create({
-  container: { alignItems: 'center', justifyContent: 'center', padding: spacing[10], gap: spacing[3] },
-  iconWrap: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: typography.size.md, fontWeight: typography.weight.semibold, textAlign: 'center' },
-  description: { fontSize: typography.size.sm, textAlign: 'center', lineHeight: typography.size.sm * 1.6 },
+  container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing[10],
+    gap: spacing[3],
+  },
+  iconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: typography.size.md,
+    fontWeight: typography.weight.semibold,
+    textAlign: 'center',
+  },
+  description: {
+    fontSize: typography.size.sm,
+    textAlign: 'center',
+    lineHeight: typography.size.sm * 1.6,
+  },
 })

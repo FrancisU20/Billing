@@ -12,8 +12,10 @@ export const Routes = {
   },
   superadmin: {
     tenants: '/(app)/(superadmin)/tenants' as const,
+    tenantNew: '/(app)/(superadmin)/tenants/new' as const,
     tenantDetail: (id: string) => `/(app)/(superadmin)/tenants/${id}` as const,
     plans: '/(app)/(superadmin)/plans' as const,
+    planNew: '/(app)/(superadmin)/plans/new' as const,
   },
   tenant: {
     dashboard: '/(app)/(tenant)/dashboard' as const,

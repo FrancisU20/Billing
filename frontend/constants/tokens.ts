@@ -186,8 +186,26 @@ export const darkSemantic = {
 export const semantic = lightSemantic
 
 export interface SemanticTokens {
-  bg: { primary: string; secondary: string; tertiary: string; elevated: string; muted: string; inverse: string; nav: string; card: string; page: string }
-  text: { primary: string; secondary: string; tertiary: string; disabled: string; inverse: string; link: string; onDark: string }
+  bg: {
+    primary: string
+    secondary: string
+    tertiary: string
+    elevated: string
+    muted: string
+    inverse: string
+    nav: string
+    card: string
+    page: string
+  }
+  text: {
+    primary: string
+    secondary: string
+    tertiary: string
+    disabled: string
+    inverse: string
+    link: string
+    onDark: string
+  }
   border: { default: string; focus: string; error: string; strong: string }
   accent: {
     default: string
@@ -201,7 +219,14 @@ export interface SemanticTokens {
     tertiarySubtle: string
   }
   chart: { primary: string; secondary: string; tertiary: string; track: string }
-  status: { success: string; successBg: string; warning: string; warningBg: string; error: string; errorBg: string }
+  status: {
+    success: string
+    successBg: string
+    warning: string
+    warningBg: string
+    error: string
+    errorBg: string
+  }
 }
 
 export const spacing = {
@@ -271,24 +296,24 @@ export const shadow: Record<'sm' | 'md' | 'lg' | 'xl', ShadowStyle> = {
 // Estos valores son independientes del tema light/dark de la app
 export const overlay = {
   text: {
-    primary:     'rgba(255,255,255,1.00)',
-    muted:       'rgba(255,255,255,0.70)',
-    subtle:      'rgba(255,255,255,0.50)',
-    faint:       'rgba(255,255,255,0.35)',
-    ghost:       'rgba(255,255,255,0.20)',
+    primary: 'rgba(255,255,255,1.00)',
+    muted: 'rgba(255,255,255,0.70)',
+    subtle: 'rgba(255,255,255,0.50)',
+    faint: 'rgba(255,255,255,0.35)',
+    ghost: 'rgba(255,255,255,0.20)',
     placeholder: 'rgba(255,255,255,0.30)',
-    icon:        'rgba(255,255,255,0.35)',
-    label:       'rgba(255,255,255,0.55)',
+    icon: 'rgba(255,255,255,0.35)',
+    label: 'rgba(255,255,255,0.55)',
   },
   border: {
     default: 'rgba(255,255,255,0.08)',
-    hover:   'rgba(255,255,255,0.10)',
-    strong:  'rgba(255,255,255,0.15)',
+    hover: 'rgba(255,255,255,0.10)',
+    strong: 'rgba(255,255,255,0.15)',
   },
   surface: {
     default: 'rgba(255,255,255,0.06)',
-    hover:   'rgba(255,255,255,0.09)',
-    badge:   'rgba(255,255,255,0.20)',
+    hover: 'rgba(255,255,255,0.09)',
+    badge: 'rgba(255,255,255,0.20)',
   },
 } as const
 

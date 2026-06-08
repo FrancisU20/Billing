@@ -13,9 +13,16 @@ export function LoadingSpinner({ label, size = 'large', fullScreen = false }: Lo
   const { semantic } = useTheme()
 
   return (
-    <View style={[staticStyles.container, fullScreen && { flex: 1, backgroundColor: semantic.bg.primary }]}>
+    <View
+      style={[
+        staticStyles.container,
+        fullScreen && { flex: 1, backgroundColor: semantic.bg.primary },
+      ]}
+    >
       <ActivityIndicator size={size} color={semantic.accent.default} />
-      {label ? <Text style={[staticStyles.label, { color: semantic.text.secondary }]}>{label}</Text> : null}
+      {label ? (
+        <Text style={[staticStyles.label, { color: semantic.text.secondary }]}>{label}</Text>
+      ) : null}
     </View>
   )
 }

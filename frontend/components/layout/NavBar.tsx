@@ -21,18 +21,28 @@ export function NavBar({ title, subtitle, canGoBack, leftContent, rightContent }
   const router = useRouter()
   const { semantic } = useTheme()
 
-  const resolvedLeft = leftContent ?? (canGoBack ? (
-    <NavIconButton icon="chevron-back" onPress={router.back} />
-  ) : null)
+  const resolvedLeft =
+    leftContent ?? (canGoBack ? <NavIconButton icon="chevron-back" onPress={router.back} /> : null)
 
   return (
-    <View style={[styles.container, { backgroundColor: semantic.bg.page, borderBottomColor: semantic.border.default }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: semantic.bg.page, borderBottomColor: semantic.border.default },
+      ]}
+    >
       <View style={styles.content}>
         {resolvedLeft}
 
         <View style={styles.heading}>
-          <Text style={[styles.title, { color: semantic.text.primary }]} numberOfLines={1}>{title}</Text>
-          {subtitle ? <Text style={[styles.subtitle, { color: semantic.text.secondary }]} numberOfLines={1}>{subtitle}</Text> : null}
+          <Text style={[styles.title, { color: semantic.text.primary }]} numberOfLines={1}>
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text style={[styles.subtitle, { color: semantic.text.secondary }]} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          ) : null}
         </View>
 
         {rightContent}
@@ -68,5 +78,12 @@ const styles = StyleSheet.create({
   heading: { flex: 1, minWidth: 0, gap: 2 },
   title: { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
   subtitle: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
-  iconBtn: { width: 40, height: 40, borderRadius: radius.full, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 })

@@ -17,41 +17,74 @@ interface ChallengeFormProps {
 }
 
 export function ChallengeForm({ onSubmit, isLoading, apiError }: ChallengeFormProps) {
-  const { control, handleSubmit, formState: { errors } } = useForm<NewPasswordFormValues>({
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<NewPasswordFormValues>({
     resolver: zodResolver(newPasswordSchema),
   })
   const { semantic } = useTheme()
 
   return (
     <View style={staticStyles.container}>
-      <View style={[staticStyles.hint, { backgroundColor: semantic.accent.subtle, borderLeftColor: semantic.accent.default }]}>
+      <View
+        style={[
+          staticStyles.hint,
+          { backgroundColor: semantic.accent.subtle, borderLeftColor: semantic.accent.default },
+        ]}
+      >
         <Text style={[staticStyles.hintText, { color: semantic.text.primary }]}>
           Este es tu primer inicio de sesión. Debes establecer una nueva contraseña para continuar.
         </Text>
       </View>
 
-      <Controller control={control} name="newPassword" render={({ field: { onChange, onBlur, value } }) => (
-        <FormField
-          label="Nueva contraseña" placeholder="Mínimo 8 caracteres"
-          secureTextEntry leftIcon="lock-open-outline"
-          hint="Debe incluir mayúsculas y números"
-          error={errors.newPassword?.message}
-          onChangeText={onChange} onBlur={onBlur} value={value} required
-        />
-      )} />
+      <Controller
+        control={control}
+        name="newPassword"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <FormField
+            label="Nueva contraseña"
+            placeholder="Mínimo 8 caracteres"
+            secureTextEntry
+            leftIcon="lock-open-outline"
+            hint="Debe incluir mayúsculas y números"
+            error={errors.newPassword?.message}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            value={value}
+            required
+          />
+        )}
+      />
 
-      <Controller control={control} name="confirmPassword" render={({ field: { onChange, onBlur, value } }) => (
-        <FormField
-          label="Confirmar contraseña" placeholder="Repite la contraseña"
-          secureTextEntry leftIcon="shield-checkmark-outline"
-          error={errors.confirmPassword?.message}
-          onChangeText={onChange} onBlur={onBlur} value={value} required
-        />
-      )} />
+      <Controller
+        control={control}
+        name="confirmPassword"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <FormField
+            label="Confirmar contraseña"
+            placeholder="Repite la contraseña"
+            secureTextEntry
+            leftIcon="shield-checkmark-outline"
+            error={errors.confirmPassword?.message}
+            onChangeText={onChange}
+            onBlur={onBlur}
+            value={value}
+            required
+          />
+        )}
+      />
 
       {apiError ? <ApiErrorBanner error={apiError} /> : null}
 
-      <Button variant="primary" size="lg" fullWidth isLoading={isLoading} onPress={handleSubmit(onSubmit)}>
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
+        isLoading={isLoading}
+        onPress={handleSubmit(onSubmit)}
+      >
         Establecer contraseña
       </Button>
     </View>

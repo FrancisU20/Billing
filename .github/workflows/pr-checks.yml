@@ -117,6 +117,35 @@ jobs:
               body,
             });
 
+  # ── Frontend Quality ───────────────────────────────────────────────────────
+  frontend-quality:
+    name: 'Frontend / Quality Gate'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-frontend
+
+      - name: Format check
+        working-directory: frontend
+        run: npm run format:check
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Typecheck
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Unit tests
+        working-directory: frontend
+        run: npm run test:run
+
+      - name: Web export
+        working-directory: frontend
+        run: npm run build:web
+
   # ── CDK Validate ───────────────────────────────────────────────────────────
   cdk-validate:
     name: 'Build / CDK Validate'

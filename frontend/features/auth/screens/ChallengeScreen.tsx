@@ -11,7 +11,10 @@ import type { NewPasswordFormValues } from '../schemas'
 
 export function ChallengeScreen() {
   const router = useRouter()
-  const { session, challenge_name } = useLocalSearchParams<{ session: string; challenge_name: string }>()
+  const { session, challenge_name } = useLocalSearchParams<{
+    session: string
+    challenge_name: string
+  }>()
   const { respond, loading, error } = useChallenge()
   const { semantic } = useTheme()
 

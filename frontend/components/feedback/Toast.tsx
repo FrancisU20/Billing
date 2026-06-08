@@ -2,11 +2,15 @@ import React, { createContext, useCallback, useContext, useRef, useState } from 
 import { Animated, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/lib/theme-context'
-import { typography, radius, spacing } from '@/constants/tokens'
+import { typography, radius, spacing, shadow } from '@/constants/tokens'
 
 type ToastVariant = 'success' | 'error' | 'warning' | 'info'
 
-interface ToastMessage { id: string; message: string; variant: ToastVariant }
+interface ToastMessage {
+  id: string
+  message: string
+  variant: ToastVariant
+}
 
 interface ToastContextValue {
   show: (message: string, variant?: ToastVariant) => void
@@ -21,11 +25,22 @@ function ToastItem({ item, onDone }: { item: ToastMessage; onDone: (id: string) 
   const { semantic } = useTheme()
   const opacity = useRef(new Animated.Value(0)).current
 
-  const variantMap: Record<ToastVariant, { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }> = {
-    success: { icon: 'checkmark-circle', color: semantic.status.success, bg: semantic.status.successBg },
-    error:   { icon: 'alert-circle',     color: semantic.status.error,   bg: semantic.status.errorBg },
-    warning: { icon: 'warning',          color: semantic.status.warning, bg: semantic.status.warningBg },
-    info:    { icon: 'information-circle', color: semantic.accent.default, bg: semantic.accent.subtle },
+  const variantMap: Record<
+    ToastVariant,
+    { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }
+  > = {
+    success: {
+      icon: 'checkmark-circle',
+      color: semantic.status.success,
+      bg: semantic.status.successBg,
+    },
+    error: { icon: 'alert-circle', color: semantic.status.error, bg: semantic.status.errorBg },
+    warning: { icon: 'warning', color: semantic.status.warning, bg: semantic.status.warningBg },
+    info: {
+      icon: 'information-circle',
+      color: semantic.accent.default,
+      bg: semantic.accent.subtle,
+    },
   }
 
   const { icon, color, bg } = variantMap[item.variant]
@@ -36,7 +51,7 @@ function ToastItem({ item, onDone }: { item: ToastMessage; onDone: (id: string) 
       Animated.delay(2800),
       Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
     ]).start(() => onDone(item.id))
-  }, [])
+  }, [item.id, onDone, opacity])
 
   return (
     <Animated.View style={[staticStyles.toast, { opacity, backgroundColor: bg }]}>
@@ -59,7 +74,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const ctx: ToastContextValue = {
     show,
     success: (m) => show(m, 'success'),
-    error:   (m) => show(m, 'error'),
+    error: (m) => show(m, 'error'),
     warning: (m) => show(m, 'warning'),
   }
 
@@ -67,7 +82,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={ctx}>
       {children}
       <View style={[staticStyles.container, { pointerEvents: 'none' }]}>
-        {toasts.map((t) => <ToastItem key={t.id} item={t} onDone={remove} />)}
+        {toasts.map((t) => (
+          <ToastItem key={t.id} item={t} onDone={remove} />
+        ))}
       </View>
     </ToastContext.Provider>
   )
@@ -95,7 +112,7 @@ const staticStyles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
     borderRadius: radius.lg,
-    boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-  } as any,
+    ...shadow.md,
+  },
   message: { flex: 1, fontSize: typography.size.sm, fontWeight: typography.weight.medium },
 })

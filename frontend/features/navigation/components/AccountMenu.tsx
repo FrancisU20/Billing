@@ -35,8 +35,16 @@ export function AccountMenu({ user, visible, onClose }: AccountMenuProps) {
       <View style={menuLayoutStyles.accountHeader}>
         <UserAvatar user={user} size="lg" />
         <View style={menuLayoutStyles.accountCopy}>
-          <Text style={[menuLayoutStyles.accountEmail, { color: semantic.text.primary }]} numberOfLines={1}>{user.email}</Text>
-          <Text style={[menuLayoutStyles.accountRole, { color: semantic.text.secondary }]} numberOfLines={1}>
+          <Text
+            style={[menuLayoutStyles.accountEmail, { color: semantic.text.primary }]}
+            numberOfLines={1}
+          >
+            {user.email}
+          </Text>
+          <Text
+            style={[menuLayoutStyles.accountRole, { color: semantic.text.secondary }]}
+            numberOfLines={1}
+          >
             {getUserRoleLabel(user)}
           </Text>
         </View>
@@ -45,7 +53,13 @@ export function AccountMenu({ user, visible, onClose }: AccountMenuProps) {
       <MenuDivider />
 
       <MenuItem icon="person-outline" label="Mi perfil" onPress={navigateToProfile} />
-      <MenuItem icon="log-out-outline" label="Cerrar sesión" danger disabled={loading} onPress={handleLogout} />
+      <MenuItem
+        icon="log-out-outline"
+        label="Cerrar sesión"
+        danger
+        disabled={loading}
+        onPress={handleLogout}
+      />
     </MenuSurface>
   )
 }
