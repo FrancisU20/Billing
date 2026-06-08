@@ -9,12 +9,18 @@
 #
 # Flujo de jobs (selectivo por cambios):
 #
-#   changes ─┬─→ backend CI ─→ cdk-synth ─┬─→ deploy-database ─┐
-#            │                            ├─→ deploy-auth       ├─→ deploy-api ─→ run-migrations ─→ smoke-tests ─┐
-#            │                            └─→ deploy-queues     ┘                                                 ├─→ summary
-#            └─→ deploy-frontend ─────────────────────────────────────────────────────────────────────────────────┘
+#   changes ─┬─→ backend CI ─→ cdk-synth ─┬─→ deploy-database ──────────────────────────┐
+#            │                            ├─→ deploy-auth                               ├─→ deploy-api ─→ run-migrations ─→ smoke-tests ─┐
+#            │                            ├─→ deploy-queues ──────────────────────────── ┘                                               ├─→ summary
+#            │                            └─→ deploy-frontend-infra ────────────────────────────────────────────────────────────────────┐│
+#            └─→ deploy-frontend (assets + invalidación CloudFront) ──────────────────────────────────────────────────────────────────── ┘┘
 #
 # Docs-only: changes + summary; no CI pesada ni deploy AWS.
+#
+# Nota sobre FRONTEND_BUCKET_NAME:
+#   No se usa como Secret — el bucket name y el distribution ID se leen
+#   directamente de los outputs de CloudFormation en deploy-frontend.
+#   Esto evita secretos adicionales y mantiene la infra como fuente de verdad.
 #
 ##############################################################################
 
@@ -490,14 +496,65 @@ jobs:
           fi
           echo "Migrations completadas" >> $GITHUB_STEP_SUMMARY
 
-  # ── Deploy Frontend (Expo Web) ─────────────────────────────────────────────
-  # En dev se sube directo a S3 (sin CloudFront — domain.enabled: false en dev.yaml).
-  # El primer step detecta si frontend/package.json existe; si no, salta todo.
+  # ── Deploy Frontend Infra (Certificate + CloudFront + S3) ─────────────────
+  # Despliega CertificateStack (us-east-1) y FrontendStack (sa-east-1).
+  # CertificateStack va primero — CDK lo resuelve via cross_region_references.
+  # Solo corre cuando hay cambios en infra/ o workflow (igual que los otros stacks).
+  deploy-frontend-infra:
+    name: 'Infra / Frontend'
+    runs-on: ubuntu-latest
+    needs: [changes, cdk-synth]
+    if: |
+      always() &&
+      needs.changes.outputs.cdk == 'true' &&
+      needs.cdk-synth.result == 'success'
+    environment: dev
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-cdk
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume:    ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: github-deploy-frontend-infra-${{ github.run_id }}
+          aws-region:        ${{ env.AWS_REGION }}
+
+      # CDK despliega Certificate (us-east-1) primero porque FrontendStack
+      # depende de él via cross_region_references — el orden es automático.
+      - name: Deploy Certificate + Frontend stacks
+        working-directory: infra
+        run: |
+          cdk deploy CodeLabsBilling-Dev-Certificate CodeLabsBilling-Dev-Frontend \
+            -c env=${{ env.CDK_ENV }} \
+            --require-approval never \
+            --progress events \
+            --outputs-file /tmp/frontend-outputs.json
+
+      - name: Frontend infra outputs → Step Summary
+        run: |
+          echo "### Frontend Infra Outputs" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/frontend-outputs.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ── Deploy Frontend Assets (Expo Web) ─────────────────────────────────────
+  # Sube el build de Expo web a S3 con cache strategy diferenciada:
+  #   - Assets con hash en nombre (_expo/**) → immutable, max-age=1y
+  #   - index.html + *.json                 → no-cache, no-store
+  # Al final crea una invalidación CloudFront /* para que los edge caches
+  # sirvan de inmediato los nuevos entry points.
+  #
+  # El bucket y el distribution ID se leen de CloudFormation (no son Secrets).
   deploy-frontend:
     name: 'App / Frontend'
     runs-on: ubuntu-latest
-    needs: [changes]
-    if: needs.changes.outputs.frontend == 'true'
+    needs: [changes, deploy-frontend-infra]
+    if: |
+      always() &&
+      needs.changes.outputs.frontend == 'true' &&
+      needs.deploy-frontend-infra.result != 'failure'
     environment: dev
 
     steps:
@@ -524,39 +581,76 @@ jobs:
           role-session-name: github-frontend-${{ github.run_id }}
           aws-region:        ${{ env.AWS_REGION }}
 
-      - name: Build Expo web
+      # Lee bucket name y distribution ID de CloudFormation para no depender
+      # de GitHub Secrets adicionales — la infra es la fuente de verdad.
+      - name: Read CloudFormation outputs
+        id: cfn
         if: steps.check.outputs.exists == 'true'
+        run: |
+          STACK="CodeLabsBilling-Dev-Frontend"
+
+          BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK}" \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendBucketName'].OutputValue" \
+            --output text 2>/dev/null || echo "")
+
+          DIST_ID=$(aws cloudformation describe-stacks \
+            --stack-name "${STACK}" \
+            --query "Stacks[0].Outputs[?OutputKey=='FrontendDistributionId'].OutputValue" \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "${BUCKET}" ]; then
+            echo "### Frontend — Skipped (stack '${STACK}' no desplegado aún)" >> $GITHUB_STEP_SUMMARY
+            echo "exists=false" >> $GITHUB_OUTPUT
+          else
+            echo "bucket=${BUCKET}"   >> $GITHUB_OUTPUT
+            echo "dist_id=${DIST_ID}" >> $GITHUB_OUTPUT
+            echo "exists=true"        >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Expo web
+        if: steps.check.outputs.exists == 'true' && steps.cfn.outputs.exists == 'true'
         working-directory: frontend
         env:
           EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
         run: npx expo export --platform web
 
       # Assets con hash en el nombre: inmutable a largo plazo.
-      # index.html + manifests: sin cache para que el cliente siempre
-      # reciba la versión más reciente del entry point.
       - name: Upload assets to S3 (immutable)
-        if: steps.check.outputs.exists == 'true'
+        if: steps.check.outputs.exists == 'true' && steps.cfn.outputs.exists == 'true'
         run: |
-          aws s3 sync frontend/dist/ "s3://${{ secrets.FRONTEND_BUCKET_NAME }}/" \
+          aws s3 sync frontend/dist/ "s3://${{ steps.cfn.outputs.bucket }}/" \
             --delete \
             --exclude "index.html" \
             --exclude "*.json" \
             --cache-control "public,max-age=31536000,immutable"
 
+      # index.html + manifests: sin cache para que el cliente siempre
+      # reciba la versión más reciente del entry point.
       - name: Upload entry points to S3 (no-cache)
-        if: steps.check.outputs.exists == 'true'
+        if: steps.check.outputs.exists == 'true' && steps.cfn.outputs.exists == 'true'
         run: |
-          aws s3 sync frontend/dist/ "s3://${{ secrets.FRONTEND_BUCKET_NAME }}/" \
+          aws s3 sync frontend/dist/ "s3://${{ steps.cfn.outputs.bucket }}/" \
             --include "index.html" \
             --include "*.json" \
             --cache-control "no-cache,no-store,must-revalidate"
 
+      # Invalida todos los paths en CloudFront para que los edge caches
+      # propaguen inmediatamente el nuevo index.html y manifests.
+      - name: Invalidate CloudFront cache
+        if: steps.check.outputs.exists == 'true' && steps.cfn.outputs.exists == 'true' && steps.cfn.outputs.dist_id != ''
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.cfn.outputs.dist_id }}" \
+            --paths "/*"
+
       - name: Summary
-        if: steps.check.outputs.exists == 'true'
+        if: steps.check.outputs.exists == 'true' && steps.cfn.outputs.exists == 'true'
         run: |
           echo "### Frontend desplegado (dev)" >> $GITHUB_STEP_SUMMARY
-          echo "S3 bucket: \`${{ secrets.FRONTEND_BUCKET_NAME }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "URL: https://billing-dev.codelabsecuador.com" >> $GITHUB_STEP_SUMMARY
+          echo "S3 bucket: \`${{ steps.cfn.outputs.bucket }}\`"   >> $GITHUB_STEP_SUMMARY
+          echo "CloudFront: \`${{ steps.cfn.outputs.dist_id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "URL: https://billing-dev.codelabsecuador.com"      >> $GITHUB_STEP_SUMMARY
 
   # ── Smoke Tests ────────────────────────────────────────────────────────────
   # Necesita deploy-api (para acceder a outputs.api-url) y run-migrations
@@ -622,6 +716,7 @@ jobs:
       - deploy-queues
       - deploy-api
       - run-migrations
+      - deploy-frontend-infra
       - deploy-frontend
       - smoke-tests
     if: always()

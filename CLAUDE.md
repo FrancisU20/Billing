@@ -679,6 +679,20 @@ de desarrollo/local al runtime Lambda.
 
 ## Historial de cambios relevantes
 
+### 2026-06-07 — FrontendStack: S3 + CloudFront + Certificate
+
+- `infra/stacks/certificate_stack.py` — ACM cert en us-east-1 (requerido por CloudFront),
+  validación DNS automática via Route53, expone `self.certificate` via `cross_region_references`
+- `infra/stacks/frontend_stack.py` — S3 privado con OAC; cache policy SPA (default TTL=0,
+  CloudFront respeta Cache-Control del objeto); behavior `/api/*` con CloudFront Function
+  que elimina el prefijo antes de reenviar a API Gateway; 403/404 → index.html para SPA
+  routing; Route53 A + AAAA alias a CloudFront; `PRICE_CLASS_ALL` (incluye SA edge)
+- `infra/app.py` — CertificateStack (us-east-1) + FrontendStack (sa-east-1) registrados
+- `infra/cdk.context.json` — lookup us-east-1 del hosted zone cacheado
+- `deploy-dev.yml` — nuevo job `deploy-frontend-infra` (infra changes → despliega ambos
+  stacks); `deploy-frontend` lee bucket y distribution ID de CloudFormation (no necesita
+  secret `FRONTEND_BUCKET_NAME`); invalidación CloudFront `/*` al finalizar el sync
+
 ### 2026-06-06 — Rebuild completo desde cero
 - Arquitectura migrada de Aurora + VPC a DynamoDB sin VPC
 - Costo dev reducido de ~$90/mes a < $2/mes
@@ -826,10 +840,17 @@ de desarrollo/local al runtime Lambda.
 
 ## Deuda técnica identificada
 
-- Implementar frontend Expo real (`frontend/`) o ajustar este documento si queda fuera del alcance inmediato.
 - Implementar Lambdas pendientes: `clients`, `invoices`, `workers` adicionales.
 - Agregar tests unitarios para `lambdas/auth/` (use cases y handler).
 - Agregar migraciones de datos cuando existan tenants previos sin lock `RUC#{ruc}`.
 - Agregar pruebas de integración contra AWS dev cuando se cierre el primer flujo end-to-end.
 - Cuando se implemente soft delete de planes: definir flujo explícito de reactivación de slug
   (análogo al flujo de reactivación de RUC en tenants) en lugar de recreación silenciosa.
+- Actualizar `EXPO_PUBLIC_API_URL=""` en el frontend para usar routing unificado via CloudFront
+  (el behavior `/api/*` ya existe — solo falta cambiar la URL en la app).
+
+### CloudFront path routing — implementado en FrontendStack (2026-06-07)
+
+El behavior `/api/*` ya está en producción. El frontend puede llamar `/api/tenants`
+(mismo origen) en lugar del dominio directo. Cambiar `EXPO_PUBLIC_API_URL=""` activa
+el routing unificado y elimina CORS completamente.
