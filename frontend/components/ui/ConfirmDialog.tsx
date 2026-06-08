@@ -5,11 +5,14 @@ import { Button } from '@/components/ui/Button'
 import { useTheme } from '@/lib/theme-context'
 import { overlay, radius, spacing, typography } from '@/constants/tokens'
 
+type DialogVariant = 'danger' | 'warning' | 'success'
+
 interface ConfirmDialogProps {
   visible: boolean
   title: string
   message: string
   confirmLabel: string
+  variant?: DialogVariant
   icon?: keyof typeof Ionicons.glyphMap
   isLoading?: boolean
   onCancel: () => void
@@ -21,12 +24,29 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel,
+  variant = 'danger',
   icon = 'trash-outline',
   isLoading = false,
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
   const { semantic } = useTheme()
+
+  const iconBg: Record<DialogVariant, string> = {
+    danger: semantic.status.errorBg,
+    warning: semantic.status.warningBg,
+    success: semantic.status.successBg,
+  }
+  const iconColor: Record<DialogVariant, string> = {
+    danger: semantic.status.error,
+    warning: semantic.status.warning,
+    success: semantic.status.success,
+  }
+  const buttonVariant: Record<DialogVariant, 'danger' | 'warning' | 'primary'> = {
+    danger: 'danger',
+    warning: 'warning',
+    success: 'primary',
+  }
 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onCancel}>
@@ -38,8 +58,8 @@ export function ConfirmDialog({
             { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
           ]}
         >
-          <View style={[styles.iconWrap, { backgroundColor: semantic.status.errorBg }]}>
-            <Ionicons name={icon} size={22} color={semantic.status.error} />
+          <View style={[styles.iconWrap, { backgroundColor: iconBg[variant] }]}>
+            <Ionicons name={icon} size={22} color={iconColor[variant]} />
           </View>
           <View style={styles.copy}>
             <Text style={[styles.title, { color: semantic.text.primary }]}>{title}</Text>
@@ -49,7 +69,12 @@ export function ConfirmDialog({
             <Button variant="outline" size="md" onPress={onCancel} isDisabled={isLoading}>
               Cancelar
             </Button>
-            <Button variant="danger" size="md" onPress={onConfirm} isLoading={isLoading}>
+            <Button
+              variant={buttonVariant[variant]}
+              size="md"
+              onPress={onConfirm}
+              isLoading={isLoading}
+            >
               {confirmLabel}
             </Button>
           </View>

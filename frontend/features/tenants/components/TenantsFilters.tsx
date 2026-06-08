@@ -95,15 +95,16 @@ export function TenantsFilters({ value, onChange, onApply, onReset }: TenantsFil
         />
       </View>
 
-      <View style={styles.grid}>
-        <FilterBlock label="Estado">
-          <SegmentedControl
-            options={TENANT_STATUS_OPTIONS}
-            value={value.status}
-            onChange={(status) => onChange({ ...value, status })}
-          />
-        </FilterBlock>
+      {/* Estado goes full-width — 4-option SegmentedControl needs the full row */}
+      <FilterBlock label="Estado">
+        <SegmentedControl
+          options={TENANT_STATUS_OPTIONS}
+          value={value.status}
+          onChange={(status) => onChange({ ...value, status })}
+        />
+      </FilterBlock>
 
+      <View style={styles.grid}>
         <FilterBlock label="Entorno SRI">
           <SegmentedControl
             options={TENANT_ENVIRONMENT_OPTIONS}
@@ -124,30 +125,30 @@ export function TenantsFilters({ value, onChange, onApply, onReset }: TenantsFil
             ))}
           </View>
         </FilterBlock>
-
-        <FilterBlock label="Creación">
-          <View style={styles.dateRow}>
-            <View style={styles.dateInput}>
-              <Input
-                leftIcon="calendar-outline"
-                placeholder="Desde"
-                value={value.createdFrom}
-                onChangeText={(createdFrom) => onChange({ ...value, createdFrom })}
-                onSubmitEditing={onApply}
-              />
-            </View>
-            <View style={styles.dateInput}>
-              <Input
-                leftIcon="calendar-outline"
-                placeholder="Hasta"
-                value={value.createdTo}
-                onChangeText={(createdTo) => onChange({ ...value, createdTo })}
-                onSubmitEditing={onApply}
-              />
-            </View>
-          </View>
-        </FilterBlock>
       </View>
+
+      <FilterBlock label="Creación">
+        <View style={styles.dateRow}>
+          <View style={styles.dateInput}>
+            <Input
+              leftIcon="calendar-outline"
+              placeholder="Desde"
+              value={value.createdFrom}
+              onChangeText={(createdFrom) => onChange({ ...value, createdFrom })}
+              onSubmitEditing={onApply}
+            />
+          </View>
+          <View style={styles.dateInput}>
+            <Input
+              leftIcon="calendar-outline"
+              placeholder="Hasta"
+              value={value.createdTo}
+              onChangeText={(createdTo) => onChange({ ...value, createdTo })}
+              onSubmitEditing={onApply}
+            />
+          </View>
+        </View>
+      </FilterBlock>
 
       <View style={styles.actions}>
         <Button variant="primary" size="md" onPress={onApply}>

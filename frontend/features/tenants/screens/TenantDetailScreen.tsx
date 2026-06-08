@@ -19,29 +19,41 @@ import { tenantsApi } from '../api'
 import { TenantStatusBadge } from '../components/TenantStatusBadge'
 import { TENANT_ENVIRONMENT_LABELS, TENANT_PLAN_STATUS_LABELS } from '../constants'
 import { useTenant } from '../hooks/useTenant'
+import type { Tenant } from '../types'
 
 export function TenantDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
-  const { tenant, loading, error } = useTenant(id ?? null)
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const { tenant, loading, error, refresh } = useTenant(id ?? null)
+  const [actionPending, setActionPending] = useState(false)
   const [actionError, setActionError] = useState<ApiError | null>(null)
+  const [suspendOpen, setSuspendOpen] = useState(false)
+  const [inactivateOpen, setInactivateOpen] = useState(false)
+  const [reactivateOpen, setReactivateOpen] = useState(false)
 
-  async function confirmDelete() {
+  async function changeStatus(status: 'active' | 'suspended' | 'inactive') {
     if (!id) return
-    setDeleting(true)
+    setActionPending(true)
     setActionError(null)
     try {
-      await tenantsApi.delete(id, createIdempotencyKey('tenant_delete'))
-      toast.success('Empresa eliminada')
-      router.replace(Routes.superadmin.tenants)
+      await tenantsApi.setStatus(id, status, createIdempotencyKey(`tenant_status_${status}`))
+      setSuspendOpen(false)
+      setInactivateOpen(false)
+      setReactivateOpen(false)
+      const label =
+        status === 'active'
+          ? 'Empresa reactivada'
+          : status === 'suspended'
+            ? 'Empresa suspendida'
+            : 'Empresa dada de baja'
+      toast.success(label)
+      await refresh()
     } catch (e) {
       setActionError(toApiError(e))
     } finally {
-      setDeleting(false)
+      setActionPending(false)
     }
   }
 
@@ -88,9 +100,6 @@ export function TenantDetailScreen() {
                 >
                   Editar
                 </Button>
-                <Button variant="danger" size="sm" onPress={() => setConfirmOpen(true)}>
-                  Eliminar
-                </Button>
               </View>
             </View>
 
@@ -111,19 +120,167 @@ export function TenantDetailScreen() {
               <Field label="Creado" value={formatDate(tenant.created_at)} />
               <Field label="Actualizado" value={formatDate(tenant.updated_at)} />
             </DetailSection>
+
+            <StatusSection
+              tenant={tenant}
+              actionPending={actionPending}
+              onSuspend={() => setSuspendOpen(true)}
+              onInactivate={() => setInactivateOpen(true)}
+              onReactivate={() => setReactivateOpen(true)}
+            />
           </>
         ) : null}
       </ScrollView>
 
       <ConfirmDialog
-        visible={confirmOpen}
-        title="Eliminar empresa"
-        message={`Se desactivará ${displayName} y quedará fuera de la operación.`}
-        confirmLabel="Eliminar"
-        isLoading={deleting}
-        onCancel={() => setConfirmOpen(false)}
-        onConfirm={confirmDelete}
+        visible={suspendOpen}
+        variant="warning"
+        icon="pause-circle-outline"
+        title="Suspender empresa"
+        message={`${displayName} quedará bloqueada temporalmente. No podrá emitir comprobantes hasta ser reactivada.`}
+        confirmLabel="Suspender"
+        isLoading={actionPending}
+        onCancel={() => setSuspendOpen(false)}
+        onConfirm={() => changeStatus('suspended')}
       />
+
+      <ConfirmDialog
+        visible={reactivateOpen}
+        variant="success"
+        icon="checkmark-circle-outline"
+        title="Reactivar empresa"
+        message={`${displayName} volverá a estar activa y podrá emitir comprobantes.`}
+        confirmLabel="Reactivar"
+        isLoading={actionPending}
+        onCancel={() => setReactivateOpen(false)}
+        onConfirm={() => changeStatus('active')}
+      />
+
+      <ConfirmDialog
+        visible={inactivateOpen}
+        variant="danger"
+        icon="ban-outline"
+        title="Dar de baja definitiva"
+        message={`Esta acción no tiene marcha atrás desde el portal. ${displayName} no podrá emitir comprobantes. Sus datos y comprobantes se conservan para efectos de auditoría fiscal.`}
+        confirmLabel="Sí, dar de baja definitiva"
+        isLoading={actionPending}
+        onCancel={() => setInactivateOpen(false)}
+        onConfirm={() => changeStatus('inactive')}
+      />
+    </View>
+  )
+}
+
+function StatusSection({
+  tenant,
+  actionPending,
+  onSuspend,
+  onInactivate,
+  onReactivate,
+}: {
+  tenant: Tenant
+  actionPending: boolean
+  onSuspend: () => void
+  onInactivate: () => void
+  onReactivate: () => void
+}) {
+  const { semantic } = useTheme()
+  const { status } = tenant
+
+  return (
+    <View
+      style={[
+        styles.section,
+        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
+      ]}
+    >
+      <View style={styles.sectionTitleRow}>
+        <Ionicons name="shield-outline" size={17} color={semantic.accent.default} />
+        <Text style={[styles.sectionTitle, { color: semantic.text.primary }]}>
+          Gestión de estado
+        </Text>
+      </View>
+
+      <View style={styles.statusCurrentRow}>
+        <Text style={[styles.statusCurrentLabel, { color: semantic.text.secondary }]}>
+          Estado actual:
+        </Text>
+        <TenantStatusBadge status={status} />
+      </View>
+
+      {status === 'inactive' ? (
+        <View
+          style={[
+            styles.inactiveBanner,
+            { backgroundColor: semantic.status.errorBg, borderColor: semantic.status.error },
+          ]}
+        >
+          <Ionicons name="lock-closed-outline" size={18} color={semantic.status.error} />
+          <View style={styles.inactiveBannerCopy}>
+            <Text style={[styles.inactiveBannerTitle, { color: semantic.status.error }]}>
+              Empresa dada de baja definitiva
+            </Text>
+            <Text style={[styles.inactiveBannerBody, { color: semantic.text.secondary }]}>
+              Sus datos y comprobantes se conservan para efectos de auditoría fiscal. Para
+              reactivarla, contacta al equipo de administración.
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <>
+          {status === 'active' ? (
+            <>
+              <Text style={[styles.statusDescription, { color: semantic.text.secondary }]}>
+                La empresa está activa y puede emitir comprobantes electrónicos.
+              </Text>
+              <Button
+                variant="warning"
+                size="md"
+                fullWidth
+                isDisabled={actionPending}
+                onPress={onSuspend}
+              >
+                Suspender empresa
+              </Button>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.statusDescription, { color: semantic.text.secondary }]}>
+                La empresa está suspendida y no puede emitir comprobantes. Puedes reactivarla en
+                cualquier momento.
+              </Text>
+              <Button
+                variant="primary"
+                size="md"
+                fullWidth
+                isDisabled={actionPending}
+                onPress={onReactivate}
+              >
+                Reactivar empresa
+              </Button>
+            </>
+          )}
+
+          <View style={[styles.dangerZoneDivider, { borderTopColor: semantic.border.default }]}>
+            <View style={[styles.dangerZoneLabel, { backgroundColor: semantic.status.warningBg }]}>
+              <Ionicons name="warning-outline" size={13} color={semantic.status.warning} />
+              <Text style={[styles.dangerZoneLabelText, { color: semantic.status.warning }]}>
+                Acción irreversible desde el portal
+              </Text>
+            </View>
+          </View>
+
+          <Button
+            variant="danger"
+            size="md"
+            fullWidth
+            isDisabled={actionPending}
+            onPress={onInactivate}
+          >
+            Dar de baja definitiva
+          </Button>
+        </>
+      )}
     </View>
   )
 }
@@ -205,7 +362,12 @@ const styles = StyleSheet.create({
   smallBadge: { borderRadius: radius.full, paddingHorizontal: spacing[2], paddingVertical: 2 },
   smallBadgeText: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
   profileActions: { flexDirection: 'row', gap: spacing[2] },
-  section: { borderRadius: radius.md, borderWidth: 1, gap: spacing[4], padding: spacing[5] },
+  section: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing[4],
+    padding: spacing[5],
+  },
   sectionTitleRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
   sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   fieldGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
@@ -217,4 +379,40 @@ const styles = StyleSheet.create({
   },
   fieldValue: { fontSize: typography.size.base },
   mono: { fontFamily: typography.fontFamily.mono, fontSize: typography.size.sm },
+  statusCurrentRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing[2],
+  },
+  statusCurrentLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
+  statusDescription: { fontSize: typography.size.sm, lineHeight: typography.size.sm * 1.6 },
+  dangerZoneDivider: {
+    alignItems: 'center',
+    borderTopWidth: 1,
+    paddingTop: spacing[4],
+  },
+  dangerZoneLabel: {
+    alignItems: 'center',
+    borderRadius: radius.full,
+    flexDirection: 'row',
+    gap: spacing[1],
+    marginTop: -spacing[4] - 11,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1],
+  },
+  dangerZoneLabelText: {
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.semibold,
+  },
+  inactiveBanner: {
+    alignItems: 'flex-start',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing[3],
+    padding: spacing[4],
+  },
+  inactiveBannerCopy: { flex: 1, gap: spacing[1] },
+  inactiveBannerTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
+  inactiveBannerBody: { fontSize: typography.size.sm, lineHeight: typography.size.sm * 1.6 },
 })

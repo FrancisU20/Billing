@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toApiError, type ApiError } from '@/lib/api/errors'
 import { tenantsApi } from '../api'
 import type { Tenant } from '../types'
@@ -7,6 +7,9 @@ export function useTenant(id: string | null) {
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
+  const [refreshCount, setRefreshCount] = useState(0)
+
+  const refresh = useCallback(() => setRefreshCount((c) => c + 1), [])
 
   useEffect(() => {
     if (!id) {
@@ -34,7 +37,7 @@ export function useTenant(id: string | null) {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, refreshCount])
 
-  return { tenant, loading, error }
+  return { tenant, loading, error, refresh }
 }

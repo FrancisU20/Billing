@@ -11,7 +11,7 @@ import {
 import { useTheme } from '@/lib/theme-context'
 import { overlay, typography, radius, spacing } from '@/constants/tokens'
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline'
+type Variant = 'primary' | 'secondary' | 'danger' | 'warning' | 'ghost' | 'outline'
 type Size = 'sm' | 'md' | 'lg'
 
 interface ButtonProps extends Omit<PressableProps, 'style'> {
@@ -41,6 +41,7 @@ export function Button({
     primary: semantic.accent.default,
     secondary: semantic.bg.tertiary,
     danger: semantic.status.error,
+    warning: semantic.status.warning,
     ghost: 'transparent',
     outline: 'transparent',
   }
@@ -48,6 +49,7 @@ export function Button({
     primary: semantic.accent.hover,
     secondary: semantic.border.default,
     danger: semantic.status.error,
+    warning: semantic.status.warning,
     ghost: semantic.bg.secondary,
     outline: semantic.bg.secondary,
   }
@@ -55,6 +57,7 @@ export function Button({
     primary: overlay.text.primary,
     secondary: semantic.text.primary,
     danger: overlay.text.primary,
+    warning: overlay.text.primary,
     ghost: semantic.accent.default,
     outline: semantic.text.primary,
   }
@@ -81,7 +84,7 @@ export function Button({
         <ActivityIndicator
           size="small"
           color={
-            variant === 'primary' || variant === 'danger'
+            variant === 'primary' || variant === 'danger' || variant === 'warning'
               ? overlay.text.primary
               : semantic.accent.default
           }

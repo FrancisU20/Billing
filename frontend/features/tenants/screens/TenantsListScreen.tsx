@@ -6,16 +6,11 @@ import { useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { useToast } from '@/components/feedback/Toast'
-import { createIdempotencyKey } from '@/lib/api/idempotency'
-import { toApiError, type ApiError } from '@/lib/api/errors'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { radius, spacing, typography } from '@/constants/tokens'
-import { tenantsApi } from '../api'
 import { TenantListItem } from '../components/TenantListItem'
 import {
   TenantsFilters,
@@ -24,17 +19,13 @@ import {
   type TenantFilterDraft,
 } from '../components/TenantsFilters'
 import { useTenants } from '../hooks/useTenants'
-import type { Tenant, TenantListFilters } from '../types'
+import type { TenantListFilters } from '../types'
 
 export function TenantsListScreen() {
   const router = useRouter()
-  const toast = useToast()
   const { semantic } = useTheme()
   const [draft, setDraft] = useState<TenantFilterDraft>(emptyTenantFilterDraft)
   const [filters, setFilters] = useState<TenantListFilters>({})
-  const [tenantToDelete, setTenantToDelete] = useState<Tenant | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const [actionError, setActionError] = useState<ApiError | null>(null)
   const { tenants, loading, loadingMore, error, refresh, fetchMore } = useTenants(filters)
 
   const summary = useMemo(() => {
@@ -50,22 +41,6 @@ export function TenantsListScreen() {
   function resetFilters() {
     setDraft(emptyTenantFilterDraft)
     setFilters({})
-  }
-
-  async function confirmDelete() {
-    if (!tenantToDelete) return
-    setDeleting(true)
-    setActionError(null)
-    try {
-      await tenantsApi.delete(tenantToDelete.id, createIdempotencyKey('tenant_delete'))
-      toast.success('Empresa eliminada')
-      setTenantToDelete(null)
-      await refresh()
-    } catch (e) {
-      setActionError(toApiError(e))
-    } finally {
-      setDeleting(false)
-    }
   }
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando empresas..." />
@@ -85,7 +60,6 @@ export function TenantsListScreen() {
             tenant={item}
             onView={() => router.push(Routes.superadmin.tenantDetail(item.id) as Href)}
             onEdit={() => router.push(Routes.superadmin.tenantEdit(item.id) as Href)}
-            onDelete={() => setTenantToDelete(item)}
           />
         )}
         contentContainerStyle={styles.list}
@@ -126,7 +100,6 @@ export function TenantsListScreen() {
             />
 
             {error ? <ApiErrorBanner error={error} /> : null}
-            {actionError ? <ApiErrorBanner error={actionError} /> : null}
           </View>
         }
         ItemSeparatorComponent={() => <View style={{ height: spacing[3] }} />}
@@ -151,16 +124,6 @@ export function TenantsListScreen() {
         refreshing={loading}
         onRefresh={refresh}
         showsVerticalScrollIndicator={false}
-      />
-
-      <ConfirmDialog
-        visible={!!tenantToDelete}
-        title="Eliminar empresa"
-        message={`Se desactivará ${tenantToDelete?.trade_name || 'esta empresa'} y quedará fuera de la operación.`}
-        confirmLabel="Eliminar"
-        isLoading={deleting}
-        onCancel={() => setTenantToDelete(null)}
-        onConfirm={confirmDelete}
       />
     </View>
   )

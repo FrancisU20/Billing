@@ -12,10 +12,9 @@ interface TenantListItemProps {
   tenant: Tenant
   onView: () => void
   onEdit: () => void
-  onDelete: () => void
 }
 
-export function TenantListItem({ tenant, onView, onEdit, onDelete }: TenantListItemProps) {
+export function TenantListItem({ tenant, onView, onEdit }: TenantListItemProps) {
   const { semantic } = useTheme()
 
   return (
@@ -57,7 +56,6 @@ export function TenantListItem({ tenant, onView, onEdit, onDelete }: TenantListI
       <View style={styles.actions}>
         <IconAction icon="eye-outline" label="Ver empresa" onPress={onView} />
         <IconAction icon="create-outline" label="Editar empresa" onPress={onEdit} />
-        <IconAction icon="trash-outline" label="Eliminar empresa" danger onPress={onDelete} />
       </View>
     </Pressable>
   )

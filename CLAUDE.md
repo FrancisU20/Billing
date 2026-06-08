@@ -679,6 +679,37 @@ de desarrollo/local al runtime Lambda.
 
 ## Historial de cambios relevantes
 
+### 2026-06-08 — UI gestión de estado tenant + limpieza de filtros y delete
+
+- **Delete eliminado de la UI de tenants**: borrar una empresa implica pérdida de
+  comprobantes auditables por el SRI. El soft delete sigue existiendo en el backend
+  (`tenantsApi.delete`) pero ya no se expone desde ningún componente de la interfaz.
+- **Tres estados reales con transiciones explícitas**: `active` (puede emitir) →
+  `suspended` (bloqueada temporalmente, reversible) → `inactive` (baja definitiva,
+  irreversible desde el portal). Cada transición tiene su propio `ConfirmDialog`
+  diferenciado por `variant`:
+  - `active → suspended`: `variant="warning"`, icon `pause-circle-outline`, botón amber.
+  - `active/suspended → inactive`: `variant="danger"`, icon `ban-outline`, botón rojo,
+    mensaje explícito de irreversibilidad.
+  - `suspended → active`: `variant="success"`, icon `checkmark-circle-outline`, botón azul.
+  - `inactive`: read-only — banner informativo, cero botones de acción.
+- **`StatusSection`** es un componente local en `TenantDetailScreen` (no reutilizable aún)
+  que encapsula toda la lógica de presentación de estado. El bloque "Zona de riesgo" con
+  separador visual distingue visualmente las acciones reversibles de la baja definitiva.
+- **`useTenant` gana `refresh()`**: `refreshCount` state en el hook dispara un re-fetch;
+  `TenantDetailScreen` lo llama tras cualquier cambio de estado exitoso para mostrar el
+  badge actualizado sin recargar la pantalla.
+- **`Button` gana `variant="warning"`** (amber, `semantic.status.warning`).
+- **`ConfirmDialog` gana `variant?: 'danger' | 'warning' | 'success'`**: el color del
+  icono-wrap y el variant del botón de confirmación se derivan del `DialogVariant` — un
+  solo cambio de prop cambia toda la paleta semántica del diálogo.
+- **Fix filtros `TenantsFilters`**: "Estado" (4 opciones) sacado del flex-grid a su propia
+  fila de ancho completo; "Entorno SRI" y "Plan" quedan en el grid 2-col; "Creación" pasa
+  también a fila completa. Elimina el overflow visual entre SegmentedControls.
+- **`TenantListItem`**: `onDelete` prop y botón trash eliminados.
+- **`TenantsListScreen`**: toda la lógica de delete eliminada (`tenantToDelete`, `deleting`,
+  `confirmDelete`, `ConfirmDialog`).
+
 ### 2026-06-08 — Rediseño: sin "trial", plan_status calculado + filtros server-side en plans
 
 - **Decisión de negocio confirmada**: no existe "trial". El plan gratuito (y cualquier
