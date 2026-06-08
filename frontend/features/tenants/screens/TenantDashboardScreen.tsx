@@ -7,6 +7,7 @@ import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { Card } from '@/components/ui/Card'
 import { useAuthStore, selectUser } from '@/features/auth/store'
 import { RoleLabel } from '@/constants/roles'
+import { useTenant } from '@/features/tenants/hooks/useTenant'
 
 type MetricTone = 'primary' | 'secondary' | 'error'
 
@@ -44,10 +45,12 @@ export function TenantDashboardScreen() {
   const user = useAuthStore(selectUser)
   const { semantic } = useTheme()
   const roleLabel = user?.role ? RoleLabel[user.role] : 'Sin rol'
+  const { tenant } = useTenant(user?.tenantId ?? null)
+  const companyName = tenant?.business_name ?? 'Mi Empresa'
 
   return (
     <View style={[staticStyles.container, { backgroundColor: semantic.bg.page }]}>
-      <AppNavBar title="Mi Empresa" subtitle="Dashboard" />
+      <AppNavBar title={companyName} subtitle="Dashboard" />
 
       <ScrollView contentContainerStyle={staticStyles.scroll} showsVerticalScrollIndicator={false}>
         <View style={[staticStyles.hero, { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default }]}>
