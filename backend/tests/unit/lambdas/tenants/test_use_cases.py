@@ -93,6 +93,36 @@ class TenantMutationUseCaseTests(unittest.TestCase):
         self.assertEqual(updated.status, TenantStatus.SUSPENDED)
         self.assertEqual(events, [])
 
+    def test_toggle_status_reactivates_inactive_tenant(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="tenant-1", status=TenantStatus.INACTIVE)
+        repo.tenants[tenant.id] = tenant
+
+        updated, events = ToggleStatusUseCase(repo).execute(
+            ToggleStatusCommand(
+                tenant_id="tenant-1",
+                new_status="active",
+                updated_by="superadmin-1",
+            )
+        )
+
+        self.assertEqual(updated.status, TenantStatus.ACTIVE)
+        self.assertEqual(events, [])
+
+    def test_toggle_status_rejects_inactive_to_suspended(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="tenant-1", status=TenantStatus.INACTIVE)
+        repo.tenants[tenant.id] = tenant
+
+        with self.assertRaises(ValidationError):
+            ToggleStatusUseCase(repo).execute(
+                ToggleStatusCommand(
+                    tenant_id="tenant-1",
+                    new_status="suspended",
+                    updated_by="superadmin-1",
+                )
+            )
+
     def test_toggle_status_rejects_invalid_state(self) -> None:
         repo = FakeTenantRepository()
 

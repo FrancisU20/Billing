@@ -1,6 +1,8 @@
 import type { Ionicons } from '@expo/vector-icons'
 import type { ClientStatus, IdentificationType, PersonType } from './types'
 
+export const CLIENTS_PAGE_SIZE = 30
+
 export const CLIENT_IDENTIFICATION_OPTIONS: Array<{
   value: IdentificationType
   label: string

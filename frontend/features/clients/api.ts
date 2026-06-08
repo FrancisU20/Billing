@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import { api } from '@/lib/api/client'
 import { clientSchema, clientsPageSchema, createClientSchema, updateClientSchema } from './schemas'
+import { CLIENTS_PAGE_SIZE } from './constants'
 import type { ClientListFilters, CreateClientInput, UpdateClientInput } from './types'
 
 function clientsPath(filters: ClientListFilters = {}, nextToken?: string): string {
   const params = new URLSearchParams()
-  params.set('limit', '30')
+  params.set('limit', String(CLIENTS_PAGE_SIZE))
   if (nextToken) params.set('next_token', nextToken)
   if (filters.q) params.set('q', filters.q)
   if (filters.identification) params.set('identification', filters.identification)

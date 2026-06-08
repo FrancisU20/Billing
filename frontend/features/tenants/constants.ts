@@ -1,5 +1,7 @@
 import type { PlanStatus, SriEnvironment, TenantStatus } from './types'
 
+export const TENANTS_PAGE_SIZE = 30
+
 export const TENANT_STATUS_OPTIONS: Array<{ value: TenantStatus | 'all'; label: string }> = [
   { value: 'all', label: 'Todos' },
   { value: 'active', label: 'Activas' },

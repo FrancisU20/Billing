@@ -40,6 +40,7 @@ from lambdas.tenants.use_cases.update_tenant import UpdateTenantUseCase
 from shared.config import env
 from shared.dates import parse_date_boundary
 from shared.db.client import get_table
+from shared.db.limits import DEFAULT_LIST_LIMIT, clamp_list_limit
 from shared.errors import ForbiddenError, NotFoundError, ValidationError
 
 # ── Cold start ────────────────────────────────────────────────────────────────
@@ -59,7 +60,7 @@ def _plan_catalog() -> DynamoPlanCatalog:
 
 def _parse_list_query(params: dict) -> ListTenantsQuery:
     try:
-        limit = int(params.get("limit", 20))
+        limit = int(params.get("limit", DEFAULT_LIST_LIMIT))
     except (TypeError, ValueError) as exc:
         raise ValidationError("limit debe ser un número entero") from exc
     if limit < 1:
@@ -87,7 +88,7 @@ def _parse_list_query(params: dict) -> ListTenantsQuery:
             raise ValidationError("Estado de plan inválido") from exc
 
     return ListTenantsQuery(
-        limit=min(limit, 100),
+        limit=clamp_list_limit(limit),
         next_token=params.get("next_token"),
         status=status,
         q=params.get("q"),

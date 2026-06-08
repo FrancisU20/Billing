@@ -47,7 +47,7 @@ export function TenantDetailScreen() {
           ? 'Empresa reactivada'
           : status === 'suspended'
             ? 'Empresa suspendida'
-            : 'Empresa dada de baja'
+            : 'Empresa inactivada'
       toast.success(label)
       await refresh()
     } catch (e) {
@@ -160,9 +160,9 @@ export function TenantDetailScreen() {
         visible={inactivateOpen}
         variant="danger"
         icon="ban-outline"
-        title="Dar de baja definitiva"
-        message={`Esta acción no tiene marcha atrás desde el portal. ${displayName} no podrá emitir comprobantes. Sus datos y comprobantes se conservan para efectos de auditoría fiscal.`}
-        confirmLabel="Sí, dar de baja definitiva"
+        title="Inactivar empresa"
+        message={`${displayName} quedará inactiva y no podrá emitir comprobantes hasta que un superadmin la reactive. Sus datos y comprobantes se conservan para efectos de auditoría fiscal.`}
+        confirmLabel="Inactivar"
         isLoading={actionPending}
         onCancel={() => setInactivateOpen(false)}
         onConfirm={() => changeStatus('inactive')}
@@ -218,8 +218,8 @@ function StatusSection({
           >
             <Ionicons name="ban-outline" size={18} color={semantic.status.error} />
             <Text style={[styles.infoBannerText, { color: semantic.text.secondary }]}>
-              Esta empresa tiene el contrato terminado. Sus datos y comprobantes se conservan para
-              efectos de auditoría fiscal.
+              Esta empresa está inactiva. No puede emitir comprobantes, pero puede reactivarse
+              cuando el contrato vuelva a estar vigente.
             </Text>
           </View>
           <Button
@@ -276,12 +276,12 @@ function StatusSection({
               isDisabled={actionPending}
               onPress={onInactivate}
             >
-              Dar de baja definitiva
+              Inactivar empresa
             </Button>
             <View style={styles.irreversibleNote}>
               <Ionicons name="ban-outline" size={12} color={semantic.status.error} />
               <Text style={[styles.irreversibleText, { color: semantic.status.error }]}>
-                Esta acción no puede deshacerse desde el portal
+                Sus datos se conservarán para auditoría fiscal
               </Text>
             </View>
           </View>

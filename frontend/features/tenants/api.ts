@@ -6,12 +6,13 @@ import {
   toggleTenantStatusSchema,
   updateTenantSchema,
 } from './schemas'
+import { TENANTS_PAGE_SIZE } from './constants'
 import type { CreateTenantInput, ToggleTenantStatusInput, UpdateTenantInput } from './types'
 import type { TenantListFilters } from './types'
 
 function listPath(filters: TenantListFilters = {}, nextToken?: string): string {
   const params = new URLSearchParams()
-  params.set('limit', '30')
+  params.set('limit', String(TENANTS_PAGE_SIZE))
   if (nextToken) params.set('next_token', nextToken)
   if (filters.q) params.set('q', filters.q)
   if (filters.ruc) params.set('ruc', filters.ruc)

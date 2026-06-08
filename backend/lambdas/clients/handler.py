@@ -33,6 +33,7 @@ from lambdas.clients.use_cases.update_client import UpdateClientUseCase
 from shared.config import env
 from shared.dates import parse_date_boundary
 from shared.db.client import get_table
+from shared.db.limits import DEFAULT_LIST_LIMIT, clamp_list_limit
 from shared.errors import MissingTenantContextError, NotFoundError, ValidationError
 
 _TABLE = get_table("CLIENTS_TABLE")
@@ -51,7 +52,7 @@ def _address_commands(addresses) -> list[AddressCommand]:
 
 def _parse_list_query(params: dict) -> ListClientsQuery:
     try:
-        limit = int(params.get("limit", 20))
+        limit = int(params.get("limit", DEFAULT_LIST_LIMIT))
     except (TypeError, ValueError) as exc:
         raise ValidationError("limit debe ser un número entero") from exc
     if limit < 1:
@@ -72,7 +73,7 @@ def _parse_list_query(params: dict) -> ListClientsQuery:
             raise ValidationError("Tipo de identificación inválido") from exc
 
     return ListClientsQuery(
-        limit=min(limit, 100),
+        limit=clamp_list_limit(limit),
         next_token=params.get("next_token"),
         status=status,
         q=params.get("q"),

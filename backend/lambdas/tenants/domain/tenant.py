@@ -11,10 +11,29 @@ from lambdas.tenants.domain.errors import InvalidSriEnvironmentError
 from shared.domain.base_entity import GlobalEntity
 from shared.domain.value_objects.email import Email
 from shared.domain.value_objects.ruc import RUC
+from shared.errors import ValidationError
 
 
 def _cycle_duration(limit_cycle: str) -> relativedelta:
     return relativedelta(years=1) if limit_cycle == "year" else relativedelta(months=1)
+
+
+_ALLOWED_STATUS_TRANSITIONS: dict[TenantStatus, set[TenantStatus]] = {
+    TenantStatus.ACTIVE: {
+        TenantStatus.ACTIVE,
+        TenantStatus.SUSPENDED,
+        TenantStatus.INACTIVE,
+    },
+    TenantStatus.SUSPENDED: {
+        TenantStatus.ACTIVE,
+        TenantStatus.SUSPENDED,
+        TenantStatus.INACTIVE,
+    },
+    TenantStatus.INACTIVE: {
+        TenantStatus.ACTIVE,
+        TenantStatus.INACTIVE,
+    },
+}
 
 
 @dataclass
@@ -73,6 +92,9 @@ class Tenant(GlobalEntity):
         self.touch(cmd.updated_by)
 
     def change_status(self, new_status: TenantStatus, updated_by: str) -> None:
+        allowed = _ALLOWED_STATUS_TRANSITIONS[self.status]
+        if new_status not in allowed:
+            raise ValidationError("Transición de estado inválida")
         self.status = new_status
         self.touch(updated_by)
 
