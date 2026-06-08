@@ -46,7 +46,7 @@ export function TenantDashboardScreen() {
   const { semantic } = useTheme()
   const roleLabel = user?.role ? RoleLabel[user.role] : 'Sin rol'
   const { tenant } = useTenant(user?.tenantId ?? null)
-  const companyName = tenant?.business_name ?? 'Mi Empresa'
+  const companyName = tenant?.trade_name ?? 'Mi Empresa'
 
   return (
     <View style={[staticStyles.container, { backgroundColor: semantic.bg.page }]}>
