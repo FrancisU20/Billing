@@ -100,6 +100,7 @@ def api_event(
     headers: dict[str, str] | None = None,
     query: dict[str, str] | None = None,
     claims: dict[str, str] | None = None,
+    path_params: dict[str, str] | None = None,
 ) -> dict:
     base_claims = {
         "sub": "user-1",
@@ -110,11 +111,12 @@ def api_event(
     if claims:
         base_claims.update(claims)
 
-    # Extrae {id} para cualquier patrón /{resource}/{id}[/sub]
-    path_params = {}
-    parts = path.strip("/").split("/")
-    if len(parts) >= 2:
-        path_params["id"] = parts[1]
+    if path_params is None:
+        # Extrae {id} para cualquier patrón /{resource}/{id}[/sub]
+        path_params = {}
+        parts = path.strip("/").split("/")
+        if len(parts) >= 2:
+            path_params["id"] = parts[1]
 
     return {
         "version": "2.0",

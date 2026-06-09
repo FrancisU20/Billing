@@ -1,8 +1,4 @@
-import type { LimitCycle, PlanListFilters } from './types'
-
-// Referencia estable — evita recrear el objeto de filtros en cada render y
-// disparar un refetch infinito en usePlans (su useEffect depende de `filters`).
-export const ACTIVE_PLANS_FILTER: PlanListFilters = { status: 'active' }
+import type { LimitCycle } from './types'
 
 export const PLAN_STATUS_OPTIONS = [
   { value: 'all', label: 'Todos' },

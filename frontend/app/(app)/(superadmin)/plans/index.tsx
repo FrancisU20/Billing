@@ -23,7 +23,7 @@ import {
   toPlanListFilters,
   type PlanFilterDraft,
 } from '@/features/plans/components/PlansFilters'
-import { usePlans } from '@/features/plans/hooks/usePlans'
+import { useAdminPlans } from '@/features/plans/hooks/usePlans'
 import type { Plan, PlanListFilters } from '@/features/plans/types'
 
 export default function PlansManagementScreen() {
@@ -35,7 +35,7 @@ export default function PlansManagementScreen() {
   const [planToToggle, setPlanToToggle] = useState<Plan | null>(null)
   const [toggling, setToggling] = useState(false)
   const [actionError, setActionError] = useState<ApiError | null>(null)
-  const { plans, loading, error, refresh } = usePlans(filters)
+  const { plans, loading, error, refresh } = useAdminPlans(filters)
 
   const summary = useMemo(() => {
     const active = plans.filter((plan) => plan.active).length

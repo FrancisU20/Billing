@@ -7,7 +7,6 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { PlanCard } from '../components/PlanCard'
-import { ACTIVE_PLANS_FILTER } from '../constants'
 import { usePlans } from '../hooks/usePlans'
 
 const pricingSignals = [
@@ -17,7 +16,7 @@ const pricingSignals = [
 ] as const
 
 export function PricingScreen() {
-  const { plans, loading, error, refresh } = usePlans(ACTIVE_PLANS_FILTER)
+  const { plans, loading, error, refresh } = usePlans()
   const { semantic } = useTheme()
   const highlightedIndex = plans.length > 1 ? 1 : 0
 

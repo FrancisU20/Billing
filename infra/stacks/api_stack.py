@@ -464,8 +464,10 @@ class ApiStack(Stack):
                 integration = plans_integration,
             )
 
-        # POST / PATCH requieren superadmin
+        # POST / PATCH / admin GETs requieren superadmin
         for method, route in [
+            (apigwv2.HttpMethod.GET,   "/superadmin/plans"),
+            (apigwv2.HttpMethod.GET,   "/superadmin/plans/{id}"),
             (apigwv2.HttpMethod.POST,  "/plans"),
             (apigwv2.HttpMethod.PATCH, "/plans/{id}"),
             (apigwv2.HttpMethod.PATCH, "/plans/{id}/status"),

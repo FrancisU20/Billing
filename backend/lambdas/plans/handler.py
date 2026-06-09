@@ -11,6 +11,7 @@ Routes:
     PATCH  /plans/{id}/status  activate/deactivate    (superadmin)
 
 GET is public so the frontend can render the pricing table without login.
+Public routes always return only active plans — inactive plans are hidden from the catalog.
 Mutations use the UUID (id) — stable even if the slug changes.
 """
 import re
@@ -25,6 +26,7 @@ from lambdas.plans.domain.commands import (
     TogglePlanCommand,
     UpdatePlanCommand,
 )
+from lambdas.plans.domain.errors import PlanNotFoundError
 from lambdas.plans.infra.plan_repository import DynamoPlanRepository
 from lambdas.plans.schemas import CreatePlanRequest, TogglePlanRequest, UpdatePlanRequest
 from lambdas.plans.use_cases.create_plan import CreatePlanUseCase
@@ -104,10 +106,25 @@ def _create(request: Request, context) -> dict:
     return response
 
 
-@public_lambda_handler
-def _list(request: Request, context) -> dict:
+@lambda_handler
+@require_superadmin
+def _admin_list(request: Request, context) -> dict:
     query = _parse_list_query(request.query_params)
     plans = ListPlansUseCase(_repo()).execute(query)
+    return ApiResponse.ok({"items": [p.to_dict() for p in plans]}, request.request_id)
+
+
+@lambda_handler
+@require_superadmin
+def _admin_get(request: Request, context) -> dict:
+    slug = require_path_param(request, "id")
+    plan = GetPlanBySlugUseCase(_repo()).execute(slug)
+    return ApiResponse.ok(plan.to_dict(), request.request_id)
+
+
+@public_lambda_handler
+def _list(request: Request, context) -> dict:
+    plans = ListPlansUseCase(_repo()).execute(ListPlansQuery(status="active"))
     return ApiResponse.ok({"items": [p.to_dict() for p in plans]}, request.request_id)
 
 
@@ -115,6 +132,8 @@ def _list(request: Request, context) -> dict:
 def _get(request: Request, context) -> dict:
     slug = require_path_param(request, "id")
     plan = GetPlanBySlugUseCase(_repo()).execute(slug)
+    if not plan.active:
+        raise PlanNotFoundError()
     return ApiResponse.ok(plan.to_dict(), request.request_id)
 
 
@@ -185,12 +204,21 @@ def _toggle(request: Request, context) -> dict:
 
 _ID_PATTERN = re.compile(r"^/plans/[^/]+$")
 _STATUS_PATTERN = re.compile(r"^/plans/[^/]+/status$")
+_ADMIN_ID_PATTERN = re.compile(r"^/superadmin/plans/[^/]+$")
 
 
 def handler(event: dict, context) -> dict:
     ctx = event.get("requestContext", {})
     method = ctx.get("http", {}).get("method", "")
     path = ctx.get("http", {}).get("path", "")
+
+    if path == "/superadmin/plans":
+        if method == "GET":
+            return _admin_list(event, context)
+
+    if _ADMIN_ID_PATTERN.match(path):
+        if method == "GET":
+            return _admin_get(event, context)
 
     if path == "/plans":
         if method == "POST":

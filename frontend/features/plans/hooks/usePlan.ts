@@ -3,7 +3,7 @@ import { toApiError, type ApiError } from '@/lib/api/errors'
 import { plansApi } from '../api'
 import type { Plan } from '../types'
 
-export function usePlan(slug: string | null) {
+function usePlanBase(fetcher: (slug: string) => Promise<Plan>, slug: string | null) {
   const [plan, setPlan] = useState<Plan | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
@@ -19,8 +19,7 @@ export function usePlan(slug: string | null) {
     setLoading(true)
     setError(null)
 
-    plansApi
-      .getBySlug(slug)
+    fetcher(slug)
       .then((data) => {
         if (!cancelled) setPlan(data)
       })
@@ -34,7 +33,15 @@ export function usePlan(slug: string | null) {
     return () => {
       cancelled = true
     }
-  }, [slug])
+  }, [fetcher, slug])
 
   return { plan, loading, error }
+}
+
+export function usePlan(slug: string | null) {
+  return usePlanBase(plansApi.getBySlug, slug)
+}
+
+export function useAdminPlan(slug: string | null) {
+  return usePlanBase(plansApi.adminGetBySlug, slug)
 }

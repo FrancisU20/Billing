@@ -37,8 +37,18 @@ class FakePlanRepository(IPlanRepository):
             limit_cycle="month",
             order=1,
         )
+        self._draft = Plan(
+            id="uuid-draft",
+            slug="draft",
+            name="Draft Plan",
+            monthly_price=Decimal("0.00"),
+            document_limit=10,
+            limit_cycle="month",
+            order=99,
+            active=False,
+        )
         self._by_id = {"uuid-free": self._free, "uuid-basic": self._basic}
-        self._by_slug = {"free": self._free, "basic": self._basic}
+        self._by_slug = {"free": self._free, "basic": self._basic, "draft": self._draft}
         self.commit_calls: list[dict[str, Any]] = []
         self.list_calls: list[dict[str, Any]] = []
 
@@ -100,6 +110,28 @@ class PlansHandlerTests(unittest.TestCase):
         self._repo = fake_repo
         return mod
 
+    def test_list_public_always_returns_active_only_with_no_filters(self) -> None:
+        mod = self._load()
+        mod.handler(api_event(method="GET", path="/plans"), LambdaContext())
+        self.assertEqual(
+            self._repo.list_calls[0],
+            {
+                "status": "active",
+                "slug": None,
+                "q": None,
+                "limit_cycle": None,
+                "created_from": None,
+                "created_to": None,
+            },
+        )
+
+    def test_get_inactive_plan_by_slug_returns_404(self) -> None:
+        mod = self._load()
+        result = mod.handler(api_event(method="GET", path="/plans/draft"), LambdaContext())
+        body = json.loads(result["body"])
+        self.assertEqual(result["statusCode"], 404)
+        self.assertEqual(body["error"]["code"], "PLAN_NOT_FOUND")
+
     def test_list_is_public(self) -> None:
         mod = self._load()
         result = mod.handler(api_event(method="GET", path="/plans"), LambdaContext())
@@ -124,62 +156,27 @@ class PlansHandlerTests(unittest.TestCase):
         result = mod.handler(event, LambdaContext())
         self.assertEqual(result["statusCode"], 200)
 
-    def test_list_passes_status_and_search_filters_to_repo(self) -> None:
+    def test_list_ignores_all_query_params(self) -> None:
         mod = self._load()
-        result = mod.handler(
+        mod.handler(
             api_event(
                 method="GET",
                 path="/plans",
-                query={"status": "active", "q": "basic", "limit_cycle": "month", "slug": "Basic"},
+                query={"status": "inactive", "q": "basic", "limit_cycle": "week"},
             ),
             LambdaContext(),
         )
-        self.assertEqual(result["statusCode"], 200)
         self.assertEqual(
             self._repo.list_calls[0],
             {
                 "status": "active",
-                "slug": "Basic",
-                "q": "basic",
-                "limit_cycle": "month",
+                "slug": None,
+                "q": None,
+                "limit_cycle": None,
                 "created_from": None,
                 "created_to": None,
             },
         )
-
-    def test_list_passes_created_at_boundaries_to_repo(self) -> None:
-        mod = self._load()
-        result = mod.handler(
-            api_event(
-                method="GET",
-                path="/plans",
-                query={"created_from": "2026-06-01", "created_to": "2026-06-08"},
-            ),
-            LambdaContext(),
-        )
-        self.assertEqual(result["statusCode"], 200)
-        self.assertEqual(self._repo.list_calls[0]["created_from"], "2026-06-01T00:00:00+00:00")
-        self.assertEqual(self._repo.list_calls[0]["created_to"], "2026-06-08T23:59:59.999999+00:00")
-
-    def test_list_rejects_invalid_status(self) -> None:
-        mod = self._load()
-        result = mod.handler(
-            api_event(method="GET", path="/plans", query={"status": "trial"}),
-            LambdaContext(),
-        )
-        body = json.loads(result["body"])
-        self.assertEqual(result["statusCode"], 400)
-        self.assertEqual(body["error"]["code"], "VALIDATION_ERROR")
-
-    def test_list_rejects_invalid_limit_cycle(self) -> None:
-        mod = self._load()
-        result = mod.handler(
-            api_event(method="GET", path="/plans", query={"limit_cycle": "week"}),
-            LambdaContext(),
-        )
-        body = json.loads(result["body"])
-        self.assertEqual(result["statusCode"], 400)
-        self.assertEqual(body["error"]["code"], "VALIDATION_ERROR")
 
     def test_get_by_slug_returns_plan(self) -> None:
         mod = self._load()
@@ -315,6 +312,82 @@ class PlansHandlerTests(unittest.TestCase):
                 LambdaContext(),
             )
         self.assertEqual(result["statusCode"], 404)
+
+    # ── /superadmin/plans ─────────────────────────────────────────────────────
+
+    def test_admin_list_requires_superadmin(self) -> None:
+        mod = self._load()
+        result = mod.handler(
+            api_event(
+                method="GET",
+                path="/superadmin/plans",
+                claims={
+                    "custom:is_superadmin": "false",
+                    "custom:role": "owner",
+                    "custom:tenant_id": "t1",
+                },
+            ),
+            LambdaContext(),
+        )
+        self.assertEqual(result["statusCode"], 403)
+
+    def test_admin_list_returns_items(self) -> None:
+        mod = self._load()
+        result = mod.handler(api_event(method="GET", path="/superadmin/plans"), LambdaContext())
+        body = json.loads(result["body"])
+        self.assertEqual(result["statusCode"], 200)
+        self.assertIn("items", body["data"])
+
+    def test_admin_list_passes_inactive_status_to_repo(self) -> None:
+        mod = self._load()
+        mod.handler(
+            api_event(method="GET", path="/superadmin/plans", query={"status": "inactive"}),
+            LambdaContext(),
+        )
+        self.assertEqual(self._repo.list_calls[0]["status"], "inactive")
+
+    def test_admin_list_without_status_filter_sends_none_to_repo(self) -> None:
+        mod = self._load()
+        mod.handler(api_event(method="GET", path="/superadmin/plans"), LambdaContext())
+        self.assertIsNone(self._repo.list_calls[0]["status"])
+
+    def test_admin_get_returns_active_plan(self) -> None:
+        mod = self._load()
+        result = mod.handler(
+            api_event(method="GET", path="/superadmin/plans/free", path_params={"id": "free"}),
+            LambdaContext(),
+        )
+        body = json.loads(result["body"])
+        self.assertEqual(result["statusCode"], 200)
+        self.assertEqual(body["data"]["slug"], "free")
+
+    def test_admin_get_returns_inactive_plan(self) -> None:
+        mod = self._load()
+        result = mod.handler(
+            api_event(method="GET", path="/superadmin/plans/draft", path_params={"id": "draft"}),
+            LambdaContext(),
+        )
+        body = json.loads(result["body"])
+        self.assertEqual(result["statusCode"], 200)
+        self.assertEqual(body["data"]["slug"], "draft")
+        self.assertFalse(body["data"]["active"])
+
+    def test_admin_get_requires_superadmin(self) -> None:
+        mod = self._load()
+        result = mod.handler(
+            api_event(
+                method="GET",
+                path="/superadmin/plans/free",
+                path_params={"id": "free"},
+                claims={
+                    "custom:is_superadmin": "false",
+                    "custom:role": "owner",
+                    "custom:tenant_id": "t1",
+                },
+            ),
+            LambdaContext(),
+        )
+        self.assertEqual(result["statusCode"], 403)
 
 
 if __name__ == "__main__":

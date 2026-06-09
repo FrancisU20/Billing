@@ -13,7 +13,7 @@ import type {
   UpdatePlanInput,
 } from './types'
 
-function listPath(filters: PlanListFilters = {}): string {
+function listPath(base: string, filters: PlanListFilters = {}): string {
   const params = new URLSearchParams()
   if (filters.q) params.set('q', filters.q)
   if (filters.slug) params.set('slug', filters.slug)
@@ -22,13 +22,18 @@ function listPath(filters: PlanListFilters = {}): string {
   if (filters.created_from) params.set('created_from', filters.created_from)
   if (filters.created_to) params.set('created_to', filters.created_to)
   const query = params.toString()
-  return query ? `/plans?${query}` : '/plans'
+  return query ? `${base}?${query}` : base
 }
 
 export const plansApi = {
-  list: (filters?: PlanListFilters) => api.get(listPath(filters), plansListSchema, { auth: false }),
+  list: () => api.get('/plans', plansListSchema, { auth: false }),
 
   getBySlug: (slug: string) => api.get(`/plans/${slug}`, planSchema, { auth: false }),
+
+  adminList: (filters?: PlanListFilters) =>
+    api.get(listPath('/superadmin/plans', filters), plansListSchema),
+
+  adminGetBySlug: (slug: string) => api.get(`/superadmin/plans/${slug}`, planSchema),
 
   create: (body: CreatePlanInput, idempotencyKey: string) =>
     api.post('/plans', createPlanSchema.parse(body), planSchema, { idempotencyKey }),

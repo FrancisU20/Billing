@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { TenantForm } from '@/features/tenants/components/TenantForm'
 import { tenantsApi } from '@/features/tenants/api'
-import { ACTIVE_PLANS_FILTER } from '@/features/plans/constants'
 import { usePlans } from '@/features/plans/hooks/usePlans'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
@@ -21,7 +20,7 @@ export default function NewTenantScreen() {
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
-  const { plans, loading: plansLoading, error: plansError, refresh } = usePlans(ACTIVE_PLANS_FILTER)
+  const { plans, loading: plansLoading, error: plansError, refresh } = usePlans()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
 

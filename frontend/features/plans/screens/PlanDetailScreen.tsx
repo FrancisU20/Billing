@@ -19,14 +19,14 @@ import { radius, spacing, typography } from '@/constants/tokens'
 import { plansApi } from '../api'
 import { PLAN_FEATURES } from '../constants'
 import { cycleLabel, formatDocumentLimit, formatPlanLimit } from '../format'
-import { usePlan } from '../hooks/usePlan'
+import { useAdminPlan } from '../hooks/usePlan'
 
 export function PlanDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>()
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
-  const { plan, loading, error } = usePlan(slug ?? null)
+  const { plan, loading, error } = useAdminPlan(slug ?? null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [toggling, setToggling] = useState(false)
   const [actionError, setActionError] = useState<ApiError | null>(null)
