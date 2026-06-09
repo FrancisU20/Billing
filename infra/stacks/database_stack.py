@@ -156,7 +156,7 @@ class DatabaseStack(Stack):
             removal_policy = removal,
         )
 
-        # ── Outputs para el .env local y CI/CD ────────────────────────────────
+        # ── Outputs para scripts operativos y CI/CD ──────────────────────────
         CfnOutput(self, "TenantsTableName",
                   value=self.tenants_table.table_name,
                   export_name=f"CodeLabsBilling-{env}-TenantsTableName")

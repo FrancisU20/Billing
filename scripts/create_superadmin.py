@@ -5,6 +5,7 @@ Crea el usuario superadmin en Cognito.
 Uso:
     python scripts/create_superadmin.py
 """
+
 from __future__ import annotations
 
 import os
@@ -14,7 +15,7 @@ from pathlib import Path
 import boto3
 
 _ROOT = Path(__file__).resolve().parent.parent
-_LOCAL_ENV = _ROOT / "local" / ".env"
+_ENV_FILE = _ROOT / ".env"
 
 
 def _load_dotenv(path: Path) -> None:
@@ -34,7 +35,7 @@ def _load_dotenv(path: Path) -> None:
 def _required_env(name: str) -> str:
     value = os.environ.get(name, "").strip()
     if not value:
-        print(f"ERROR: falta {name} en local/.env")
+        print(f"ERROR: falta {name} en variables de entorno o .env")
         sys.exit(1)
     return value
 
@@ -45,7 +46,9 @@ def get_user_pool_id(cf, env_name: str) -> str:
         return env_pool_id
 
     resp = cf.describe_stacks(StackName=f"CodeLabsBilling-{env_name.capitalize()}-Auth")
-    outputs = {o["OutputKey"]: o["OutputValue"] for o in resp["Stacks"][0].get("Outputs", [])}
+    outputs = {
+        o["OutputKey"]: o["OutputValue"] for o in resp["Stacks"][0].get("Outputs", [])
+    }
     pool_id = outputs.get("UserPoolId")
     if not pool_id:
         print("ERROR: No se encontró UserPoolId. Corre: make deploy")
@@ -55,16 +58,16 @@ def get_user_pool_id(cf, env_name: str) -> str:
 
 def _superadmin_attributes(email: str) -> list[dict[str, str]]:
     return [
-        {"Name": "email",                "Value": email},
-        {"Name": "email_verified",       "Value": "true"},
-        {"Name": "custom:role",          "Value": "superadmin"},
+        {"Name": "email", "Value": email},
+        {"Name": "email_verified", "Value": "true"},
+        {"Name": "custom:role", "Value": "superadmin"},
         {"Name": "custom:is_superadmin", "Value": "true"},
-        {"Name": "custom:tenant_id",     "Value": ""},
+        {"Name": "custom:tenant_id", "Value": ""},
     ]
 
 
 def main() -> None:
-    _load_dotenv(_LOCAL_ENV)
+    _load_dotenv(_ENV_FILE)
 
     aws_profile = os.environ.get("AWS_PROFILE", "codelabs")
     aws_region = os.environ.get("AWS_REGION", "sa-east-1")
@@ -73,18 +76,18 @@ def main() -> None:
     password = _required_env("SUPERADMIN_PASSWORD")
 
     session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
-    cf      = session.client("cloudformation")
-    idp     = session.client("cognito-idp")
+    cf = session.client("cloudformation")
+    idp = session.client("cognito-idp")
 
     pool_id = get_user_pool_id(cf, env_name)
     print(f"User Pool: {pool_id}")
 
     try:
         idp.admin_create_user(
-            UserPoolId = pool_id,
-            Username   = email,
-            UserAttributes = _superadmin_attributes(email),
-            MessageAction = "SUPPRESS",
+            UserPoolId=pool_id,
+            Username=email,
+            UserAttributes=_superadmin_attributes(email),
+            MessageAction="SUPPRESS",
         )
         print(f"✓ Superadmin creado: {email}")
     except idp.exceptions.UsernameExistsException:
@@ -95,15 +98,15 @@ def main() -> None:
 
     try:
         idp.admin_update_user_attributes(
-            UserPoolId      = pool_id,
-            Username        = email,
-            UserAttributes  = _superadmin_attributes(email),
+            UserPoolId=pool_id,
+            Username=email,
+            UserAttributes=_superadmin_attributes(email),
         )
         idp.admin_set_user_password(
-            UserPoolId = pool_id,
-            Username   = email,
-            Password   = password,
-            Permanent  = True,
+            UserPoolId=pool_id,
+            Username=email,
+            Password=password,
+            Permanent=True,
         )
         print("✓ Superadmin listo para login SRP")
     except Exception as e:

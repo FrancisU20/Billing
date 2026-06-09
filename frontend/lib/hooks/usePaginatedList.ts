@@ -69,7 +69,7 @@ export function usePaginatedList<T, F>(
     if (loadingMoreRef.current) return
 
     const snapshot = stateRef.current
-    if (!snapshot.hasMore || snapshot.loadingMore || !snapshot.nextToken) return
+    if (snapshot.loading || !snapshot.hasMore || snapshot.loadingMore || !snapshot.nextToken) return
 
     const token = snapshot.nextToken
     loadingMoreRef.current = true

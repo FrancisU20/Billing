@@ -1,4 +1,4 @@
-.PHONY: deploy run test superadmin token
+.PHONY: deploy test superadmin token
 
 AWS_PROFILE = codelabs
 APP_ENV ?= dev
@@ -9,12 +9,8 @@ deploy:
 	cd infra && source .venv/bin/activate && \
 		cdk deploy --all --profile $(AWS_PROFILE) --require-approval never
 
-run:
-	cd local && AWS_PROFILE=$(AWS_PROFILE) PYTHONPATH=../backend:. \
-		../backend/.venv/bin/python server.py
-
 test:
-	PYTHONPATH=backend:local backend/.venv/bin/python -m unittest discover \
+	PYTHONPATH=backend backend/.venv/bin/python -m unittest discover \
 		-s backend/tests -p 'test_*.py'
 
 superadmin:

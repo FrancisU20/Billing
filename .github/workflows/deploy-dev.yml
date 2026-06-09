@@ -106,7 +106,7 @@ jobs:
                 backend=true
                 migrations=true
                 ;;
-              backend/*|local/*)
+              backend/*)
                 backend=true
                 ;;
               infra/*)
@@ -228,7 +228,7 @@ jobs:
 
       - name: Run tests with coverage
         env:
-          PYTHONPATH: ${{ github.workspace }}/backend:${{ github.workspace }}/local
+          PYTHONPATH: ${{ github.workspace }}/backend
           AWS_DEFAULT_REGION: sa-east-1
           AWS_EC2_METADATA_DISABLED: "true"
         working-directory: backend

@@ -493,28 +493,87 @@
       ]
     },
     {
-      "name": "Plans",
+      "name": "Clients",
       "item": [
         {
-          "name": "Listar Plans",
+          "name": "Crear Cliente",
           "request": {
-            "auth": {
-              "type": "noauth"
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identification\": \"0999999999001\",\n  \"identification_type\": \"ruc\",\n  \"person_type\": \"juridica\",\n  \"legal_name\": \"Cliente Demo S.A.\",\n  \"trade_name\": \"Cliente Demo\",\n  \"special_taxpayer\": false,\n  \"emails\": [\"cliente.demo@example.com\"],\n  \"phones\": [\"0999999999\"],\n  \"addresses\": [\n    {\n      \"label\": \"Matriz\",\n      \"line\": \"Av. Principal 123\",\n      \"city\": \"Quito\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "method": "GET",
-            "header": [],
             "url": {
-              "raw": "{{base_url}}/plans",
+              "raw": "{{base_url}}/clients",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
-                "plans"
+                "clients"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('success', () => pm.expect(body.success).to.be.true);",
+                  "pm.environment.set('billing_client_id', body.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar Clientes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients?limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clients"
               ],
               "query": [
                 {
-                  "key": "active_only",
-                  "value": "true",
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "next_token",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "demo",
                   "disabled": true
                 }
               ]
@@ -527,8 +586,161 @@
                 "exec": [
                   "pm.test('200', () => pm.response.to.have.status(200));",
                   "const body = pm.response.json();",
-                  "pm.test('lista', () => pm.expect(body.data).to.be.an('array'));",
-                  "if (body.data.length > 0) pm.environment.set('plan_id', body.data[0].id);"
+                  "pm.test('paginado', () => pm.expect(body.data).to.have.property('items'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ver Cliente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/clients/{{billing_client_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clients",
+                "{{billing_client_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('id correcto', () => pm.expect(body.data.id).to.eql(pm.environment.get('billing_client_id')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actualizar Cliente",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trade_name\": \"Cliente Demo Actualizado\",\n  \"emails\": [\"cliente.actualizado@example.com\"],\n  \"status\": \"active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/clients/{{billing_client_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clients",
+                "{{billing_client_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('version incrementada', () => pm.expect(pm.response.json().data.version).to.be.greaterThan(1));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Eliminar Cliente",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/clients/{{billing_client_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clients",
+                "{{billing_client_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('204', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Plans",
+      "item": [
+        {
+          "name": "Listar Plans",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/plans?status=active",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plans"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('lista', () => pm.expect(body.data.items).to.be.an('array'));",
+                  "if (body.data.items.length > 0) pm.environment.set('plan_id', body.data.items[0].id);"
                 ],
                 "type": "text/javascript"
               }

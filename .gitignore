@@ -40,7 +40,5 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 
-# Local dev
-local/.env
-local/tokens/
+# Local secrets
 .venv/

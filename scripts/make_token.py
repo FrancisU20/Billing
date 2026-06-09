@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Obtain a Cognito token using USER_SRP_AUTH for the local superadmin."""
+"""Obtain a Cognito token using USER_SRP_AUTH for the configured superadmin."""
+
 from __future__ import annotations
 
 import argparse
@@ -18,7 +19,7 @@ import boto3
 from botocore.exceptions import ClientError, ProfileNotFound
 
 _ROOT = Path(__file__).resolve().parent.parent
-_LOCAL_ENV = _ROOT / "local" / ".env"
+_ENV_FILE = _ROOT / ".env"
 
 _N_HEX = (
     "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1"
@@ -42,7 +43,20 @@ _N = int(_N_HEX, 16)
 _G = 2
 _INFO_BITS = b"Caldera Derived Key"
 _WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+_MONTHS = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+]
 
 
 def _load_dotenv(path: Path) -> None:
@@ -90,7 +104,9 @@ def _timestamp() -> str:
 
 
 class CognitoSrpClient:
-    def __init__(self, *, client_id: str, user_pool_id: str, username: str, password: str) -> None:
+    def __init__(
+        self, *, client_id: str, user_pool_id: str, username: str, password: str
+    ) -> None:
         self.client_id = client_id
         self.user_pool_id = user_pool_id
         self.username = username
@@ -119,16 +135,22 @@ class CognitoSrpClient:
             raise RuntimeError("SRP_U inválido")
 
         pool_name = self.user_pool_id.split("_", 1)[1]
-        user_password_hash = _hash_sha256(f"{pool_name}{user_id}:{self.password}".encode("utf-8"))
+        user_password_hash = _hash_sha256(
+            f"{pool_name}{user_id}:{self.password}".encode("utf-8")
+        )
         x_value = int(_hex_hash(_pad_hex(salt) + user_password_hash), 16)
-        s_value = pow(big_b - self._k * pow(_G, x_value, _N), self._a + u_value * x_value, _N)
+        s_value = pow(
+            big_b - self._k * pow(_G, x_value, _N), self._a + u_value * x_value, _N
+        )
         key = _hkdf(bytes.fromhex(_pad_hex(s_value)), bytes.fromhex(_pad_hex(u_value)))
 
         timestamp = _timestamp()
         signature = base64.b64encode(
             hmac.new(
                 key,
-                (pool_name + user_id).encode("utf-8") + secret_block + timestamp.encode("utf-8"),
+                (pool_name + user_id).encode("utf-8")
+                + secret_block
+                + timestamp.encode("utf-8"),
                 hashlib.sha256,
             ).digest()
         ).decode("utf-8")
@@ -143,7 +165,9 @@ class CognitoSrpClient:
 
 def _stack_outputs(session: boto3.Session, env_name: str) -> dict[str, str]:
     cf = session.client("cloudformation")
-    response = cf.describe_stacks(StackName=f"CodeLabsBilling-{env_name.capitalize()}-Auth")
+    response = cf.describe_stacks(
+        StackName=f"CodeLabsBilling-{env_name.capitalize()}-Auth"
+    )
     return {
         output["OutputKey"]: output["OutputValue"]
         for output in response["Stacks"][0].get("Outputs", [])
@@ -160,25 +184,29 @@ def _resolve_cognito_ids(session: boto3.Session, env_name: str) -> tuple[str, st
     user_pool_id = user_pool_id or outputs.get("UserPoolId", "")
     client_id = client_id or outputs.get("WebClientId", "")
     if not user_pool_id or not client_id:
-        raise RuntimeError("No se pudo resolver COGNITO_USER_POOL_ID/COGNITO_WEB_CLIENT_ID")
+        raise RuntimeError(
+            "No se pudo resolver COGNITO_USER_POOL_ID/COGNITO_WEB_CLIENT_ID"
+        )
     return user_pool_id, client_id
 
 
 def _parse_args() -> argparse.Namespace:
-    _load_dotenv(_LOCAL_ENV)
-    parser = argparse.ArgumentParser(description="Login Cognito SRP y muestra token del superadmin.")
+    _load_dotenv(_ENV_FILE)
+    parser = argparse.ArgumentParser(
+        description="Login Cognito SRP y muestra token del superadmin."
+    )
     parser.add_argument("--env", default=os.environ.get("ENV", "dev"))
     parser.add_argument("--region", default=os.environ.get("AWS_REGION", "sa-east-1"))
     parser.add_argument("--profile", default=os.environ.get("AWS_PROFILE", "codelabs"))
     parser.add_argument(
         "--username",
-        default=os.environ.get("SUPERADMIN_EMAIL") or os.environ.get("LOCAL_EMAIL", ""),
-        help="Email del superadmin. También se puede usar SUPERADMIN_EMAIL en local/.env.",
+        default=os.environ.get("SUPERADMIN_EMAIL", ""),
+        help="Email del superadmin. También se puede usar SUPERADMIN_EMAIL en .env.",
     )
     parser.add_argument(
         "--password",
         default=os.environ.get("SUPERADMIN_PASSWORD", ""),
-        help="Password del superadmin. Preferir SUPERADMIN_PASSWORD en local/.env ignorado por git.",
+        help="Password del superadmin. Preferir SUPERADMIN_PASSWORD en .env ignorado por git.",
     )
     parser.add_argument(
         "--token-type",
@@ -193,7 +221,9 @@ def _password_or_prompt(password: str) -> str:
         return password
     if sys.stdin.isatty():
         return getpass.getpass("Superadmin password: ")
-    raise RuntimeError("SUPERADMIN_PASSWORD es requerido cuando no hay TTY para pedir password")
+    raise RuntimeError(
+        "SUPERADMIN_PASSWORD es requerido cuando no hay TTY para pedir password"
+    )
 
 
 def _authenticate(args: argparse.Namespace) -> dict:
@@ -227,11 +257,15 @@ def _authenticate(args: argparse.Namespace) -> dict:
     final_response = idp.respond_to_auth_challenge(
         ClientId=client_id,
         ChallengeName="PASSWORD_VERIFIER",
-        ChallengeResponses=srp.challenge_responses(init_response["ChallengeParameters"]),
+        ChallengeResponses=srp.challenge_responses(
+            init_response["ChallengeParameters"]
+        ),
     )
 
     if final_response.get("ChallengeName"):
-        raise RuntimeError(f"Challenge Cognito pendiente: {final_response['ChallengeName']}")
+        raise RuntimeError(
+            f"Challenge Cognito pendiente: {final_response['ChallengeName']}"
+        )
     return final_response["AuthenticationResult"]
 
 
@@ -258,13 +292,18 @@ def main() -> int:
     elif args.token_type == "refresh":
         print(result["RefreshToken"])
     else:
-        print(json.dumps({
-            "id_token": result["IdToken"],
-            "access_token": result["AccessToken"],
-            "refresh_token": result["RefreshToken"],
-            "expires_in": result["ExpiresIn"],
-            "token_type": result["TokenType"],
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "id_token": result["IdToken"],
+                    "access_token": result["AccessToken"],
+                    "refresh_token": result["RefreshToken"],
+                    "expires_in": result["ExpiresIn"],
+                    "token_type": result["TokenType"],
+                },
+                indent=2,
+            )
+        )
     return 0
 
 
