@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { useToast } from '@/components/feedback/Toast'
@@ -15,7 +16,7 @@ import { toApiError, type ApiError } from '@/lib/api/errors'
 import { formatCurrency, formatDate } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { plansApi } from '../api'
 import { PLAN_FEATURES } from '../constants'
 import { cycleLabel, formatDocumentLimit, formatPlanLimit } from '../format'
@@ -26,7 +27,7 @@ export function PlanDetailScreen() {
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
-  const { plan, loading, error } = useAdminPlan(slug ?? null)
+  const { plan, loading, error, refresh } = useAdminPlan(slug ?? null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [toggling, setToggling] = useState(false)
   const [actionError, setActionError] = useState<ApiError | null>(null)
@@ -52,92 +53,102 @@ export function PlanDetailScreen() {
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar title={plan?.name ?? 'Plan'} canGoBack />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {error ? <ApiErrorBanner error={error} /> : null}
-        {actionError ? <ApiErrorBanner error={actionError} /> : null}
-
-        {plan ? (
+        {error ? (
+          <EmptyState
+            icon="alert-circle-outline"
+            title="No se pudo cargar el plan"
+            description={error.message}
+            action={{ label: 'Reintentar', onPress: refresh }}
+          />
+        ) : (
           <>
-            <View
-              style={[
-                styles.profile,
-                { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-              ]}
-            >
-              <View style={[styles.avatar, { backgroundColor: semantic.accent.subtle }]}>
-                <Ionicons name="pricetag-outline" size={24} color={semantic.accent.default} />
-              </View>
-              <View style={styles.profileCopy}>
-                <Text style={[styles.name, { color: semantic.text.primary }]}>{plan.name}</Text>
-                <Text style={[styles.subtle, { color: semantic.text.secondary }]}>
-                  {plan.description || plan.slug}
-                </Text>
-                <View style={styles.badgeRow}>
-                  <Badge
-                    label={plan.active ? 'Activo' : 'Inactivo'}
-                    variant={plan.active ? 'success' : 'neutral'}
-                    size="sm"
-                  />
-                  <SmallBadge label={cycleLabel(plan.limit_cycle)} />
+            {actionError ? <ApiErrorBanner error={actionError} /> : null}
+
+            {plan ? (
+              <>
+                <View
+                  style={[
+                    styles.profile,
+                    { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
+                  ]}
+                >
+                  <View style={[styles.avatar, { backgroundColor: semantic.accent.subtle }]}>
+                    <Ionicons name="pricetag-outline" size={24} color={semantic.accent.default} />
+                  </View>
+                  <View style={styles.profileCopy}>
+                    <Text style={[styles.name, { color: semantic.text.primary }]}>{plan.name}</Text>
+                    <Text style={[styles.subtle, { color: semantic.text.secondary }]}>
+                      {plan.description || plan.slug}
+                    </Text>
+                    <View style={styles.badgeRow}>
+                      <Badge
+                        label={plan.active ? 'Activo' : 'Inactivo'}
+                        variant={plan.active ? 'success' : 'neutral'}
+                        size="sm"
+                      />
+                      <SmallBadge label={cycleLabel(plan.limit_cycle)} />
+                    </View>
+                  </View>
+                  <View style={styles.profileActions}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onPress={() => router.push(Routes.superadmin.planEdit(plan.slug) as Href)}
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      variant={plan.active ? 'danger' : 'primary'}
+                      size="sm"
+                      onPress={() => setConfirmOpen(true)}
+                    >
+                      {plan.active ? 'Desactivar' : 'Activar'}
+                    </Button>
+                  </View>
                 </View>
-              </View>
-              <View style={styles.profileActions}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onPress={() => router.push(Routes.superadmin.planEdit(plan.slug) as Href)}
-                >
-                  Editar
-                </Button>
-                <Button
-                  variant={plan.active ? 'danger' : 'primary'}
-                  size="sm"
-                  onPress={() => setConfirmOpen(true)}
-                >
-                  {plan.active ? 'Desactivar' : 'Activar'}
-                </Button>
-              </View>
-            </View>
 
-            <DetailSection title="Precio" icon="cash-outline">
-              <Field label="Mensual" value={formatCurrency(plan.monthly_price)} />
-              <Field label="Anual" value={formatCurrency(plan.annual_price)} />
-              <Field label="Orden" value={String(plan.order)} />
-              <Field label="Slug" value={plan.slug} mono />
-            </DetailSection>
+                <DetailSection title="Precio" icon="cash-outline">
+                  <Field label="Mensual" value={formatCurrency(plan.monthly_price)} />
+                  <Field label="Anual" value={formatCurrency(plan.annual_price)} />
+                  <Field label="Orden" value={String(plan.order)} />
+                  <Field label="Slug" value={plan.slug} mono />
+                </DetailSection>
 
-            <DetailSection title="Límites" icon="speedometer-outline">
-              <Field label="Documentos" value={formatDocumentLimit(plan)} />
-              <Field
-                label="Usuarios"
-                value={formatPlanLimit(plan.max_users, 'usuario', 'usuarios')}
-              />
-              <Field
-                label="Locales"
-                value={formatPlanLimit(plan.max_locations, 'local', 'locales')}
-              />
-              <Field
-                label="Puntos emisión"
-                value={formatPlanLimit(plan.max_emission_points, 'punto', 'puntos')}
-              />
-            </DetailSection>
+                <DetailSection title="Límites" icon="speedometer-outline">
+                  <Field label="Documentos" value={formatDocumentLimit(plan)} />
+                  <Field
+                    label="Usuarios"
+                    value={formatPlanLimit(plan.max_users, 'usuario', 'usuarios')}
+                  />
+                  <Field
+                    label="Locales"
+                    value={formatPlanLimit(plan.max_locations, 'local', 'locales')}
+                  />
+                  <Field
+                    label="Puntos emisión"
+                    value={formatPlanLimit(plan.max_emission_points, 'punto', 'puntos')}
+                  />
+                </DetailSection>
 
-            <DetailSection title="Módulos" icon="apps-outline">
-              {PLAN_FEATURES.map((feature) => (
-                <Field
-                  key={feature.key}
-                  label={feature.label}
-                  value={plan[feature.key] ? 'Incluido' : 'No incluido'}
-                />
-              ))}
-            </DetailSection>
+                <DetailSection title="Módulos" icon="apps-outline">
+                  {PLAN_FEATURES.map((feature) => (
+                    <Field
+                      key={feature.key}
+                      label={feature.label}
+                      value={plan[feature.key] ? 'Incluido' : 'No incluido'}
+                    />
+                  ))}
+                </DetailSection>
 
-            <DetailSection title="Metadata" icon="time-outline">
-              <Field label="Creado" value={formatDate(plan.created_at)} />
-              <Field label="Actualizado" value={formatDate(plan.updated_at)} />
-              <Field label="ID" value={plan.id} mono />
-            </DetailSection>
+                <DetailSection title="Metadata" icon="time-outline">
+                  <Field label="Creado" value={formatDate(plan.created_at)} />
+                  <Field label="Actualizado" value={formatDate(plan.updated_at)} />
+                  <Field label="ID" value={plan.id} mono />
+                </DetailSection>
+              </>
+            ) : null}
           </>
-        ) : null}
+        )}
       </ScrollView>
 
       <ConfirmDialog
@@ -219,9 +230,9 @@ const styles = StyleSheet.create({
   avatar: {
     alignItems: 'center',
     borderRadius: radius.md,
-    height: 58,
+    height: sizes.avatarLg,
     justifyContent: 'center',
-    width: 58,
+    width: sizes.avatarLg,
   },
   profileCopy: { flex: 1, gap: spacing[1], minWidth: 220 },
   name: { fontSize: typography.size.xl, fontWeight: typography.weight.bold },

@@ -14,7 +14,7 @@ import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { toApiError, type ApiError } from '@/lib/api/errors'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { clientsApi } from '../api'
 import { ClientListItem } from '../components/ClientListItem'
 import {
@@ -230,9 +230,9 @@ const styles = StyleSheet.create({
   metricIcon: {
     alignItems: 'center',
     borderRadius: radius.md,
-    height: 34,
+    height: sizes.icon,
     justifyContent: 'center',
-    width: 34,
+    width: sizes.icon,
   },
   metricValue: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
   metricLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },

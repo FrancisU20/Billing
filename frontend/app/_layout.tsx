@@ -1,11 +1,9 @@
 import React, { useEffect, useRef } from 'react'
 import { SplashScreen, Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { GluestackUIProvider } from '@gluestack-ui/themed'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { ThemeProvider, useTheme } from '@/lib/theme-context'
 import { ToastProvider } from '@/components/feedback/Toast'
-import { gluestackTheme } from '@/lib/theme'
 import { useAuthStore } from '@/features/auth/store'
 import { configureApiClient } from '@/lib/api/client'
 import { authApi } from '@/features/auth/api'
@@ -62,13 +60,11 @@ function AppShell() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <GluestackUIProvider config={gluestackTheme}>
-        <ThemeProvider>
-          <ToastProvider>
-            <AppShell />
-          </ToastProvider>
-        </ThemeProvider>
-      </GluestackUIProvider>
+      <ThemeProvider>
+        <ToastProvider>
+          <AppShell />
+        </ToastProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   )
 }

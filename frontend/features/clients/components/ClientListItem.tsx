@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { ListItemAction, ListItemMeta } from '@/components/ui/ListItemPrimitives'
 import { useTheme } from '@/lib/theme-context'
 import { formatDate, initials } from '@/lib/utils/format'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { CLIENT_IDENTIFICATION_LABELS, CLIENT_PERSON_LABELS } from '../constants'
 import { ClientStatusBadge } from './ClientStatusBadge'
 import type { Client } from '../types'
@@ -80,9 +80,9 @@ const styles = StyleSheet.create({
   avatar: {
     alignItems: 'center',
     borderRadius: radius.md,
-    height: 46,
+    height: sizes.avatarSm,
     justifyContent: 'center',
-    width: 46,
+    width: sizes.avatarSm,
   },
   avatarText: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
   main: { flex: 1, minWidth: 0, gap: spacing[1] },

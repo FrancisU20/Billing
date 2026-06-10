@@ -189,7 +189,7 @@ const staticStyles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.full,
     paddingHorizontal: spacing[3],
-    paddingVertical: spacing[2] - 2,
+    paddingVertical: spacing[1.5],
   },
   statLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
   features: { gap: spacing[3] },

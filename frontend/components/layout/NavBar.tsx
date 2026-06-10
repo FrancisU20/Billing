@@ -22,7 +22,10 @@ export function NavBar({ title, subtitle, canGoBack, leftContent, rightContent }
   const { semantic } = useTheme()
 
   const resolvedLeft =
-    leftContent ?? (canGoBack ? <NavIconButton icon="chevron-back" onPress={router.back} /> : null)
+    leftContent ??
+    (canGoBack ? (
+      <NavIconButton icon="chevron-back" accessibilityLabel="Volver" onPress={router.back} />
+    ) : null)
 
   return (
     <View
@@ -56,6 +59,7 @@ export function NavIconButton({ icon, style, ...props }: NavIconButtonProps) {
 
   return (
     <Pressable
+      accessibilityRole="button"
       {...props}
       style={(state) => [
         styles.iconBtn,
@@ -75,7 +79,7 @@ export function NavIconButton({ icon, style, ...props }: NavIconButtonProps) {
 const styles = StyleSheet.create({
   container: { borderBottomWidth: 1, paddingHorizontal: spacing[5], paddingVertical: spacing[3] },
   content: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
-  heading: { flex: 1, minWidth: 0, gap: 2 },
+  heading: { flex: 1, minWidth: 0, gap: spacing[1] },
   title: { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
   subtitle: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
   iconBtn: {

@@ -65,9 +65,32 @@ export const togglePlanStatusSchema = z
   })
   .strict()
 
+export const planFormValuesSchema = z.object({
+  slug: z.string().regex(/^[a-z0-9_-]{2,30}$/, 'Slug inválido'),
+  name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(80, 'Máximo 80 caracteres'),
+  description: z.string().trim().max(300, 'Máximo 300 caracteres'),
+  monthly_price: z.string().trim().min(1, 'Precio requerido'),
+  annual_price: z.string().trim().min(1, 'Precio requerido'),
+  document_limit: z.number().int().min(0),
+  document_limit_unlimited: z.boolean(),
+  limit_cycle: limitCycleSchema,
+  max_locations: z.number().int().min(0),
+  max_locations_unlimited: z.boolean(),
+  max_emission_points: z.number().int().min(0),
+  max_emission_points_unlimited: z.boolean(),
+  max_users: z.number().int().min(0),
+  max_users_unlimited: z.boolean(),
+  includes_credit_notes: z.boolean(),
+  includes_withholdings: z.boolean(),
+  includes_delivery_notes: z.boolean(),
+  includes_api: z.boolean(),
+  order: z.number().int().min(0),
+})
+
 export type LimitCycle = z.infer<typeof limitCycleSchema>
 export type Plan = z.infer<typeof planSchema>
 export type PlansList = z.infer<typeof plansListSchema>
 export type CreatePlanInput = z.input<typeof createPlanSchema>
 export type UpdatePlanInput = z.input<typeof updatePlanSchema>
 export type TogglePlanStatusInput = z.infer<typeof togglePlanStatusSchema>
+export type PlanFormValues = z.infer<typeof planFormValuesSchema>

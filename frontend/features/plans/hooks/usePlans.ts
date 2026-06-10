@@ -1,52 +1,28 @@
-import { useCallback, useEffect, useState } from 'react'
-import { toApiError, type ApiError } from '@/lib/api/errors'
+import { useCallback } from 'react'
+import { useFetch } from '@/lib/hooks/useFetch'
 import { plansApi } from '../api'
 import type { Plan, PlanListFilters } from '../types'
 
-interface PlansState {
-  plans: Plan[]
-  loading: boolean
-  error: ApiError | null
+function sortByOrder(plans: Plan[]) {
+  return [...plans].sort((a, b) => a.order - b.order)
 }
 
 export function usePlans() {
-  const [state, setState] = useState<PlansState>({ plans: [], loading: true, error: null })
-
-  const fetch = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true, error: null }))
-    try {
-      const res = await plansApi.list()
-      const sorted = [...res.items].sort((a, b) => a.order - b.order)
-      setState({ plans: sorted, loading: false, error: null })
-    } catch (e) {
-      setState({ plans: [], loading: false, error: toApiError(e) })
-    }
+  const fetcher = useCallback(async () => {
+    const res = await plansApi.list()
+    return sortByOrder(res.items)
   }, [])
+  const { data, loading, error, refresh } = useFetch(fetcher)
 
-  useEffect(() => {
-    fetch()
-  }, [fetch])
-
-  return { ...state, refresh: fetch }
+  return { plans: data ?? [], loading, error, refresh }
 }
 
 export function useAdminPlans(filters: PlanListFilters = {}) {
-  const [state, setState] = useState<PlansState>({ plans: [], loading: true, error: null })
-
-  const fetch = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true, error: null }))
-    try {
-      const res = await plansApi.adminList(filters)
-      const sorted = [...res.items].sort((a, b) => a.order - b.order)
-      setState({ plans: sorted, loading: false, error: null })
-    } catch (e) {
-      setState({ plans: [], loading: false, error: toApiError(e) })
-    }
+  const fetcher = useCallback(async () => {
+    const res = await plansApi.adminList(filters)
+    return sortByOrder(res.items)
   }, [filters])
+  const { data, loading, error, refresh } = useFetch(fetcher)
 
-  useEffect(() => {
-    fetch()
-  }, [fetch])
-
-  return { ...state, refresh: fetch }
+  return { plans: data ?? [], loading, error, refresh }
 }

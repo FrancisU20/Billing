@@ -23,7 +23,11 @@ export function AppNavBar({ title, subtitle, canGoBack }: AppNavBarProps) {
 
   const leftContent =
     user && !canGoBack ? (
-      <NavIconButton icon="menu-outline" onPress={() => setNavigationOpen(true)} />
+      <NavIconButton
+        icon="menu-outline"
+        accessibilityLabel="Abrir menú"
+        onPress={() => setNavigationOpen(true)}
+      />
     ) : undefined
 
   const rightContent = user ? (
@@ -83,7 +87,7 @@ const styles = StyleSheet.create({
     gap: spacing[1],
     borderRadius: radius.full,
     borderWidth: 1,
-    paddingLeft: 3,
+    paddingLeft: spacing[1],
     paddingRight: spacing[2],
   },
 })

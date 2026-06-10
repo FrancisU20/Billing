@@ -2,9 +2,10 @@ import React from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/lib/theme-context'
-import { typography, spacing, radius, shadow } from '@/constants/tokens'
+import { typography, spacing, radius, shadow, sizes } from '@/constants/tokens'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { Card } from '@/components/ui/Card'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useAuthStore, selectUser } from '@/features/auth/store'
 import { RoleLabel } from '@/constants/roles'
 import { useTenant } from '@/features/tenants/hooks/useTenant'
@@ -51,7 +52,9 @@ export function TenantDashboardScreen() {
   const roleLabel = user?.role ? RoleLabel[user.role] : 'Sin rol'
   const { tenant, loading: tenantLoading } = useTenant(user?.tenantId ?? null)
 
-  const companyName = tenantLoading ? '...' : (tenant?.trade_name ?? 'Mi Empresa')
+  if (tenantLoading) return <LoadingSpinner fullScreen label="Cargando..." />
+
+  const companyName = tenant?.trade_name ?? 'Mi Empresa'
 
   const sriBadge = tenant?.sri_environment === 'production' ? 'Producción' : 'Pruebas'
 
@@ -271,8 +274,8 @@ const staticStyles = StyleSheet.create({
   heroAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   avatar: {
-    width: 52,
-    height: 52,
+    width: sizes.avatarMd,
+    height: sizes.avatarMd,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',

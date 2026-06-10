@@ -3,40 +3,16 @@ import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { z } from 'zod'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useTheme } from '@/lib/theme-context'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { PLAN_FEATURES, PLAN_LIMIT_CYCLE_OPTIONS, UNLIMITED_LIMIT } from '../constants'
+import { planFormValuesSchema, type PlanFormValues } from '../schemas'
 import type { ApiError } from '@/lib/api/errors'
 import type { CreatePlanInput, LimitCycle, Plan, UpdatePlanInput } from '../types'
-
-const planFormSchema = z.object({
-  slug: z.string().regex(/^[a-z0-9_-]{2,30}$/, 'Slug inválido'),
-  name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(80, 'Máximo 80 caracteres'),
-  description: z.string().trim().max(300, 'Máximo 300 caracteres'),
-  monthly_price: z.string().trim().min(1, 'Precio requerido'),
-  annual_price: z.string().trim().min(1, 'Precio requerido'),
-  document_limit: z.number().int().min(0),
-  document_limit_unlimited: z.boolean(),
-  limit_cycle: z.enum(['month', 'year']),
-  max_locations: z.number().int().min(0),
-  max_locations_unlimited: z.boolean(),
-  max_emission_points: z.number().int().min(0),
-  max_emission_points_unlimited: z.boolean(),
-  max_users: z.number().int().min(0),
-  max_users_unlimited: z.boolean(),
-  includes_credit_notes: z.boolean(),
-  includes_withholdings: z.boolean(),
-  includes_delivery_notes: z.boolean(),
-  includes_api: z.boolean(),
-  order: z.number().int().min(0),
-})
-
-export type PlanFormValues = z.infer<typeof planFormSchema>
 
 interface PlanFormProps {
   mode: 'create' | 'edit'
@@ -54,7 +30,7 @@ export function PlanForm({ mode, plan, onSubmit, isLoading, apiError }: PlanForm
     setValue,
     formState: { errors },
   } = useForm<PlanFormValues>({
-    resolver: zodResolver(planFormSchema),
+    resolver: zodResolver(planFormValuesSchema),
     defaultValues: planToFormValues(plan),
   })
   const limitCycle = useWatch({ control, name: 'limit_cycle' })
@@ -453,9 +429,9 @@ const styles = StyleSheet.create({
   sectionIcon: {
     alignItems: 'center',
     borderRadius: radius.md,
-    height: 34,
+    height: sizes.icon,
     justifyContent: 'center',
-    width: 34,
+    width: sizes.icon,
   },
   sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   sectionBody: { gap: spacing[4] },

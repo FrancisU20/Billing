@@ -7,6 +7,7 @@ import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
@@ -14,7 +15,7 @@ import { toApiError, type ApiError } from '@/lib/api/errors'
 import { formatDate, formatRuc, initials } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { tenantsApi } from '../api'
 import { TenantStatusBadge } from '../components/TenantStatusBadge'
 import { TENANT_ENVIRONMENT_LABELS, TENANT_PLAN_STATUS_LABELS } from '../constants'
@@ -65,71 +66,86 @@ export function TenantDetailScreen() {
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar title={displayName} canGoBack />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {error ? <ApiErrorBanner error={error} /> : null}
-        {actionError ? <ApiErrorBanner error={actionError} /> : null}
-
-        {tenant ? (
+        {error ? (
+          <EmptyState
+            icon="alert-circle-outline"
+            title="No se pudo cargar la empresa"
+            description={error.message}
+            action={{ label: 'Reintentar', onPress: refresh }}
+          />
+        ) : (
           <>
-            <View
-              style={[
-                styles.profile,
-                { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-              ]}
-            >
-              <View style={[styles.avatar, { backgroundColor: semantic.accent.subtle }]}>
-                <Text style={[styles.avatarText, { color: semantic.accent.default }]}>
-                  {initials(displayName)}
-                </Text>
-              </View>
-              <View style={styles.profileCopy}>
-                <Text style={[styles.name, { color: semantic.text.primary }]}>{displayName}</Text>
-                <Text style={[styles.subtle, { color: semantic.text.secondary }]}>
-                  {tenant.legal_rep_name}
-                </Text>
-                <View style={styles.badgeRow}>
-                  <TenantStatusBadge status={tenant.status} />
-                  <SmallBadge label={TENANT_ENVIRONMENT_LABELS[tenant.sri_environment]} />
-                  <SmallBadge label={TENANT_PLAN_STATUS_LABELS[tenant.plan_status]} />
-                </View>
-              </View>
-              <View style={styles.profileActions}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onPress={() => router.push(Routes.superadmin.tenantEdit(tenant.id) as Href)}
+            {actionError ? <ApiErrorBanner error={actionError} /> : null}
+
+            {tenant ? (
+              <>
+                <View
+                  style={[
+                    styles.profile,
+                    { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
+                  ]}
                 >
-                  Editar
-                </Button>
-              </View>
-            </View>
+                  <View style={[styles.avatar, { backgroundColor: semantic.accent.subtle }]}>
+                    <Text style={[styles.avatarText, { color: semantic.accent.default }]}>
+                      {initials(displayName)}
+                    </Text>
+                  </View>
+                  <View style={styles.profileCopy}>
+                    <Text style={[styles.name, { color: semantic.text.primary }]}>
+                      {displayName}
+                    </Text>
+                    <Text style={[styles.subtle, { color: semantic.text.secondary }]}>
+                      {tenant.legal_rep_name}
+                    </Text>
+                    <View style={styles.badgeRow}>
+                      <TenantStatusBadge status={tenant.status} />
+                      <SmallBadge label={TENANT_ENVIRONMENT_LABELS[tenant.sri_environment]} />
+                      <SmallBadge label={TENANT_PLAN_STATUS_LABELS[tenant.plan_status]} />
+                    </View>
+                  </View>
+                  <View style={styles.profileActions}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onPress={() => router.push(Routes.superadmin.tenantEdit(tenant.id) as Href)}
+                    >
+                      Editar
+                    </Button>
+                  </View>
+                </View>
 
-            <DetailSection title="Información fiscal" icon="card-outline">
-              <Field label="RUC" value={formatRuc(tenant.ruc)} mono />
-              <Field
-                label="Entorno SRI"
-                value={TENANT_ENVIRONMENT_LABELS[tenant.sri_environment]}
-              />
-              <Field label="Estado plan" value={TENANT_PLAN_STATUS_LABELS[tenant.plan_status]} />
-              <Field label="Plan ID" value={tenant.plan_id} mono />
-            </DetailSection>
+                <DetailSection title="Información fiscal" icon="card-outline">
+                  <Field label="RUC" value={formatRuc(tenant.ruc)} mono />
+                  <Field
+                    label="Entorno SRI"
+                    value={TENANT_ENVIRONMENT_LABELS[tenant.sri_environment]}
+                  />
+                  <Field
+                    label="Estado plan"
+                    value={TENANT_PLAN_STATUS_LABELS[tenant.plan_status]}
+                  />
+                  <Field label="Plan ID" value={tenant.plan_id} mono />
+                </DetailSection>
 
-            <DetailSection title="Contacto" icon="mail-outline">
-              <Field label="Email" value={tenant.email} />
-              <Field label="Teléfono" value={tenant.phone} />
-              <Field label="Dirección" value={tenant.address} />
-              <Field label="Creado" value={formatDate(tenant.created_at)} />
-              <Field label="Actualizado" value={formatDate(tenant.updated_at)} />
-            </DetailSection>
+                <DetailSection title="Contacto" icon="mail-outline">
+                  <Field label="Email" value={tenant.email} />
+                  <Field label="Teléfono" value={tenant.phone} />
+                  <Field label="Dirección" value={tenant.address} />
+                  <Field label="Creado" value={formatDate(tenant.created_at)} />
+                  <Field label="Actualizado" value={formatDate(tenant.updated_at)} />
+                </DetailSection>
 
-            <StatusSection
-              tenant={tenant}
-              actionPending={actionPending}
-              onSuspend={() => setSuspendOpen(true)}
-              onInactivate={() => setInactivateOpen(true)}
-              onReactivate={() => setReactivateOpen(true)}
-            />
+                <StatusSection
+                  tenant={tenant}
+                  actionPending={actionPending}
+                  onSuspend={() => setSuspendOpen(true)}
+                  onInactivate={() => setInactivateOpen(true)}
+                  onReactivate={() => setReactivateOpen(true)}
+                />
+              </>
+            ) : null}
           </>
-        ) : null}
+        )}
       </ScrollView>
 
       <ConfirmDialog
@@ -356,9 +372,9 @@ const styles = StyleSheet.create({
   avatar: {
     alignItems: 'center',
     borderRadius: radius.md,
-    height: 58,
+    height: sizes.avatarLg,
     justifyContent: 'center',
-    width: 58,
+    width: sizes.avatarLg,
   },
   avatarText: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
   profileCopy: { flex: 1, minWidth: 220, gap: spacing[1] },

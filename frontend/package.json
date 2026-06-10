@@ -5,9 +5,6 @@
   "dependencies": {
     "@expo/metro-runtime": "~56.0.14",
     "@expo/vector-icons": "^15.1.1",
-    "@gluestack-style/react": "^1.0.57",
-    "@gluestack-ui/config": "^1.1.20",
-    "@gluestack-ui/themed": "^1.1.73",
     "@hookform/resolvers": "^5.4.0",
     "expo": "~56.0.9",
     "expo-constants": "~56.0.17",
@@ -30,11 +27,13 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "~19.2.2",
     "babel-preset-expo": "^56.0.14",
     "eslint": "^10.4.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
+    "jsdom": "^29.1.1",
     "prettier": "^3.8.3",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.60.1",

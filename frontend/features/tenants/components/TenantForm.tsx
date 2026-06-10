@@ -3,29 +3,18 @@ import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { z } from 'zod'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useTheme } from '@/lib/theme-context'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { TENANT_ENVIRONMENT_OPTIONS } from '../constants'
 import { tenantToFormValues, type TenantFormValues } from '../form'
+import { tenantFormValuesSchema } from '../schemas'
 import type { ApiError } from '@/lib/api/errors'
 import type { Plan } from '@/features/plans/types'
 import type { SriEnvironment, Tenant } from '../types'
-
-const tenantFormSchema = z.object({
-  ruc: z.string().trim().min(10, 'RUC inválido').max(13, 'RUC inválido'),
-  trade_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(200, 'Máximo 200 caracteres'),
-  legal_rep_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(200, 'Máximo 200 caracteres'),
-  email: z.string().trim().email('Email inválido').max(200, 'Máximo 200 caracteres'),
-  phone: z.string().trim().min(7, 'Mínimo 7 caracteres').max(20, 'Máximo 20 caracteres'),
-  address: z.string().trim().min(5, 'Mínimo 5 caracteres').max(500, 'Máximo 500 caracteres'),
-  sri_environment: z.enum(['testing', 'production']),
-  plan_id: z.string().min(1, 'El plan es requerido'),
-})
 
 interface TenantFormProps {
   mode: 'create' | 'edit'
@@ -51,7 +40,7 @@ export function TenantForm({
     setValue,
     formState: { errors },
   } = useForm<TenantFormValues>({
-    resolver: zodResolver(tenantFormSchema),
+    resolver: zodResolver(tenantFormValuesSchema),
     defaultValues: tenantToFormValues(tenant),
   })
   const selectedPlanId = useWatch({ control, name: 'plan_id' })
@@ -280,9 +269,9 @@ const styles = StyleSheet.create({
   sectionIcon: {
     alignItems: 'center',
     borderRadius: radius.md,
-    height: 34,
+    height: sizes.icon,
     justifyContent: 'center',
-    width: 34,
+    width: sizes.icon,
   },
   sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   sectionBody: { gap: spacing[4] },

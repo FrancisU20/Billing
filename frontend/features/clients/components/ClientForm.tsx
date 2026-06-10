@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useTheme } from '@/lib/theme-context'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { clientFormValuesSchema, type ClientFormValues } from '../schemas'
 import {
   CLIENT_IDENTIFICATION_OPTIONS,
@@ -348,9 +348,9 @@ const styles = StyleSheet.create({
   sectionIcon: {
     alignItems: 'center',
     borderRadius: radius.md,
-    height: 34,
+    height: sizes.icon,
     justifyContent: 'center',
-    width: 34,
+    width: sizes.icon,
   },
   sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   sectionBody: { gap: spacing[4] },

@@ -1,16 +1,7 @@
-import type { CreateTenantInput, Tenant, UpdateTenantInput } from './schemas'
+import type { CreateTenantInput, Tenant, TenantFormValues, UpdateTenantInput } from './schemas'
 import { createTenantSchema, updateTenantSchema } from './schemas'
 
-export interface TenantFormValues {
-  ruc: string
-  trade_name: string
-  legal_rep_name: string
-  email: string
-  phone: string
-  address: string
-  sri_environment: 'testing' | 'production'
-  plan_id: string
-}
+export type { TenantFormValues } from './schemas'
 
 export function tenantToFormValues(tenant?: Tenant | null): TenantFormValues {
   return {

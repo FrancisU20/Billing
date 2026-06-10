@@ -82,6 +82,17 @@ export const toggleTenantStatusSchema = z
   })
   .strict()
 
+export const tenantFormValuesSchema = z.object({
+  ruc: z.string().trim().min(10, 'RUC inválido').max(13, 'RUC inválido'),
+  trade_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(200, 'Máximo 200 caracteres'),
+  legal_rep_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(200, 'Máximo 200 caracteres'),
+  email: z.string().trim().email('Email inválido').max(200, 'Máximo 200 caracteres'),
+  phone: z.string().trim().min(7, 'Mínimo 7 caracteres').max(20, 'Máximo 20 caracteres'),
+  address: z.string().trim().min(5, 'Mínimo 5 caracteres').max(500, 'Máximo 500 caracteres'),
+  sri_environment: sriEnvironmentSchema,
+  plan_id: z.string().min(1, 'El plan es requerido'),
+})
+
 export type Tenant = z.infer<typeof tenantSchema>
 export type TenantStatus = z.infer<typeof tenantStatusSchema>
 export type SriEnvironment = z.infer<typeof sriEnvironmentSchema>
@@ -90,3 +101,4 @@ export type TenantsPage = z.infer<typeof tenantsPageSchema>
 export type CreateTenantInput = z.infer<typeof createTenantSchema>
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>
 export type ToggleTenantStatusInput = z.infer<typeof toggleTenantStatusSchema>
+export type TenantFormValues = z.infer<typeof tenantFormValuesSchema>

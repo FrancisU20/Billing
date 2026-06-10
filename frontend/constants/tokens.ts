@@ -232,6 +232,7 @@ export interface SemanticTokens {
 export const spacing = {
   0: 0,
   1: 4,
+  1.5: 6,
   2: 8,
   3: 12,
   4: 16,
@@ -243,6 +244,13 @@ export const spacing = {
   12: 48,
   16: 64,
   20: 80,
+} as const
+
+export const sizes = {
+  icon: 34,
+  avatarSm: 46,
+  avatarMd: 52,
+  avatarLg: 58,
 } as const
 
 export const radius = {

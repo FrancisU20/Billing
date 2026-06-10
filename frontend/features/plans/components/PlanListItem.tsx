@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/Badge'
 import { ListItemAction, ListItemMeta } from '@/components/ui/ListItemPrimitives'
 import { useTheme } from '@/lib/theme-context'
 import { formatDate } from '@/lib/utils/format'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { cycleLabel, formatBillingPrice, formatDocumentLimit, formatPlanLimit } from '../format'
 import type { Plan } from '../types'
 
@@ -86,9 +86,9 @@ const styles = StyleSheet.create({
   avatar: {
     alignItems: 'center',
     borderRadius: radius.md,
-    height: 46,
+    height: sizes.avatarSm,
     justifyContent: 'center',
-    width: 46,
+    width: sizes.avatarSm,
   },
   main: { flex: 1, gap: spacing[1], minWidth: 0 },
   nameRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
