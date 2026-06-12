@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/Card'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useAuthStore, selectUser } from '@/features/auth/store'
 import { RoleLabel } from '@/constants/roles'
-import { useTenant } from '@/features/tenants/hooks/useTenant'
+import { useTenant } from '../hooks/useTenant'
 
 type MetricTone = 'primary' | 'secondary' | 'error'
 

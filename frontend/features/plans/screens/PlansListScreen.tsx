@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native'
+import { FlatList, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
@@ -15,71 +15,75 @@ import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
-import { clientsApi } from '../api'
-import { ClientListItem } from '../components/ClientListItem'
+import { plansApi } from '../api'
+import { PlanListItem } from '../components/PlanListItem'
 import {
-  ClientsFilters,
-  emptyClientFilterDraft,
-  toClientListFilters,
-  type ClientFilterDraft,
-} from '../components/ClientsFilters'
-import { useClients } from '../hooks/useClients'
-import type { Client, ClientListFilters } from '../types'
+  PlansFilters,
+  emptyPlanFilterDraft,
+  toPlanListFilters,
+  type PlanFilterDraft,
+} from '../components/PlansFilters'
+import { useAdminPlans } from '../hooks/usePlans'
+import type { Plan, PlanListFilters } from '../types'
 
-export function ClientsListScreen() {
+export function PlansListScreen() {
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
-  const [draft, setDraft] = useState<ClientFilterDraft>(emptyClientFilterDraft)
-  const [filters, setFilters] = useState<ClientListFilters>({})
-  const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
-  const { clients, loading, loadingMore, error, refresh, fetchMore } = useClients(filters)
+  const [draft, setDraft] = useState<PlanFilterDraft>(emptyPlanFilterDraft)
+  const [filters, setFilters] = useState<PlanListFilters>({})
+  const [planToToggle, setPlanToToggle] = useState<Plan | null>(null)
+  const { plans, loading, error, refresh } = useAdminPlans(filters)
 
   const summary = useMemo(() => {
-    const active = clients.filter((client) => client.status === 'active').length
-    const inactive = clients.length - active
-    return { active, inactive }
-  }, [clients])
+    const active = plans.filter((plan) => plan.active).length
+    const unlimited = plans.filter((plan) => plan.document_limit === -1).length
+    return { active, unlimited, total: plans.length }
+  }, [plans])
 
   function applyFilters() {
-    setFilters(toClientListFilters(draft))
+    setFilters(toPlanListFilters(draft))
   }
 
   function resetFilters() {
-    setDraft(emptyClientFilterDraft)
+    setDraft(emptyPlanFilterDraft)
     setFilters({})
   }
 
   const {
-    submitting: deleting,
+    submitting: toggling,
     error: actionError,
-    submit: confirmDelete,
+    submit: confirmToggle,
   } = useFormSubmit(async () => {
-    if (!clientToDelete) return
-    await clientsApi.delete(clientToDelete.id, createIdempotencyKey('client_delete'))
-    toast.success('Cliente eliminado')
-    setClientToDelete(null)
+    if (!planToToggle) return
+    await plansApi.setStatus(
+      planToToggle.id,
+      !planToToggle.active,
+      createIdempotencyKey('plan_status'),
+    )
+    toast.success(planToToggle.active ? 'Plan desactivado' : 'Plan activado')
+    setPlanToToggle(null)
     await refresh()
   })
 
-  if (loading) return <LoadingSpinner fullScreen label="Cargando clientes..." />
+  if (loading) return <LoadingSpinner fullScreen label="Cargando planes..." />
 
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar
-        title="Clientes"
-        subtitle={clients.length ? `${clients.length} resultados` : 'Facturación Ecuador'}
+        title="Planes"
+        subtitle={plans.length ? `${plans.length} resultados` : 'Catálogo SaaS'}
       />
 
       <FlatList
-        data={clients}
-        keyExtractor={(client) => client.id}
+        data={plans}
+        keyExtractor={(plan) => plan.id}
         renderItem={({ item }) => (
-          <ClientListItem
-            client={item}
-            onView={() => router.push(Routes.tenant.clientDetail(item.id) as Href)}
-            onEdit={() => router.push(Routes.tenant.clientEdit(item.id) as Href)}
-            onDelete={() => setClientToDelete(item)}
+          <PlanListItem
+            plan={item}
+            onView={() => router.push(Routes.superadmin.planDetail(item.slug) as Href)}
+            onEdit={() => router.push(Routes.superadmin.planEdit(item.slug) as Href)}
+            onToggle={() => setPlanToToggle(item)}
           />
         )}
         contentContainerStyle={styles.list}
@@ -88,31 +92,31 @@ export function ClientsListScreen() {
             <View style={styles.heroRow}>
               <View style={styles.heroCopy}>
                 <View style={styles.kickerRow}>
-                  <Ionicons name="people-outline" size={16} color={semantic.accent.default} />
+                  <Ionicons name="layers-outline" size={16} color={semantic.accent.default} />
                   <Text style={[styles.kicker, { color: semantic.accent.default }]}>
-                    Cartera de clientes
+                    Catálogo comercial
                   </Text>
                 </View>
                 <Text style={[styles.heading, { color: semantic.text.primary }]}>
-                  Clientes para emisión y control fiscal
+                  Planes, límites y módulos incluidos
                 </Text>
               </View>
               <Button
                 variant="primary"
                 size="md"
-                onPress={() => router.push(Routes.tenant.clientNew as Href)}
+                onPress={() => router.push(Routes.superadmin.planNew)}
               >
-                Nuevo cliente
+                Nuevo plan
               </Button>
             </View>
 
             <View style={styles.metricsRow}>
               <Metric label="Activos" value={summary.active} icon="checkmark-circle-outline" />
-              <Metric label="Inactivos" value={summary.inactive} icon="pause-circle-outline" />
-              <Metric label="Cargados" value={clients.length} icon="layers-outline" />
+              <Metric label="Ilimitados" value={summary.unlimited} icon="infinite-outline" />
+              <Metric label="Cargados" value={summary.total} icon="layers-outline" />
             </View>
 
-            <ClientsFilters
+            <PlansFilters
               value={draft}
               onChange={setDraft}
               onApply={applyFilters}
@@ -126,35 +130,26 @@ export function ClientsListScreen() {
         ItemSeparatorComponent={() => <View style={{ height: spacing[3] }} />}
         ListEmptyComponent={
           <EmptyState
-            icon="people-outline"
-            title="Sin clientes"
-            description="No hay clientes que coincidan con los filtros actuales."
-            action={{
-              label: 'Crear cliente',
-              onPress: () => router.push(Routes.tenant.clientNew as Href),
-            }}
+            icon="pricetags-outline"
+            title="Sin planes"
+            description="No hay planes que coincidan con los filtros actuales."
+            action={{ label: 'Crear plan', onPress: () => router.push(Routes.superadmin.planNew) }}
           />
         }
-        ListFooterComponent={
-          loadingMore ? (
-            <ActivityIndicator color={semantic.accent.default} style={styles.loadingMore} />
-          ) : null
-        }
-        onEndReached={fetchMore}
-        onEndReachedThreshold={0.3}
         refreshing={loading}
         onRefresh={refresh}
         showsVerticalScrollIndicator={false}
       />
 
       <ConfirmDialog
-        visible={!!clientToDelete}
-        title="Eliminar cliente"
-        message={`Se desactivará ${clientToDelete?.trade_name || clientToDelete?.legal_name || 'este cliente'} y su identificación podrá reutilizarse.`}
-        confirmLabel="Eliminar"
-        isLoading={deleting}
-        onCancel={() => setClientToDelete(null)}
-        onConfirm={confirmDelete}
+        visible={!!planToToggle}
+        title={planToToggle?.active ? 'Desactivar plan' : 'Activar plan'}
+        message={`El plan ${planToToggle?.name ?? ''} ${planToToggle?.active ? 'dejará de mostrarse como disponible.' : 'volverá a estar disponible.'}`}
+        confirmLabel={planToToggle?.active ? 'Desactivar' : 'Activar'}
+        icon={planToToggle?.active ? 'pause-circle-outline' : 'play-circle-outline'}
+        isLoading={toggling}
+        onCancel={() => setPlanToToggle(null)}
+        onConfirm={confirmToggle}
       />
     </View>
   )
@@ -230,5 +225,4 @@ const styles = StyleSheet.create({
   },
   metricValue: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
   metricLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
-  loadingMore: { paddingVertical: spacing[5] },
 })

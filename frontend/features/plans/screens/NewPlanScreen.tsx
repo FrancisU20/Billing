@@ -1,6 +1,5 @@
 import React from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
-import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { useToast } from '@/components/feedback/Toast'
@@ -9,30 +8,28 @@ import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { spacing } from '@/constants/tokens'
-import { clientsApi } from '../api'
-import { ClientForm } from '../components/ClientForm'
-import { formValuesToCreateClientInput } from '../form'
-import type { ClientFormValues } from '../types'
+import { plansApi } from '../api'
+import { PlanForm } from '../components/PlanForm'
+import type { CreatePlanInput, UpdatePlanInput } from '../types'
 
-export function NewClientScreen() {
+export function NewPlanScreen() {
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
 
-  const { submitting, error, submit } = useFormSubmit(async (values: ClientFormValues) => {
-    const client = await clientsApi.create(
-      formValuesToCreateClientInput(values),
-      createIdempotencyKey('client_create'),
-    )
-    toast.success('Cliente creado')
-    router.replace(Routes.tenant.clientDetail(client.id) as Href)
-  })
+  const { submitting, error, submit } = useFormSubmit(
+    async (values: CreatePlanInput | UpdatePlanInput) => {
+      await plansApi.create(values as CreatePlanInput, createIdempotencyKey('plan_create'))
+      toast.success('Plan creado')
+      router.replace(Routes.superadmin.plans)
+    },
+  )
 
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
-      <AppNavBar title="Nuevo cliente" canGoBack />
+      <AppNavBar title="Nuevo plan" canGoBack />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <ClientForm mode="create" onSubmit={submit} isLoading={submitting} apiError={error} />
+        <PlanForm mode="create" onSubmit={submit} isLoading={submitting} apiError={error} />
       </ScrollView>
     </View>
   )

@@ -7,12 +7,13 @@ import { Badge } from '@/components/ui/Badge'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { DetailField, DetailSection } from '@/components/ui/DetailSection'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
-import { toApiError, type ApiError } from '@/lib/api/errors'
+import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { formatCurrency, formatDate } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
@@ -29,23 +30,17 @@ export function PlanDetailScreen() {
   const { semantic } = useTheme()
   const { plan, loading, error, refresh } = useAdminPlan(slug ?? null)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [toggling, setToggling] = useState(false)
-  const [actionError, setActionError] = useState<ApiError | null>(null)
 
-  async function confirmToggle() {
+  const {
+    submitting: toggling,
+    error: actionError,
+    submit: confirmToggle,
+  } = useFormSubmit(async () => {
     if (!plan) return
-    setToggling(true)
-    setActionError(null)
-    try {
-      await plansApi.setStatus(plan.id, !plan.active, createIdempotencyKey('plan_status'))
-      toast.success(plan.active ? 'Plan desactivado' : 'Plan activado')
-      router.replace(Routes.superadmin.plans)
-    } catch (e) {
-      setActionError(toApiError(e))
-    } finally {
-      setToggling(false)
-    }
-  }
+    await plansApi.setStatus(plan.id, !plan.active, createIdempotencyKey('plan_status'))
+    toast.success(plan.active ? 'Plan desactivado' : 'Plan activado')
+    router.replace(Routes.superadmin.plans)
+  })
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando plan..." />
 
@@ -86,7 +81,7 @@ export function PlanDetailScreen() {
                         variant={plan.active ? 'success' : 'neutral'}
                         size="sm"
                       />
-                      <SmallBadge label={cycleLabel(plan.limit_cycle)} />
+                      <Badge variant="accent" size="sm" label={cycleLabel(plan.limit_cycle)} />
                     </View>
                   </View>
                   <View style={styles.profileActions}>
@@ -108,23 +103,23 @@ export function PlanDetailScreen() {
                 </View>
 
                 <DetailSection title="Precio" icon="cash-outline">
-                  <Field label="Mensual" value={formatCurrency(plan.monthly_price)} />
-                  <Field label="Anual" value={formatCurrency(plan.annual_price)} />
-                  <Field label="Orden" value={String(plan.order)} />
-                  <Field label="Slug" value={plan.slug} mono />
+                  <DetailField label="Mensual" value={formatCurrency(plan.monthly_price)} />
+                  <DetailField label="Anual" value={formatCurrency(plan.annual_price)} />
+                  <DetailField label="Orden" value={String(plan.order)} />
+                  <DetailField label="Slug" value={plan.slug} mono />
                 </DetailSection>
 
                 <DetailSection title="Límites" icon="speedometer-outline">
-                  <Field label="Documentos" value={formatDocumentLimit(plan)} />
-                  <Field
+                  <DetailField label="Documentos" value={formatDocumentLimit(plan)} />
+                  <DetailField
                     label="Usuarios"
                     value={formatPlanLimit(plan.max_users, 'usuario', 'usuarios')}
                   />
-                  <Field
+                  <DetailField
                     label="Locales"
                     value={formatPlanLimit(plan.max_locations, 'local', 'locales')}
                   />
-                  <Field
+                  <DetailField
                     label="Puntos emisión"
                     value={formatPlanLimit(plan.max_emission_points, 'punto', 'puntos')}
                   />
@@ -132,7 +127,7 @@ export function PlanDetailScreen() {
 
                 <DetailSection title="Módulos" icon="apps-outline">
                   {PLAN_FEATURES.map((feature) => (
-                    <Field
+                    <DetailField
                       key={feature.key}
                       label={feature.label}
                       value={plan[feature.key] ? 'Incluido' : 'No incluido'}
@@ -141,9 +136,9 @@ export function PlanDetailScreen() {
                 </DetailSection>
 
                 <DetailSection title="Metadata" icon="time-outline">
-                  <Field label="Creado" value={formatDate(plan.created_at)} />
-                  <Field label="Actualizado" value={formatDate(plan.updated_at)} />
-                  <Field label="ID" value={plan.id} mono />
+                  <DetailField label="Creado" value={formatDate(plan.created_at)} />
+                  <DetailField label="Actualizado" value={formatDate(plan.updated_at)} />
+                  <DetailField label="ID" value={plan.id} mono />
                 </DetailSection>
               </>
             ) : null}
@@ -161,56 +156,6 @@ export function PlanDetailScreen() {
         onCancel={() => setConfirmOpen(false)}
         onConfirm={confirmToggle}
       />
-    </View>
-  )
-}
-
-function SmallBadge({ label }: { label: string }) {
-  const { semantic } = useTheme()
-  return (
-    <View style={[styles.smallBadge, { backgroundColor: semantic.accent.altSubtle }]}>
-      <Text style={[styles.smallBadgeText, { color: semantic.accent.alt }]}>{label}</Text>
-    </View>
-  )
-}
-
-function DetailSection({
-  title,
-  icon,
-  children,
-}: {
-  title: string
-  icon: keyof typeof Ionicons.glyphMap
-  children: React.ReactNode
-}) {
-  const { semantic } = useTheme()
-  return (
-    <View
-      style={[
-        styles.section,
-        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-      ]}
-    >
-      <View style={styles.sectionTitleRow}>
-        <Ionicons name={icon} size={17} color={semantic.accent.default} />
-        <Text style={[styles.sectionTitle, { color: semantic.text.primary }]}>{title}</Text>
-      </View>
-      <View style={styles.fieldGrid}>{children}</View>
-    </View>
-  )
-}
-
-function Field({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  const { semantic } = useTheme()
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>{label}</Text>
-      <Text
-        style={[styles.fieldValue, mono && styles.mono, { color: semantic.text.primary }]}
-        numberOfLines={2}
-      >
-        {value}
-      </Text>
     </View>
   )
 }
@@ -238,19 +183,5 @@ const styles = StyleSheet.create({
   name: { fontSize: typography.size.xl, fontWeight: typography.weight.bold },
   subtle: { fontSize: typography.size.sm },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], marginTop: spacing[1] },
-  smallBadge: { borderRadius: radius.full, paddingHorizontal: spacing[2], paddingVertical: 2 },
-  smallBadgeText: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
   profileActions: { flexDirection: 'row', gap: spacing[2] },
-  section: { borderRadius: radius.md, borderWidth: 1, gap: spacing[4], padding: spacing[5] },
-  sectionTitleRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
-  sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
-  fieldGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
-  field: { flex: 1, gap: spacing[1], minWidth: 220 },
-  fieldLabel: {
-    fontSize: typography.size.xs,
-    fontWeight: typography.weight.semibold,
-    textTransform: 'uppercase',
-  },
-  fieldValue: { fontSize: typography.size.base },
-  mono: { fontFamily: typography.fontFamily.mono, fontSize: typography.size.sm },
 })

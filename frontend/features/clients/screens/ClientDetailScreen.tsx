@@ -11,7 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
-import { toApiError, type ApiError } from '@/lib/api/errors'
+import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { formatDate, initials } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
@@ -28,23 +28,17 @@ export function ClientDetailScreen() {
   const { semantic } = useTheme()
   const { client, loading, error, refresh } = useClient(id ?? null)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [actionError, setActionError] = useState<ApiError | null>(null)
 
-  async function confirmDelete() {
+  const {
+    submitting: deleting,
+    error: actionError,
+    submit: confirmDelete,
+  } = useFormSubmit(async () => {
     if (!id) return
-    setDeleting(true)
-    setActionError(null)
-    try {
-      await clientsApi.delete(id, createIdempotencyKey('client_delete'))
-      toast.success('Cliente eliminado')
-      router.replace(Routes.tenant.clients as Href)
-    } catch (e) {
-      setActionError(toApiError(e))
-    } finally {
-      setDeleting(false)
-    }
-  }
+    await clientsApi.delete(id, createIdempotencyKey('client_delete'))
+    toast.success('Cliente eliminado')
+    router.replace(Routes.tenant.clients as Href)
+  })
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando cliente..." />
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import type { Href } from 'expo-router'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -7,7 +7,7 @@ import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
-import { toApiError, type ApiError } from '@/lib/api/errors'
+import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { spacing } from '@/constants/tokens'
@@ -22,27 +22,21 @@ export function EditPlanScreen() {
   const toast = useToast()
   const { semantic } = useTheme()
   const { plan, loading, error } = usePlan(slug ?? null)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<ApiError | null>(null)
 
-  async function handleSubmit(values: CreatePlanInput | UpdatePlanInput) {
+  const {
+    submitting,
+    error: submitError,
+    submit,
+  } = useFormSubmit(async (values: CreatePlanInput | UpdatePlanInput) => {
     if (!plan) return
-    setSubmitting(true)
-    setSubmitError(null)
-    try {
-      const updated = await plansApi.update(
-        plan.id,
-        values as UpdatePlanInput,
-        createIdempotencyKey('plan_update'),
-      )
-      toast.success('Plan actualizado')
-      router.replace(Routes.superadmin.planDetail(updated.slug) as Href)
-    } catch (e) {
-      setSubmitError(toApiError(e))
-    } finally {
-      setSubmitting(false)
-    }
-  }
+    const updated = await plansApi.update(
+      plan.id,
+      values as UpdatePlanInput,
+      createIdempotencyKey('plan_update'),
+    )
+    toast.success('Plan actualizado')
+    router.replace(Routes.superadmin.planDetail(updated.slug) as Href)
+  })
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando plan..." />
 
@@ -55,7 +49,7 @@ export function EditPlanScreen() {
           <PlanForm
             mode="edit"
             plan={plan}
-            onSubmit={handleSubmit}
+            onSubmit={submit}
             isLoading={submitting}
             apiError={submitError}
           />

@@ -7,8 +7,8 @@ import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { selectUser, useAuthStore } from '@/features/auth/store'
-import { useLogout } from '@/features/auth/hooks/useLogout'
+import { selectUser, useAuthStore } from '../store'
+import { useLogout } from '../hooks/useLogout'
 import { getUserAccessLabel, getUserInitial, getUserRoleLabel } from '../utils/userDisplay'
 
 export function ProfileScreen() {

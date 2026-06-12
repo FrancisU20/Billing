@@ -5,13 +5,15 @@ import type { Href } from 'expo-router'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
+import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { DetailField, DetailSection } from '@/components/ui/DetailSection'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
-import { toApiError, type ApiError } from '@/lib/api/errors'
+import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { formatDate, formatRuc, initials } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
@@ -28,35 +30,29 @@ export function TenantDetailScreen() {
   const toast = useToast()
   const { semantic } = useTheme()
   const { tenant, loading, error, refresh } = useTenant(id ?? null)
-  const [actionPending, setActionPending] = useState(false)
-  const [actionError, setActionError] = useState<ApiError | null>(null)
   const [suspendOpen, setSuspendOpen] = useState(false)
   const [inactivateOpen, setInactivateOpen] = useState(false)
   const [reactivateOpen, setReactivateOpen] = useState(false)
 
-  async function changeStatus(status: 'active' | 'suspended' | 'inactive') {
+  const {
+    submitting: actionPending,
+    error: actionError,
+    submit: changeStatus,
+  } = useFormSubmit(async (status: 'active' | 'suspended' | 'inactive') => {
     if (!id) return
-    setActionPending(true)
-    setActionError(null)
-    try {
-      await tenantsApi.setStatus(id, status, createIdempotencyKey(`tenant_status_${status}`))
-      setSuspendOpen(false)
-      setInactivateOpen(false)
-      setReactivateOpen(false)
-      const label =
-        status === 'active'
-          ? 'Empresa reactivada'
-          : status === 'suspended'
-            ? 'Empresa suspendida'
-            : 'Empresa inactivada'
-      toast.success(label)
-      await refresh()
-    } catch (e) {
-      setActionError(toApiError(e))
-    } finally {
-      setActionPending(false)
-    }
-  }
+    await tenantsApi.setStatus(id, status, createIdempotencyKey(`tenant_status_${status}`))
+    setSuspendOpen(false)
+    setInactivateOpen(false)
+    setReactivateOpen(false)
+    const label =
+      status === 'active'
+        ? 'Empresa reactivada'
+        : status === 'suspended'
+          ? 'Empresa suspendida'
+          : 'Empresa inactivada'
+    toast.success(label)
+    await refresh()
+  })
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando empresa..." />
 
@@ -99,8 +95,16 @@ export function TenantDetailScreen() {
                     </Text>
                     <View style={styles.badgeRow}>
                       <TenantStatusBadge status={tenant.status} />
-                      <SmallBadge label={TENANT_ENVIRONMENT_LABELS[tenant.sri_environment]} />
-                      <SmallBadge label={TENANT_PLAN_STATUS_LABELS[tenant.plan_status]} />
+                      <Badge
+                        variant="accent"
+                        size="sm"
+                        label={TENANT_ENVIRONMENT_LABELS[tenant.sri_environment]}
+                      />
+                      <Badge
+                        variant="accent"
+                        size="sm"
+                        label={TENANT_PLAN_STATUS_LABELS[tenant.plan_status]}
+                      />
                     </View>
                   </View>
                   <View style={styles.profileActions}>
@@ -115,24 +119,24 @@ export function TenantDetailScreen() {
                 </View>
 
                 <DetailSection title="Información fiscal" icon="card-outline">
-                  <Field label="RUC" value={formatRuc(tenant.ruc)} mono />
-                  <Field
+                  <DetailField label="RUC" value={formatRuc(tenant.ruc)} mono />
+                  <DetailField
                     label="Entorno SRI"
                     value={TENANT_ENVIRONMENT_LABELS[tenant.sri_environment]}
                   />
-                  <Field
+                  <DetailField
                     label="Estado plan"
                     value={TENANT_PLAN_STATUS_LABELS[tenant.plan_status]}
                   />
-                  <Field label="Plan ID" value={tenant.plan_id} mono />
+                  <DetailField label="Plan ID" value={tenant.plan_id} mono />
                 </DetailSection>
 
                 <DetailSection title="Contacto" icon="mail-outline">
-                  <Field label="Email" value={tenant.email} />
-                  <Field label="Teléfono" value={tenant.phone} />
-                  <Field label="Dirección" value={tenant.address} />
-                  <Field label="Creado" value={formatDate(tenant.created_at)} />
-                  <Field label="Actualizado" value={formatDate(tenant.updated_at)} />
+                  <DetailField label="Email" value={tenant.email} />
+                  <DetailField label="Teléfono" value={tenant.phone} />
+                  <DetailField label="Dirección" value={tenant.address} />
+                  <DetailField label="Creado" value={formatDate(tenant.created_at)} />
+                  <DetailField label="Actualizado" value={formatDate(tenant.updated_at)} />
                 </DetailSection>
 
                 <StatusSection
@@ -204,19 +208,7 @@ function StatusSection({
   const { status } = tenant
 
   return (
-    <View
-      style={[
-        styles.section,
-        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-      ]}
-    >
-      <View style={styles.sectionTitleRow}>
-        <Ionicons name="shield-outline" size={17} color={semantic.accent.default} />
-        <Text style={[styles.sectionTitle, { color: semantic.text.primary }]}>
-          Gestión de estado
-        </Text>
-      </View>
-
+    <DetailSection title="Gestión de estado" icon="shield-outline" layout="stack">
       <View style={styles.statusCurrentRow}>
         <Text style={[styles.statusCurrentLabel, { color: semantic.text.secondary }]}>
           Estado actual:
@@ -303,57 +295,7 @@ function StatusSection({
           </View>
         </>
       )}
-    </View>
-  )
-}
-
-function SmallBadge({ label }: { label: string }) {
-  const { semantic } = useTheme()
-  return (
-    <View style={[styles.smallBadge, { backgroundColor: semantic.accent.altSubtle }]}>
-      <Text style={[styles.smallBadgeText, { color: semantic.accent.alt }]}>{label}</Text>
-    </View>
-  )
-}
-
-function DetailSection({
-  title,
-  icon,
-  children,
-}: {
-  title: string
-  icon: keyof typeof Ionicons.glyphMap
-  children: React.ReactNode
-}) {
-  const { semantic } = useTheme()
-  return (
-    <View
-      style={[
-        styles.section,
-        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-      ]}
-    >
-      <View style={styles.sectionTitleRow}>
-        <Ionicons name={icon} size={17} color={semantic.accent.default} />
-        <Text style={[styles.sectionTitle, { color: semantic.text.primary }]}>{title}</Text>
-      </View>
-      <View style={styles.fieldGrid}>{children}</View>
-    </View>
-  )
-}
-
-function Field({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  const { semantic } = useTheme()
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>{label}</Text>
-      <Text
-        style={[styles.fieldValue, mono && styles.mono, { color: semantic.text.primary }]}
-        numberOfLines={2}
-      >
-        {value}
-      </Text>
-    </View>
+    </DetailSection>
   )
 }
 
@@ -381,26 +323,7 @@ const styles = StyleSheet.create({
   name: { fontSize: typography.size.xl, fontWeight: typography.weight.bold },
   subtle: { fontSize: typography.size.sm },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], marginTop: spacing[1] },
-  smallBadge: { borderRadius: radius.full, paddingHorizontal: spacing[2], paddingVertical: 2 },
-  smallBadgeText: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
   profileActions: { flexDirection: 'row', gap: spacing[2] },
-  section: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: spacing[4],
-    padding: spacing[5],
-  },
-  sectionTitleRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
-  sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
-  fieldGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
-  field: { flex: 1, minWidth: 220, gap: spacing[1] },
-  fieldLabel: {
-    fontSize: typography.size.xs,
-    fontWeight: typography.weight.semibold,
-    textTransform: 'uppercase',
-  },
-  fieldValue: { fontSize: typography.size.base },
-  mono: { fontFamily: typography.fontFamily.mono, fontSize: typography.size.sm },
   statusCurrentRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
   statusCurrentLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
   statusDescription: { fontSize: typography.size.sm, lineHeight: typography.size.sm * 1.6 },

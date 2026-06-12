@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import { useTheme } from '@/lib/theme-context'
 import { typography, radius, spacing } from '@/constants/tokens'
 
-type BadgeVariant = 'success' | 'warning' | 'error' | 'neutral' | 'primary'
+type BadgeVariant = 'success' | 'warning' | 'error' | 'neutral' | 'primary' | 'accent'
 
 interface BadgeProps {
   label: string
@@ -20,13 +20,21 @@ export function Badge({ label, variant = 'neutral', size = 'md' }: BadgeProps) {
     error: { bg: semantic.status.errorBg, text: semantic.status.error },
     neutral: { bg: semantic.bg.tertiary, text: semantic.text.secondary },
     primary: { bg: semantic.accent.subtle, text: semantic.accent.default },
+    accent: { bg: semantic.accent.altSubtle, text: semantic.accent.alt },
   }
 
   const { bg, text } = variantMap[variant]
 
   return (
     <View style={[staticStyles.base, size === 'sm' && staticStyles.sm, { backgroundColor: bg }]}>
-      <Text style={[staticStyles.label, size === 'sm' && staticStyles.smLabel, { color: text }]}>
+      <Text
+        style={[
+          staticStyles.label,
+          size === 'sm' && staticStyles.smLabel,
+          variant === 'accent' && staticStyles.accentLabel,
+          { color: text },
+        ]}
+      >
         {label}
       </Text>
     </View>
@@ -43,4 +51,5 @@ const staticStyles = StyleSheet.create({
   sm: { paddingHorizontal: spacing[2], paddingVertical: 2 },
   label: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
   smLabel: { fontSize: typography.size.xs },
+  accentLabel: { fontWeight: typography.weight.semibold },
 })
