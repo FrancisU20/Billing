@@ -6,6 +6,9 @@ export const Routes = {
   },
   public: {
     pricing: '/(public)/pricing' as const,
+    register: '/(public)/register' as const,
+    registerDetails: '/(public)/register/details' as const,
+    registerConfirm: '/(public)/register/confirm' as const,
   },
   app: {
     profile: '/(app)/profile' as const,

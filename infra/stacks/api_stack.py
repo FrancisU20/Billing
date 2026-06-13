@@ -185,8 +185,9 @@ class ApiStack(Stack):
             memory_size   = 256,
             environment   = {
                 **_common_env,
-                "OUTBOX_TABLE":     database.outbox_table.table_name,
-                "EVENTS_QUEUE_URL": queues.tenant_onboarding_queue.queue_url,
+                "OUTBOX_TABLE":                  database.outbox_table.table_name,
+                "EVENTS_QUEUE_URL":              queues.tenant_onboarding_queue.queue_url,
+                "EMAIL_NOTIFICATIONS_QUEUE_URL": queues.email_notifications_queue.queue_url,
             },
         )
         outbox_relay_fn.add_event_source(
@@ -201,6 +202,8 @@ class ApiStack(Stack):
         database.outbox_table.grant_stream_read(outbox_relay_fn)
         database.outbox_table.grant_read_write_data(outbox_relay_fn)
         queues.tenant_onboarding_queue.grant_send_messages(outbox_relay_fn)
+        queues.email_notifications_queue.grant_send_messages(outbox_relay_fn)
+        queues.email_notifications_key.grant_encrypt_decrypt(outbox_relay_fn)
 
         # ── Tenant Onboarding Worker ───────────────────────────────────────────
         # timeout = 60s → visibility_timeout SQS = 360s (6×) definido en QueuesStack
@@ -253,6 +256,7 @@ class ApiStack(Stack):
                 "BREVO_SECRET_NAME":  f"codelabs-billing-{env}/brevo-api-key",
                 "BREVO_SENDER_EMAIL": "noreply@codelabsecuador.com",
                 "BREVO_SENDER_NAME":  "CodeLabs Billing",
+                "SUPERADMIN_EMAIL":   config.get("superadmin_email", ""),
             },
         )
         email_notifications_fn.add_event_source(
@@ -478,6 +482,42 @@ class ApiStack(Stack):
                 integration = plans_integration,
                 authorizer  = jwt_authorizer,
             )
+
+        # ── Onboarding Lambda (registro self-service público) ──────────────────
+        onboarding_api_fn = lmb.Function(
+            self, "OnboardingApiFunction",
+            function_name = f"codelabs-billing-{env}-onboarding",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.onboarding.handler.handler",
+            timeout       = Duration.seconds(15),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "TENANTS_TABLE":     database.tenants_table.table_name,
+                "PLANS_TABLE":       database.plans_table.table_name,
+                "AUDIT_LOG_TABLE":   database.audit_table.table_name,
+                "IDEMPOTENCY_TABLE": database.idempotency_table.table_name,
+                "OUTBOX_TABLE":      database.outbox_table.table_name,
+            },
+        )
+        database.tenants_table.grant_read_write_data(onboarding_api_fn)
+        database.plans_table.grant_read_data(onboarding_api_fn)
+        database.audit_table.grant_read_write_data(onboarding_api_fn)
+        database.idempotency_table.grant_read_write_data(onboarding_api_fn)
+        database.outbox_table.grant_write_data(onboarding_api_fn)
+
+        onboarding_integration = integrations.HttpLambdaIntegration(
+            "OnboardingIntegration", onboarding_api_fn
+        )
+
+        # Público por diseño: registro self-service del tenant, sin JWT.
+        api.add_routes(
+            path        = "/onboarding",
+            methods     = [apigwv2.HttpMethod.POST],
+            integration = onboarding_integration,
+        )
 
         # ── Outputs ───────────────────────────────────────────────────────────
         CfnOutput(self, "ApiUrl",

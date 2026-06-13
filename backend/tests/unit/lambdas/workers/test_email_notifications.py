@@ -20,6 +20,7 @@ from tests.unit.support import LambdaContext, configure_unit_environment
 class FakeEmailSender(EmailSender):
     def __init__(self, *, should_fail: bool = False) -> None:
         self.sent: list[dict] = []
+        self.enterprise_leads_sent: list[dict] = []
         self._should_fail = should_fail
 
     def send_welcome(self, *, email: str, legal_rep_name: str, temp_password: str) -> None:
@@ -30,6 +31,21 @@ class FakeEmailSender(EmailSender):
                 "email": email,
                 "legal_rep_name": legal_rep_name,
                 "temp_password": temp_password,
+            }
+        )
+
+    def send_enterprise_lead_notification(
+        self, *, superadmin_email: str, trade_name: str, ruc: str, email: str, plan_id: str
+    ) -> None:
+        if self._should_fail:
+            raise RuntimeError("Brevo unavailable")
+        self.enterprise_leads_sent.append(
+            {
+                "superadmin_email": superadmin_email,
+                "trade_name": trade_name,
+                "ruc": ruc,
+                "email": email,
+                "plan_id": plan_id,
             }
         )
 
@@ -90,6 +106,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         os.environ["BREVO_SECRET_NAME"] = "dummy-secret"
         os.environ["BREVO_SENDER_EMAIL"] = "noreply@test.com"
         os.environ["BREVO_SENDER_NAME"] = "Test"
+        os.environ["SUPERADMIN_EMAIL"] = "ventas@codelabsecuador.com"
         sys.modules.pop("lambdas.workers.email_notifications.handler", None)
         return importlib.import_module("lambdas.workers.email_notifications.handler")
 
@@ -124,6 +141,31 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         self.assertEqual(result, {"batchItemFailures": []})
         self.assertEqual(len(sender.sent), 1)
         self.assertEqual(sender.sent[0]["email"], "owner@empresa.com")
+
+    def test_processes_enterprise_lead_created_event_and_sends_email(self) -> None:
+        mod = self._load_handler_module()
+        sender = FakeEmailSender()
+        mod._email_sender = sender
+
+        result = mod.handler(
+            self._make_sqs_event(
+                {
+                    "trade_name": "Empresa Demo S.A.",
+                    "ruc": "1792146739001",
+                    "email": "contacto@empresa.com",
+                    "plan_id": "uuid-enterprise",
+                },
+                event_type="EnterpriseLeadCreatedEvent",
+            ),
+            LambdaContext(),
+        )
+
+        self.assertEqual(result, {"batchItemFailures": []})
+        self.assertEqual(len(sender.enterprise_leads_sent), 1)
+        sent = sender.enterprise_leads_sent[0]
+        self.assertEqual(sent["superadmin_email"], "ventas@codelabsecuador.com")
+        self.assertEqual(sent["trade_name"], "Empresa Demo S.A.")
+        self.assertEqual(sent["ruc"], "1792146739001")
 
     def test_ignores_unknown_events_without_error(self) -> None:
         mod = self._load_handler_module()
@@ -166,6 +208,11 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                 calls.append(email)
                 if email == "bad@empresa.com":
                     raise RuntimeError("Brevo timeout")
+
+            def send_enterprise_lead_notification(
+                self, *, superadmin_email, trade_name, ruc, email, plan_id
+            ):
+                raise NotImplementedError
 
         mod._email_sender = PartialFakeSender()
 

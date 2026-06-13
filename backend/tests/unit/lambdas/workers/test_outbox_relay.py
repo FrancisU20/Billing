@@ -16,6 +16,7 @@ def _load_outbox_relay_module():
     configure_unit_environment()
     os.environ["OUTBOX_TABLE"] = "unit-outbox"
     os.environ["EVENTS_QUEUE_URL"] = "https://sqs.example/tenant-onboarding"
+    os.environ["EMAIL_NOTIFICATIONS_QUEUE_URL"] = "https://sqs.example/email-notifications"
     sys.modules.pop("lambdas.workers.outbox_relay.handler", None)
     return importlib.import_module("lambdas.workers.outbox_relay.handler")
 

@@ -22,6 +22,7 @@ _deserializer = TypeDeserializer()
 _sqs = boto3.client("sqs")
 _outbox_table = boto3.resource("dynamodb").Table(env("OUTBOX_TABLE"))
 _tenant_onboarding_queue_url = env("EVENTS_QUEUE_URL")
+_email_notifications_queue_url = env("EMAIL_NOTIFICATIONS_QUEUE_URL")
 
 
 def _deserialize(image: dict) -> dict:
@@ -31,6 +32,8 @@ def _deserialize(image: dict) -> dict:
 def _queue_for(event_type: str) -> str:
     if event_type == "TenantCreatedEvent":
         return _tenant_onboarding_queue_url
+    if event_type == "EnterpriseLeadCreatedEvent":
+        return _email_notifications_queue_url
     return ""
 
 

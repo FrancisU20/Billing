@@ -112,43 +112,131 @@ def _build_html(legal_rep_name: str, email: str, temp_password: str) -> str:
 </html>"""
 
 
+def _get_api_key() -> str:
+    api_key = get_secret(_SECRET_NAME)
+    # Secrets Manager puede almacenar el valor como string plano o como JSON.
+    # Si es JSON {"api_key": "xkeysib-..."} lo extraemos; si ya es string, lo usamos directo.
+    if isinstance(api_key, str) and api_key.startswith("{"):
+        try:
+            parsed = json.loads(api_key)
+            api_key = parsed.get("api_key") or parsed.get("value") or api_key
+        except (json.JSONDecodeError, AttributeError):
+            pass
+    if not api_key or not isinstance(api_key, str):
+        raise ExternalServiceError("BREVO_SECRET_NAME no contiene un API key válido")
+    return api_key
+
+
+def _send(api_key: str, payload: dict, *, log_email: str) -> None:
+    response = _http.request(
+        "POST",
+        _BREVO_API_URL,
+        headers={
+            "accept": "application/json",
+            "content-type": "application/json",
+            "api-key": api_key,
+        },
+        body=json.dumps(payload).encode("utf-8"),
+    )
+
+    if response.status >= 400:
+        _log.error("Brevo API error", status=response.status)
+        raise ExternalServiceError(f"Brevo responded {response.status}")
+
+    _log.info("Brevo: email sent", email=log_email, status=response.status)
+
+
+def _build_enterprise_lead_html(trade_name: str, ruc: str, email: str, plan_id: str) -> str:
+    safe_trade_name = escape(trade_name, quote=True)
+    safe_ruc = escape(ruc, quote=True)
+    safe_email = escape(email, quote=True)
+    safe_plan_id = escape(plan_id, quote=True)
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:40px 20px">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+          <tr>
+            <td style="background:#1a1a2e;padding:32px 40px">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
+                CodeLabs Billing
+              </h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px">
+              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+                Nuevo lead Enterprise
+              </h2>
+              <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                Una empresa solicitó el plan Enterprise desde el registro
+                self-service. Contactar para continuar el proceso comercial.
+              </p>
+
+              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+                          border-radius:4px;padding:20px;margin:0 0 24px">
+                <p style="margin:0 0 6px;color:#1a1a2e">
+                  <strong>Razón social:</strong> {safe_trade_name}
+                </p>
+                <p style="margin:0 0 6px;color:#1a1a2e">
+                  <strong>RUC:</strong> {safe_ruc}
+                </p>
+                <p style="margin:0 0 6px;color:#1a1a2e">
+                  <strong>Email de contacto:</strong> {safe_email}
+                </p>
+                <p style="margin:0;color:#1a1a2e">
+                  <strong>Plan solicitado:</strong> {safe_plan_id}
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f8f9fa;padding:20px 40px;
+                       border-top:1px solid #e9ecef">
+              <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
+                © CodeLabs Billing · Ecuador
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
 class BrevoEmailSender(EmailSender):
     def send_welcome(self, *, email: str, legal_rep_name: str, temp_password: str) -> None:
-        api_key = get_secret(_SECRET_NAME)
-        # Secrets Manager puede almacenar el valor como string plano o como JSON.
-        # Si es JSON {"api_key": "xkeysib-..."} lo extraemos; si ya es string, lo usamos directo.
-        if isinstance(api_key, str) and api_key.startswith("{"):
-            try:
-                parsed = json.loads(api_key)
-                api_key = parsed.get("api_key") or parsed.get("value") or api_key
-            except (json.JSONDecodeError, AttributeError):
-                pass
-        if not api_key or not isinstance(api_key, str):
-            raise ExternalServiceError("BREVO_SECRET_NAME no contiene un API key válido")
-
+        api_key = _get_api_key()
         payload = {
             "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": "Bienvenido a CodeLabs Billing — tus credenciales de acceso",
             "htmlContent": _build_html(legal_rep_name, email, temp_password),
         }
+        _send(api_key, payload, log_email=email)
 
-        response = _http.request(
-            "POST",
-            _BREVO_API_URL,
-            headers={
-                "accept": "application/json",
-                "content-type": "application/json",
-                "api-key": api_key,
-            },
-            body=json.dumps(payload).encode("utf-8"),
-        )
-
-        if response.status >= 400:
-            _log.error(
-                "Brevo API error",
-                status=response.status,
-            )
-            raise ExternalServiceError(f"Brevo responded {response.status}")
-
-        _log.info("Brevo: email sent", email=email, status=response.status)
+    def send_enterprise_lead_notification(
+        self, *, superadmin_email: str, trade_name: str, ruc: str, email: str, plan_id: str
+    ) -> None:
+        api_key = _get_api_key()
+        payload = {
+            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "to": [{"email": superadmin_email}],
+            "subject": f"Nuevo lead Enterprise — {trade_name}",
+            "htmlContent": _build_enterprise_lead_html(trade_name, ruc, email, plan_id),
+        }
+        _send(api_key, payload, log_email=superadmin_email)
