@@ -22,6 +22,10 @@ const features = [
   { key: 'includes_api', label: 'Acceso a API' },
 ] as const
 
+const CARD_MIN_HEIGHT = 520
+const HEADER_MIN_HEIGHT = 76
+const STATS_MIN_HEIGHT = 82
+
 export function PlanCard({ plan, highlighted = false, onSelect }: PlanCardProps) {
   const { semantic } = useTheme()
 
@@ -76,7 +80,9 @@ export function PlanCard({ plan, highlighted = false, onSelect }: PlanCardProps)
 
       <View style={staticStyles.header}>
         <Text style={[staticStyles.name, { color: textMain }]}>{plan.name}</Text>
-        <Text style={[staticStyles.description, { color: textMuted }]}>{plan.description}</Text>
+        <Text style={[staticStyles.description, { color: textMuted }]} numberOfLines={2}>
+          {plan.description}
+        </Text>
       </View>
 
       <View style={staticStyles.priceBlock}>
@@ -129,9 +135,11 @@ export function PlanCard({ plan, highlighted = false, onSelect }: PlanCardProps)
         })}
       </View>
 
-      <Button variant={highlighted ? 'primary' : 'outline'} fullWidth onPress={onSelect}>
-        Elegir plan
-      </Button>
+      <View style={staticStyles.action}>
+        <Button variant={highlighted ? 'primary' : 'outline'} fullWidth onPress={onSelect}>
+          Elegir plan
+        </Button>
+      </View>
     </View>
   )
 }
@@ -140,8 +148,10 @@ const staticStyles = StyleSheet.create({
   container: {
     borderRadius: radius['2xl'],
     borderWidth: 1,
+    flex: 1,
     padding: spacing[5],
     gap: spacing[4],
+    minHeight: CARD_MIN_HEIGHT,
     overflow: 'hidden',
   },
   ribbon: {
@@ -167,7 +177,7 @@ const staticStyles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 'auto',
   },
-  header: { gap: spacing[2] },
+  header: { gap: spacing[2], minHeight: HEADER_MIN_HEIGHT },
   name: {
     fontSize: typography.size.xl,
     fontWeight: typography.weight.bold,
@@ -188,7 +198,7 @@ const staticStyles = StyleSheet.create({
   cycle: { fontSize: typography.size.sm },
   billingHint: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
   divider: { height: 1 },
-  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
+  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], minHeight: STATS_MIN_HEIGHT },
   statPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -209,4 +219,5 @@ const staticStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   featureLabel: { fontSize: typography.size.sm },
+  action: { marginTop: 'auto' },
 })

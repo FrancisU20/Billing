@@ -2,6 +2,7 @@ import React from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTheme } from '@/lib/theme-context'
+import { Logo } from '@/components/branding/Logo'
 import { overlay, typography, spacing, radius } from '@/constants/tokens'
 import { Routes } from '@/constants/routes'
 import { LoginForm } from '../components/LoginForm'
@@ -43,10 +44,7 @@ export function LoginScreen() {
     <View style={[staticStyles.page, { backgroundColor: pageBg }]}>
       <View style={staticStyles.content}>
         <View style={staticStyles.brand}>
-          <View style={staticStyles.mark}>
-            <View style={[staticStyles.markDot, { backgroundColor: semantic.accent.default }]} />
-            <View style={[staticStyles.markDot, { backgroundColor: semantic.accent.default }]} />
-          </View>
+          <Logo size={32} style={staticStyles.mark} />
           <Text style={[staticStyles.brandName, { color: brandColor }]}>
             CODELABS <Text style={{ color: semantic.accent.default }}>BILLING</Text>
           </Text>
@@ -81,8 +79,7 @@ const staticStyles = StyleSheet.create({
   page: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing[6] },
   content: { width: '100%', maxWidth: 420, gap: spacing[7] },
   brand: { gap: spacing[3] },
-  mark: { flexDirection: 'row', gap: spacing[1] },
-  markDot: { width: 8, height: 8, borderRadius: radius.full },
+  mark: { borderRadius: radius.sm, overflow: 'hidden' },
   brandName: { fontSize: typography.size.xs, fontWeight: typography.weight.bold, letterSpacing: 2 },
   heading: { gap: spacing[2] },
   title: {

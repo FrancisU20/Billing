@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native'
+import { FlatList, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
@@ -137,7 +137,9 @@ export function ClientsListScreen() {
         }
         ListFooterComponent={
           loadingMore ? (
-            <ActivityIndicator color={semantic.accent.default} style={styles.loadingMore} />
+            <View style={styles.loadingMore}>
+              <LoadingSpinner size="small" compact />
+            </View>
           ) : null
         }
         onEndReached={fetchMore}

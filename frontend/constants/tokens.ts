@@ -333,3 +333,20 @@ export const animation = {
     slow: 400,
   },
 } as const
+
+// Identidad visual del logo Codelabs Ecuador (C con particulas orbitales)
+export const brand = {
+  gradient: {
+    light: { from: colors.primary[500], to: colors.primary[800] },
+    dark: { from: '#1E1B3A', to: '#0D0B1E' },
+  },
+  mark: {
+    light: colors.neutral[0],
+    dark: colors.primary[500],
+  },
+  particle: {
+    light: colors.neutral[0],
+    dark: colors.primary[400],
+  },
+  glow: colors.primary[500],
+} as const

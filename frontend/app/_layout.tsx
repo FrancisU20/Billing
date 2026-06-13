@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { ThemeProvider, useTheme } from '@/lib/theme-context'
 import { ToastProvider } from '@/components/feedback/Toast'
+import { LoadingScreen } from '@/components/branding/LoadingScreen'
 import { useAuthStore } from '@/features/auth/store'
 import { configureApiClient } from '@/lib/api/client'
 import { authApi } from '@/features/auth/api'
@@ -47,7 +48,7 @@ function AppShell() {
     })
   }, [setTokens, clearAuth])
 
-  if (!hydrated) return null
+  if (!hydrated) return <LoadingScreen />
 
   return (
     <>

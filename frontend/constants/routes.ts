@@ -5,6 +5,7 @@ export const Routes = {
     challenge: '/(auth)/challenge' as const,
   },
   public: {
+    components: '/(public)/components' as const,
     registerDetails: '/(public)/register/details' as const,
     registerConfirm: '/(public)/register/confirm' as const,
   },

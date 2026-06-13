@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react'
+import React, { forwardRef, useMemo, useState } from 'react'
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
@@ -17,25 +17,44 @@ interface PlansSectionProps {
   onLayout?: (event: LayoutChangeEvent) => void
 }
 
+const MAX_GRID_WIDTH = 1180
+const THREE_COLUMN_MIN_WIDTH = 940
+const TWO_COLUMN_MIN_WIDTH = 620
+
 export const PlansSection = forwardRef<View, PlansSectionProps>(function PlansSection(
   { onLayout },
   ref,
 ) {
+  const [sectionWidth, setSectionWidth] = useState(0)
   const { plans, loading, error, refresh } = usePlans()
   const { semantic } = useTheme()
   const router = useRouter()
   const selectPlan = useOnboardingStore((state) => state.selectPlan)
   const highlightedIndex = plans.length > 1 ? 1 : 0
 
+  const gridWidth = Math.min(Math.max(sectionWidth - spacing[5] * 2, 0), MAX_GRID_WIDTH)
+  const columns =
+    gridWidth >= THREE_COLUMN_MIN_WIDTH ? 3 : gridWidth >= TWO_COLUMN_MIN_WIDTH ? 2 : 1
+  const cardWidth = useMemo(() => {
+    if (!gridWidth) return undefined
+    const totalGap = spacing[4] * (columns - 1)
+    return Math.floor((gridWidth - totalGap) / columns)
+  }, [columns, gridWidth])
+
   const handleSelect = (plan: Plan) => {
     selectPlan(plan)
     router.push(Routes.public.registerDetails as Href)
   }
 
+  const handleLayout = (event: LayoutChangeEvent) => {
+    setSectionWidth(event.nativeEvent.layout.width)
+    onLayout?.(event)
+  }
+
   return (
     <View
       ref={ref}
-      onLayout={onLayout}
+      onLayout={handleLayout}
       style={[styles.container, { backgroundColor: semantic.bg.tertiary }]}
     >
       <View style={styles.heading}>
@@ -59,9 +78,9 @@ export const PlansSection = forwardRef<View, PlansSectionProps>(function PlansSe
           action={{ label: 'Reintentar', onPress: refresh }}
         />
       ) : (
-        <View style={styles.grid}>
+        <View style={[styles.grid, gridWidth ? { maxWidth: gridWidth } : null]}>
           {plans.map((plan, index) => (
-            <View key={plan.id} style={styles.cardWrap}>
+            <View key={plan.id} style={[styles.cardWrap, cardWidth ? { width: cardWidth } : null]}>
               <PlanCard
                 plan={plan}
                 highlighted={index === highlightedIndex}
@@ -87,6 +106,14 @@ const styles = StyleSheet.create({
     fontSize: typography.size.base,
     lineHeight: typography.size.base * typography.lineHeight.normal,
   },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
-  cardWrap: { borderRadius: radius['2xl'], flexBasis: 300, flexGrow: 1 },
+  grid: {
+    alignItems: 'stretch',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[4],
+    justifyContent: 'center',
+    width: '100%',
+  },
+  cardWrap: { alignSelf: 'stretch', borderRadius: radius['2xl'] },
 })
