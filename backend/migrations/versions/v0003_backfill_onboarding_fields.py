@@ -18,7 +18,10 @@ por slug.
 from migrations.context import MigrationContext, MigrationResult
 
 MIGRATION_ID = "0003_backfill_onboarding_fields"
-DESCRIPTION = "Backfill Tenant.legal_name/accounting_required y campos pruebas_*/dedicated_queue/self_service de Plan."
+DESCRIPTION = (
+    "Backfill Tenant.legal_name/accounting_required y campos "
+    "pruebas_*/dedicated_queue/self_service de Plan."
+)
 
 _PLAN_DEFAULTS_BY_SLUG: dict[str, dict] = {
     "free": dict(
@@ -74,7 +77,9 @@ def _backfill_tenants(tenants_table) -> tuple[int, int, list[str]]:
 
             tenants_table.update_item(
                 Key={"id": tenant_id},
-                UpdateExpression="SET legal_name = :legal_name, accounting_required = :accounting_required",
+                UpdateExpression=(
+                    "SET legal_name = :legal_name, accounting_required = :accounting_required"
+                ),
                 ExpressionAttributeValues={
                     ":legal_name": item.get("trade_name", ""),
                     ":accounting_required": False,
