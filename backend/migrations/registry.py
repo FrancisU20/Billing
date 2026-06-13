@@ -3,7 +3,11 @@ from __future__ import annotations
 """Ordered migration registry."""
 
 from migrations.definition import Migration
-from migrations.versions import v0001_seed_plans, v0002_backfill_plan_cycle_ends_at
+from migrations.versions import (
+    v0001_seed_plans,
+    v0002_backfill_plan_cycle_ends_at,
+    v0003_backfill_onboarding_fields,
+)
 
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(
@@ -15,5 +19,10 @@ MIGRATIONS: tuple[Migration, ...] = (
         id=v0002_backfill_plan_cycle_ends_at.MIGRATION_ID,
         description=v0002_backfill_plan_cycle_ends_at.DESCRIPTION,
         run=v0002_backfill_plan_cycle_ends_at.run,
+    ),
+    Migration(
+        id=v0003_backfill_onboarding_fields.MIGRATION_ID,
+        description=v0003_backfill_onboarding_fields.DESCRIPTION,
+        run=v0003_backfill_onboarding_fields.run,
     ),
 )

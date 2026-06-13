@@ -29,10 +29,12 @@ def tenant_payload(**overrides: Any) -> dict:
     payload = {
         "ruc": VALID_RUC,
         "trade_name": "CodeLabs Test",
+        "legal_name": "CodeLabs Test S.A.",
         "legal_rep_name": "Francis Ulloa",
         "email": "OWNER@CODELABS.COM",
         "phone": "0999999999",
         "address": "Av Siempre Viva 123",
+        "accounting_required": False,
         "plan_id": "uuid-basic",
     }
     payload.update(overrides)

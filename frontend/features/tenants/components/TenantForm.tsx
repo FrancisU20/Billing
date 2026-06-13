@@ -9,7 +9,7 @@ import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useTheme } from '@/lib/theme-context'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
-import { TENANT_ENVIRONMENT_OPTIONS } from '../constants'
+import { ACCOUNTING_REQUIRED_OPTIONS, TENANT_ENVIRONMENT_OPTIONS } from '../constants'
 import { tenantToFormValues, type TenantFormValues } from '../form'
 import { tenantFormValuesSchema } from '../schemas'
 import type { ApiError } from '@/lib/api/errors'
@@ -45,6 +45,7 @@ export function TenantForm({
   })
   const selectedPlanId = useWatch({ control, name: 'plan_id' })
   const sriEnvironment = useWatch({ control, name: 'sri_environment' })
+  const accountingRequired = useWatch({ control, name: 'accounting_required' })
 
   return (
     <View style={styles.container}>
@@ -89,6 +90,23 @@ export function TenantForm({
 
         <Controller
           control={control}
+          name="legal_name"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <FormField
+              label="Razón social"
+              placeholder="CodeLabs S.A."
+              leftIcon="document-text-outline"
+              error={errors.legal_name?.message}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              value={value}
+              required
+            />
+          )}
+        />
+
+        <Controller
+          control={control}
           name="legal_rep_name"
           render={({ field: { onChange, onBlur, value } }) => (
             <FormField
@@ -103,6 +121,22 @@ export function TenantForm({
             />
           )}
         />
+
+        <View style={styles.fieldBlock}>
+          <Text style={[styles.label, { color: semantic.text.primary }]}>
+            Obligado a llevar contabilidad *
+          </Text>
+          <SegmentedControl<'yes' | 'no'>
+            options={ACCOUNTING_REQUIRED_OPTIONS}
+            value={accountingRequired ? 'yes' : 'no'}
+            onChange={(next) =>
+              setValue('accounting_required', next === 'yes', {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
+          />
+        </View>
 
         <View style={styles.fieldBlock}>
           <Text style={[styles.label, { color: semantic.text.primary }]}>Entorno SRI *</Text>

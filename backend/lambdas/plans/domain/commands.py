@@ -16,6 +16,10 @@ class CreatePlanCommand:
     max_locations: int
     max_emission_points: int
     max_users: int
+    pruebas_monthly_docs_limit: int
+    pruebas_monthly_bulk_limit: int
+    dedicated_queue: bool
+    self_service: bool
     includes_credit_notes: bool
     includes_withholdings: bool
     includes_delivery_notes: bool
@@ -38,6 +42,10 @@ class UpdatePlanCommand:
     max_locations: int | None = None
     max_emission_points: int | None = None
     max_users: int | None = None
+    pruebas_monthly_docs_limit: int | None = None
+    pruebas_monthly_bulk_limit: int | None = None
+    dedicated_queue: bool | None = None
+    self_service: bool | None = None
     includes_credit_notes: bool | None = None
     includes_withholdings: bool | None = None
     includes_delivery_notes: bool | None = None

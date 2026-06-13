@@ -21,6 +21,11 @@ export const TENANT_PLAN_STATUS_OPTIONS: Array<{ value: PlanStatus | 'all'; labe
   { value: 'expired', label: 'Expirado' },
 ]
 
+export const ACCOUNTING_REQUIRED_OPTIONS: Array<{ value: 'yes' | 'no'; label: string }> = [
+  { value: 'no', label: 'No' },
+  { value: 'yes', label: 'Sí' },
+]
+
 export const TENANT_SEARCH_MODE_OPTIONS = [
   { value: 'q', label: 'General' },
   { value: 'ruc', label: 'RUC exacto' },

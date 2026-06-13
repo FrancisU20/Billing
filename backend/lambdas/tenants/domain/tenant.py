@@ -40,10 +40,12 @@ _ALLOWED_STATUS_TRANSITIONS: dict[TenantStatus, set[TenantStatus]] = {
 class Tenant(GlobalEntity):
     ruc: str = ""
     trade_name: str = ""
+    legal_name: str = ""
     legal_rep_name: str = ""
     email: str = ""
     phone: str = ""
     address: str = ""
+    accounting_required: bool = False
     sri_environment: SriEnvironment = field(default=SriEnvironment.TESTING)
     status: TenantStatus = field(default=TenantStatus.ACTIVE)
     plan_id: str = ""
@@ -58,10 +60,12 @@ class Tenant(GlobalEntity):
         tenant = cls(
             ruc=str(ruc),
             trade_name=cmd.trade_name.strip(),
+            legal_name=cmd.legal_name.strip(),
             legal_rep_name=cmd.legal_rep_name.strip(),
             email=str(email),
             phone=cmd.phone.strip(),
             address=cmd.address.strip(),
+            accounting_required=cmd.accounting_required,
             sri_environment=SriEnvironment.TESTING,
             status=TenantStatus.ACTIVE,
             plan_id=cmd.plan_id,
@@ -76,6 +80,8 @@ class Tenant(GlobalEntity):
     def update(self, cmd: UpdateTenantCommand) -> None:
         if cmd.trade_name is not None:
             self.trade_name = cmd.trade_name.strip()
+        if cmd.legal_name is not None:
+            self.legal_name = cmd.legal_name.strip()
         if cmd.legal_rep_name is not None:
             self.legal_rep_name = cmd.legal_rep_name.strip()
         if cmd.email is not None:
@@ -84,6 +90,8 @@ class Tenant(GlobalEntity):
             self.phone = cmd.phone.strip()
         if cmd.address is not None:
             self.address = cmd.address.strip()
+        if cmd.accounting_required is not None:
+            self.accounting_required = cmd.accounting_required
         if cmd.sri_environment is not None:
             try:
                 self.sri_environment = SriEnvironment(cmd.sri_environment)
@@ -119,10 +127,12 @@ class Tenant(GlobalEntity):
             "id": self.id,
             "ruc": self.ruc,
             "trade_name": self.trade_name,
+            "legal_name": self.legal_name,
             "legal_rep_name": self.legal_rep_name,
             "email": self.email,
             "phone": self.phone,
             "address": self.address,
+            "accounting_required": self.accounting_required,
             "sri_environment": self.sri_environment.value,
             "status": self.status.value,
             "plan_id": self.plan_id,

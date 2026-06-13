@@ -16,6 +16,10 @@ class CreatePlanRequest(BaseModel):
     max_locations: int = Field(1, ge=-1)
     max_emission_points: int = Field(1, ge=-1)
     max_users: int = Field(1, ge=-1)
+    pruebas_monthly_docs_limit: int = Field(..., ge=-1)
+    pruebas_monthly_bulk_limit: int = Field(..., ge=-1)
+    dedicated_queue: bool = False
+    self_service: bool = True
     includes_credit_notes: bool = True
     includes_withholdings: bool = True
     includes_delivery_notes: bool = True
@@ -34,6 +38,10 @@ class UpdatePlanRequest(BaseModel):
     max_locations: int | None = Field(None, ge=-1)
     max_emission_points: int | None = Field(None, ge=-1)
     max_users: int | None = Field(None, ge=-1)
+    pruebas_monthly_docs_limit: int | None = Field(None, ge=-1)
+    pruebas_monthly_bulk_limit: int | None = Field(None, ge=-1)
+    dedicated_queue: bool | None = None
+    self_service: bool | None = None
     includes_credit_notes: bool | None = None
     includes_withholdings: bool | None = None
     includes_delivery_notes: bool | None = None

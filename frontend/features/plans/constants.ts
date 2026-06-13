@@ -25,5 +25,10 @@ export const PLAN_FEATURES = [
 
 export const UNLIMITED_LIMIT = -1
 
+export const BOOLEAN_TOGGLE_OPTIONS: Array<{ value: 'yes' | 'no'; label: string }> = [
+  { value: 'no', label: 'No' },
+  { value: 'yes', label: 'Sí' },
+]
+
 export type PlanStatusFilter = (typeof PLAN_STATUS_OPTIONS)[number]['value']
 export type PlanSearchMode = (typeof PLAN_SEARCH_MODE_OPTIONS)[number]['value']

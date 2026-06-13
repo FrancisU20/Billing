@@ -9,7 +9,12 @@ import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useTheme } from '@/lib/theme-context'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
-import { PLAN_FEATURES, PLAN_LIMIT_CYCLE_OPTIONS, UNLIMITED_LIMIT } from '../constants'
+import {
+  BOOLEAN_TOGGLE_OPTIONS,
+  PLAN_FEATURES,
+  PLAN_LIMIT_CYCLE_OPTIONS,
+  UNLIMITED_LIMIT,
+} from '../constants'
 import { planFormValuesSchema, type PlanFormValues } from '../schemas'
 import type { ApiError } from '@/lib/api/errors'
 import type { CreatePlanInput, LimitCycle, Plan, UpdatePlanInput } from '../types'
@@ -34,6 +39,8 @@ export function PlanForm({ mode, plan, onSubmit, isLoading, apiError }: PlanForm
     defaultValues: planToFormValues(plan),
   })
   const limitCycle = useWatch({ control, name: 'limit_cycle' })
+  const dedicatedQueue = useWatch({ control, name: 'dedicated_queue' })
+  const selfService = useWatch({ control, name: 'self_service' })
 
   function submit(values: PlanFormValues) {
     const payload = formValuesToPlanPayload(values)
@@ -48,6 +55,10 @@ export function PlanForm({ mode, plan, onSubmit, isLoading, apiError }: PlanForm
         max_locations: payload.max_locations,
         max_emission_points: payload.max_emission_points,
         max_users: payload.max_users,
+        pruebas_monthly_docs_limit: payload.pruebas_monthly_docs_limit,
+        pruebas_monthly_bulk_limit: payload.pruebas_monthly_bulk_limit,
+        dedicated_queue: payload.dedicated_queue,
+        self_service: payload.self_service,
         includes_credit_notes: payload.includes_credit_notes,
         includes_withholdings: payload.includes_withholdings,
         includes_delivery_notes: payload.includes_delivery_notes,
@@ -195,6 +206,47 @@ export function PlanForm({ mode, plan, onSubmit, isLoading, apiError }: PlanForm
         />
       </FormSection>
 
+      <FormSection title="Onboarding y entorno de pruebas" icon="flask-outline">
+        <LimitField
+          control={control}
+          setValue={setValue}
+          name="pruebas_monthly_docs_limit"
+          unlimitedName="pruebas_monthly_docs_limit_unlimited"
+          label="Documentos/mes en pruebas"
+          error={errors.pruebas_monthly_docs_limit?.message}
+        />
+        <LimitField
+          control={control}
+          setValue={setValue}
+          name="pruebas_monthly_bulk_limit"
+          unlimitedName="pruebas_monthly_bulk_limit_unlimited"
+          label="Documentos batch/mes en pruebas"
+          error={errors.pruebas_monthly_bulk_limit?.message}
+        />
+        <View style={styles.grid}>
+          <View style={styles.fieldBlock}>
+            <Text style={[styles.label, { color: semantic.text.primary }]}>Queue dedicada</Text>
+            <SegmentedControl<'yes' | 'no'>
+              options={BOOLEAN_TOGGLE_OPTIONS}
+              value={dedicatedQueue ? 'yes' : 'no'}
+              onChange={(next) =>
+                setValue('dedicated_queue', next === 'yes', { shouldDirty: true })
+              }
+            />
+          </View>
+          <View style={styles.fieldBlock}>
+            <Text style={[styles.label, { color: semantic.text.primary }]}>
+              Onboarding self-service
+            </Text>
+            <SegmentedControl<'yes' | 'no'>
+              options={BOOLEAN_TOGGLE_OPTIONS}
+              value={selfService ? 'yes' : 'no'}
+              onChange={(next) => setValue('self_service', next === 'yes', { shouldDirty: true })}
+            />
+          </View>
+        </View>
+      </FormSection>
+
       <FormSection title="Módulos incluidos" icon="apps-outline">
         <View style={styles.featureGrid}>
           {PLAN_FEATURES.map((feature) => (
@@ -262,12 +314,20 @@ function LimitField({
 }: {
   control: ReturnType<typeof useForm<PlanFormValues>>['control']
   setValue: ReturnType<typeof useForm<PlanFormValues>>['setValue']
-  name: 'document_limit' | 'max_locations' | 'max_emission_points' | 'max_users'
+  name:
+    | 'document_limit'
+    | 'max_locations'
+    | 'max_emission_points'
+    | 'max_users'
+    | 'pruebas_monthly_docs_limit'
+    | 'pruebas_monthly_bulk_limit'
   unlimitedName:
     | 'document_limit_unlimited'
     | 'max_locations_unlimited'
     | 'max_emission_points_unlimited'
     | 'max_users_unlimited'
+    | 'pruebas_monthly_docs_limit_unlimited'
+    | 'pruebas_monthly_bulk_limit_unlimited'
   label: string
   error?: string
 }) {
@@ -312,7 +372,14 @@ function NumberField({
   disabled = false,
 }: {
   control: ReturnType<typeof useForm<PlanFormValues>>['control']
-  name: 'document_limit' | 'max_locations' | 'max_emission_points' | 'max_users' | 'order'
+  name:
+    | 'document_limit'
+    | 'max_locations'
+    | 'max_emission_points'
+    | 'max_users'
+    | 'pruebas_monthly_docs_limit'
+    | 'pruebas_monthly_bulk_limit'
+    | 'order'
   label: string
   error?: string
   disabled?: boolean
@@ -382,6 +449,12 @@ function planToFormValues(plan?: Plan | null): PlanFormValues {
     max_emission_points_unlimited: plan?.max_emission_points === UNLIMITED_LIMIT,
     max_users: normalizeLimitInput(plan?.max_users, 1),
     max_users_unlimited: plan?.max_users === UNLIMITED_LIMIT,
+    pruebas_monthly_docs_limit: normalizeLimitInput(plan?.pruebas_monthly_docs_limit, 0),
+    pruebas_monthly_docs_limit_unlimited: plan?.pruebas_monthly_docs_limit === UNLIMITED_LIMIT,
+    pruebas_monthly_bulk_limit: normalizeLimitInput(plan?.pruebas_monthly_bulk_limit, 0),
+    pruebas_monthly_bulk_limit_unlimited: plan?.pruebas_monthly_bulk_limit === UNLIMITED_LIMIT,
+    dedicated_queue: plan?.dedicated_queue ?? false,
+    self_service: plan?.self_service ?? true,
     includes_credit_notes: plan?.includes_credit_notes ?? true,
     includes_withholdings: plan?.includes_withholdings ?? true,
     includes_delivery_notes: plan?.includes_delivery_notes ?? true,
@@ -404,6 +477,14 @@ function formValuesToPlanPayload(values: PlanFormValues): CreatePlanInput {
       ? UNLIMITED_LIMIT
       : values.max_emission_points,
     max_users: values.max_users_unlimited ? UNLIMITED_LIMIT : values.max_users,
+    pruebas_monthly_docs_limit: values.pruebas_monthly_docs_limit_unlimited
+      ? UNLIMITED_LIMIT
+      : values.pruebas_monthly_docs_limit,
+    pruebas_monthly_bulk_limit: values.pruebas_monthly_bulk_limit_unlimited
+      ? UNLIMITED_LIMIT
+      : values.pruebas_monthly_bulk_limit,
+    dedicated_queue: values.dedicated_queue,
+    self_service: values.self_service,
     includes_credit_notes: values.includes_credit_notes,
     includes_withholdings: values.includes_withholdings,
     includes_delivery_notes: values.includes_delivery_notes,

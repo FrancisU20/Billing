@@ -11,10 +11,12 @@ const tenant = {
   id: 'tenant-1',
   ruc: '1790012345001',
   trade_name: 'CodeLabs',
+  legal_name: 'CodeLabs S.A.',
   legal_rep_name: 'Pancho Ulloa',
   email: 'admin@codelabs.ec',
   phone: '0999999999',
   address: 'Quito',
+  accounting_required: false,
   sri_environment: 'testing',
   status: 'active',
   plan_id: 'plan-1',
@@ -50,10 +52,12 @@ describe('tenant contract schemas', () => {
     const createPayload = {
       ruc: '1790012345001',
       trade_name: 'CodeLabs',
+      legal_name: 'CodeLabs S.A.',
       legal_rep_name: 'Pancho Ulloa',
       email: 'admin@codelabs.ec',
       phone: '0999999999',
       address: 'Quito',
+      accounting_required: false,
       plan_id: 'plan-1',
     }
 

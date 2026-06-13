@@ -125,6 +125,30 @@ export function PlanDetailScreen() {
                   />
                 </DetailSection>
 
+                <DetailSection title="Onboarding y entorno de pruebas" icon="flask-outline">
+                  <DetailField
+                    label="Documentos/mes en pruebas"
+                    value={formatPlanLimit(
+                      plan.pruebas_monthly_docs_limit,
+                      'documento',
+                      'documentos',
+                    )}
+                  />
+                  <DetailField
+                    label="Documentos batch/mes en pruebas"
+                    value={formatPlanLimit(
+                      plan.pruebas_monthly_bulk_limit,
+                      'documento',
+                      'documentos',
+                    )}
+                  />
+                  <DetailField label="Queue dedicada" value={plan.dedicated_queue ? 'Sí' : 'No'} />
+                  <DetailField
+                    label="Onboarding self-service"
+                    value={plan.self_service ? 'Sí' : 'No'}
+                  />
+                </DetailSection>
+
                 <DetailSection title="Módulos" icon="apps-outline">
                   {PLAN_FEATURES.map((feature) => (
                     <DetailField

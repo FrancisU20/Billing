@@ -41,6 +41,10 @@ class Plan:
     max_locations: int = 1  # -1 = unlimited
     max_emission_points: int = 1  # -1 = unlimited
     max_users: int = 1  # -1 = unlimited
+    pruebas_monthly_docs_limit: int = 0  # docs/mes en sri_environment=testing; -1 = ilimitado
+    pruebas_monthly_bulk_limit: int = 0  # docs batch/mes en sri_environment=testing; -1 = ilimitado
+    dedicated_queue: bool = False  # True en Enterprise — SQS FIFO propia
+    self_service: bool = True  # False en Enterprise — onboarding toma la rama "lead capture"
     includes_credit_notes: bool = True
     includes_withholdings: bool = True
     includes_delivery_notes: bool = True
@@ -66,6 +70,10 @@ class Plan:
             max_locations=cmd.max_locations,
             max_emission_points=cmd.max_emission_points,
             max_users=cmd.max_users,
+            pruebas_monthly_docs_limit=cmd.pruebas_monthly_docs_limit,
+            pruebas_monthly_bulk_limit=cmd.pruebas_monthly_bulk_limit,
+            dedicated_queue=cmd.dedicated_queue,
+            self_service=cmd.self_service,
             includes_credit_notes=cmd.includes_credit_notes,
             includes_withholdings=cmd.includes_withholdings,
             includes_delivery_notes=cmd.includes_delivery_notes,
@@ -94,6 +102,14 @@ class Plan:
             self.max_emission_points = cmd.max_emission_points
         if cmd.max_users is not None:
             self.max_users = cmd.max_users
+        if cmd.pruebas_monthly_docs_limit is not None:
+            self.pruebas_monthly_docs_limit = cmd.pruebas_monthly_docs_limit
+        if cmd.pruebas_monthly_bulk_limit is not None:
+            self.pruebas_monthly_bulk_limit = cmd.pruebas_monthly_bulk_limit
+        if cmd.dedicated_queue is not None:
+            self.dedicated_queue = cmd.dedicated_queue
+        if cmd.self_service is not None:
+            self.self_service = cmd.self_service
         if cmd.includes_credit_notes is not None:
             self.includes_credit_notes = cmd.includes_credit_notes
         if cmd.includes_withholdings is not None:
@@ -127,6 +143,10 @@ class Plan:
             "max_locations": self.max_locations,
             "max_emission_points": self.max_emission_points,
             "max_users": self.max_users,
+            "pruebas_monthly_docs_limit": self.pruebas_monthly_docs_limit,
+            "pruebas_monthly_bulk_limit": self.pruebas_monthly_bulk_limit,
+            "dedicated_queue": self.dedicated_queue,
+            "self_service": self.self_service,
             "includes_credit_notes": self.includes_credit_notes,
             "includes_withholdings": self.includes_withholdings,
             "includes_delivery_notes": self.includes_delivery_notes,

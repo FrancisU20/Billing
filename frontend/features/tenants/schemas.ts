@@ -8,10 +8,12 @@ export const tenantSchema = z.object({
   id: z.string().min(1),
   ruc: z.string().min(10).max(13),
   trade_name: z.string().min(1),
+  legal_name: z.string().min(1),
   legal_rep_name: z.string().min(1),
   email: z.string().email(),
   phone: z.string().min(1),
   address: z.string().min(1),
+  accounting_required: z.boolean(),
   sri_environment: sriEnvironmentSchema,
   status: tenantStatusSchema,
   plan_id: z.string().min(1),
@@ -33,6 +35,7 @@ export const createTenantSchema = z
   .object({
     ruc: z.string().min(10, 'RUC inválido').max(13, 'RUC inválido'),
     trade_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(200, 'Máximo 200 caracteres'),
+    legal_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(200, 'Máximo 200 caracteres'),
     legal_rep_name: z
       .string()
       .trim()
@@ -41,6 +44,7 @@ export const createTenantSchema = z
     email: z.string().trim().email('Email inválido').max(200, 'Máximo 200 caracteres'),
     phone: z.string().trim().min(7, 'Mínimo 7 caracteres').max(20, 'Máximo 20 caracteres'),
     address: z.string().trim().min(5, 'Mínimo 5 caracteres').max(500, 'Máximo 500 caracteres'),
+    accounting_required: z.boolean(),
     plan_id: z.string().min(1, 'El plan es requerido').max(36, 'Plan inválido'),
   })
   .strict()
@@ -48,6 +52,12 @@ export const createTenantSchema = z
 export const updateTenantSchema = z
   .object({
     trade_name: z
+      .string()
+      .trim()
+      .min(2, 'Mínimo 2 caracteres')
+      .max(200, 'Máximo 200 caracteres')
+      .optional(),
+    legal_name: z
       .string()
       .trim()
       .min(2, 'Mínimo 2 caracteres')
@@ -72,6 +82,7 @@ export const updateTenantSchema = z
       .min(5, 'Mínimo 5 caracteres')
       .max(500, 'Máximo 500 caracteres')
       .optional(),
+    accounting_required: z.boolean().optional(),
     sri_environment: sriEnvironmentSchema.optional(),
   })
   .strict()
@@ -85,10 +96,12 @@ export const toggleTenantStatusSchema = z
 export const tenantFormValuesSchema = z.object({
   ruc: z.string().trim().min(10, 'RUC inválido').max(13, 'RUC inválido'),
   trade_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(200, 'Máximo 200 caracteres'),
+  legal_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(200, 'Máximo 200 caracteres'),
   legal_rep_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(200, 'Máximo 200 caracteres'),
   email: z.string().trim().email('Email inválido').max(200, 'Máximo 200 caracteres'),
   phone: z.string().trim().min(7, 'Mínimo 7 caracteres').max(20, 'Máximo 20 caracteres'),
   address: z.string().trim().min(5, 'Mínimo 5 caracteres').max(500, 'Máximo 500 caracteres'),
+  accounting_required: z.boolean(),
   sri_environment: sriEnvironmentSchema,
   plan_id: z.string().min(1, 'El plan es requerido'),
 })

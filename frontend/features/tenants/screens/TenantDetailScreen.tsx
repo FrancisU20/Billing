@@ -120,6 +120,11 @@ export function TenantDetailScreen() {
 
                 <DetailSection title="Información fiscal" icon="card-outline">
                   <DetailField label="RUC" value={formatRuc(tenant.ruc)} mono />
+                  <DetailField label="Razón social" value={tenant.legal_name} />
+                  <DetailField
+                    label="Obligado a llevar contabilidad"
+                    value={tenant.accounting_required ? 'Sí' : 'No'}
+                  />
                   <DetailField
                     label="Entorno SRI"
                     value={TENANT_ENVIRONMENT_LABELS[tenant.sri_environment]}

@@ -111,10 +111,12 @@ def _create(request: Request, context) -> dict:
     command = CreateTenantCommand(
         ruc=body.ruc,
         trade_name=body.trade_name,
+        legal_name=body.legal_name,
         legal_rep_name=body.legal_rep_name,
         email=body.email,
         phone=body.phone,
         address=body.address,
+        accounting_required=body.accounting_required,
         plan_id=body.plan_id,
         created_by=request.user_id,
     )
@@ -166,10 +168,12 @@ def _update(request: Request, context) -> dict:
         tenant_id=tenant_id,
         updated_by=request.user_id,
         trade_name=body.trade_name,
+        legal_name=body.legal_name,
         legal_rep_name=body.legal_rep_name,
         email=body.email,
         phone=body.phone,
         address=body.address,
+        accounting_required=body.accounting_required,
         sri_environment=body.sri_environment,
     )
     repo = _repo()
