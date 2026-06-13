@@ -1,5 +1,6 @@
 import { Redirect } from 'expo-router'
 import { useAuthStore, selectIsAuthenticated, selectIsSuperadmin } from '@/features/auth/store'
+import { LandingScreen } from '@/features/marketing/screens/LandingScreen'
 import { Routes } from '@/constants/routes'
 
 export default function Index() {
@@ -7,7 +8,7 @@ export default function Index() {
   const isSuperadmin = useAuthStore(selectIsSuperadmin)
 
   if (!isAuthenticated) {
-    return <Redirect href={Routes.auth.login} />
+    return <LandingScreen />
   }
 
   if (isSuperadmin) {

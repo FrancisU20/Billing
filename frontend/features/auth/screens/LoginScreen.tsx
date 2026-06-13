@@ -37,7 +37,7 @@ export function LoginScreen() {
   const subtitleColor = isDark ? overlay.text.subtle : semantic.text.secondary
   const brandColor = isDark ? overlay.text.subtle : semantic.text.tertiary
   const dividerColor = isDark ? overlay.border.default : semantic.border.default
-  const pricingColor = isDark ? overlay.text.faint : semantic.text.tertiary
+  const backLinkColor = isDark ? overlay.text.faint : semantic.text.tertiary
 
   return (
     <View style={[staticStyles.page, { backgroundColor: pageBg }]}>
@@ -64,13 +64,13 @@ export function LoginScreen() {
         <LoginForm onSubmit={handleSubmit} isLoading={loading} apiError={error} dark={isDark} />
 
         <Pressable
-          onPress={() => router.push(Routes.public.pricing)}
-          style={({ pressed }) => [staticStyles.pricingLink, pressed && { opacity: 0.5 }]}
+          onPress={() => router.push(Routes.root)}
+          style={({ pressed }) => [staticStyles.backLink, pressed && { opacity: 0.5 }]}
         >
-          <Text style={[staticStyles.pricingText, { color: pricingColor }]}>
-            Ver planes de precios
+          <Text style={[staticStyles.backLinkArrow, { color: semantic.accent.default }]}>← </Text>
+          <Text style={[staticStyles.backLinkText, { color: backLinkColor }]}>
+            Volver al inicio
           </Text>
-          <Text style={[staticStyles.pricingArrow, { color: semantic.accent.default }]}> →</Text>
         </Pressable>
       </View>
     </View>
@@ -93,7 +93,7 @@ const staticStyles = StyleSheet.create({
   },
   subtitle: { fontSize: typography.size.base, lineHeight: typography.size.base * 1.6 },
   divider: { height: 1 },
-  pricingLink: { flexDirection: 'row', alignSelf: 'flex-start' },
-  pricingText: { fontSize: typography.size.sm },
-  pricingArrow: { fontSize: typography.size.sm },
+  backLink: { flexDirection: 'row', alignSelf: 'flex-start' },
+  backLinkText: { fontSize: typography.size.sm },
+  backLinkArrow: { fontSize: typography.size.sm },
 })

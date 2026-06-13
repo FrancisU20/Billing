@@ -17,7 +17,7 @@ export function RegisterConfirmScreen() {
 
   useEffect(() => {
     if (!result) {
-      router.replace(Routes.public.register as Href)
+      router.replace(Routes.root as Href)
     }
   }, [result, router])
 
@@ -27,7 +27,7 @@ export function RegisterConfirmScreen() {
 
   const handleContinue = () => {
     reset()
-    router.replace((isTenant ? Routes.auth.login : Routes.public.pricing) as Href)
+    router.replace((isTenant ? Routes.auth.login : Routes.root) as Href)
   }
 
   return (

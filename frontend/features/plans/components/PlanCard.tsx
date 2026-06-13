@@ -2,7 +2,8 @@ import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/lib/theme-context'
-import { typography, radius, spacing, shadow } from '@/constants/tokens'
+import { Button } from '@/components/ui/Button'
+import { typography, radius, spacing, shadow, overlay } from '@/constants/tokens'
 import { formatCurrency } from '@/lib/utils/format'
 import { Badge } from '@/components/ui/Badge'
 import { formatDocumentLimit, formatPlanLimit } from '../format'
@@ -11,6 +12,7 @@ import type { Plan } from '../types'
 interface PlanCardProps {
   plan: Plan
   highlighted?: boolean
+  onSelect: () => void
 }
 
 const features = [
@@ -20,7 +22,7 @@ const features = [
   { key: 'includes_api', label: 'Acceso a API' },
 ] as const
 
-export function PlanCard({ plan, highlighted = false }: PlanCardProps) {
+export function PlanCard({ plan, highlighted = false, onSelect }: PlanCardProps) {
   const { semantic } = useTheme()
 
   const cardBg = semantic.bg.elevated
@@ -28,8 +30,8 @@ export function PlanCard({ plan, highlighted = false }: PlanCardProps) {
   const textMain = semantic.text.primary
   const textMuted = semantic.text.secondary
   const dividerBg = semantic.border.default
-  const iconBg = highlighted ? semantic.accent.subtle : semantic.bg.muted
-  const iconColor = semantic.accent.default
+  const iconBg = highlighted ? semantic.accent.default : semantic.bg.muted
+  const iconColor = highlighted ? overlay.text.primary : semantic.accent.default
   const statBg = semantic.bg.muted
   const statBorder = semantic.border.default
   const featureActiveBg = semantic.status.successBg
@@ -53,28 +55,22 @@ export function PlanCard({ plan, highlighted = false }: PlanCardProps) {
     <View
       style={[
         staticStyles.container,
-        highlighted && shadow.xl,
-        { backgroundColor: cardBg, borderColor: cardBorder },
+        highlighted ? shadow.xl : shadow.sm,
+        { backgroundColor: cardBg, borderColor: cardBorder, borderWidth: highlighted ? 2 : 1 },
       ]}
     >
-      <View
-        style={[
-          staticStyles.accentRail,
-          { backgroundColor: highlighted ? semantic.accent.default : semantic.accent.alt },
-        ]}
-      />
+      {highlighted ? (
+        <View style={[staticStyles.ribbon, { backgroundColor: semantic.accent.default }]}>
+          <Text style={[staticStyles.ribbonText, { color: overlay.text.primary }]}>
+            Más popular
+          </Text>
+        </View>
+      ) : null}
 
       <View style={staticStyles.topRow}>
         <View style={[staticStyles.planIcon, { backgroundColor: iconBg }]}>
-          <Ionicons name="pricetag-outline" size={20} color={iconColor} />
+          <Ionicons name="pricetag-outline" size={22} color={iconColor} />
         </View>
-        {highlighted ? (
-          <View style={[staticStyles.popularBadge, { backgroundColor: semantic.accent.subtle }]}>
-            <Text style={[staticStyles.popularText, { color: semantic.accent.default }]}>
-              Recomendado
-            </Text>
-          </View>
-        ) : null}
         {!plan.active ? <Badge label="Inactivo" variant="neutral" size="sm" /> : null}
       </View>
 
@@ -98,7 +94,7 @@ export function PlanCard({ plan, highlighted = false }: PlanCardProps) {
       <View style={staticStyles.stats}>
         {stats.map((s) => (
           <View
-            key={s.label}
+            key={s.icon}
             style={[staticStyles.statPill, { backgroundColor: statBg, borderColor: statBorder }]}
           >
             <Ionicons name={s.icon} size={14} color={textMuted} />
@@ -132,6 +128,10 @@ export function PlanCard({ plan, highlighted = false }: PlanCardProps) {
           )
         })}
       </View>
+
+      <Button variant={highlighted ? 'primary' : 'outline'} fullWidth onPress={onSelect}>
+        Elegir plan
+      </Button>
     </View>
   )
 }
@@ -144,23 +144,29 @@ const staticStyles = StyleSheet.create({
     gap: spacing[4],
     overflow: 'hidden',
   },
-  accentRail: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
+  ribbon: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1.5],
+    borderBottomLeftRadius: radius.lg,
+  },
+  ribbonText: {
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.bold,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2] },
   planIcon: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 'auto',
   },
-  popularBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: radius.full,
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[1],
-  },
-  popularText: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
   header: { gap: spacing[2] },
   name: {
     fontSize: typography.size.xl,
@@ -174,9 +180,10 @@ const staticStyles = StyleSheet.create({
   priceBlock: { gap: spacing[1] },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing[1] },
   price: {
-    fontSize: typography.size['3xl'],
+    fontSize: typography.size['4xl'],
     fontWeight: typography.weight.bold,
-    lineHeight: typography.size['3xl'] * typography.lineHeight.tight,
+    lineHeight: typography.size['4xl'] * typography.lineHeight.tight,
+    letterSpacing: -1,
   },
   cycle: { fontSize: typography.size.sm },
   billingHint: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },

@@ -23,7 +23,7 @@ export function RegisterDetailsScreen() {
 
   useEffect(() => {
     if (!selectedPlan) {
-      router.replace(Routes.public.register as Href)
+      router.replace(Routes.root as Href)
     }
   }, [selectedPlan, router])
 
