@@ -212,9 +212,7 @@ class Tenant(GlobalEntity):
                 else None
             ),
             "onboarding_completed_at": (
-                self.onboarding_completed_at.isoformat()
-                if self.onboarding_completed_at
-                else None
+                self.onboarding_completed_at.isoformat() if self.onboarding_completed_at else None
             ),
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),

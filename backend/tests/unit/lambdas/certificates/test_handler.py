@@ -141,9 +141,7 @@ class CertificatesHandlerTests(unittest.TestCase):
             patch.object(self.handler, "_repo", return_value=repo),
             patch.object(self.handler, "_certificate_validator", return_value=validator),
             patch.object(self.handler, "_certificate_store", return_value=store),
-            patch.object(
-                self.handler, "require_current_context", return_value=idempotency_context
-            ),
+            patch.object(self.handler, "require_current_context", return_value=idempotency_context),
         ):
             response = self.handler.handler(event, self.context)
 

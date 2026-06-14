@@ -67,9 +67,10 @@ class OnboardingCommitRepositoryTests(unittest.TestCase):
 
         self.assertEqual(verification_repo.mark_used_calls, [verification])
         self.assertEqual(len(tenant_repo.commit_calls), 1)
-        self.assertEqual(tenant_repo.commit_calls[0]["extra_transact_items"], [
-            {"Update": {"Key": {"id": "verification-1"}}}
-        ])
+        self.assertEqual(
+            tenant_repo.commit_calls[0]["extra_transact_items"],
+            [{"Update": {"Key": {"id": "verification-1"}}}],
+        )
         self.assertIs(tenant_repo.commit_calls[0]["idempotency"], idempotency)
         self.assertIs(tenant_repo.commit_calls[0]["response"], response)
         self.assertEqual(lead_repo.commit_calls, [])
@@ -107,9 +108,10 @@ class OnboardingCommitRepositoryTests(unittest.TestCase):
 
         self.assertEqual(verification_repo.mark_used_calls, [verification])
         self.assertEqual(len(lead_repo.commit_calls), 1)
-        self.assertEqual(lead_repo.commit_calls[0]["extra_transact_items"], [
-            {"Update": {"Key": {"id": "verification-1"}}}
-        ])
+        self.assertEqual(
+            lead_repo.commit_calls[0]["extra_transact_items"],
+            [{"Update": {"Key": {"id": "verification-1"}}}],
+        )
         self.assertEqual(tenant_repo.commit_calls, [])
 
     def test_enterprise_extra_condition_failure_maps_to_invalid_otp(self) -> None:

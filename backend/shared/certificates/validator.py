@@ -23,9 +23,7 @@ MAX_CERTIFICATE_BYTES = 50 * 1024
 
 def _normalize_issuer_name(value: str) -> str:
     without_accents = "".join(
-        char
-        for char in unicodedata.normalize("NFKD", value)
-        if not unicodedata.combining(char)
+        char for char in unicodedata.normalize("NFKD", value) if not unicodedata.combining(char)
     )
     normalized_words = re.findall(r"[A-Z0-9]+", without_accents.upper())
     return " ".join(normalized_words)

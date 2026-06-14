@@ -105,9 +105,7 @@ _CERTIFICATE_PATTERN = re.compile(r"^/tenants/[^/]+/certificate$")
 def _certificate_response(tenant) -> dict:
     return {
         "cert_subject_ruc": tenant.cert_subject_ruc,
-        "cert_expires_at": tenant.cert_expires_at.isoformat()
-        if tenant.cert_expires_at
-        else None,
+        "cert_expires_at": tenant.cert_expires_at.isoformat() if tenant.cert_expires_at else None,
         "cert_issuer": tenant.cert_issuer,
         "cert_uploaded_at": tenant.cert_uploaded_at.isoformat()
         if tenant.cert_uploaded_at
