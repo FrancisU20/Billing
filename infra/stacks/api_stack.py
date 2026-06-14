@@ -622,18 +622,26 @@ class ApiStack(Stack):
         )
 
         # Público por diseño: registro self-service con OTP, sin JWT.
+        onboarding_routes: list[apigwv2.HttpRoute] = []
         for route in ["/onboarding/otp/request", "/onboarding/otp/confirm"]:
-            api.add_routes(
+            onboarding_routes.extend(api.add_routes(
                 path        = route,
                 methods     = [apigwv2.HttpMethod.POST],
                 integration = onboarding_integration,
-            )
+            ))
 
         request_throttle = throttling_cfg.get("onboarding_otp_request", {})
         confirm_throttle = throttling_cfg.get("onboarding_otp_confirm", {})
         default_throttle = throttling_cfg.get("default", {})
         if api.default_stage:
             cfn_stage = api.default_stage.node.default_child
+            # El stage referencia las rutas de onboarding por RouteKey en
+            # RouteSettings (override L1, ver abajo). CloudFormation no infiere
+            # esa dependencia automaticamente, asi que sin este add_dependency
+            # puede intentar actualizar el stage antes de crear las rutas y
+            # ApiGatewayV2 responde "Unable to find Route by key ...".
+            for onboarding_route in onboarding_routes:
+                cfn_stage.add_dependency(onboarding_route.node.default_child)
             # Throttle de stage para el resto de rutas (auth, tenants, clients, plans):
             # sin esto, el stage usa el limite por defecto de la cuenta (muy alto), lo
             # que deja /auth/login y demas rutas sin proteccion de abuso/costo.
