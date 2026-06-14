@@ -15,8 +15,8 @@ class ToggleStatusUseCase:
     def execute(self, cmd: ToggleStatusCommand) -> tuple[Tenant, list[DomainEvent]]:
         try:
             new_status = TenantStatus(cmd.new_status)
-        except ValueError:
-            raise ValidationError(f"Estado inválido: {cmd.new_status}")
+        except ValueError as exc:
+            raise ValidationError(f"Estado inválido: {cmd.new_status}") from exc
 
         tenant = self._repo.get_by_id(cmd.tenant_id)
         tenant.change_status(new_status, cmd.updated_by)

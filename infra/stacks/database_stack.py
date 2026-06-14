@@ -43,6 +43,7 @@ class DatabaseStack(Stack):
             table_name      = f"codelabs-billing-{env}-tenants",
             partition_key   = ddb.Attribute(name="id", type=ddb.AttributeType.STRING),
             billing_mode    = ddb.BillingMode.PAY_PER_REQUEST,
+            time_to_live_attribute = "ttl",
             point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
                 point_in_time_recovery_enabled=pitr,
             ),

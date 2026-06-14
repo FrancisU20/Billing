@@ -1,5 +1,14 @@
 import React, { useEffect, useRef } from 'react'
-import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native'
+import {
+  Animated,
+  Easing,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native'
 import { useTheme } from '@/lib/theme-context'
 import { spacing, typography } from '@/constants/tokens'
 import { LogoBackdrop, LogoMark, LogoParticles } from './Logo'
@@ -11,6 +20,11 @@ interface LoadingScreenProps {
 
 interface LoadingLogoProps {
   size?: number
+  showBackdrop?: boolean
+  markColor?: string
+  particleColor?: string
+  orbitScale?: number
+  style?: StyleProp<ViewStyle>
 }
 
 const AnimatedView = Animated.View
@@ -18,7 +32,14 @@ const useNativeDriver = Platform.OS !== 'web'
 const PARTICLE_ROTATION_DURATION_MS = 6000
 const PARTICLE_ORBIT_SCALE = 1.08
 
-export function LoadingLogo({ size = 72 }: LoadingLogoProps) {
+export function LoadingLogo({
+  size = 72,
+  showBackdrop = true,
+  markColor,
+  particleColor,
+  orbitScale = PARTICLE_ORBIT_SCALE,
+  style,
+}: LoadingLogoProps) {
   const { isDark } = useTheme()
   const rotation = useRef(new Animated.Value(0)).current
 
@@ -40,20 +61,19 @@ export function LoadingLogo({ size = 72 }: LoadingLogoProps) {
   const spin = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] })
 
   return (
-    <View style={[styles.logo, { width: size, height: size }]}>
-      <LogoBackdrop isDark={isDark} size={size} style={StyleSheet.absoluteFill} />
+    <View style={[styles.logo, { width: size, height: size }, style]}>
+      {showBackdrop ? (
+        <LogoBackdrop isDark={isDark} size={size} style={StyleSheet.absoluteFill} />
+      ) : null}
 
       <View style={StyleSheet.absoluteFill}>
-        <LogoMark isDark={isDark} size={size} />
+        <LogoMark isDark={isDark} size={size} color={markColor} />
       </View>
 
       <AnimatedView
-        style={[
-          StyleSheet.absoluteFill,
-          { transform: [{ rotate: spin }, { scale: PARTICLE_ORBIT_SCALE }] },
-        ]}
+        style={[StyleSheet.absoluteFill, { transform: [{ rotate: spin }, { scale: orbitScale }] }]}
       >
-        <LogoParticles isDark={isDark} size={size} />
+        <LogoParticles isDark={isDark} size={size} color={particleColor} />
       </AnimatedView>
     </View>
   )

@@ -20,8 +20,24 @@ from tests.unit.support import LambdaContext, configure_unit_environment
 class FakeEmailSender(EmailSender):
     def __init__(self, *, should_fail: bool = False) -> None:
         self.sent: list[dict] = []
+        self.otp_sent: list[dict] = []
         self.enterprise_leads_sent: list[dict] = []
+        self.certificate_expiry_alerts_sent: list[dict] = []
         self._should_fail = should_fail
+
+    def send_onboarding_otp(
+        self, *, email: str, legal_rep_name: str, otp: str, expires_at: str
+    ) -> None:
+        if self._should_fail:
+            raise RuntimeError("Brevo unavailable")
+        self.otp_sent.append(
+            {
+                "email": email,
+                "legal_rep_name": legal_rep_name,
+                "otp": otp,
+                "expires_at": expires_at,
+            }
+        )
 
     def send_welcome(self, *, email: str, legal_rep_name: str, temp_password: str) -> None:
         if self._should_fail:
@@ -46,6 +62,29 @@ class FakeEmailSender(EmailSender):
                 "ruc": ruc,
                 "email": email,
                 "plan_id": plan_id,
+            }
+        )
+
+    def send_certificate_expiry_alert(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        trade_name: str,
+        ruc: str,
+        cert_expires_at: str,
+        days_remaining: int,
+    ) -> None:
+        if self._should_fail:
+            raise RuntimeError("Brevo unavailable")
+        self.certificate_expiry_alerts_sent.append(
+            {
+                "email": email,
+                "legal_rep_name": legal_rep_name,
+                "trade_name": trade_name,
+                "ruc": ruc,
+                "cert_expires_at": cert_expires_at,
+                "days_remaining": days_remaining,
             }
         )
 
@@ -142,6 +181,28 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         self.assertEqual(len(sender.sent), 1)
         self.assertEqual(sender.sent[0]["email"], "owner@empresa.com")
 
+    def test_processes_onboarding_otp_event_and_sends_email(self) -> None:
+        mod = self._load_handler_module()
+        sender = FakeEmailSender()
+        mod._email_sender = sender
+
+        result = mod.handler(
+            self._make_sqs_event(
+                {
+                    "email": "owner@empresa.com",
+                    "legal_rep_name": "Juan Pérez",
+                    "otp": "123456",
+                    "expires_at": "2026-06-13T12:00:00+00:00",
+                },
+                event_type="OnboardingOtpRequestedEvent",
+            ),
+            LambdaContext(),
+        )
+
+        self.assertEqual(result, {"batchItemFailures": []})
+        self.assertEqual(len(sender.otp_sent), 1)
+        self.assertEqual(sender.otp_sent[0]["otp"], "123456")
+
     def test_processes_enterprise_lead_created_event_and_sends_email(self) -> None:
         mod = self._load_handler_module()
         sender = FakeEmailSender()
@@ -204,6 +265,9 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         calls: list[str] = []
 
         class PartialFakeSender(EmailSender):
+            def send_onboarding_otp(self, *, email, legal_rep_name, otp, expires_at):
+                raise NotImplementedError
+
             def send_welcome(self, *, email, legal_rep_name, temp_password):
                 calls.append(email)
                 if email == "bad@empresa.com":
@@ -211,6 +275,11 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
 
             def send_enterprise_lead_notification(
                 self, *, superadmin_email, trade_name, ruc, email, plan_id
+            ):
+                raise NotImplementedError
+
+            def send_certificate_expiry_alert(
+                self, *, email, legal_rep_name, trade_name, ruc, cert_expires_at, days_remaining
             ):
                 raise NotImplementedError
 

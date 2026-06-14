@@ -10,11 +10,18 @@ from shared.domain.events.publisher import event_payload
 
 _OUTBOX_TTL_SECONDS = 30 * 24 * 60 * 60
 
+# Eventos con datos sensibles (ej. OTP en texto plano) expiran del outbox mucho antes
+# que el default de 30 dias, acotando la ventana de exposicion en DynamoDB.
+_SHORT_TTL_EVENT_TYPES: dict[str, int] = {
+    "OnboardingOtpRequestedEvent": 60 * 60,
+}
+
 
 def outbox_item(event: DomainEvent, source: str) -> dict:
     payload = event_payload(event)
     now_dt = datetime.now(UTC)
     now = now_dt.isoformat()
+    ttl_seconds = _SHORT_TTL_EVENT_TYPES.get(event.event_type, _OUTBOX_TTL_SECONDS)
     return {
         "id": event.event_id,
         "status": "PENDING",
@@ -24,7 +31,7 @@ def outbox_item(event: DomainEvent, source: str) -> dict:
         "created_at": now,
         "updated_at": now,
         "attempts": 0,
-        "ttl": int(now_dt.timestamp()) + _OUTBOX_TTL_SECONDS,
+        "ttl": int(now_dt.timestamp()) + ttl_seconds,
     }
 
 

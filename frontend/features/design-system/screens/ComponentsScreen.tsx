@@ -50,6 +50,9 @@ export function ComponentsScreen() {
     const [group, name] = key.split('.') as ['accent' | 'status', string]
     return semantic[group][name as never] as string
   }
+  const showBase = segment === 'base'
+  const showForms = segment === 'form'
+  const showStates = segment === 'states'
 
   return (
     <View style={[styles.page, { backgroundColor: semantic.bg.page }]}>
@@ -78,185 +81,204 @@ export function ComponentsScreen() {
           />
         </View>
 
-        <Section title="Identidad">
-          <View style={styles.logoRow}>
-            <Logo size={40} />
-            <Logo size={64} />
-            <Logo size={96} />
-          </View>
-          <Card variant="muted">
-            <View style={styles.inlineLoader}>
-              <LoadingSpinner size="small" compact />
-              <LoadingSpinner label="Cargando planes..." />
-            </View>
-          </Card>
-        </Section>
-
-        <Section title="Colores">
-          <Text style={[styles.sectionNote, { color: semantic.text.secondary }]}>Semánticos</Text>
-          <View style={styles.swatchGrid}>
-            {semanticSwatches.map((swatch) => (
-              <Swatch key={swatch.key} label={swatch.label} color={semanticColor(swatch.key)} />
-            ))}
-          </View>
-          <Text style={[styles.sectionNote, { color: semantic.text.secondary }]}>Paleta</Text>
-          <View style={styles.swatchGrid}>
-            {rawSwatches.map((swatch) => (
-              <Swatch key={swatch.label} label={swatch.label} color={swatch.color} />
-            ))}
-          </View>
-        </Section>
-
-        <Section title="Botones">
-          <View style={styles.componentRow}>
-            {buttonVariants.map((variant) => (
-              <Button key={variant} variant={variant} size="md" onPress={() => undefined}>
-                {variant}
-              </Button>
-            ))}
-            <Button variant="primary" isLoading onPress={() => undefined}>
-              Guardando
-            </Button>
-            <Button variant="secondary" isDisabled onPress={() => undefined}>
-              Deshabilitado
-            </Button>
-          </View>
-        </Section>
-
-        <Section title="Inputs">
-          <View style={styles.formGrid}>
-            <FormField
-              label="RUC"
-              required
-              leftIcon="business-outline"
-              placeholder="1790012345001"
-              value="1790012345001"
-            />
-            <FormField
-              label="Correo"
-              leftIcon="mail-outline"
-              placeholder="admin@empresa.com"
-              value="admin@empresa.com"
-              hint="Se usa para notificaciones del tenant."
-            />
-            <FormField
-              label="Clave"
-              leftIcon="lock-closed-outline"
-              value="Temporal123"
-              secureTextEntry
-            />
-            <FormField
-              label="Ambiente SRI"
-              value="producción"
-              error="Selecciona un ambiente válido."
-            />
-            <Input leftIcon="search-outline" placeholder="Buscar componentes" />
-            <Input value="Campo deshabilitado" isDisabled />
-          </View>
-        </Section>
-
-        <Section title="Badges y métricas">
-          <View style={styles.componentRow}>
-            {badgeVariants.map((variant) => (
-              <Badge key={variant} label={variant} variant={variant} />
-            ))}
-          </View>
-          <View style={styles.metricsRow}>
-            <StatMetric label="Planes" value={12} icon="layers-outline" />
-            <StatMetric label="Clientes" value={48} icon="people-outline" />
-            <StatMetric label="Activos" value={32} icon="checkmark-circle-outline" />
-          </View>
-        </Section>
-
-        <Section title="Cards y detalle">
-          <View style={styles.cardGrid}>
-            <Card>
-              <View style={styles.cardStack}>
-                <Badge label="default" variant="primary" size="sm" />
-                <Text style={[styles.cardTitle, { color: semantic.text.primary }]}>Card base</Text>
-                <Text style={[styles.body, { color: semantic.text.secondary }]}>
-                  Superficie con borde para formularios, resúmenes y bloques de lectura.
-                </Text>
+        {showBase ? (
+          <>
+            <Section title="Identidad">
+              <View style={styles.logoRow}>
+                <Logo size={40} />
+                <Logo size={64} />
+                <Logo size={96} />
               </View>
-            </Card>
-            <Card variant="elevated" elevated>
-              <View style={styles.cardStack}>
-                <Badge label="elevated" variant="accent" size="sm" />
-                <Text style={[styles.cardTitle, { color: semantic.text.primary }]}>
-                  Card elevada
-                </Text>
-                <View style={styles.metaRow}>
-                  <ListItemMeta icon="calendar-outline" text="2026-06-13" />
-                  <ListItemMeta icon="terminal-outline" text="CLB-001" mono />
-                </View>
-                <View style={styles.actionRow}>
-                  <ListItemAction icon="eye-outline" label="Ver" onPress={() => undefined} />
-                  <ListItemAction
-                    icon="trash-outline"
-                    label="Eliminar"
-                    danger
-                    onPress={() => undefined}
-                  />
-                </View>
+            </Section>
+
+            <Section title="Colores">
+              <Text style={[styles.sectionNote, { color: semantic.text.secondary }]}>
+                Semánticos
+              </Text>
+              <View style={styles.swatchGrid}>
+                {semanticSwatches.map((swatch) => (
+                  <Swatch key={swatch.key} label={swatch.label} color={semanticColor(swatch.key)} />
+                ))}
               </View>
-            </Card>
-          </View>
-          <DetailSection title="Tenant" icon="business-outline">
-            <DetailField label="Empresa" value="CodeLabs Ecuador" />
-            <DetailField label="RUC" value="1790012345001" mono />
-            <DetailField label="Plan" value="Profesional" />
-          </DetailSection>
-        </Section>
+              <Text style={[styles.sectionNote, { color: semantic.text.secondary }]}>Paleta</Text>
+              <View style={styles.swatchGrid}>
+                {rawSwatches.map((swatch) => (
+                  <Swatch key={swatch.label} label={swatch.label} color={swatch.color} />
+                ))}
+              </View>
+            </Section>
 
-        <Section title="Estados">
-          <ApiErrorBanner error={error} />
-          <Card variant="muted" padded={false}>
-            <EmptyState
-              icon="file-tray-outline"
-              title="Sin resultados"
-              description="No hay elementos que coincidan con los filtros actuales."
-              action={{ label: 'Reintentar', onPress: () => undefined }}
-            />
-          </Card>
-        </Section>
+            <Section title="Botones">
+              <View style={styles.componentRow}>
+                {buttonVariants.map((variant) => (
+                  <Button key={variant} variant={variant} size="md" onPress={() => undefined}>
+                    {variant}
+                  </Button>
+                ))}
+                <Button variant="primary" isLoading onPress={() => undefined}>
+                  Guardando
+                </Button>
+                <Button variant="secondary" isDisabled onPress={() => undefined}>
+                  Deshabilitado
+                </Button>
+              </View>
+            </Section>
 
-        <Section title="Escalas">
-          <View style={styles.scaleRow}>
-            {[spacing[1], spacing[2], spacing[3], spacing[4], spacing[6], spacing[8]].map(
-              (value) => (
-                <View key={value} style={styles.scaleItem}>
+            <Section title="Badges y métricas">
+              <View style={styles.componentRow}>
+                {badgeVariants.map((variant) => (
+                  <Badge key={variant} label={variant} variant={variant} />
+                ))}
+              </View>
+              <View style={styles.metricsRow}>
+                <StatMetric label="Planes" value={12} icon="layers-outline" />
+                <StatMetric label="Clientes" value={48} icon="people-outline" />
+                <StatMetric label="Activos" value={32} icon="checkmark-circle-outline" />
+              </View>
+            </Section>
+
+            <Section title="Cards y detalle">
+              <View style={styles.cardGrid}>
+                <Card>
+                  <View style={styles.cardStack}>
+                    <Badge label="default" variant="primary" size="sm" />
+                    <Text style={[styles.cardTitle, { color: semantic.text.primary }]}>
+                      Card base
+                    </Text>
+                    <Text style={[styles.body, { color: semantic.text.secondary }]}>
+                      Superficie con borde para formularios, resúmenes y bloques de lectura.
+                    </Text>
+                  </View>
+                </Card>
+                <Card variant="elevated" elevated>
+                  <View style={styles.cardStack}>
+                    <Badge label="elevated" variant="accent" size="sm" />
+                    <Text style={[styles.cardTitle, { color: semantic.text.primary }]}>
+                      Card elevada
+                    </Text>
+                    <View style={styles.metaRow}>
+                      <ListItemMeta icon="calendar-outline" text="2026-06-13" />
+                      <ListItemMeta icon="terminal-outline" text="CLB-001" mono />
+                    </View>
+                    <View style={styles.actionRow}>
+                      <ListItemAction icon="eye-outline" label="Ver" onPress={() => undefined} />
+                      <ListItemAction
+                        icon="trash-outline"
+                        label="Eliminar"
+                        danger
+                        onPress={() => undefined}
+                      />
+                    </View>
+                  </View>
+                </Card>
+              </View>
+              <DetailSection title="Tenant" icon="business-outline">
+                <DetailField label="Empresa" value="CodeLabs Ecuador" />
+                <DetailField label="RUC" value="1790012345001" mono />
+                <DetailField label="Plan" value="Profesional" />
+              </DetailSection>
+            </Section>
+
+            <Section title="Escalas">
+              <View style={styles.scaleRow}>
+                {[spacing[1], spacing[2], spacing[3], spacing[4], spacing[6], spacing[8]].map(
+                  (value) => (
+                    <View key={value} style={styles.scaleItem}>
+                      <View
+                        style={[
+                          styles.scaleBlock,
+                          { width: value, backgroundColor: semantic.accent.default },
+                        ]}
+                      />
+                      <Text style={[styles.scaleLabel, { color: semantic.text.secondary }]}>
+                        {value}px
+                      </Text>
+                    </View>
+                  ),
+                )}
+              </View>
+              <Divider />
+              <View style={styles.radiusRow}>
+                {([radius.xs, radius.sm, radius.md, radius.lg, radius.xl] as const).map((value) => (
                   <View
+                    key={value}
                     style={[
-                      styles.scaleBlock,
-                      { width: value, backgroundColor: semantic.accent.default },
+                      styles.radiusBox,
+                      {
+                        borderRadius: value,
+                        borderColor: semantic.border.default,
+                        backgroundColor: semantic.bg.card,
+                      },
                     ]}
-                  />
-                  <Text style={[styles.scaleLabel, { color: semantic.text.secondary }]}>
-                    {value}px
-                  </Text>
-                </View>
-              ),
-            )}
-          </View>
-          <Divider />
-          <View style={styles.radiusRow}>
-            {([radius.xs, radius.sm, radius.md, radius.lg, radius.xl] as const).map((value) => (
-              <View
-                key={value}
-                style={[
-                  styles.radiusBox,
-                  {
-                    borderRadius: value,
-                    borderColor: semantic.border.default,
-                    backgroundColor: semantic.bg.card,
-                  },
-                ]}
-              >
-                <Text style={[styles.scaleLabel, { color: semantic.text.secondary }]}>{value}</Text>
+                  >
+                    <Text style={[styles.scaleLabel, { color: semantic.text.secondary }]}>
+                      {value}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-        </Section>
+            </Section>
+          </>
+        ) : null}
+
+        {showForms ? (
+          <Section title="Inputs">
+            <View style={styles.formGrid}>
+              <FormField
+                label="RUC"
+                required
+                leftIcon="business-outline"
+                placeholder="1790012345001"
+                value="1790012345001"
+              />
+              <FormField
+                label="Correo"
+                leftIcon="mail-outline"
+                placeholder="admin@empresa.com"
+                value="admin@empresa.com"
+                hint="Se usa para notificaciones del tenant."
+              />
+              <FormField
+                label="Clave"
+                leftIcon="lock-closed-outline"
+                value="Temporal123"
+                secureTextEntry
+              />
+              <FormField
+                label="Ambiente SRI"
+                value="producción"
+                error="Selecciona un ambiente válido."
+              />
+              <Input leftIcon="search-outline" placeholder="Buscar componentes" />
+              <Input value="Campo deshabilitado" isDisabled />
+            </View>
+          </Section>
+        ) : null}
+
+        {showStates ? (
+          <>
+            <Section title="Cargas">
+              <Card variant="muted">
+                <View style={styles.inlineLoader}>
+                  <LoadingSpinner size="small" compact />
+                  <LoadingSpinner label="Cargando planes..." />
+                </View>
+              </Card>
+            </Section>
+
+            <Section title="Estados">
+              <ApiErrorBanner error={error} />
+              <Card variant="muted" padded={false}>
+                <EmptyState
+                  icon="file-tray-outline"
+                  title="Sin resultados"
+                  description="No hay elementos que coincidan con los filtros actuales."
+                  action={{ label: 'Reintentar', onPress: () => undefined }}
+                />
+              </Card>
+            </Section>
+          </>
+        ) : null}
       </ScrollView>
     </View>
   )

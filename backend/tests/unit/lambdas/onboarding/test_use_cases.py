@@ -1,14 +1,31 @@
 from __future__ import annotations
 
 import unittest
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from lambdas.onboarding.domain.commands import RegisterTenantCommand
-from lambdas.onboarding.domain.errors import PlanNotActiveError, PlanNotFoundError
-from lambdas.onboarding.domain.events import EnterpriseLeadCreatedEvent
+from lambdas.onboarding.domain.commands import (
+    ConfirmOnboardingOtpCommand,
+    RequestOnboardingOtpCommand,
+)
+from lambdas.onboarding.domain.errors import (
+    OnboardingOtpAttemptsExceededError,
+    OnboardingOtpExpiredError,
+    OnboardingOtpInvalidError,
+    OnboardingPayloadMismatchError,
+    PlanNotActiveError,
+    PlanNotFoundError,
+)
+from lambdas.onboarding.domain.events import EnterpriseLeadCreatedEvent, OnboardingOtpRequestedEvent
+from lambdas.onboarding.domain.onboarding_verification import OnboardingVerification
 from lambdas.onboarding.domain.repositories.i_plan_catalog import IPlanCatalog, PlanSummary
-from lambdas.onboarding.use_cases.register_tenant_use_case import RegisterTenantUseCase
+from lambdas.onboarding.use_cases.confirm_onboarding_otp import ConfirmOnboardingOtpUseCase
+from lambdas.onboarding.use_cases.payload_signature import onboarding_payload_hash
+from lambdas.onboarding.use_cases.request_onboarding_otp import RequestOnboardingOtpUseCase
 from lambdas.tenants.domain.errors import TenantRucAlreadyExistsError
 from lambdas.tenants.domain.events import TenantCreatedEvent
+from shared.certificates.errors import CertificateInvalidError, CertificateRucMismatchError
+from shared.certificates.metadata import CertificateMetadata
 from tests.unit.support import FakeTenantRepository, make_tenant, tenant_payload
 
 
@@ -36,69 +53,235 @@ class FakeOnboardingPlanCatalog(IPlanCatalog):
         return PlanSummary(id=plan_id, self_service=self.self_service, limit_cycle=self.limit_cycle)
 
 
-def register_command(**overrides) -> RegisterTenantCommand:
+class FakeCertificateValidator:
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self.error = error
+        self.calls: list[dict[str, Any]] = []
+
+    def validate_base64(self, **kwargs: Any) -> CertificateMetadata:
+        self.calls.append(kwargs)
+        if self.error:
+            raise self.error
+        return CertificateMetadata(
+            subject_ruc=kwargs["expected_ruc"],
+            expires_at=datetime.now(UTC) + timedelta(days=365),
+            issuer="Security Data",
+        )
+
+
+def _request_command(**overrides: Any) -> RequestOnboardingOtpCommand:
     payload = tenant_payload()
-    payload.pop("created_by", None)
     payload.update(overrides)
-    return RegisterTenantCommand(**payload)
+    payload.setdefault("certificate_b64", "base64-p12")
+    payload.setdefault("cert_password", "secret")
+    return RequestOnboardingOtpCommand(**payload)
 
 
-class RegisterTenantUseCaseTests(unittest.TestCase):
-    def test_self_service_plan_creates_tenant(self) -> None:
+class RequestOnboardingOtpUseCaseTests(unittest.TestCase):
+    def test_self_service_validates_certificate_before_checking_ruc(self) -> None:
         repo = FakeTenantRepository()
         catalog = FakeOnboardingPlanCatalog(self_service=True)
+        validator = FakeCertificateValidator(error=CertificateRucMismatchError())
 
-        result = RegisterTenantUseCase(catalog, repo).execute(register_command())
+        with self.assertRaises(CertificateRucMismatchError):
+            RequestOnboardingOtpUseCase(catalog, repo, validator).execute(_request_command())
 
-        self.assertIsNotNone(result.tenant)
-        self.assertIsNone(result.lead)
-        self.assertEqual(result.tenant.ruc, register_command().ruc)
-        self.assertEqual(catalog.checked_ids, ["uuid-basic"])
-        self.assertEqual(repo.get_by_ruc_calls, [result.tenant.ruc])
-        self.assertEqual(len(result.events), 1)
-        self.assertIsInstance(result.events[0], TenantCreatedEvent)
-        self.assertEqual(result.events[0].tenant_id, result.tenant.id)
+        self.assertEqual(len(validator.calls), 1)
+        self.assertEqual(repo.get_by_ruc_calls, [])
 
-    def test_self_service_plan_rejects_existing_ruc(self) -> None:
+    def test_self_service_rejects_existing_ruc_after_certificate_is_valid(self) -> None:
         repo = FakeTenantRepository()
         repo.existing_by_ruc = make_tenant()
         catalog = FakeOnboardingPlanCatalog(self_service=True)
+        validator = FakeCertificateValidator()
 
         with self.assertRaises(TenantRucAlreadyExistsError):
-            RegisterTenantUseCase(catalog, repo).execute(register_command())
+            RequestOnboardingOtpUseCase(catalog, repo, validator).execute(_request_command())
 
-    def test_non_self_service_plan_creates_enterprise_lead(self) -> None:
+        self.assertEqual(len(validator.calls), 1)
+
+    def test_self_service_without_certificate_raises_invalid(self) -> None:
+        repo = FakeTenantRepository()
+        catalog = FakeOnboardingPlanCatalog(self_service=True)
+        validator = FakeCertificateValidator()
+
+        with self.assertRaises(CertificateInvalidError):
+            RequestOnboardingOtpUseCase(catalog, repo, validator).execute(
+                _request_command(certificate_b64=None, cert_password=None)
+            )
+
+        self.assertEqual(validator.calls, [])
+
+    def test_self_service_creates_verification_and_otp_event(self) -> None:
+        repo = FakeTenantRepository()
+        catalog = FakeOnboardingPlanCatalog(self_service=True)
+        validator = FakeCertificateValidator()
+
+        result = RequestOnboardingOtpUseCase(catalog, repo, validator).execute(_request_command())
+
+        self.assertIsInstance(result.verification, OnboardingVerification)
+        self.assertTrue(result.verification.self_service)
+        self.assertEqual(len(result.events), 1)
+        event = result.events[0]
+        self.assertIsInstance(event, OnboardingOtpRequestedEvent)
+        self.assertEqual(event.verification_id, result.verification.id)
+        self.assertEqual(len(event.otp), 6)
+
+    def test_enterprise_plan_skips_certificate_and_ruc_check(self) -> None:
         repo = FakeTenantRepository()
         catalog = FakeOnboardingPlanCatalog(self_service=False)
+        validator = FakeCertificateValidator()
 
-        result = RegisterTenantUseCase(catalog, repo).execute(register_command())
+        result = RequestOnboardingOtpUseCase(catalog, repo, validator).execute(
+            _request_command(certificate_b64=None, cert_password=None)
+        )
+
+        self.assertFalse(result.verification.self_service)
+        self.assertEqual(validator.calls, [])
+        self.assertEqual(repo.get_by_ruc_calls, [])
+
+
+def _confirm_command(**overrides: Any) -> ConfirmOnboardingOtpCommand:
+    payload = tenant_payload()
+    payload.update(overrides)
+    payload.setdefault("verification_id", "verification-1")
+    payload.setdefault("otp", "123456")
+    payload.setdefault("certificate_b64", "base64-p12")
+    payload.setdefault("cert_password", "secret")
+    return ConfirmOnboardingOtpCommand(**payload)
+
+
+def _verification_for(
+    cmd: ConfirmOnboardingOtpCommand, *, self_service: bool = True
+) -> OnboardingVerification:
+    verification = OnboardingVerification.create(
+        ruc=cmd.ruc,
+        email=cmd.email,
+        plan_id=cmd.plan_id,
+        payload_hash=onboarding_payload_hash(cmd),
+        self_service=self_service,
+        otp=cmd.otp,
+    )
+    verification.id = cmd.verification_id
+    return verification
+
+
+class FakeCertificateStore:
+    def __init__(self) -> None:
+        self.put_calls: list[dict[str, Any]] = []
+
+    def put_certificate(self, **kwargs: Any) -> str:
+        self.put_calls.append(kwargs)
+        return "arn:aws:secretsmanager:sa-east-1:123:secret:/tenant/certificate"
+
+
+class ConfirmOnboardingOtpUseCaseTests(unittest.TestCase):
+    def test_invalid_otp_raises_and_registers_attempt(self) -> None:
+        import dataclasses
+
+        cmd = _confirm_command()
+        verification = _verification_for(cmd)
+        wrong_otp_cmd = dataclasses.replace(cmd, otp="000000")
+
+        with self.assertRaises(OnboardingOtpInvalidError):
+            self._execute_with_verification(wrong_otp_cmd, verification)
+
+        self.assertEqual(verification.attempts, 1)
+
+    def test_expired_otp_raises_expired(self) -> None:
+        cmd = _confirm_command()
+        verification = _verification_for(cmd)
+        verification.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+
+        with self.assertRaises(OnboardingOtpExpiredError):
+            self._execute_with_verification(cmd, verification)
+
+    def test_attempts_exceeded_raises(self) -> None:
+        cmd = _confirm_command()
+        verification = _verification_for(cmd)
+        verification.attempts = verification.max_attempts
+
+        with self.assertRaises(OnboardingOtpAttemptsExceededError):
+            self._execute_with_verification(cmd, verification)
+
+    def test_payload_mismatch_raises(self) -> None:
+        cmd = _confirm_command()
+        verification = _verification_for(cmd)
+        tampered = _confirm_command(trade_name="Otra Empresa S.A.")
+
+        with self.assertRaises(OnboardingPayloadMismatchError):
+            self._execute_with_verification(tampered, verification)
+
+    def test_self_service_mismatch_raises(self) -> None:
+        cmd = _confirm_command()
+        verification = _verification_for(cmd, self_service=False)
+
+        with self.assertRaises(OnboardingPayloadMismatchError):
+            self._execute_with_verification(
+                cmd, verification, catalog=FakeOnboardingPlanCatalog(self_service=True)
+            )
+
+    def test_self_service_rejects_already_registered_ruc(self) -> None:
+        cmd = _confirm_command()
+        verification = _verification_for(cmd)
+        repo = FakeTenantRepository()
+        repo.existing_by_ruc = make_tenant()
+
+        with self.assertRaises(TenantRucAlreadyExistsError):
+            self._execute_with_verification(cmd, verification, repo=repo)
+
+    def test_self_service_creates_tenant_and_event(self) -> None:
+        cmd = _confirm_command()
+        verification = _verification_for(cmd)
+
+        result = self._execute_with_verification(cmd, verification)
+
+        self.assertIsNotNone(result.tenant)
+        self.assertIsNone(result.lead)
+        self.assertEqual(len(result.events), 1)
+        self.assertIsInstance(result.events[0], TenantCreatedEvent)
+
+    def test_enterprise_plan_captures_lead_without_certificate(self) -> None:
+        cmd = _confirm_command(certificate_b64=None, cert_password=None)
+        verification = _verification_for(cmd, self_service=False)
+
+        result = self._execute_with_verification(
+            cmd, verification, catalog=FakeOnboardingPlanCatalog(self_service=False)
+        )
 
         self.assertIsNone(result.tenant)
         self.assertIsNotNone(result.lead)
-        self.assertEqual(result.lead.ruc, register_command().ruc)
-        self.assertEqual(result.lead.plan_id, "uuid-basic")
-        self.assertEqual(repo.get_by_ruc_calls, [])
         self.assertEqual(len(result.events), 1)
         self.assertIsInstance(result.events[0], EnterpriseLeadCreatedEvent)
-        self.assertEqual(result.events[0].lead_id, result.lead.id)
 
-    def test_unknown_plan_raises_not_found(self) -> None:
-        repo = FakeTenantRepository()
-        catalog = FakeOnboardingPlanCatalog(exists=False)
+    def _execute_with_verification(
+        self,
+        cmd: ConfirmOnboardingOtpCommand,
+        verification: OnboardingVerification,
+        *,
+        repo: FakeTenantRepository | None = None,
+        catalog: FakeOnboardingPlanCatalog | None = None,
+        validator: FakeCertificateValidator | None = None,
+    ):
+        class _FakeVerificationRepo:
+            def __init__(self, item: OnboardingVerification) -> None:
+                self.item = item
+                self.save_attempts_calls: list[Any] = []
 
-        with self.assertRaises(PlanNotFoundError):
-            RegisterTenantUseCase(catalog, repo).execute(register_command())
+            def get_by_id(self, verification_id: str) -> OnboardingVerification:
+                return self.item
 
-        self.assertEqual(repo.get_by_ruc_calls, [])
+            def save_attempts(self, verification: OnboardingVerification) -> None:
+                self.save_attempts_calls.append(verification)
 
-    def test_inactive_plan_raises_not_active(self) -> None:
-        repo = FakeTenantRepository()
-        catalog = FakeOnboardingPlanCatalog(active=False)
-
-        with self.assertRaises(PlanNotActiveError):
-            RegisterTenantUseCase(catalog, repo).execute(register_command())
-
-        self.assertEqual(repo.get_by_ruc_calls, [])
+        use_case = ConfirmOnboardingOtpUseCase(
+            catalog or FakeOnboardingPlanCatalog(self_service=True),
+            repo or FakeTenantRepository(),
+            verification_repo=_FakeVerificationRepo(verification),
+            certificate_validator=validator or FakeCertificateValidator(),
+            certificate_store=FakeCertificateStore(),
+        )
+        return use_case.execute(cmd)
 
 
 if __name__ == "__main__":

@@ -31,6 +31,8 @@ from aws_cdk import (
     aws_apigatewayv2_authorizers as authorizers,
     aws_apigatewayv2_integrations as integrations,
     aws_certificatemanager as acm,
+    aws_events as events,
+    aws_events_targets as events_targets,
     aws_iam as iam,
     aws_lambda as lmb,
     aws_lambda_event_sources as event_sources,
@@ -78,6 +80,32 @@ class _PythonLocalBundler:
 
 
 class ApiStack(Stack):
+    @staticmethod
+    def _grant_certificate_secrets(
+        fn: lmb.Function, *, env: str, region: str, allow_delete: bool = False
+    ) -> None:
+        """Allow a Lambda to manage tenant certificate secrets in Secrets Manager.
+
+        Used by both `certificates` (post-onboarding certificate replacement) and
+        `onboarding` (initial certificate upload + orphan cleanup) — same secret
+        naming convention. `allow_delete` is only needed by `onboarding`, which
+        cleans up orphaned secrets when a transactional commit fails.
+        """
+        actions = [
+            "secretsmanager:CreateSecret",
+            "secretsmanager:DescribeSecret",
+            "secretsmanager:PutSecretValue",
+        ]
+        if allow_delete:
+            actions.append("secretsmanager:DeleteSecret")
+
+        fn.add_to_role_policy(iam.PolicyStatement(
+            actions   = actions,
+            resources = [
+                f"arn:aws:secretsmanager:{region}:*:secret:/codelabs-billing/{env}/tenant/*"
+            ],
+        ))
+
     def __init__(
         self,
         scope:        Construct,
@@ -94,10 +122,12 @@ class ApiStack(Stack):
         region     = config["region"]
         domain_cfg = config.get("domain", {})
         cors_cfg   = config.get("cors", {})
+        api_cfg    = config.get("api", {})
         api_domain = domain_cfg.get("api", "")
         hz_name    = domain_cfg.get("hosted_zone", "")
         cors_origins = cors_cfg.get("origins", ["*"] if env != "prod" else [])
         cors_headers = cors_cfg.get("headers", ["authorization", "content-type", "x-idempotency-key"])
+        throttling_cfg = api_cfg.get("throttling", {})
 
         _common_env = {
             "ENV":       env,
@@ -151,6 +181,29 @@ class ApiStack(Stack):
         database.audit_table.grant_read_write_data(tenants_fn)
         database.idempotency_table.grant_read_write_data(tenants_fn)
         database.outbox_table.grant_write_data(tenants_fn)
+
+        # ── Certificates Lambda ────────────────────────────────────────────────
+        certificates_fn = lmb.Function(
+            self, "CertificatesFunction",
+            function_name = f"codelabs-billing-{env}-certificates",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.certificates.handler.handler",
+            timeout       = Duration.seconds(30),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "TENANTS_TABLE":              database.tenants_table.table_name,
+                "AUDIT_LOG_TABLE":            database.audit_table.table_name,
+                "IDEMPOTENCY_TABLE":          database.idempotency_table.table_name,
+                "CERTIFICATE_SECRET_PREFIX":  f"/codelabs-billing/{env}/tenant",
+            },
+        )
+        database.tenants_table.grant_read_write_data(certificates_fn)
+        database.audit_table.grant_read_write_data(certificates_fn)
+        database.idempotency_table.grant_read_write_data(certificates_fn)
+        self._grant_certificate_secrets(certificates_fn, env=env, region=region)
 
         # ── Clients Lambda ─────────────────────────────────────────────────────
         clients_fn = lmb.Function(
@@ -297,6 +350,42 @@ class ApiStack(Stack):
         database.plans_table.grant_read_write_data(migrations_fn)
         database.tenants_table.grant_read_write_data(migrations_fn)
 
+        # ── Certificate Expiry Notifier Worker ────────────────────────────────
+        # Corre diario via EventBridge: alerta a los tenants 60 y 30 dias antes
+        # de que venza su certificado digital p12.
+        certificate_expiry_notifier_fn = lmb.Function(
+            self, "CertificateExpiryNotifierWorker",
+            function_name = f"codelabs-billing-{env}-certificate-expiry-notifier",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.workers.certificate_expiry_notifier.handler.handler",
+            timeout       = Duration.seconds(60),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "TENANTS_TABLE":      database.tenants_table.table_name,
+                "AUDIT_LOG_TABLE":    database.audit_table.table_name,
+                "BREVO_SECRET_NAME":  f"codelabs-billing-{env}/brevo-api-key",
+                "BREVO_SENDER_EMAIL": "noreply@codelabsecuador.com",
+                "BREVO_SENDER_NAME":  "CodeLabs Billing",
+            },
+        )
+        database.tenants_table.grant_read_write_data(certificate_expiry_notifier_fn)
+        database.audit_table.grant_read_write_data(certificate_expiry_notifier_fn)
+        certificate_expiry_notifier_fn.add_to_role_policy(iam.PolicyStatement(
+            actions   = ["secretsmanager:GetSecretValue"],
+            resources = [
+                f"arn:aws:secretsmanager:{region}:*:secret:codelabs-billing-{env}/brevo-api-key*"
+            ],
+        ))
+
+        events.Rule(
+            self, "CertificateExpiryNotifierSchedule",
+            schedule = events.Schedule.expression("cron(0 9 * * ? *)"),
+            targets  = [events_targets.LambdaFunction(certificate_expiry_notifier_fn)],
+        )
+
         # ── Dominio personalizado — ACM + Route53 ─────────────────────────────
         # El certificado va en la misma región que el API Gateway (sa-east-1).
         # Distinto al certificado del frontend (CloudFront), que debe ir en us-east-1.
@@ -363,12 +452,28 @@ class ApiStack(Stack):
             (apigwv2.HttpMethod.GET,    "/tenants/{id}"),
             (apigwv2.HttpMethod.PATCH,  "/tenants/{id}"),
             (apigwv2.HttpMethod.PATCH,  "/tenants/{id}/status"),
+            (apigwv2.HttpMethod.POST,   "/tenants/{id}/onboarding/retry"),
             (apigwv2.HttpMethod.DELETE, "/tenants/{id}"),
         ]:
             api.add_routes(
                 path        = route,
                 methods     = [method],
                 integration = tenants_integration,
+                authorizer  = jwt_authorizer,
+            )
+
+        certificates_integration = integrations.HttpLambdaIntegration(
+            "CertificatesIntegration", certificates_fn
+        )
+
+        for method, route in [
+            (apigwv2.HttpMethod.GET, "/tenants/{id}/certificate"),
+            (apigwv2.HttpMethod.PUT, "/tenants/{id}/certificate"),
+        ]:
+            api.add_routes(
+                path        = route,
+                methods     = [method],
+                integration = certificates_integration,
                 authorizer  = jwt_authorizer,
             )
 
@@ -491,7 +596,7 @@ class ApiStack(Stack):
             architecture  = lmb.Architecture.ARM_64,
             code          = _code,
             handler       = "lambdas.onboarding.handler.handler",
-            timeout       = Duration.seconds(15),
+            timeout       = Duration.seconds(30),
             memory_size   = 256,
             environment   = {
                 **_common_env,
@@ -500,6 +605,7 @@ class ApiStack(Stack):
                 "AUDIT_LOG_TABLE":   database.audit_table.table_name,
                 "IDEMPOTENCY_TABLE": database.idempotency_table.table_name,
                 "OUTBOX_TABLE":      database.outbox_table.table_name,
+                "CERTIFICATE_SECRET_PREFIX": f"/codelabs-billing/{env}/tenant",
             },
         )
         database.tenants_table.grant_read_write_data(onboarding_api_fn)
@@ -507,17 +613,44 @@ class ApiStack(Stack):
         database.audit_table.grant_read_write_data(onboarding_api_fn)
         database.idempotency_table.grant_read_write_data(onboarding_api_fn)
         database.outbox_table.grant_write_data(onboarding_api_fn)
+        self._grant_certificate_secrets(
+            onboarding_api_fn, env=env, region=region, allow_delete=True
+        )
 
         onboarding_integration = integrations.HttpLambdaIntegration(
             "OnboardingIntegration", onboarding_api_fn
         )
 
-        # Público por diseño: registro self-service del tenant, sin JWT.
-        api.add_routes(
-            path        = "/onboarding",
-            methods     = [apigwv2.HttpMethod.POST],
-            integration = onboarding_integration,
-        )
+        # Público por diseño: registro self-service con OTP, sin JWT.
+        for route in ["/onboarding/otp/request", "/onboarding/otp/confirm"]:
+            api.add_routes(
+                path        = route,
+                methods     = [apigwv2.HttpMethod.POST],
+                integration = onboarding_integration,
+            )
+
+        request_throttle = throttling_cfg.get("onboarding_otp_request", {})
+        confirm_throttle = throttling_cfg.get("onboarding_otp_confirm", {})
+        default_throttle = throttling_cfg.get("default", {})
+        if api.default_stage:
+            cfn_stage = api.default_stage.node.default_child
+            # Throttle de stage para el resto de rutas (auth, tenants, clients, plans):
+            # sin esto, el stage usa el limite por defecto de la cuenta (muy alto), lo
+            # que deja /auth/login y demas rutas sin proteccion de abuso/costo.
+            cfn_stage.add_property_override("DefaultRouteSettings", {
+                "ThrottlingBurstLimit": default_throttle.get("burst_limit", 20),
+                "ThrottlingRateLimit": default_throttle.get("rate_limit", 10),
+            })
+            cfn_stage.add_property_override("RouteSettings", {
+                "POST /onboarding/otp/request": {
+                    "ThrottlingBurstLimit": request_throttle.get("burst_limit", 5),
+                    "ThrottlingRateLimit": request_throttle.get("rate_limit", 1),
+                },
+                "POST /onboarding/otp/confirm": {
+                    "ThrottlingBurstLimit": confirm_throttle.get("burst_limit", 10),
+                    "ThrottlingRateLimit": confirm_throttle.get("rate_limit", 2),
+                },
+            })
 
         # ── Outputs ───────────────────────────────────────────────────────────
         CfnOutput(self, "ApiUrl",

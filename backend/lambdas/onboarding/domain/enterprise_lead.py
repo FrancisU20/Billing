@@ -12,7 +12,7 @@ manually (out of scope for this phase — see context/ONBOARDING.md).
 
 from dataclasses import dataclass
 
-from lambdas.onboarding.domain.commands import RegisterTenantCommand
+from lambdas.onboarding.domain.commands import ConfirmOnboardingOtpCommand
 from shared.domain.base_entity import GlobalEntity
 from shared.domain.value_objects.email import Email
 from shared.domain.value_objects.ruc import RUC
@@ -31,7 +31,7 @@ class EnterpriseLead(GlobalEntity):
     plan_id: str = ""
 
     @classmethod
-    def create(cls, cmd: RegisterTenantCommand, *, plan_id: str) -> EnterpriseLead:
+    def create(cls, cmd: ConfirmOnboardingOtpCommand, *, plan_id: str) -> EnterpriseLead:
         ruc = RUC(cmd.ruc)
         email = Email(cmd.email)
         return cls(

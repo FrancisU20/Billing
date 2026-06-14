@@ -9,6 +9,7 @@ Routes:
     GET    /tenants/{id}        get by ID            (superadmin | tenant members)
     PATCH  /tenants/{id}        update               (superadmin | owner | admin)
     PATCH  /tenants/{id}/status change status        (superadmin)
+    POST   /tenants/{id}/onboarding/retry            (superadmin)
     DELETE /tenants/{id}        soft delete          (superadmin)
 """
 import re
@@ -20,6 +21,7 @@ from lambdas._base.permissions import require_role, require_superadmin
 from lambdas._base.response import ApiResponse
 from lambdas.tenants.domain.commands import (
     CreateTenantCommand,
+    RetryTenantOnboardingCommand,
     ToggleStatusCommand,
     UpdateTenantCommand,
 )
@@ -35,6 +37,7 @@ from lambdas.tenants.use_cases.create_tenant import CreateTenantUseCase
 from lambdas.tenants.use_cases.delete_tenant import DeleteTenantUseCase
 from lambdas.tenants.use_cases.get_tenant import GetTenantUseCase
 from lambdas.tenants.use_cases.list_tenants import ListTenantsQuery, ListTenantsUseCase
+from lambdas.tenants.use_cases.retry_onboarding import RetryTenantOnboardingUseCase
 from lambdas.tenants.use_cases.toggle_status import ToggleStatusUseCase
 from lambdas.tenants.use_cases.update_tenant import UpdateTenantUseCase
 from shared.config import env
@@ -218,6 +221,36 @@ def _toggle_status(request: Request, context) -> dict:
 @lambda_handler
 @require_superadmin
 @idempotent
+def _retry_onboarding(request: Request, context) -> dict:
+    tenant_id = require_path_param(request, "id")
+    command = RetryTenantOnboardingCommand(
+        tenant_id=tenant_id,
+        requested_by=request.user_id,
+    )
+    repo = _repo()
+    tenant, events = RetryTenantOnboardingUseCase(repo).execute(command)
+    response = ApiResponse.ok(
+        {
+            "tenant_id": tenant.id,
+            "email": tenant.email,
+            "status": "queued",
+        },
+        request.request_id,
+    )
+    repo.commit_admin_events(
+        tenant=tenant,
+        user_id=request.user_id,
+        action="ONBOARDING_RETRY",
+        events=events,
+        idempotency=require_current_context(),
+        response=response,
+    )
+    return response
+
+
+@lambda_handler
+@require_superadmin
+@idempotent
 def _delete(request: Request, context) -> dict:
     tenant_id = require_path_param(request, "id")
     repo = _repo()
@@ -238,6 +271,7 @@ def _delete(request: Request, context) -> dict:
 
 _ID_PATTERN = re.compile(r"^/tenants/[^/]+$")
 _STATUS_PATTERN = re.compile(r"^/tenants/[^/]+/status$")
+_ONBOARDING_RETRY_PATTERN = re.compile(r"^/tenants/[^/]+/onboarding/retry$")
 
 
 def handler(event: dict, context) -> dict:
@@ -254,6 +288,10 @@ def handler(event: dict, context) -> dict:
     if _STATUS_PATTERN.match(path):
         if method == "PATCH":
             return _toggle_status(event, context)
+
+    if _ONBOARDING_RETRY_PATTERN.match(path):
+        if method == "POST":
+            return _retry_onboarding(event, context)
 
     if _ID_PATTERN.match(path):
         if method == "GET":

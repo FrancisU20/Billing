@@ -65,7 +65,7 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
             )
         except ClientError as exc:
             _log.error("DynamoDB identification-index query error", error=str(exc))
-            raise DatabaseError()
+            raise DatabaseError() from exc
 
         for item in response.get("Items", []):
             if item.get("entity_type") != "CLIENT" or item.get("deleted"):
@@ -177,7 +177,7 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
             return response.get("Item")
         except ClientError as exc:
             _log.error("DynamoDB get_item error", error=str(exc))
-            raise DatabaseError()
+            raise DatabaseError() from exc
 
     def _create_items(self, client: Client, item: dict) -> list[dict]:
         return [
@@ -271,10 +271,10 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
                     reasons=reasons,
                 )
                 if self._identification_lock_failed(transact_items, reasons, is_create):
-                    raise ClientDuplicateIdentificationError()
-                raise OptimisticLockError()
+                    raise ClientDuplicateIdentificationError() from exc
+                raise OptimisticLockError() from exc
             _log.error("DynamoDB transact_write_items error", error=str(exc))
-            raise DatabaseError()
+            raise DatabaseError() from exc
 
     def _identification_lock_failed(
         self,

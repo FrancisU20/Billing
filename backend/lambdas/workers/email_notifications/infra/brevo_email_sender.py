@@ -112,6 +112,71 @@ def _build_html(legal_rep_name: str, email: str, temp_password: str) -> str:
 </html>"""
 
 
+def _build_onboarding_otp_html(legal_rep_name: str, otp: str, expires_at: str) -> str:
+    safe_name = escape(legal_rep_name, quote=True)
+    safe_otp = escape(otp, quote=True)
+    safe_expires_at = escape(expires_at, quote=True)
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:40px 20px">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+          <tr>
+            <td style="background:#1a1a2e;padding:32px 40px">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
+                CodeLabs Billing
+              </h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px">
+              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+                Verifica tu correo, {safe_name}
+              </h2>
+              <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                Usa este código para completar el registro de tu empresa.
+              </p>
+
+              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+                          border-radius:4px;padding:20px;margin:0 0 24px;text-align:center">
+                <p style="margin:0;color:#1a1a2e;font-size:32px;font-weight:700;
+                          letter-spacing:6px">{safe_otp}</p>
+              </div>
+
+              <p style="margin:0;color:#888;font-size:13px">
+                Este código expira en 10 minutos.
+                Fecha técnica de expiración: {safe_expires_at}.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f8f9fa;padding:20px 40px;
+                       border-top:1px solid #e9ecef">
+              <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
+                © CodeLabs Billing · Ecuador
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
 def _get_api_key() -> str:
     api_key = get_secret(_SECRET_NAME)
     # Secrets Manager puede almacenar el valor como string plano o como JSON.
@@ -218,7 +283,98 @@ def _build_enterprise_lead_html(trade_name: str, ruc: str, email: str, plan_id: 
 </html>"""
 
 
+def _build_certificate_expiry_alert_html(
+    legal_rep_name: str, trade_name: str, ruc: str, cert_expires_at: str, days_remaining: int
+) -> str:
+    safe_name = escape(legal_rep_name, quote=True)
+    safe_trade_name = escape(trade_name, quote=True)
+    safe_ruc = escape(ruc, quote=True)
+    safe_expires_at = escape(cert_expires_at, quote=True)
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:40px 20px">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+          <tr>
+            <td style="background:#1a1a2e;padding:32px 40px">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
+                CodeLabs Billing
+              </h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px">
+              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+                Hola, {safe_name}
+              </h2>
+              <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                El certificado digital de <strong>{safe_trade_name}</strong> vence
+                en <strong>{days_remaining} días</strong>. Renuévalo a tiempo para
+                no interrumpir la emisión de comprobantes electrónicos.
+              </p>
+
+              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+                          border-radius:4px;padding:20px;margin:0 0 24px">
+                <p style="margin:0 0 6px;color:#1a1a2e">
+                  <strong>RUC:</strong> {safe_ruc}
+                </p>
+                <p style="margin:0;color:#1a1a2e">
+                  <strong>Fecha de vencimiento:</strong> {safe_expires_at}
+                </p>
+              </div>
+
+              <p style="margin:0;color:#888;font-size:13px">
+                Una vez renovado, sube el nuevo certificado desde tu panel para
+                actualizarlo.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f8f9fa;padding:20px 40px;
+                       border-top:1px solid #e9ecef">
+              <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
+                © CodeLabs Billing · Ecuador
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
 class BrevoEmailSender(EmailSender):
+    def send_onboarding_otp(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        otp: str,
+        expires_at: str,
+    ) -> None:
+        api_key = _get_api_key()
+        payload = {
+            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "to": [{"email": email, "name": legal_rep_name}],
+            "subject": "Verifica tu correo — CodeLabs Billing",
+            "htmlContent": _build_onboarding_otp_html(legal_rep_name, otp, expires_at),
+        }
+        _send(api_key, payload, log_email=email)
+
     def send_welcome(self, *, email: str, legal_rep_name: str, temp_password: str) -> None:
         api_key = _get_api_key()
         payload = {
@@ -240,3 +396,24 @@ class BrevoEmailSender(EmailSender):
             "htmlContent": _build_enterprise_lead_html(trade_name, ruc, email, plan_id),
         }
         _send(api_key, payload, log_email=superadmin_email)
+
+    def send_certificate_expiry_alert(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        trade_name: str,
+        ruc: str,
+        cert_expires_at: str,
+        days_remaining: int,
+    ) -> None:
+        api_key = _get_api_key()
+        payload = {
+            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "to": [{"email": email, "name": legal_rep_name}],
+            "subject": f"Tu certificado digital vence en {days_remaining} días — CodeLabs Billing",
+            "htmlContent": _build_certificate_expiry_alert_html(
+                legal_rep_name, trade_name, ruc, cert_expires_at, days_remaining
+            ),
+        }
+        _send(api_key, payload, log_email=email)

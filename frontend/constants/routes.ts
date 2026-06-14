@@ -7,6 +7,8 @@ export const Routes = {
   public: {
     components: '/(public)/components' as const,
     registerDetails: '/(public)/register/details' as const,
+    registerCertificate: '/(public)/register/certificate' as const,
+    registerOtp: '/(public)/register/otp' as const,
     registerConfirm: '/(public)/register/confirm' as const,
   },
   app: {

@@ -19,6 +19,13 @@ export const tenantSchema = z.object({
   plan_id: z.string().min(1),
   plan_status: planStatusSchema,
   plan_cycle_ends_at: z.string().nullable(),
+  cert_subject_ruc: z.string().nullable(),
+  cert_expires_at: z.string().nullable(),
+  cert_issuer: z.string().nullable(),
+  cert_uploaded_at: z.string().nullable(),
+  cert_expiry_alert_60_sent_at: z.string().nullable(),
+  cert_expiry_alert_30_sent_at: z.string().nullable(),
+  onboarding_completed_at: z.string().nullable(),
   created_at: z.string().min(1),
   updated_at: z.string().min(1),
   created_by: z.string(),
@@ -106,6 +113,28 @@ export const tenantFormValuesSchema = z.object({
   plan_id: z.string().min(1, 'El plan es requerido'),
 })
 
+export const certificateMetadataSchema = z.object({
+  cert_subject_ruc: z.string().nullable(),
+  cert_expires_at: z.string().nullable(),
+  cert_issuer: z.string().nullable(),
+  cert_uploaded_at: z.string().nullable(),
+})
+
+export const certificateSchema = certificateMetadataSchema.extend({
+  tenant_id: z.string(),
+})
+
+export const certificateUpdateSchema = z.object({
+  certificate_b64: z.string().min(1, 'Selecciona tu certificado p12'),
+  cert_password: z.string().min(1, 'La clave del certificado es requerida').max(200),
+})
+
+export const retryTenantOnboardingSchema = z.object({
+  tenant_id: z.string().min(1),
+  email: z.string().email(),
+  status: z.literal('queued'),
+})
+
 export type Tenant = z.infer<typeof tenantSchema>
 export type TenantStatus = z.infer<typeof tenantStatusSchema>
 export type SriEnvironment = z.infer<typeof sriEnvironmentSchema>
@@ -115,3 +144,7 @@ export type CreateTenantInput = z.infer<typeof createTenantSchema>
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>
 export type ToggleTenantStatusInput = z.infer<typeof toggleTenantStatusSchema>
 export type TenantFormValues = z.infer<typeof tenantFormValuesSchema>
+export type CertificateMetadata = z.infer<typeof certificateMetadataSchema>
+export type Certificate = z.infer<typeof certificateSchema>
+export type CertificateUpdateInput = z.infer<typeof certificateUpdateSchema>
+export type RetryTenantOnboardingResult = z.infer<typeof retryTenantOnboardingSchema>

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
-class OnboardingRequest(BaseModel):
+class OnboardingBaseRequest(BaseModel):
     ruc: str = Field(..., min_length=10, max_length=13)
     trade_name: str = Field(..., min_length=2, max_length=200)
     legal_name: str = Field(..., min_length=2, max_length=200)
@@ -13,3 +13,15 @@ class OnboardingRequest(BaseModel):
     address: str = Field(..., min_length=5, max_length=500)
     accounting_required: bool = False
     plan_id: str = Field(..., min_length=1, max_length=36)
+
+
+class OnboardingRequest(OnboardingBaseRequest):
+    certificate_b64: str | None = Field(None, min_length=1)
+    cert_password: str | None = Field(None, min_length=1, max_length=200)
+
+
+class OnboardingOtpConfirmRequest(OnboardingBaseRequest):
+    verification_id: str = Field(..., min_length=1, max_length=36)
+    otp: str = Field(..., min_length=6, max_length=6)
+    certificate_b64: str | None = Field(None, min_length=1)
+    cert_password: str | None = Field(None, min_length=1, max_length=200)

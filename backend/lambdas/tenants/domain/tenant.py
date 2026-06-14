@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
 
 from lambdas.tenants.domain.commands import CreateTenantCommand, UpdateTenantCommand
 from lambdas.tenants.domain.enums import PlanStatus, SriEnvironment, TenantStatus
 from lambdas.tenants.domain.errors import InvalidSriEnvironmentError
+from shared.certificates.expiry import CERTIFICATE_EXPIRY_ALERT_THRESHOLDS_DAYS
+from shared.certificates.metadata import CertificateMetadata
 from shared.domain.base_entity import GlobalEntity
 from shared.domain.value_objects.email import Email
 from shared.domain.value_objects.ruc import RUC
@@ -36,6 +38,12 @@ _ALLOWED_STATUS_TRANSITIONS: dict[TenantStatus, set[TenantStatus]] = {
 }
 
 
+def _certificate_expiry_alert_attr(threshold_days: int) -> str:
+    if threshold_days not in CERTIFICATE_EXPIRY_ALERT_THRESHOLDS_DAYS:
+        raise ValueError(f"umbral de alerta no soportado: {threshold_days}")
+    return f"cert_expiry_alert_{threshold_days}_sent_at"
+
+
 @dataclass
 class Tenant(GlobalEntity):
     ruc: str = ""
@@ -50,6 +58,14 @@ class Tenant(GlobalEntity):
     status: TenantStatus = field(default=TenantStatus.ACTIVE)
     plan_id: str = ""
     plan_cycle_ends_at: datetime | None = None
+    certificate_secret_arn: str | None = None
+    cert_subject_ruc: str | None = None
+    cert_expires_at: datetime | None = None
+    cert_issuer: str | None = None
+    cert_uploaded_at: datetime | None = None
+    cert_expiry_alert_60_sent_at: datetime | None = None
+    cert_expiry_alert_30_sent_at: datetime | None = None
+    onboarding_completed_at: datetime | None = None
 
     # ── factory ───────────────────────────────────────────────────────────────
 
@@ -95,8 +111,8 @@ class Tenant(GlobalEntity):
         if cmd.sri_environment is not None:
             try:
                 self.sri_environment = SriEnvironment(cmd.sri_environment)
-            except ValueError:
-                raise InvalidSriEnvironmentError()
+            except ValueError as exc:
+                raise InvalidSriEnvironmentError() from exc
         self.touch(cmd.updated_by)
 
     def change_status(self, new_status: TenantStatus, updated_by: str) -> None:
@@ -108,6 +124,45 @@ class Tenant(GlobalEntity):
 
     def is_active(self) -> bool:
         return self.status == TenantStatus.ACTIVE
+
+    def attach_certificate(
+        self,
+        metadata: CertificateMetadata,
+        *,
+        secret_arn: str,
+        uploaded_at: datetime,
+        updated_by: str,
+        complete_onboarding: bool = False,
+        touch_entity: bool = True,
+    ) -> None:
+        self.certificate_secret_arn = secret_arn
+        self.cert_subject_ruc = metadata.subject_ruc
+        self.cert_expires_at = metadata.expires_at
+        self.cert_issuer = metadata.issuer
+        self.cert_uploaded_at = uploaded_at
+        # A new certificate starts a fresh expiry-alert cycle.
+        for threshold in CERTIFICATE_EXPIRY_ALERT_THRESHOLDS_DAYS:
+            setattr(self, _certificate_expiry_alert_attr(threshold), None)
+        if complete_onboarding and self.onboarding_completed_at is None:
+            self.onboarding_completed_at = uploaded_at
+        if touch_entity:
+            self.touch(updated_by)
+
+    def due_certificate_expiry_alerts(self, now: datetime) -> list[int]:
+        if self.cert_expires_at is None:
+            return []
+        return [
+            threshold
+            for threshold in CERTIFICATE_EXPIRY_ALERT_THRESHOLDS_DAYS
+            if getattr(self, _certificate_expiry_alert_attr(threshold)) is None
+            and now >= self.cert_expires_at - timedelta(days=threshold)
+        ]
+
+    def mark_certificate_expiry_alert_sent(
+        self, threshold_days: int, sent_at: datetime, updated_by: str
+    ) -> None:
+        setattr(self, _certificate_expiry_alert_attr(threshold_days), sent_at)
+        self.touch(updated_by)
 
     def effective_plan_status(self, now: datetime) -> PlanStatus:
         """Computed, never persisted — there is nothing to drift out of sync.
@@ -139,6 +194,27 @@ class Tenant(GlobalEntity):
             "plan_status": self.effective_plan_status(datetime.now(UTC)).value,
             "plan_cycle_ends_at": (
                 self.plan_cycle_ends_at.isoformat() if self.plan_cycle_ends_at else None
+            ),
+            "cert_subject_ruc": self.cert_subject_ruc,
+            "cert_expires_at": self.cert_expires_at.isoformat() if self.cert_expires_at else None,
+            "cert_issuer": self.cert_issuer,
+            "cert_uploaded_at": (
+                self.cert_uploaded_at.isoformat() if self.cert_uploaded_at else None
+            ),
+            "cert_expiry_alert_60_sent_at": (
+                self.cert_expiry_alert_60_sent_at.isoformat()
+                if self.cert_expiry_alert_60_sent_at
+                else None
+            ),
+            "cert_expiry_alert_30_sent_at": (
+                self.cert_expiry_alert_30_sent_at.isoformat()
+                if self.cert_expiry_alert_30_sent_at
+                else None
+            ),
+            "onboarding_completed_at": (
+                self.onboarding_completed_at.isoformat()
+                if self.onboarding_completed_at
+                else None
             ),
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),

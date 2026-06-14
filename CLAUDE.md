@@ -3,7 +3,7 @@
 Indice y reglas no negociables. Patrones de construccion y reglas de negocio viven en
 `context/` (ver tablas abajo) — leerlos segun la tarea.
 
-Ultima actualizacion: 2026-06-10.
+Ultima actualizacion: 2026-06-14.
 
 ## Objetivo Del Producto
 
@@ -26,12 +26,14 @@ Region principal: `sa-east-1`.
 
 ## Estado Actual
 
-Implementado: CRUD y filtros server-side de `tenants`, `plans` y `clients`. Paginacion
-opaca, idempotencia HTTP, locks transaccionales, outbox transaccional, separacion
-publica/admin de planes.
+Implementado: CRUD y filtros server-side de `tenants`, `plans` y `clients`; auth SRP via
+Lambda; onboarding publico con OTP; validacion/carga/reemplazo de certificados p12;
+emails transaccionales; worker diario de vencimiento de certificados; paginacion opaca,
+idempotencia HTTP, locks transaccionales, outbox transaccional y separacion publica/admin
+de planes.
 
-Proximo hito: **onboarding self-service** — registro publico del tenant con seleccion
-de plan y carga de certificado digital p12. Ver `context/ONBOARDING.md`.
+Proximo hito de producto: **invoices/documents** — emision SRI, secuenciales,
+XAdES-BES, almacenamiento legal y batch jobs. Ver `context/INVOICES.md`.
 
 ## Memorias Base
 
@@ -52,8 +54,24 @@ Reglas de negocio, flujos y DynamoDB especificos de cada dominio (incluye su sec
 | `context/TENANTS.md` | Entidad Tenant, maquina de estados, RUC lock, plan_status |
 | `context/PLANS.md` | Catalogo de planes, slug lock, endpoints publico vs admin |
 | `context/CLIENTS.md` | Clientes del tenant, tipos de identificacion, lock de identificacion |
-| `context/ONBOARDING.md` | Registro self-service, certificados p12, entornos SRI (pruebas/produccion) |
+| `context/ONBOARDING.md` | Registro self-service con OTP, certificados p12, lead Enterprise |
+| `context/CERTIFICATES.md` | Validacion, almacenamiento y ciclo de vida de certificados digitales p12 |
 | `context/INVOICES.md` | Emision de documentos, numeracion SRI, XAdES-BES, batch jobs (**pendiente**) |
+
+## Mapa De Deuda Tecnica
+
+La deuda tecnica vive en la seccion `## Deuda Tecnica` del archivo de contexto que
+corresponda. Estado actual por capa/dominio:
+
+| Archivo | Deuda relevante |
+| --- | --- |
+| `context/AUTH.md` | Sin tests de integracion Cognito real; evaluar rotacion de refresh token |
+| `context/TENANTS.md` | Listado admin con scan para alta cardinalidad/dashboard |
+| `context/PLANS.md` | `list()` con scan completo aceptable solo para catalogo chico |
+| `context/CLIENTS.md` | Busqueda `q` y validacion batch no escalan para cargas masivas |
+| `context/ONBOARDING.md` | Billing y queue dedicada Enterprise automatica son alcance futuro |
+| `context/CERTIFICATES.md` | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras |
+| `context/INVOICES.md` | Dominio pendiente; deuda anticipada de IVA/SRI/reintentos |
 
 ## Stack
 
@@ -108,6 +126,7 @@ TOKEN=$(make -s token); echo ${#TOKEN}
 
 - No hacer `git push` sin confirmacion explicita.
 - No agregar `Co-Authored-By` en commits.
+- `CLAUDE.md` y `context/` son memoria versionada de este proyecto personal; no ignorarlos.
 - El deploy normal es por GitHub Actions.
 - `cdk deploy` local solo si el usuario lo pide explicitamente.
 - Docs-only en raiz (`*.md`), `docs/**` y `postman/**` no deberian disparar deploy pesado.

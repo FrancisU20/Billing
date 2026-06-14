@@ -75,10 +75,10 @@ class DynamoMigrationStateRepository(MigrationStateRepository):
                 if current and current.get("status") == "SUCCESS":
                     return False
                 if current and current.get("status") == "IN_PROGRESS":
-                    raise MigrationAlreadyRunningError()
+                    raise MigrationAlreadyRunningError() from exc
                 return False
             _log.error("DynamoDB migration begin error", error=str(exc), migration=migration.id)
-            raise DatabaseError()
+            raise DatabaseError() from exc
 
     def mark_succeeded(self, migration: Migration, result: MigrationResult) -> None:
         self._mark_done(migration, status="SUCCESS", result=result.to_dict())
@@ -91,7 +91,7 @@ class DynamoMigrationStateRepository(MigrationStateRepository):
             return self._table.get_item(Key={"id": migration_id}).get("Item")
         except ClientError as exc:
             _log.error("DynamoDB migration get error", error=str(exc), migration=migration_id)
-            raise DatabaseError()
+            raise DatabaseError() from exc
 
     def _mark_done(
         self,
@@ -137,6 +137,6 @@ class DynamoMigrationStateRepository(MigrationStateRepository):
                     migration=migration.id,
                     expected_attempt=expected_attempt,
                 )
-                raise MigrationAlreadyRunningError()
+                raise MigrationAlreadyRunningError() from exc
             _log.error("DynamoDB migration mark_done error", error=str(exc), migration=migration.id)
-            raise DatabaseError()
+            raise DatabaseError() from exc

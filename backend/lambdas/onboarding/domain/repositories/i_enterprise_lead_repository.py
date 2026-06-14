@@ -16,5 +16,6 @@ class IEnterpriseLeadRepository(ABC):
         events: list[DomainEvent],
         idempotency: IdempotencyContext | None,
         response: dict | None,
+        extra_transact_items: list[dict] | None = None,
     ) -> None:
         """Atomic commit: lead + outbox + idempotency in one transaction."""

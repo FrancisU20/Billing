@@ -45,7 +45,7 @@ class DynamoPlanRepository(IPlanRepository):
             response = self._table.get_item(Key={"id": plan_id})
         except ClientError as exc:
             _log.error("DynamoDB get_item error", error=str(exc))
-            raise DatabaseError()
+            raise DatabaseError() from exc
 
         item = response.get("Item")
         if not item or item.get("entity_type", "PLAN") != "PLAN":
@@ -61,7 +61,7 @@ class DynamoPlanRepository(IPlanRepository):
             )
         except ClientError as exc:
             _log.error("DynamoDB slug-index query error", error=str(exc))
-            raise DatabaseError()
+            raise DatabaseError() from exc
 
         items = [
             item for item in response.get("Items", []) if item.get("entity_type", "PLAN") == "PLAN"
@@ -101,7 +101,7 @@ class DynamoPlanRepository(IPlanRepository):
                 kwargs["ExclusiveStartKey"] = last_key
         except ClientError as exc:
             _log.error("DynamoDB scan error", error=str(exc))
-            raise DatabaseError()
+            raise DatabaseError() from exc
 
         plans = [
             self._from_item(item) for item in items if item.get("entity_type", "PLAN") == "PLAN"
@@ -168,7 +168,7 @@ class DynamoPlanRepository(IPlanRepository):
             response = self._table.get_item(Key={"id": plan_id})
         except ClientError as exc:
             _log.error("DynamoDB get_item error", error=str(exc))
-            raise DatabaseError()
+            raise DatabaseError() from exc
         return response.get("Item")
 
     def _create_items(self, plan: Plan, item: dict, user_id: str) -> list[dict]:
@@ -232,11 +232,11 @@ class DynamoPlanRepository(IPlanRepository):
                         len(reasons) > 1 and reasons[1].get("code") == "ConditionalCheckFailed"
                     )
                     if slug_lock_failed or plan_failed:
-                        raise PlanSlugExistsError()
-                    raise DatabaseError()
-                raise OptimisticLockError()
+                        raise PlanSlugExistsError() from exc
+                    raise DatabaseError() from exc
+                raise OptimisticLockError() from exc
             _log.error("DynamoDB transact_write_items error", error=str(exc))
-            raise DatabaseError()
+            raise DatabaseError() from exc
 
     def _slug_lock_item(self, plan: Plan, user_id: str) -> dict:
         return {

@@ -44,8 +44,9 @@ class _AlreadyCompletedError(Exception):
 
 _TABLE_ENV = "IDEMPOTENCY_TABLE"
 _TABLE_NAME = env(_TABLE_ENV, "")
+_SECONDS_PER_DAY = 24 * 60 * 60
 _IN_PROGRESS_TTL_SECONDS = 900
-_COMPLETED_TTL_SECONDS = 86_400
+_COMPLETED_TTL_SECONDS = _SECONDS_PER_DAY
 _FAILED_TTL_SECONDS = 60
 
 _table = None
@@ -114,7 +115,7 @@ def _existing(table, ctx: IdempotencyContext) -> dict | None:
         return resp.get("Item")
     except ClientError as exc:
         _log.error("idempotency: error reading key", error=str(exc))
-        raise DatabaseError()
+        raise DatabaseError() from exc
 
 
 def _reserve(table, ctx: IdempotencyContext) -> None:
@@ -141,12 +142,12 @@ def _reserve(table, ctx: IdempotencyContext) -> None:
         if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
             item = _existing(table, ctx)
             if item and not _matches(item, ctx):
-                raise IdempotencyKeyReusedError()
+                raise IdempotencyKeyReusedError() from exc
             if item and item.get("status") == "COMPLETED" and item.get("response"):
-                raise _AlreadyCompletedError(item["response"])
-            raise IdempotencyInProgressError()
+                raise _AlreadyCompletedError(item["response"]) from exc
+            raise IdempotencyInProgressError() from exc
         _log.error("idempotency: error reserving key", error=str(exc))
-        raise DatabaseError()
+        raise DatabaseError() from exc
 
 
 def _mark_failed(table, ctx: IdempotencyContext) -> None:
@@ -186,7 +187,7 @@ def _mark_completed_non_transactional(table, ctx: IdempotencyContext, response: 
         ctx.completed = True
     except ClientError as exc:
         _log.error("idempotency: could not cache response", error=str(exc))
-        raise DatabaseError()
+        raise DatabaseError() from exc
 
 
 def current_context() -> IdempotencyContext | None:

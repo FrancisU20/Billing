@@ -1,4 +1,4 @@
-import { onboardingRequestSchema } from './schemas'
+import { onboardingBaseRequestSchema } from './schemas'
 import type { OnboardingRequest, RegistrationFormValues } from './schemas'
 
 export function registrationFormDefaultValues(): RegistrationFormValues {
@@ -18,7 +18,7 @@ export function formValuesToOnboardingPayload(
   values: RegistrationFormValues,
   planId: string,
 ): OnboardingRequest {
-  return onboardingRequestSchema.parse({
+  return onboardingBaseRequestSchema.parse({
     ruc: values.ruc.trim(),
     trade_name: values.trade_name.trim(),
     legal_name: values.legal_name.trim(),

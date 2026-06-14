@@ -12,8 +12,9 @@ Flow:
         → user receives initial access credentials
 
 Recognized events:
-    OwnerCreatedEvent          — welcome email to the owner of a newly created tenant
-    EnterpriseLeadCreatedEvent — internal notification to the sales team
+    OnboardingOtpRequestedEvent — verification email for public registration
+    OwnerCreatedEvent           — welcome email to the owner of a newly created tenant
+    EnterpriseLeadCreatedEvent  — internal notification to the sales team
 
 Any unknown event is ignored (does not count as a batch failure).
 """
@@ -22,6 +23,9 @@ from lambdas._base.sqs_handler import SQSRecord, sqs_handler
 from lambdas.workers.email_notifications.infra.brevo_email_sender import BrevoEmailSender
 from lambdas.workers.email_notifications.use_cases.send_enterprise_lead_notification import (
     SendEnterpriseLeadNotificationUseCase,
+)
+from lambdas.workers.email_notifications.use_cases.send_onboarding_otp import (
+    SendOnboardingOtpUseCase,
 )
 from lambdas.workers.email_notifications.use_cases.send_welcome_email import (
     SendWelcomeEmailUseCase,
@@ -40,6 +44,15 @@ _SUPERADMIN_EMAIL = env("SUPERADMIN_EMAIL", "")
 def handler(record: SQSRecord, context) -> None:
     event_type = record.body.get("event_type")
     data = record.body.get("data", {})
+
+    if event_type == "OnboardingOtpRequestedEvent":
+        SendOnboardingOtpUseCase(_email_sender).execute(
+            email=data.get("email", ""),
+            legal_rep_name=data.get("legal_rep_name", ""),
+            otp=data.get("otp", ""),
+            expires_at=data.get("expires_at", ""),
+        )
+        return
 
     if event_type == "OwnerCreatedEvent":
         SendWelcomeEmailUseCase(_email_sender).execute(

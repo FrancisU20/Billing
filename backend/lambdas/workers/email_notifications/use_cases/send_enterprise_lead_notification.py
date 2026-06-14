@@ -32,4 +32,4 @@ class SendEnterpriseLeadNotificationUseCase:
             _log.info("enterprise lead notification sent", ruc=ruc)
         except Exception as exc:
             _log.error("error sending enterprise lead notification", error=str(exc), exc_info=True)
-            raise InternalError()
+            raise InternalError() from exc

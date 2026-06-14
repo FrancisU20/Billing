@@ -58,6 +58,6 @@ def handler(event: dict, context) -> dict:
     except AppError:
         _log.warning("migration application error", exc_info=True)
         raise
-    except Exception:
+    except Exception as exc:
         _log.error("migration unexpected error", exc_info=True)
-        raise InternalError()
+        raise InternalError() from exc

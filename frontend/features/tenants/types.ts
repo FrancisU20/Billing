@@ -1,8 +1,12 @@
 import type { PlanStatus, SriEnvironment, TenantStatus } from './schemas'
 
 export type {
+  Certificate,
+  CertificateMetadata,
+  CertificateUpdateInput,
   CreateTenantInput,
   PlanStatus,
+  RetryTenantOnboardingResult,
   SriEnvironment,
   Tenant,
   TenantStatus,

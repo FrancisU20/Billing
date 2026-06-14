@@ -13,6 +13,18 @@ dynamodb:
 cognito:
   mfa: "OFF"
 
+api:
+  throttling:
+    default:
+      burst_limit: 30
+      rate_limit: 15
+    onboarding_otp_request:
+      burst_limit: 5
+      rate_limit: 1
+    onboarding_otp_confirm:
+      burst_limit: 10
+      rate_limit: 2
+
 domain:
   hosted_zone: codelabsecuador.com
   api:         api-billing-staging.codelabsecuador.com

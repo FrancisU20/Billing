@@ -182,9 +182,6 @@ export const darkSemantic = {
   },
 } as const
 
-// Alias para imports legacy (componentes migrados usan useTheme en su lugar)
-export const semantic = lightSemantic
-
 export interface SemanticTokens {
   bg: {
     primary: string

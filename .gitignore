@@ -42,7 +42,3 @@ Thumbs.db
 
 # Local secrets
 .venv/
-
-# Claude context (archivos de memoria del proyecto)
-CLAUDE.md
-context/

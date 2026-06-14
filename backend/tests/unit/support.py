@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 from typing import Any
 
 from lambdas.clients.domain.commands import CreateClientCommand
@@ -145,14 +146,25 @@ class FakeTenantRepository:
         self.tenants: dict[str, Tenant] = {}
         self.existing_by_ruc: Tenant | None = None
         self.list_result: tuple[list[Tenant], str | None] = ([], None)
+        self.certificate_expiry_due: list[Tenant] = []
+        self.list_with_certificate_expiry_due_calls: list[datetime] = []
         self.save_calls: list[tuple[Tenant, str]] = []
         self.commit_calls: list[dict[str, Any]] = []
+        self.commit_admin_events_calls: list[dict[str, Any]] = []
         self.get_by_ruc_calls: list[str] = []
         self.list_calls: list[dict[str, Any]] = []
+        self.get_by_id_calls: list[str] = []
+        # Exceptions to raise on successive commit() calls before succeeding,
+        # e.g. [OptimisticLockError()] retries once then commits normally.
+        self.commit_errors: list[Exception] = []
+        # Errors to raise on save() for a given tenant id, e.g.
+        # {"tenant-1": OptimisticLockError()}.
+        self.save_errors: dict[str, Exception] = {}
 
     def get_by_id(self, tenant_id: str) -> Tenant:
         from lambdas.tenants.domain.errors import TenantNotFoundError
 
+        self.get_by_id_calls.append(tenant_id)
         if tenant_id not in self.tenants:
             raise TenantNotFoundError()
         return self.tenants[tenant_id]
@@ -163,6 +175,8 @@ class FakeTenantRepository:
 
     def save(self, tenant: Tenant, user_id: str) -> None:
         self.save_calls.append((tenant, user_id))
+        if tenant.id in self.save_errors:
+            raise self.save_errors.pop(tenant.id)
         self.tenants[tenant.id] = tenant
 
     def list(
@@ -194,8 +208,19 @@ class FakeTenantRepository:
 
     def commit(self, **kwargs: Any) -> None:
         self.commit_calls.append(kwargs)
+        if self.commit_errors:
+            raise self.commit_errors.pop(0)
         tenant = kwargs["tenant"]
         self.tenants[tenant.id] = tenant
+
+    def commit_admin_events(self, **kwargs: Any) -> None:
+        self.commit_admin_events_calls.append(kwargs)
+        if self.commit_errors:
+            raise self.commit_errors.pop(0)
+
+    def list_with_certificate_expiry_due(self, before: datetime) -> list[Tenant]:
+        self.list_with_certificate_expiry_due_calls.append(before)
+        return self.certificate_expiry_due
 
 
 class FakePlanCatalog:

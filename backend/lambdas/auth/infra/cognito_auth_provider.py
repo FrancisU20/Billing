@@ -64,7 +64,7 @@ class CognitoAuthProvider(IAuthProvider):
             return self._outcome_from_response(final_response)
 
         except ClientError as exc:
-            raise self._map_client_error(exc)
+            raise self._map_client_error(exc) from exc
 
     def refresh(self, command: RefreshCommand) -> AuthOutcome:
         try:
@@ -76,7 +76,7 @@ class CognitoAuthProvider(IAuthProvider):
             return self._outcome_from_response(response)
 
         except ClientError as exc:
-            raise self._map_client_error(exc)
+            raise self._map_client_error(exc) from exc
 
     def logout(self, command: LogoutCommand) -> None:
         try:
@@ -85,7 +85,7 @@ class CognitoAuthProvider(IAuthProvider):
             code = exc.response.get("Error", {}).get("Code", "")
             if code == "NotAuthorizedException":
                 return
-            raise self._map_client_error(exc)
+            raise self._map_client_error(exc) from exc
 
     def respond_to_challenge(self, command: RespondChallengeCommand) -> AuthOutcome:
         try:
@@ -98,7 +98,7 @@ class CognitoAuthProvider(IAuthProvider):
             return self._outcome_from_response(response)
 
         except ClientError as exc:
-            raise self._map_client_error(exc)
+            raise self._map_client_error(exc) from exc
 
     def _outcome_from_response(self, response: dict[str, Any]) -> AuthOutcome:
         if response.get("AuthenticationResult"):

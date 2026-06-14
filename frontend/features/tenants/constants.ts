@@ -1,6 +1,9 @@
 import type { PlanStatus, SriEnvironment, TenantStatus } from './types'
 
 export const TENANTS_PAGE_SIZE = 30
+export const CERTIFICATE_EXPIRY_WARNING_DAYS = 60
+export const CERTIFICATE_EXPIRY_DANGER_DAYS = 30
+export const MILLISECONDS_PER_DAY = 1000 * 60 * 60 * 24
 
 export const TENANT_STATUS_OPTIONS: Array<{ value: TenantStatus | 'all'; label: string }> = [
   { value: 'all', label: 'Todos' },

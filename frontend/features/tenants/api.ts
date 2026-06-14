@@ -1,13 +1,22 @@
 import { api } from '@/lib/api/client'
 import {
+  certificateMetadataSchema,
+  certificateSchema,
+  certificateUpdateSchema,
   createTenantSchema,
+  retryTenantOnboardingSchema,
   tenantSchema,
   tenantsPageSchema,
   toggleTenantStatusSchema,
   updateTenantSchema,
 } from './schemas'
 import { TENANTS_PAGE_SIZE } from './constants'
-import type { CreateTenantInput, ToggleTenantStatusInput, UpdateTenantInput } from './types'
+import type {
+  CertificateUpdateInput,
+  CreateTenantInput,
+  ToggleTenantStatusInput,
+  UpdateTenantInput,
+} from './types'
 import type { TenantListFilters } from './types'
 
 function listPath(filters: TenantListFilters = {}, nextToken?: string): string {
@@ -50,4 +59,23 @@ export const tenantsApi = {
 
   delete: (id: string, idempotencyKey: string) =>
     api.delete(`/tenants/${encodeURIComponent(id)}`, tenantSchema.optional(), { idempotencyKey }),
+
+  retryOnboarding: (id: string, idempotencyKey: string) =>
+    api.post(
+      `/tenants/${encodeURIComponent(id)}/onboarding/retry`,
+      undefined,
+      retryTenantOnboardingSchema,
+      { idempotencyKey },
+    ),
+
+  getCertificate: (id: string) =>
+    api.get(`/tenants/${encodeURIComponent(id)}/certificate`, certificateSchema),
+
+  replaceCertificate: (id: string, body: CertificateUpdateInput, idempotencyKey: string) =>
+    api.put(
+      `/tenants/${encodeURIComponent(id)}/certificate`,
+      certificateUpdateSchema.parse(body),
+      certificateMetadataSchema,
+      { idempotencyKey },
+    ),
 }

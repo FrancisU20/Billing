@@ -26,4 +26,4 @@ class SendWelcomeEmailUseCase:
             _log.info("welcome email sent", email=email)
         except Exception as exc:
             _log.error("error sending welcome email", error=str(exc), exc_info=True)
-            raise InternalError()
+            raise InternalError() from exc

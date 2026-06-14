@@ -208,6 +208,99 @@ class TenantsHandlerTests(unittest.TestCase):
         self.assertEqual(repo.commit_calls[0]["action"], "STATUS")
         self.assertEqual(repo.commit_calls[0]["tenant"].status.value, "suspended")
 
+    def test_retry_onboarding_enqueues_tenant_created_event_without_mutating_tenant(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="tenant-retry-1", email="owner@codelabs.com")
+        repo.tenants[tenant.id] = tenant
+        idempotency_context = object()
+        event = api_event(
+            method="POST",
+            path="/tenants/tenant-retry-1/onboarding/retry",
+            headers={"X-Idempotency-Key": "retry-onboarding-1"},
+        )
+
+        with (
+            patch.object(self.handler, "_repo", return_value=repo),
+            patch.object(self.handler, "require_current_context", return_value=idempotency_context),
+        ):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(body["data"]["status"], "queued")
+        self.assertEqual(repo.commit_calls, [])
+        self.assertEqual(len(repo.commit_admin_events_calls), 1)
+        commit = repo.commit_admin_events_calls[0]
+        self.assertEqual(commit["action"], "ONBOARDING_RETRY")
+        self.assertIs(commit["idempotency"], idempotency_context)
+        self.assertEqual(commit["events"][0].event_type, "TenantCreatedEvent")
+        self.assertEqual(commit["events"][0].tenant_id, "tenant-retry-1")
+        self.assertEqual(commit["tenant"].version, tenant.version)
+
+    def test_retry_onboarding_on_completed_inactive_tenant_still_enqueues_event(self) -> None:
+        """Documents current behavior: retry has no guard on tenant.status or
+        onboarding_completed_at. It always re-enqueues TenantCreatedEvent without
+        mutating the tenant. This is safe because:
+        - the endpoint is superadmin-only (recovery tool, not self-service);
+        - the worker `tenant_onboarding` is idempotent: AdminCreateUser/reset of the
+          temporary password is a no-op once the Cognito user has completed its own
+          NEW_PASSWORD_REQUIRED challenge.
+        If this ever needs to become a guarded operation (e.g. confirm before resending
+        credentials to an already-active owner), this test should be updated to assert
+        the new behavior."""
+        from lambdas.tenants.domain.enums import TenantStatus
+
+        repo = FakeTenantRepository()
+        tenant = make_tenant(
+            id="tenant-retry-2",
+            email="owner@codelabs.com",
+            status=TenantStatus.INACTIVE,
+            onboarding_completed_at="2026-01-01T00:00:00+00:00",
+        )
+        repo.tenants[tenant.id] = tenant
+        idempotency_context = object()
+        event = api_event(
+            method="POST",
+            path="/tenants/tenant-retry-2/onboarding/retry",
+            headers={"X-Idempotency-Key": "retry-onboarding-2"},
+        )
+
+        with (
+            patch.object(self.handler, "_repo", return_value=repo),
+            patch.object(self.handler, "require_current_context", return_value=idempotency_context),
+        ):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(body["data"]["status"], "queued")
+        self.assertEqual(repo.commit_calls, [])
+        self.assertEqual(len(repo.commit_admin_events_calls), 1)
+        commit = repo.commit_admin_events_calls[0]
+        self.assertEqual(commit["tenant"].status, TenantStatus.INACTIVE)
+        self.assertEqual(commit["tenant"].onboarding_completed_at, "2026-01-01T00:00:00+00:00")
+
+    def test_retry_onboarding_requires_superadmin(self) -> None:
+        repo = FakeTenantRepository()
+        event = api_event(
+            method="POST",
+            path="/tenants/tenant-retry-1/onboarding/retry",
+            headers={"X-Idempotency-Key": "retry-onboarding-1"},
+            claims={
+                "custom:is_superadmin": "false",
+                "custom:tenant_id": "tenant-retry-1",
+                "custom:role": "owner",
+            },
+        )
+
+        with patch.object(self.handler, "_repo", return_value=repo):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 403)
+        self.assertEqual(body["error"]["code"], "FORBIDDEN")
+        self.assertEqual(repo.commit_admin_events_calls, [])
+
     def test_delete_commits_soft_deleted_tenant(self) -> None:
         repo = FakeTenantRepository()
         tenant = make_tenant(id="tenant-1")

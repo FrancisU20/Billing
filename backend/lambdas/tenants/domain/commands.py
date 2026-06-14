@@ -36,3 +36,9 @@ class ToggleStatusCommand:
     tenant_id: str
     new_status: str  # "active" | "suspended" | "inactive"
     updated_by: str
+
+
+@dataclass(frozen=True)
+class RetryTenantOnboardingCommand:
+    tenant_id: str
+    requested_by: str

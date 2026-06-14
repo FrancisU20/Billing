@@ -19,6 +19,10 @@ from lambdas.onboarding.domain.enterprise_lead import EnterpriseLead
 from lambdas.onboarding.domain.repositories.i_enterprise_lead_repository import (
     IEnterpriseLeadRepository,
 )
+from shared.db.transactions import (
+    ExtraTransactionConditionFailedError,
+    has_conditional_failure_at,
+)
 from shared.domain.events.domain_event import DomainEvent
 from shared.domain.events.outbox import outbox_put_transact_item
 from shared.errors import DatabaseError
@@ -39,6 +43,7 @@ class DynamoEnterpriseLeadRepository(IEnterpriseLeadRepository):
         events: list[DomainEvent],
         idempotency: IdempotencyContext | None,
         response: dict | None,
+        extra_transact_items: list[dict] | None = None,
     ) -> None:
         transact_items: list[dict] = [
             {
@@ -56,6 +61,12 @@ class DynamoEnterpriseLeadRepository(IEnterpriseLeadRepository):
                 raise ValueError("response is required to complete idempotency")
             transact_items.append(completion_transact_item(idempotency, response))
 
+        extra_condition_indexes: set[int] = set()
+        if extra_transact_items:
+            extra_start = len(transact_items)
+            transact_items.extend(extra_transact_items)
+            extra_condition_indexes = set(range(extra_start, len(transact_items)))
+
         if self._outbox_table:
             for event in events:
                 transact_items.append(
@@ -71,8 +82,10 @@ class DynamoEnterpriseLeadRepository(IEnterpriseLeadRepository):
             if idempotency is not None:
                 mark_completed()
         except ClientError as exc:
+            if has_conditional_failure_at(exc, extra_condition_indexes):
+                raise ExtraTransactionConditionFailedError() from exc
             _log.error("DynamoDB transact_write_items error", error=str(exc))
-            raise DatabaseError()
+            raise DatabaseError() from exc
 
     def _to_item(self, lead: EnterpriseLead) -> dict:
         return {

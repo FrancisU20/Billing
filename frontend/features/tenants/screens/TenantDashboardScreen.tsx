@@ -7,7 +7,8 @@ import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { Card } from '@/components/ui/Card'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useAuthStore, selectUser } from '@/features/auth/store'
-import { RoleLabel } from '@/constants/roles'
+import { RoleLabel, canWrite } from '@/constants/roles'
+import { CertificateSection } from '../components/CertificateSection'
 import { useTenant } from '../hooks/useTenant'
 
 type MetricTone = 'primary' | 'secondary' | 'error'
@@ -51,6 +52,8 @@ export function TenantDashboardScreen() {
   const { semantic } = useTheme()
   const roleLabel = user?.role ? RoleLabel[user.role] : 'Sin rol'
   const { tenant, loading: tenantLoading } = useTenant(user?.tenantId ?? null)
+  const tenantId = user?.tenantId ?? null
+  const canManageCertificate = canWrite(user?.role ?? null)
 
   if (tenantLoading) return <LoadingSpinner fullScreen label="Cargando..." />
 
@@ -187,6 +190,10 @@ export function TenantDashboardScreen() {
             </Text>
           </View>
         </Card>
+
+        {tenantId ? (
+          <CertificateSection tenantId={tenantId} canManage={canManageCertificate} />
+        ) : null}
       </ScrollView>
     </View>
   )

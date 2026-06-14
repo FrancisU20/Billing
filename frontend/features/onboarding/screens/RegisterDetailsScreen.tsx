@@ -7,8 +7,8 @@ import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { Routes } from '@/constants/routes'
 import { spacing, typography } from '@/constants/tokens'
 import { RegistrationForm } from '../components/RegistrationForm'
-import { onboardingApi } from '../api'
 import { formValuesToOnboardingPayload } from '../form'
+import { useRequestOtp } from '../hooks/useRequestOtp'
 import { useOnboardingStore } from '../store'
 import type { RegistrationFormValues } from '../schemas'
 
@@ -17,9 +17,8 @@ export function RegisterDetailsScreen() {
   const router = useRouter()
   const selectedPlan = useOnboardingStore((state) => state.selectedPlan)
   const formValues = useOnboardingStore((state) => state.formValues)
-  const idempotencyKey = useOnboardingStore((state) => state.idempotencyKey)
   const setFormValues = useOnboardingStore((state) => state.setFormValues)
-  const setResult = useOnboardingStore((state) => state.setResult)
+  const requestOtp = useRequestOtp()
 
   useEffect(() => {
     if (!selectedPlan) {
@@ -28,12 +27,13 @@ export function RegisterDetailsScreen() {
   }, [selectedPlan, router])
 
   const { submitting, error, submit } = useFormSubmit(async (values: RegistrationFormValues) => {
-    if (!selectedPlan || !idempotencyKey) return
+    if (!selectedPlan) return
     setFormValues(values)
-    const payload = formValuesToOnboardingPayload(values, selectedPlan.id)
-    const result = await onboardingApi.register(payload, idempotencyKey)
-    setResult(result)
-    router.push(Routes.public.registerConfirm as Href)
+    if (selectedPlan.self_service) {
+      router.push(Routes.public.registerCertificate as Href)
+      return
+    }
+    await requestOtp(formValuesToOnboardingPayload(values, selectedPlan.id))
   })
 
   if (!selectedPlan) return null

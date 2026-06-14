@@ -30,6 +30,11 @@ from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepos
 from lambdas.tenants.domain.tenant import Tenant
 from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.db.paginator import decode_cursor, encode_cursor
+from shared.db.transactions import (
+    ExtraTransactionConditionFailedError,
+    cancellation_reasons,
+    has_conditional_failure_at,
+)
 from shared.domain.events.domain_event import DomainEvent
 from shared.domain.events.outbox import outbox_put_transact_item
 from shared.errors import DatabaseError, OptimisticLockError
@@ -51,7 +56,7 @@ class DynamoTenantRepository(ITenantRepository):
             resp = self._table.get_item(Key={"id": tenant_id})
         except ClientError as e:
             _log.error("DynamoDB get_item error", error=str(e))
-            raise DatabaseError()
+            raise DatabaseError() from e
 
         item = resp.get("Item")
         if not item or item.get("deleted") or item.get("entity_type", "TENANT") != "TENANT":
@@ -66,7 +71,7 @@ class DynamoTenantRepository(ITenantRepository):
             )
         except ClientError as e:
             _log.error("DynamoDB ruc-index query error", error=str(e))
-            raise DatabaseError()
+            raise DatabaseError() from e
 
         items = [
             item for item in resp.get("Items", []) if item.get("entity_type", "TENANT") == "TENANT"
@@ -125,7 +130,7 @@ class DynamoTenantRepository(ITenantRepository):
                 resp = self._table.scan(**kwargs)
             except ClientError as e:
                 _log.error("DynamoDB scan error", error=str(e))
-                raise DatabaseError()
+                raise DatabaseError() from e
 
             for item in resp.get("Items", []):
                 tenant = self._from_item(item)
@@ -138,6 +143,33 @@ class DynamoTenantRepository(ITenantRepository):
 
         return tenants, encode_cursor(next_cursor)
 
+    def list_with_certificate_expiry_due(self, before: datetime) -> list[Tenant]:
+        filter_expr = (
+            Attr("entity_type").eq("TENANT")
+            & Attr("deleted").eq(False)
+            & Attr("status").ne(TenantStatus.INACTIVE.value)
+            & Attr("cert_expires_at").exists()
+            & Attr("cert_expires_at").lte(before.isoformat())
+        )
+
+        tenants: list[Tenant] = []
+        scan_kwargs: dict = {"FilterExpression": filter_expr}
+        while True:
+            try:
+                resp = self._table.scan(**scan_kwargs)
+            except ClientError as e:
+                _log.error("DynamoDB scan error", error=str(e))
+                raise DatabaseError() from e
+
+            tenants.extend(self._from_item(item) for item in resp.get("Items", []))
+
+            last_key = resp.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            scan_kwargs["ExclusiveStartKey"] = last_key
+
+        return tenants
+
     # ── writes ────────────────────────────────────────────────────────────────
 
     def save(self, tenant: Tenant, user_id: str) -> None:
@@ -148,6 +180,7 @@ class DynamoTenantRepository(ITenantRepository):
             events=[],
             idempotency=None,
             response=None,
+            extra_transact_items=None,
         )
 
     def commit(
@@ -159,6 +192,7 @@ class DynamoTenantRepository(ITenantRepository):
         events: list[DomainEvent],
         idempotency: IdempotencyContext | None,
         response: dict | None,
+        extra_transact_items: list[dict] | None = None,
     ) -> None:
         item = self._to_item(tenant)
         old_raw = self._get_raw(tenant.id)
@@ -174,6 +208,12 @@ class DynamoTenantRepository(ITenantRepository):
             if response is None:
                 raise ValueError("response is required to complete idempotency")
             transact_items.append(completion_transact_item(idempotency, response))
+
+        extra_condition_indexes: set[int] = set()
+        if extra_transact_items:
+            extra_start = len(transact_items)
+            transact_items.extend(extra_transact_items)
+            extra_condition_indexes = set(range(extra_start, len(transact_items)))
 
         if self._outbox_table:
             for event in events:
@@ -201,7 +241,66 @@ class DynamoTenantRepository(ITenantRepository):
                 )
             )
 
-        self._transact_write(transact_items, idempotency, is_create)
+        self._transact_write(
+            transact_items,
+            idempotency,
+            is_create,
+            extra_condition_indexes=extra_condition_indexes,
+        )
+
+    def commit_admin_events(
+        self,
+        *,
+        tenant: Tenant,
+        user_id: str,
+        action: str,
+        events: list[DomainEvent],
+        idempotency: IdempotencyContext | None,
+        response: dict | None,
+    ) -> None:
+        old_raw = self._get_raw(tenant.id)
+        if old_raw is None:
+            raise TenantNotFoundError()
+
+        transact_items: list[dict] = [self._tenant_unchanged_condition_item(tenant)]
+
+        if idempotency is not None:
+            if response is None:
+                raise ValueError("response is required to complete idempotency")
+            transact_items.append(completion_transact_item(idempotency, response))
+
+        if self._outbox_table:
+            for event in events:
+                transact_items.append(
+                    outbox_put_transact_item(
+                        self._outbox_table.table_name,
+                        event,
+                        source="tenants",
+                    )
+                )
+
+        if self._audit_table:
+            transact_items.append(
+                audit_put_transact_item(
+                    self._audit_table.table_name,
+                    audit_item(
+                        pk="AUDIT#TENANT",
+                        entity_type="TENANT",
+                        entity_id=tenant.id,
+                        action=action,
+                        changed_by=user_id,
+                        before=old_raw,
+                        after=old_raw,
+                    ),
+                )
+            )
+
+        self._transact_write(
+            transact_items,
+            idempotency,
+            is_create=False,
+            extra_condition_indexes=set(),
+        )
 
     # ── internal helpers ──────────────────────────────────────────────────────
 
@@ -211,7 +310,7 @@ class DynamoTenantRepository(ITenantRepository):
             return resp.get("Item")
         except ClientError as e:
             _log.error("DynamoDB get_item error", error=str(e))
-            raise DatabaseError()
+            raise DatabaseError() from e
 
     def _create_items(self, tenant: Tenant, item: dict, user_id: str) -> list[dict]:
         lock_item = self._ruc_lock_item(tenant, user_id)
@@ -245,11 +344,33 @@ class DynamoTenantRepository(ITenantRepository):
             }
         }
 
+    def _tenant_unchanged_condition_item(self, tenant: Tenant) -> dict:
+        return {
+            "ConditionCheck": {
+                "TableName": self._table.table_name,
+                "Key": {"id": tenant.id},
+                "ConditionExpression": (
+                    "attribute_exists(#id) AND #version = :version AND #deleted = :deleted"
+                ),
+                "ExpressionAttributeNames": {
+                    "#id": "id",
+                    "#version": "version",
+                    "#deleted": "deleted",
+                },
+                "ExpressionAttributeValues": {
+                    ":version": tenant.version,
+                    ":deleted": False,
+                },
+            }
+        }
+
     def _transact_write(
         self,
         transact_items: list[dict],
         idempotency: IdempotencyContext | None,
         is_create: bool,
+        *,
+        extra_condition_indexes: set[int],
     ) -> None:
         try:
             self._table.meta.client.transact_write_items(TransactItems=transact_items)
@@ -258,10 +379,7 @@ class DynamoTenantRepository(ITenantRepository):
         except ClientError as e:
             code = e.response["Error"]["Code"]
             if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
-                reasons = [
-                    {"code": r.get("Code", "None"), "msg": r.get("Message", "")}
-                    for r in e.response.get("CancellationReasons", [])
-                ]
+                reasons = cancellation_reasons(e)
                 _log.error(
                     "DynamoDB transact_write_items cancelled",
                     is_create=is_create,
@@ -274,11 +392,15 @@ class DynamoTenantRepository(ITenantRepository):
                         len(reasons) > 1 and reasons[1].get("code") == "ConditionalCheckFailed"
                     )
                     if ruc_lock_failed or tenant_failed:
-                        raise TenantRucAlreadyExistsError()
-                    raise DatabaseError()
-                raise OptimisticLockError()
+                        raise TenantRucAlreadyExistsError() from e
+                    if has_conditional_failure_at(e, extra_condition_indexes):
+                        raise ExtraTransactionConditionFailedError() from e
+                    raise DatabaseError() from e
+                if has_conditional_failure_at(e, extra_condition_indexes):
+                    raise ExtraTransactionConditionFailedError() from e
+                raise OptimisticLockError() from e
             _log.error("DynamoDB transact_write_items error", error=str(e))
-            raise DatabaseError()
+            raise DatabaseError() from e
 
     def _ruc_lock_item(self, tenant: Tenant, user_id: str) -> dict:
         return {
@@ -296,15 +418,41 @@ class DynamoTenantRepository(ITenantRepository):
             "id": tenant.id,
             "ruc": tenant.ruc,
             "trade_name": tenant.trade_name,
+            "legal_name": tenant.legal_name,
             "legal_rep_name": tenant.legal_rep_name,
             "email": tenant.email,
             "phone": tenant.phone,
             "address": tenant.address,
+            "accounting_required": tenant.accounting_required,
             "sri_environment": tenant.sri_environment.value,
             "status": tenant.status.value,
             "plan_id": tenant.plan_id,
             "plan_cycle_ends_at": (
                 tenant.plan_cycle_ends_at.isoformat() if tenant.plan_cycle_ends_at else None
+            ),
+            "certificate_secret_arn": tenant.certificate_secret_arn,
+            "cert_subject_ruc": tenant.cert_subject_ruc,
+            "cert_expires_at": (
+                tenant.cert_expires_at.isoformat() if tenant.cert_expires_at else None
+            ),
+            "cert_issuer": tenant.cert_issuer,
+            "cert_uploaded_at": (
+                tenant.cert_uploaded_at.isoformat() if tenant.cert_uploaded_at else None
+            ),
+            "cert_expiry_alert_60_sent_at": (
+                tenant.cert_expiry_alert_60_sent_at.isoformat()
+                if tenant.cert_expiry_alert_60_sent_at
+                else None
+            ),
+            "cert_expiry_alert_30_sent_at": (
+                tenant.cert_expiry_alert_30_sent_at.isoformat()
+                if tenant.cert_expiry_alert_30_sent_at
+                else None
+            ),
+            "onboarding_completed_at": (
+                tenant.onboarding_completed_at.isoformat()
+                if tenant.onboarding_completed_at
+                else None
             ),
             "version": tenant.version,
             "deleted": tenant.deleted,
@@ -321,15 +469,39 @@ class DynamoTenantRepository(ITenantRepository):
             id=item["id"],
             ruc=item["ruc"],
             trade_name=item.get("trade_name", ""),
+            legal_name=item.get("legal_name", ""),
             legal_rep_name=item.get("legal_rep_name", ""),
             email=item["email"],
             phone=item.get("phone", ""),
             address=item.get("address", ""),
+            accounting_required=item.get("accounting_required", False),
             sri_environment=SriEnvironment(item.get("sri_environment", "testing")),
             status=TenantStatus(item.get("status", "active")),
             plan_id=item.get("plan_id", ""),
             plan_cycle_ends_at=datetime.fromisoformat(item["plan_cycle_ends_at"])
             if item.get("plan_cycle_ends_at")
+            else None,
+            certificate_secret_arn=item.get("certificate_secret_arn"),
+            cert_subject_ruc=item.get("cert_subject_ruc"),
+            cert_expires_at=datetime.fromisoformat(item["cert_expires_at"])
+            if item.get("cert_expires_at")
+            else None,
+            cert_issuer=item.get("cert_issuer"),
+            cert_uploaded_at=datetime.fromisoformat(item["cert_uploaded_at"])
+            if item.get("cert_uploaded_at")
+            else None,
+            cert_expiry_alert_60_sent_at=datetime.fromisoformat(
+                item["cert_expiry_alert_60_sent_at"]
+            )
+            if item.get("cert_expiry_alert_60_sent_at")
+            else None,
+            cert_expiry_alert_30_sent_at=datetime.fromisoformat(
+                item["cert_expiry_alert_30_sent_at"]
+            )
+            if item.get("cert_expiry_alert_30_sent_at")
+            else None,
+            onboarding_completed_at=datetime.fromisoformat(item["onboarding_completed_at"])
+            if item.get("onboarding_completed_at")
             else None,
             version=item.get("version", 1),
             deleted=item.get("deleted", False),

@@ -23,6 +23,7 @@ interface LogoPieceProps {
   isDark: boolean
   size: number
   style?: StyleProp<ViewStyle>
+  color?: string
 }
 
 function useSvgId(prefix: string) {
@@ -56,15 +57,15 @@ export function LogoBackdrop({ isDark, size, style }: LogoPieceProps) {
   )
 }
 
-export function LogoMark({ isDark, size, style }: LogoPieceProps) {
+export function LogoMark({ isDark, size, style, color }: LogoPieceProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 400 400" style={style}>
-      <Path d={LOGO_C_PATH} fill={isDark ? brand.mark.dark : brand.mark.light} />
+      <Path d={LOGO_C_PATH} fill={color ?? (isDark ? brand.mark.dark : brand.mark.light)} />
     </Svg>
   )
 }
 
-export function LogoParticles({ isDark, size, style }: LogoPieceProps) {
+export function LogoParticles({ isDark, size, style, color }: LogoPieceProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 400 400" style={style}>
       {LOGO_PARTICLES.map((particle) => (
@@ -73,7 +74,7 @@ export function LogoParticles({ isDark, size, style }: LogoPieceProps) {
           cx={particle.cx}
           cy={particle.cy}
           r={particle.r}
-          fill={isDark ? brand.particle.dark : brand.particle.light}
+          fill={color ?? (isDark ? brand.particle.dark : brand.particle.light)}
           opacity={isDark ? particle.opacity.dark : particle.opacity.light}
         />
       ))}

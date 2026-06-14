@@ -51,9 +51,11 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "brand:generate": "node scripts/brand-assets.mjs generate",
+    "brand:verify": "node scripts/brand-assets.mjs verify",
     "test": "vitest",
     "test:run": "vitest run",
-    "build:web": "expo export --platform web"
+    "build:web": "npm run brand:verify && expo export --platform web"
   },
   "private": true
 }

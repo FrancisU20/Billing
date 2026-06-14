@@ -70,7 +70,7 @@ class BaseRepository(ABC):
             return item
         except ClientError as e:
             _log.error("DynamoDB get_item error", error=str(e))
-            raise DatabaseError()
+            raise DatabaseError() from e
 
     def _put_raw(
         self,
@@ -90,9 +90,9 @@ class BaseRepository(ABC):
         except ClientError as e:
             code = e.response["Error"]["Code"]
             if code == "ConditionalCheckFailedException":
-                raise OptimisticLockError()
+                raise OptimisticLockError() from e
             _log.error("DynamoDB put_item error", error=str(e))
-            raise DatabaseError()
+            raise DatabaseError() from e
 
     def _list_raw(
         self,
@@ -125,7 +125,7 @@ class BaseRepository(ABC):
             return resp.get("Items", []), encode_cursor(resp.get("LastEvaluatedKey"))
         except ClientError as e:
             _log.error("DynamoDB query error", error=str(e))
-            raise DatabaseError()
+            raise DatabaseError() from e
 
     # ── audit log ─────────────────────────────────────────────────────────────
 

@@ -61,7 +61,7 @@ class OnboardTenantUseCase:
             )
         except Exception as e:
             _log.error("error creating user in Cognito", error=str(e), exc_info=True)
-            raise InternalError()
+            raise InternalError() from e
 
         if not created:
             try:
@@ -73,7 +73,7 @@ class OnboardTenantUseCase:
                 _log.error(
                     "error resetting temporary password in Cognito", error=str(e), exc_info=True
                 )
-                raise InternalError()
+                raise InternalError() from e
 
             if not reset:
                 return None

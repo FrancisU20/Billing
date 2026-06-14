@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from lambdas._base.idempotency import IdempotencyContext
 from lambdas.tenants.domain.tenant import Tenant
@@ -36,6 +37,10 @@ class ITenantRepository(ABC):
         """Returns (items, next_token). next_token=None if no more pages."""
 
     @abstractmethod
+    def list_with_certificate_expiry_due(self, before: datetime) -> list[Tenant]:
+        """Active/suspended, non-deleted tenants with cert_expires_at <= before."""
+
+    @abstractmethod
     def commit(
         self,
         *,
@@ -45,5 +50,19 @@ class ITenantRepository(ABC):
         events: list[DomainEvent],
         idempotency: IdempotencyContext | None,
         response: dict | None,
+        extra_transact_items: list[dict] | None = None,
     ) -> None:
         """Atomic commit: entity + audit + outbox + idempotency in one transaction."""
+
+    @abstractmethod
+    def commit_admin_events(
+        self,
+        *,
+        tenant: Tenant,
+        user_id: str,
+        action: str,
+        events: list[DomainEvent],
+        idempotency: IdempotencyContext | None,
+        response: dict | None,
+    ) -> None:
+        """Atomic commit: audit + outbox + idempotency, without mutating the entity."""

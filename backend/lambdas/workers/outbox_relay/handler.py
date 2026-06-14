@@ -32,7 +32,7 @@ def _deserialize(image: dict) -> dict:
 def _queue_for(event_type: str) -> str:
     if event_type == "TenantCreatedEvent":
         return _tenant_onboarding_queue_url
-    if event_type == "EnterpriseLeadCreatedEvent":
+    if event_type in ("EnterpriseLeadCreatedEvent", "OnboardingOtpRequestedEvent"):
         return _email_notifications_queue_url
     return ""
 

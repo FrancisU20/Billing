@@ -89,6 +89,9 @@ export const api = {
   post: <T>(path: string, body: unknown, schema: ZodType<T>, opts?: RequestOptions) =>
     request(path, schema, { method: 'POST', body: JSON.stringify(body), ...opts }),
 
+  put: <T>(path: string, body: unknown, schema: ZodType<T>, opts?: RequestOptions) =>
+    request(path, schema, { method: 'PUT', body: JSON.stringify(body), ...opts }),
+
   patch: <T>(path: string, body: unknown, schema: ZodType<T>, opts?: RequestOptions) =>
     request(path, schema, { method: 'PATCH', body: JSON.stringify(body), ...opts }),
 

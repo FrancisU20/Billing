@@ -1,6 +1,5 @@
 import React from 'react'
 import {
-  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -8,11 +7,18 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native'
+import { LoadingLogo } from '@/components/branding/LoadingScreen'
 import { useTheme } from '@/lib/theme-context'
-import { overlay, typography, radius, spacing } from '@/constants/tokens'
+import { overlay, radius, spacing, typography } from '@/constants/tokens'
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'warning' | 'ghost' | 'outline'
 type Size = 'sm' | 'md' | 'lg'
+
+const loadingLogoSize: Record<Size, number> = {
+  sm: 16,
+  md: 18,
+  lg: 20,
+}
 
 interface ButtonProps extends Omit<PressableProps, 'style'> {
   children: React.ReactNode
@@ -61,6 +67,10 @@ export function Button({
     ghost: semantic.accent.default,
     outline: semantic.text.primary,
   }
+  const loadingColor =
+    variant === 'primary' || variant === 'danger' || variant === 'warning'
+      ? overlay.text.primary
+      : semantic.accent.default
 
   return (
     <Pressable
@@ -81,14 +91,12 @@ export function Button({
       ]}
     >
       {isLoading ? (
-        <ActivityIndicator
-          size="small"
-          color={
-            variant === 'primary' || variant === 'danger' || variant === 'warning'
-              ? overlay.text.primary
-              : semantic.accent.default
-          }
-          style={{ marginRight: spacing[2] }}
+        <LoadingLogo
+          size={loadingLogoSize[size]}
+          showBackdrop={false}
+          markColor={loadingColor}
+          particleColor={loadingColor}
+          orbitScale={1.16}
         />
       ) : null}
       <Text

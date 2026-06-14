@@ -19,6 +19,7 @@ import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { tenantsApi } from '../api'
+import { CertificateSection } from '../components/CertificateSection'
 import { TenantStatusBadge } from '../components/TenantStatusBadge'
 import { TENANT_ENVIRONMENT_LABELS, TENANT_PLAN_STATUS_LABELS } from '../constants'
 import { useTenant } from '../hooks/useTenant'
@@ -33,6 +34,7 @@ export function TenantDetailScreen() {
   const [suspendOpen, setSuspendOpen] = useState(false)
   const [inactivateOpen, setInactivateOpen] = useState(false)
   const [reactivateOpen, setReactivateOpen] = useState(false)
+  const [retryOnboardingOpen, setRetryOnboardingOpen] = useState(false)
 
   const {
     submitting: actionPending,
@@ -54,6 +56,17 @@ export function TenantDetailScreen() {
     await refresh()
   })
 
+  const {
+    submitting: retryOnboardingPending,
+    error: retryOnboardingError,
+    submit: retryOnboarding,
+  } = useFormSubmit(async () => {
+    if (!id) return
+    await tenantsApi.retryOnboarding(id, createIdempotencyKey('tenant_onboarding_retry'))
+    setRetryOnboardingOpen(false)
+    toast.success('Acceso inicial encolado')
+  })
+
   if (loading) return <LoadingSpinner fullScreen label="Cargando empresa..." />
 
   const displayName = tenant?.trade_name ?? 'Empresa'
@@ -72,6 +85,7 @@ export function TenantDetailScreen() {
         ) : (
           <>
             {actionError ? <ApiErrorBanner error={actionError} /> : null}
+            {retryOnboardingError ? <ApiErrorBanner error={retryOnboardingError} /> : null}
 
             {tenant ? (
               <>
@@ -144,6 +158,14 @@ export function TenantDetailScreen() {
                   <DetailField label="Actualizado" value={formatDate(tenant.updated_at)} />
                 </DetailSection>
 
+                <CertificateSection tenantId={tenant.id} canManage />
+
+                <OwnerAccessSection
+                  tenant={tenant}
+                  actionPending={retryOnboardingPending}
+                  onRetry={() => setRetryOnboardingOpen(true)}
+                />
+
                 <StatusSection
                   tenant={tenant}
                   actionPending={actionPending}
@@ -192,7 +214,42 @@ export function TenantDetailScreen() {
         onCancel={() => setInactivateOpen(false)}
         onConfirm={() => changeStatus('inactive')}
       />
+
+      <ConfirmDialog
+        visible={retryOnboardingOpen}
+        variant="warning"
+        icon="person-add-outline"
+        title="Reintentar acceso owner"
+        message={`Se encolará nuevamente el acceso inicial para ${tenant?.email ?? displayName}.`}
+        confirmLabel="Reintentar"
+        isLoading={retryOnboardingPending}
+        onCancel={() => setRetryOnboardingOpen(false)}
+        onConfirm={retryOnboarding}
+      />
     </View>
+  )
+}
+
+function OwnerAccessSection({
+  tenant,
+  actionPending,
+  onRetry,
+}: {
+  tenant: Tenant
+  actionPending: boolean
+  onRetry: () => void
+}) {
+  return (
+    <DetailSection title="Acceso owner" icon="person-add-outline" layout="stack">
+      <DetailField label="Email owner" value={tenant.email} />
+      <DetailField
+        label="Onboarding completado"
+        value={tenant.onboarding_completed_at ? formatDate(tenant.onboarding_completed_at) : '-'}
+      />
+      <Button variant="outline" size="md" fullWidth isDisabled={actionPending} onPress={onRetry}>
+        Reintentar acceso inicial
+      </Button>
+    </DetailSection>
   )
 }
 

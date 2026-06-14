@@ -26,7 +26,7 @@ class DynamoPlanCatalog(IPlanCatalog):
             resp = self._table.get_item(Key={"id": plan_id})
         except ClientError as exc:
             _log.error("DynamoDB get_item error (plan catalog)", error=str(exc))
-            raise DatabaseError()
+            raise DatabaseError() from exc
 
         item = resp.get("Item")
         if not item or item.get("entity_type", "PLAN") != "PLAN" or item.get("deleted"):

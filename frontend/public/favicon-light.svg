@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <radialGradient id="logo-gradient" cx="38%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#3730A3" />
+    </radialGradient>
+  </defs>
+  <rect width="400" height="400" rx="72" fill="url(#logo-gradient)" />
+  <path d="M 300 116 A 130 130 0 1 0 300 284 L 259 250 A 77 77 0 1 1 259 150 Z" fill="#FFFFFF" />
+  <circle cx="319" cy="100" r="10" fill="#FFFFFF" />
+  <circle cx="346" cy="147" r="6.5" fill="#FFFFFF" opacity="0.75" />
+  <circle cx="355" cy="200" r="4" fill="#FFFFFF" opacity="0.45" />
+  <circle cx="346" cy="253" r="6.5" fill="#FFFFFF" opacity="0.75" />
+  <circle cx="319" cy="300" r="10" fill="#FFFFFF" />
+</svg>
