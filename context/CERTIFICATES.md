@@ -107,13 +107,32 @@ La logica de parseo y validacion no se duplica entre Lambdas.
 
 ## Extraccion De RUC
 
-El campo del RUC varia por CA. El validador debe intentar:
+El campo del RUC varia por CA. El validador debe intentar, en orden:
 
 1. `SERIALNUMBER`
 2. `CN` con prefijos tipo `RUC:`
-3. cualquier atributo que contenga 13 digitos consecutivos
+3. cualquier atributo que contenga 13 digitos consecutivos (RUC completo)
+4. cualquier atributo que contenga 10 digitos consecutivos (cedula)
 
 Si no puede extraerlo, lanza `CertificateRucNotExtractableError`.
+
+### Personas naturales: p12 con cedula en vez de RUC
+
+En Ecuador una persona natural puede facturar con su propio p12, cuyo Subject
+suele contener la **cedula (10 digitos)** en vez del RUC completo (13 digitos).
+El RUC de una persona natural es siempre `cedula + "001"` (tercer digito < 6,
+ver `shared/domain/value_objects/ecuador_identification.py::is_valid_ruc`).
+
+Por eso el validador acepta el match si:
+
+- el identificador extraido tiene 13 digitos y es igual al RUC esperado, o
+- el identificador extraido tiene 10 digitos, es igual a los primeros 10
+  digitos del RUC esperado, y el RUC esperado termina en `001`.
+
+En ambos casos `CertificateMetadata.subject_ruc` (y por lo tanto
+`tenant.cert_subject_ruc`) se guarda como el **RUC completo de 13 digitos**
+(el `expected_ruc`), nunca la cedula de 10 digitos — para que el dato
+persistido sea siempre comparable con `tenant.ruc`.
 
 ## Errores
 

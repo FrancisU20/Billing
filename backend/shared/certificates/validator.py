@@ -86,11 +86,11 @@ class CertificateValidator:
         if private_key is None or cert is None:
             raise CertificateInvalidError("p12 sin llave privada o certificado")
 
-        subject_ruc = _extract_ruc_from_name(cert.subject)
-        if not subject_ruc:
+        subject_identifier = _extract_identifier_from_name(cert.subject)
+        if not subject_identifier:
             raise CertificateRucNotExtractableError()
 
-        if subject_ruc != normalized_expected_ruc:
+        if not _identifier_matches_ruc(subject_identifier, normalized_expected_ruc):
             raise CertificateRucMismatchError()
 
         expires_at = cert.not_valid_after_utc
@@ -102,23 +102,34 @@ class CertificateValidator:
             raise CertificateUntrustedIssuerError(issuer)
 
         return CertificateMetadata(
-            subject_ruc=subject_ruc,
+            subject_ruc=normalized_expected_ruc,
             expires_at=expires_at,
             issuer=issuer,
         )
 
 
-def _extract_ruc_from_name(name) -> str | None:
+def _extract_identifier_from_name(name) -> str | None:
     candidates: list[str] = []
     for oid in (NameOID.SERIAL_NUMBER, NameOID.COMMON_NAME):
         candidates.extend(attr.value for attr in name.get_attributes_for_oid(oid))
     candidates.extend(attr.value for attr in name)
 
-    for candidate in candidates:
-        match = re.search(r"\b(\d{13})\b", candidate)
-        if match:
-            return match.group(1)
+    # RUC (13 dígitos) tiene prioridad; las personas naturales suelen tener su
+    # cédula (10 dígitos) en el p12 en vez del RUC completo (cédula + "001").
+    for pattern in (r"\b(\d{13})\b", r"\b(\d{10})\b"):
+        for candidate in candidates:
+            match = re.search(pattern, candidate)
+            if match:
+                return match.group(1)
     return None
+
+
+def _identifier_matches_ruc(identifier: str, expected_ruc: str) -> bool:
+    if len(identifier) == 13:
+        return identifier == expected_ruc
+    if len(identifier) == 10:
+        return expected_ruc[:10] == identifier and expected_ruc[10:] == "001"
+    return False
 
 
 def _issuer_name(name) -> str:

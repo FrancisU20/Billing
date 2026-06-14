@@ -21,6 +21,8 @@ from shared.certificates.validator import MAX_CERTIFICATE_BYTES, CertificateVali
 from tests.unit.support import VALID_RUC
 
 OTHER_VALID_RUC = "1790000001001"
+NATURAL_PERSON_RUC = "1003368725001"
+NATURAL_PERSON_CEDULA = "1003368725"
 
 
 def _p12_b64(
@@ -115,6 +117,23 @@ class CertificateValidatorTests(unittest.TestCase):
                 certificate_b64=_p12_b64(issuer_name="BANFRAUD CA"),
                 password="secret",
                 expected_ruc=VALID_RUC,
+            )
+
+    def test_natural_person_p12_with_cedula_matches_ruc(self) -> None:
+        metadata = CertificateValidator().validate_base64(
+            certificate_b64=_p12_b64(ruc=NATURAL_PERSON_CEDULA),
+            password="secret",
+            expected_ruc=NATURAL_PERSON_RUC,
+        )
+
+        self.assertEqual(metadata.subject_ruc, NATURAL_PERSON_RUC)
+
+    def test_natural_person_p12_with_cedula_mismatch_raises_mismatch(self) -> None:
+        with self.assertRaises(CertificateRucMismatchError):
+            CertificateValidator().validate_base64(
+                certificate_b64=_p12_b64(ruc=NATURAL_PERSON_CEDULA),
+                password="secret",
+                expected_ruc=OTHER_VALID_RUC,
             )
 
     def test_ruc_not_extractable_raises_not_extractable(self) -> None:
