@@ -174,6 +174,41 @@ class CognitoAuthProviderTests(unittest.TestCase):
         self.assertEqual(result.parameters["username"], "owner@example.com")
         self.assertEqual(idp.respond_to_auth_challenge_calls, [])
 
+    def test_login_carries_user_id_for_srp_into_chained_challenge(self) -> None:
+        idp = FakeCognitoClient(
+            auth_response={
+                "ChallengeName": "PASSWORD_VERIFIER",
+                "ChallengeParameters": {
+                    "USER_ID_FOR_SRP": "11111111-2222-3333-4444-555555555555",
+                    "SALT": "abcd",
+                    "SRP_B": "1234",
+                    "SECRET_BLOCK": "secret-block",
+                },
+            },
+            challenge_response={
+                "ChallengeName": "NEW_PASSWORD_REQUIRED",
+                "Session": "session-token",
+                "ChallengeParameters": {"requiredAttributes": "[]"},
+            },
+        )
+        provider = CognitoAuthProvider(
+            idp=idp, user_pool_id="sa-east-1_unit", client_id="client-id"
+        )
+
+        with patch(
+            "lambdas.auth.infra.cognito_auth_provider.CognitoSrpSession",
+            FakeSrpSession,
+        ):
+            result = provider.login(
+                LoginCommand(username="owner@example.com", password="temporary")
+            )
+
+        self.assertIsInstance(result, AuthChallenge)
+        self.assertEqual(result.challenge_name, "NEW_PASSWORD_REQUIRED")
+        # USERNAME para RespondToAuthChallenge debe ser el USER_ID_FOR_SRP del
+        # paso SRP inicial (sub interno), no el alias de email usado para login.
+        self.assertEqual(result.parameters["username"], "11111111-2222-3333-4444-555555555555")
+
     def test_refresh_uses_refresh_token_auth(self) -> None:
         idp = FakeCognitoClient()
         provider = CognitoAuthProvider(

@@ -82,7 +82,7 @@ necesarios para permisos en todos los Lambdas.
 POST /auth/login { username, password }
 -> Lambda ejecuta USER_SRP_AUTH contra Cognito
 -> Si ok: { access_token, id_token, refresh_token }
--> Si NEW_PASSWORD_REQUIRED: { session, challenge_name }
+-> Si NEW_PASSWORD_REQUIRED: { session, challenge_name, parameters: { username, ... } }
 ```
 
 ### Cambio De Clave Obligatorio (onboarding)
@@ -98,6 +98,17 @@ POST /auth/challenge {
 
 Este challenge ocurre la primera vez que un tenant entra con su clave temporal
 generada por `AdminCreateUser` durante el onboarding.
+
+**`USERNAME` en `responses` debe ser el `USER_ID_FOR_SRP`** (sub interno del User
+Pool), no el alias de email usado para el login — el pool usa
+`sign_in_aliases.email=True` con `username` autogenerado, y Cognito rechaza
+`RespondToAuthChallenge` con `InvalidParameterException` si `USERNAME` no coincide
+con el `USER_ID_FOR_SRP` del paso SRP inicial. La respuesta NEW_PASSWORD_REQUIRED
+encadenada (tras `PASSWORD_VERIFIER`) no repite `USER_ID_FOR_SRP` en sus propias
+`ChallengeParameters`, por lo que `CognitoAuthProvider.login` lo copia
+manualmente del `init_response` antes de mapear `parameters.username` (ver
+`infra/cognito_auth_provider.py`). El frontend reenvia ese `parameters.username`
+tal cual en `responses.USERNAME`.
 
 ### Refresh
 

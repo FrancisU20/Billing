@@ -61,7 +61,14 @@ class CognitoAuthProvider(IAuthProvider):
                 ChallengeName="PASSWORD_VERIFIER",
                 ChallengeResponses=srp.challenge_responses(init_response["ChallengeParameters"]),
             )
-            return self._outcome_from_response(final_response)
+            return self._outcome_from_response(
+                final_response,
+                # Un challenge encadenado (p.ej. NEW_PASSWORD_REQUIRED tras
+                # PASSWORD_VERIFIER) no repite USER_ID_FOR_SRP en sus propias
+                # ChallengeParameters. RespondToAuthChallenge exige USERNAME =
+                # USER_ID_FOR_SRP del paso SRP inicial, no el alias de login.
+                user_id_for_srp=init_response["ChallengeParameters"].get("USER_ID_FOR_SRP"),
+            )
 
         except ClientError as exc:
             raise self._map_client_error(exc) from exc
@@ -100,7 +107,9 @@ class CognitoAuthProvider(IAuthProvider):
         except ClientError as exc:
             raise self._map_client_error(exc) from exc
 
-    def _outcome_from_response(self, response: dict[str, Any]) -> AuthOutcome:
+    def _outcome_from_response(
+        self, response: dict[str, Any], *, user_id_for_srp: str | None = None
+    ) -> AuthOutcome:
         if response.get("AuthenticationResult"):
             return self._tokens_from_result(response["AuthenticationResult"])
 
@@ -111,7 +120,8 @@ class CognitoAuthProvider(IAuthProvider):
                 challenge_name=challenge_name,
                 session=session,
                 parameters=self._sanitize_challenge_parameters(
-                    response.get("ChallengeParameters", {})
+                    response.get("ChallengeParameters", {}),
+                    user_id_for_srp=user_id_for_srp,
                 ),
             )
 
@@ -138,14 +148,17 @@ class CognitoAuthProvider(IAuthProvider):
             token_type=token_type,
         )
 
-    def _sanitize_challenge_parameters(self, parameters: dict[str, str]) -> dict[str, str]:
+    def _sanitize_challenge_parameters(
+        self, parameters: dict[str, str], *, user_id_for_srp: str | None = None
+    ) -> dict[str, str]:
         sanitized = {
             key: value
             for key, value in parameters.items()
             if key not in _SECRET_CHALLENGE_PARAMETERS
         }
-        if "USER_ID_FOR_SRP" in parameters:
-            sanitized["username"] = parameters["USER_ID_FOR_SRP"]
+        username = parameters.get("USER_ID_FOR_SRP") or user_id_for_srp
+        if username:
+            sanitized["username"] = username
         return sanitized
 
     def _map_client_error(self, exc: ClientError) -> Exception:
