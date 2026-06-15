@@ -11,9 +11,10 @@ import type { NewPasswordFormValues } from '../schemas'
 
 export function ChallengeScreen() {
   const router = useRouter()
-  const { session, challenge_name } = useLocalSearchParams<{
+  const { session, challenge_name, username } = useLocalSearchParams<{
     session: string
     challenge_name: string
+    username: string
   }>()
   const { respond, loading, error } = useChallenge()
   const { semantic } = useTheme()
@@ -22,7 +23,7 @@ export function ChallengeScreen() {
     const result = await respond({
       session,
       challenge_name,
-      responses: { NEW_PASSWORD: values.newPassword },
+      responses: { USERNAME: username, NEW_PASSWORD: values.newPassword },
     })
     if (result.type === 'success') router.replace(Routes.root)
   }

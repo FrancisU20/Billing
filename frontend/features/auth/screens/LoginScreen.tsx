@@ -23,6 +23,7 @@ export function LoginScreen() {
           params: {
             session: result.challenge.session,
             challenge_name: result.challenge.challenge_name,
+            username: result.challenge.parameters.username ?? values.username,
           },
         })
         return
