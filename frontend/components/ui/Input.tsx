@@ -1,5 +1,6 @@
 import React, { forwardRef, useState } from 'react'
 import {
+  Platform,
   Pressable,
   StyleSheet,
   TextInput,
@@ -29,6 +30,8 @@ const webTextInputReset: WebTextInputStyle = {
   outlineColor: 'transparent',
   outlineStyle: 'solid',
   outlineWidth: 0,
+  // iOS Safari hace autozoom al enfocar un input con font-size < 16px.
+  ...(Platform.OS === 'web' ? { fontSize: typography.size.md } : null),
 }
 
 export const Input = forwardRef<TextInput, InputProps>(

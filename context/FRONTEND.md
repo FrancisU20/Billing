@@ -270,6 +270,10 @@ https://docs.expo.dev/versions/v56.0.0/ — no asumir comportamiento de versione
 - `expo-env.d.ts` esta gitignored; CI puede no cargar augmentations de `expo/types`.
 - Al componer `Pressable` con callback style, pasar `state` completo o asumir
   solo `{ pressed: boolean }`.
+- iOS Safari hace autozoom al enfocar cualquier `input`/`textarea` con
+  `font-size` calculado < 16px. `Input.tsx` (`webTextInputReset`) fuerza
+  `fontSize: typography.size.md` (16) solo en `Platform.OS === 'web'`. Si se
+  crea otro campo de texto web fuera de `Input.tsx`, aplicar el mismo minimo.
 
 ## Como Agregar Un Feature Frontend
 
