@@ -393,10 +393,17 @@ Feature: `frontend/features/onboarding/` — `schemas.ts`, `api.ts`, `form.ts`, 
 `screens/Register{Details,Certificate,Otp,Confirm}Screen.tsx`.
 
 - `hooks/useRequestOtp.ts`: encapsula la llamada a `/onboarding/otp/request` +
-  `setVerification` + navegacion a `otp`. Usado por `RegisterDetailsScreen` (planes
-  no self-service, sin certificado) y `RegisterCertificateScreen` (planes
-  self-service, con certificado). Si se agrega un paso intermedio que tambien
-  dispare OTP, reusar este hook en vez de duplicar la llamada.
+  `setVerification`, con navegacion a `otp` por defecto (`options?.navigate`, default
+  `true`). Usado por `RegisterDetailsScreen` (planes no self-service, sin certificado)
+  y `RegisterCertificateScreen` (planes self-service, con certificado) sin pasar
+  `options`. Si se agrega un paso intermedio que tambien dispare OTP, reusar este hook
+  en vez de duplicar la llamada.
+- `RegisterOtpScreen`: si el codigo no llega o expira, el boton "Reenviar codigo" llama
+  a `useRequestOtp` con `{ navigate: false }` (mismo payload que `confirmOtp`, sin
+  `otp`/`verification_id`) y muestra confirmacion inline; "Volver" hace `router.back()`
+  al paso anterior (`certificate` o `details` segun `selectedPlan.self_service`) sin
+  perder el estado del wizard (store en memoria persiste mientras el stack no se
+  desmonta).
 - `otpConfirmIdempotencyKey` se genera una sola vez en `selectPlan()` (lazy, `??`) y
   no se rota — a diferencia de `otpRequestIdempotencyKey`, que `setVerification`
   rota tras cada `/otp/request` exitoso.

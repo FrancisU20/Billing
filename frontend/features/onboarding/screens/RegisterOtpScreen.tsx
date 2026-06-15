@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
@@ -13,6 +13,7 @@ import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useTheme } from '@/lib/theme-context'
 import { onboardingApi } from '../api'
 import { formValuesToOnboardingPayload } from '../form'
+import { useRequestOtp } from '../hooks/useRequestOtp'
 import { otpFormValuesSchema, type OtpFormValues } from '../schemas'
 import { useOnboardingStore } from '../store'
 
@@ -25,6 +26,8 @@ export function RegisterOtpScreen() {
   const verification = useOnboardingStore((state) => state.verification)
   const otpConfirmIdempotencyKey = useOnboardingStore((state) => state.otpConfirmIdempotencyKey)
   const setResult = useOnboardingStore((state) => state.setResult)
+  const requestOtp = useRequestOtp()
+  const [resent, setResent] = useState(false)
 
   const {
     control,
@@ -59,6 +62,24 @@ export function RegisterOtpScreen() {
     )
     setResult(result)
     router.push(Routes.public.registerConfirm as Href)
+  })
+
+  const {
+    submitting: resending,
+    error: resendError,
+    submit: resendOtp,
+  } = useFormSubmit(async () => {
+    if (!selectedPlan || !formValues) return
+    setResent(false)
+    await requestOtp(
+      {
+        ...formValuesToOnboardingPayload(formValues, selectedPlan.id),
+        certificate_b64: certificateValues?.certificate_b64,
+        cert_password: certificateValues?.cert_password,
+      },
+      { navigate: false },
+    )
+    setResent(true)
   })
 
   if (!selectedPlan || !formValues || !verification) return null
@@ -99,10 +120,16 @@ export function RegisterOtpScreen() {
           />
 
           <Text style={[styles.hint, { color: semantic.text.secondary }]}>
-            El código expira pronto. Si caduca, vuelve al paso anterior y solicita uno nuevo.
+            El código expira pronto. Si no te llegó o caducó, solicita uno nuevo.
           </Text>
 
           {error ? <ApiErrorBanner error={error} /> : null}
+          {resendError ? <ApiErrorBanner error={resendError} /> : null}
+          {resent && !resendError ? (
+            <Text style={[styles.hint, { color: semantic.status.success }]}>
+              Te enviamos un nuevo código a {formValues.email}.
+            </Text>
+          ) : null}
 
           <Button
             variant="primary"
@@ -112,6 +139,20 @@ export function RegisterOtpScreen() {
             onPress={handleSubmit(submit)}
           >
             Completar registro
+          </Button>
+
+          <Button
+            variant="outline"
+            size="lg"
+            fullWidth
+            isLoading={resending}
+            onPress={() => resendOtp()}
+          >
+            Reenviar código
+          </Button>
+
+          <Button variant="ghost" size="lg" fullWidth onPress={() => router.back()}>
+            Volver
           </Button>
         </View>
       </ScrollView>
