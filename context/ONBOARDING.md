@@ -139,7 +139,7 @@ Aplica solo a planes con `self_service=true`. Para `self_service=false` (Enterpr
       - Extraer RUC del Subject del certificado
       - Comparar RUC del cert contra RUC del body → si difiere: CertificateRucMismatchError
       - Verificar expiry → si vencido: CertificateExpiredError
-      - Verificar issuer → si no esta en whitelist: CertificateUntrustedIssuerError
+      - No se valida el emisor (CA) — ver "Errores" en CERTIFICATES.md
    c. Verifica que el RUC no esta en uso
       - Validar el certificado primero (paso b) evita exponer disponibilidad de RUC a quien
         no tiene un certificado valido para ese RUC (enumeracion).
@@ -234,28 +234,19 @@ Dependencia: `cryptography` (agregar a `backend/requirements.txt`).
 from cryptography.hazmat.primitives.serialization import pkcs12
 from datetime import datetime, timezone
 
-ALLOWED_ISSUERS = {
-    "BANCO CENTRAL DEL ECUADOR",
-    "Security Data S.A.",
-    "ANF Autoridad de Certificacion",
-    "Datil",
-}
-
 def validate_and_extract(p12_bytes: bytes, password: str) -> CertificateMetadata:
     # 1. Parsear — ValueError si password incorrecta o archivo corrupto
     private_key, cert, _ = pkcs12.load_key_and_certificates(
         p12_bytes, password.encode()
     )
-    # 2. Extraer RUC del Subject
-    subject_ruc = _extract_ruc_from_subject(cert.subject)
+    # 2. Extraer RUC (o cedula de persona natural) del Subject
+    subject_identifier = _extract_identifier_from_subject(cert.subject)
     # 3. Verificar expiry
     if cert.not_valid_after_utc < datetime.now(timezone.utc):
         raise CertificateExpiredError(...)
-    # 4. Verificar issuer
-    issuer_cn = _extract_cn(cert.issuer)
-    if issuer_cn not in ALLOWED_ISSUERS:
-        raise CertificateUntrustedIssuerError(...)
-    return CertificateMetadata(subject_ruc, cert.not_valid_after_utc, issuer_cn)
+    # No se valida el emisor (CA): el SRI es quien decide si acepta la firma.
+    issuer = _extract_issuer_name(cert.issuer)
+    return CertificateMetadata(subject_identifier, cert.not_valid_after_utc, issuer)
 ```
 
 ### Extraccion Del RUC Segun CA
@@ -438,7 +429,6 @@ Feature: `frontend/features/onboarding/` — `schemas.ts`, `api.ts`, `form.ts`, 
 - `CertificateInvalidError` — p12 corrupto o password incorrecta
 - `CertificateExpiredError` — el certificado ya vencio
 - `CertificateRucMismatchError` — el RUC del cert no coincide con el RUC del tenant
-- `CertificateUntrustedIssuerError` — CA no reconocida por SRI Ecuador
 - `CertificateRucNotExtractableError` — no se pudo extraer el RUC del Subject del cert
 
 ## Edge Cases Y Trampas

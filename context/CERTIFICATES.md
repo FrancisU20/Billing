@@ -94,7 +94,7 @@ operativa futura para superadmin.
 ```text
 metadata.py       # CertificateMetadata dataclass
 errors.py         # errores de dominio de certificado
-validator.py      # parseo p12, RUC, emisor permitido, expiracion
+validator.py      # parseo p12, RUC, expiracion
 store.py          # Secrets Manager
 ```
 
@@ -139,8 +139,16 @@ persistido sea siempre comparable con `tenant.ruc`.
 - `CERTIFICATE_INVALID`: p12 corrupto, sin private key o clave incorrecta.
 - `CERTIFICATE_EXPIRED`: certificado caducado.
 - `CERTIFICATE_RUC_MISMATCH`: RUC del certificado distinto al RUC esperado.
-- `CERTIFICATE_UNTRUSTED_ISSUER`: emisor no reconocido.
 - `CERTIFICATE_RUC_NOT_EXTRACTABLE`: no se pudo extraer RUC del Subject.
+
+No se valida el emisor (CA) del certificado: el SRI mantiene su propia lista de
+entidades de certificacion acreditadas y esa lista cambia con el tiempo — una
+whitelist hardcodeada en este repo queda desactualizada y genera falsos
+"emisor no reconocido" para CAs legitimas (p.ej. Security Data, acreditada en
+Ecuador desde hace anos). RUC/cedula + vigencia + llave privada valida son
+suficientes para confirmar que el p12 pertenece al contribuyente y sirve para
+firmar. Si una CA no es aceptada por el SRI, eso lo rechaza el propio SRI al
+emitir el comprobante (dominio `invoices`, pendiente).
 
 ## Worker `certificate_expiry_notifier`
 
@@ -212,7 +220,6 @@ por eso se usa `canWrite(role)` de `constants/roles.ts`, que cubre el mismo conj
   `CertificateSection`) usa input web nativo. Si se habilita onboarding/gestion movil
   nativa, usar `expo-document-picker` dentro de ese mismo hook y mantener el contrato
   base64.
-- La whitelist de emisores debe actualizarse cuando aparezcan nuevas CAs reconocidas por SRI.
 - Secrets Manager cuesta por secreto/mes. Mantener esta decision mientras el volumen sea
   bajo/medio; re-evaluar Parameter Store SecureString si el costo por tenant se vuelve
   material.
@@ -227,6 +234,8 @@ por eso se usa `canWrite(role)` de `constants/roles.ts`, que cubre el mismo conj
   60/30 como si fueran dias restantes.
 - 2026-06-14: umbrales backend viven en `shared/certificates/expiry.py`; umbrales frontend
   viven en `features/tenants/constants.ts`.
-- 2026-06-14: la validacion de emisor ya no usa substring. `validator.py` normaliza el
-  nombre del emisor y compara contra `ALLOWED_ISSUER_NAMES`, evitando falsos positivos
-  como nombres no confiables que solo contienen `"ANF"` dentro de otra palabra.
+- 2026-06-14: `validator.py` acepta cedula (10 digitos) en el Subject del p12 para
+  personas naturales, ademas del RUC completo (13 digitos) — ver "Personas naturales"
+  arriba.
+- 2026-06-14: se elimino la validacion de emisor (`CertificateUntrustedIssuerError` /
+  whitelist `ALLOWED_ISSUER_NAMES`) por las razones descritas en "Errores".

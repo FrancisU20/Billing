@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import re
-import unicodedata
 from datetime import UTC, datetime
 
 from cryptography.hazmat.primitives.serialization import pkcs12
@@ -13,32 +12,11 @@ from shared.certificates.errors import (
     CertificateInvalidError,
     CertificateRucMismatchError,
     CertificateRucNotExtractableError,
-    CertificateUntrustedIssuerError,
 )
 from shared.certificates.metadata import CertificateMetadata
 from shared.domain.value_objects.ruc import RUC
 
 MAX_CERTIFICATE_BYTES = 50 * 1024
-
-
-def _normalize_issuer_name(value: str) -> str:
-    without_accents = "".join(
-        char for char in unicodedata.normalize("NFKD", value) if not unicodedata.combining(char)
-    )
-    normalized_words = re.findall(r"[A-Z0-9]+", without_accents.upper())
-    return " ".join(normalized_words)
-
-
-_ALLOWED_ISSUER_NAMES_RAW = (
-    "BANCO CENTRAL DEL ECUADOR",
-    "SECURITY DATA",
-    "SECURITY DATA S.A.",
-    "ANF",
-    "DATIL",
-)
-ALLOWED_ISSUER_NAMES = tuple(
-    sorted({_normalize_issuer_name(issuer) for issuer in _ALLOWED_ISSUER_NAMES_RAW})
-)
 
 
 class CertificateValidator:
@@ -98,8 +76,6 @@ class CertificateValidator:
             raise CertificateExpiredError(expires_at.isoformat())
 
         issuer = _issuer_name(cert.issuer)
-        if not _issuer_allowed(issuer):
-            raise CertificateUntrustedIssuerError(issuer)
 
         return CertificateMetadata(
             subject_ruc=normalized_expected_ruc,
@@ -138,7 +114,3 @@ def _issuer_name(name) -> str:
         if attrs:
             return attrs[0].value
     return ", ".join(attr.value for attr in name)
-
-
-def _issuer_allowed(issuer: str) -> bool:
-    return _normalize_issuer_name(issuer) in ALLOWED_ISSUER_NAMES

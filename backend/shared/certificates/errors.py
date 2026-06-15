@@ -18,11 +18,6 @@ class CertificateRucMismatchError(BusinessError):
     default_message = "El RUC del certificado digital no coincide con el RUC registrado."
 
 
-class CertificateUntrustedIssuerError(BusinessError):
-    code = "CERTIFICATE_UNTRUSTED_ISSUER"
-    default_message = "El emisor del certificado digital no está reconocido."
-
-
 class CertificateRucNotExtractableError(BusinessError):
     code = "CERTIFICATE_RUC_NOT_EXTRACTABLE"
     default_message = "No se pudo leer el RUC dentro del certificado digital."

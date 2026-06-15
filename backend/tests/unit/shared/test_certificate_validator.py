@@ -15,7 +15,6 @@ from shared.certificates.errors import (
     CertificateInvalidError,
     CertificateRucMismatchError,
     CertificateRucNotExtractableError,
-    CertificateUntrustedIssuerError,
 )
 from shared.certificates.validator import MAX_CERTIFICATE_BYTES, CertificateValidator
 from tests.unit.support import VALID_RUC
@@ -70,14 +69,14 @@ class CertificateValidatorTests(unittest.TestCase):
         self.assertEqual(metadata.subject_ruc, VALID_RUC)
         self.assertEqual(metadata.issuer, "Security Data")
 
-    def test_valid_p12_accepts_normalized_issuer_name(self) -> None:
+    def test_valid_p12_stores_issuer_as_extracted(self) -> None:
         metadata = CertificateValidator().validate_base64(
-            certificate_b64=_p12_b64(issuer_name="Security Data S.A."),
+            certificate_b64=_p12_b64(issuer_name="Cualquier CA No Acreditada"),
             password="secret",
             expected_ruc=VALID_RUC,
         )
 
-        self.assertEqual(metadata.issuer, "Security Data S.A.")
+        self.assertEqual(metadata.issuer, "Cualquier CA No Acreditada")
 
     def test_wrong_password_raises_invalid(self) -> None:
         with self.assertRaises(CertificateInvalidError):
@@ -101,22 +100,6 @@ class CertificateValidatorTests(unittest.TestCase):
                 certificate_b64=_p12_b64(ruc=VALID_RUC),
                 password="secret",
                 expected_ruc=OTHER_VALID_RUC,
-            )
-
-    def test_untrusted_issuer_raises_untrusted_issuer(self) -> None:
-        with self.assertRaises(CertificateUntrustedIssuerError):
-            CertificateValidator().validate_base64(
-                certificate_b64=_p12_b64(issuer_name="Untrusted CA"),
-                password="secret",
-                expected_ruc=VALID_RUC,
-            )
-
-    def test_issuer_substring_match_does_not_mark_certificate_as_trusted(self) -> None:
-        with self.assertRaises(CertificateUntrustedIssuerError):
-            CertificateValidator().validate_base64(
-                certificate_b64=_p12_b64(issuer_name="BANFRAUD CA"),
-                password="secret",
-                expected_ruc=VALID_RUC,
             )
 
     def test_natural_person_p12_with_cedula_matches_ruc(self) -> None:
