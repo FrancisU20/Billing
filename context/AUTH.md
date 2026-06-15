@@ -32,6 +32,12 @@ todos los demas Lambdas usan para identificar al caller.
 - `frontend/features/auth/storage.ts` — persistencia de tokens (`tokenStorage`).
 - `frontend/lib/api/client.ts` — adjunta `Authorization: Bearer <id_token>` leyendo el token
   via getter inyectado; si expira y hay `_onRefresh` configurado, refresca antes de reintentar.
+- `ChallengeScreen`: si llega sin `session`/`challenge_name`/`username` (params de ruta
+  perdidos por reload, deploy a mitad de flujo, o navegacion directa), redirige a
+  `Routes.auth.login` en vez de mostrar el error de Cognito. Tambien expone siempre un
+  boton "Volver a iniciar sesion" — la sesion de challenge de Cognito expira a los pocos
+  minutos (`NotAuthorizedException`), y este boton es la salida unica para cualquier
+  estado roto sin tener que mapear cada codigo de error.
 
 ## Rutas
 

@@ -1,10 +1,11 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useTheme } from '@/lib/theme-context'
 import { typography, spacing } from '@/constants/tokens'
 import { Routes } from '@/constants/routes'
 import { NavBar } from '@/components/layout/NavBar'
+import { Button } from '@/components/ui/Button'
 import { ChallengeForm } from '../components/ChallengeForm'
 import { useChallenge } from '../hooks/useChallenge'
 import type { NewPasswordFormValues } from '../schemas'
@@ -19,6 +20,12 @@ export function ChallengeScreen() {
   const { respond, loading, error } = useChallenge()
   const { semantic } = useTheme()
 
+  useEffect(() => {
+    if (!session || !challenge_name || !username) {
+      router.replace(Routes.auth.login)
+    }
+  }, [session, challenge_name, username, router])
+
   const handleSubmit = async (values: NewPasswordFormValues) => {
     const result = await respond({
       session,
@@ -28,6 +35,8 @@ export function ChallengeScreen() {
     if (result.type === 'success') router.replace(Routes.root)
   }
 
+  if (!session || !challenge_name || !username) return null
+
   return (
     <View style={[staticStyles.container, { backgroundColor: semantic.bg.primary }]}>
       <NavBar title="Nueva contraseña" canGoBack />
@@ -36,6 +45,14 @@ export function ChallengeScreen() {
           Configura tu contraseña
         </Text>
         <ChallengeForm onSubmit={handleSubmit} isLoading={loading} apiError={error} />
+        <Button
+          variant="ghost"
+          size="lg"
+          fullWidth
+          onPress={() => router.replace(Routes.auth.login)}
+        >
+          Volver a iniciar sesión
+        </Button>
       </View>
     </View>
   )
