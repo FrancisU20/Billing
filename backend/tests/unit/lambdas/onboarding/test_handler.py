@@ -315,6 +315,75 @@ class OnboardingHandlerTests(unittest.TestCase):
         self.assertEqual(body["error"]["code"], "PLAN_NOT_FOUND")
         self.assertEqual(verification_repo.commit_request_calls, [])
 
+    def test_confirm_otp_paid_plan_includes_payment_link_in_transaction(self) -> None:
+        from decimal import Decimal
+
+        from lambdas.onboarding.domain.repositories.i_payment_verifier import CapturedPaymentInfo
+        from tests.unit.support import FakeTenantRepository
+
+        tenant_repo = FakeTenantRepository()
+        verification_repo = FakeVerificationRepository(_verification_for_confirm())
+        validator = FakeCertificateValidator()
+        store = FakeCertificateStore()
+        idempotency_context = object()
+
+        class FakePaymentVerifier:
+            def get_captured_payment(self, order_id: str) -> CapturedPaymentInfo:
+                return CapturedPaymentInfo(
+                    order_id=order_id,
+                    payer_id="PAYER-1",
+                    payer_email="buyer@example.com",
+                    plan_id="plan-1",
+                    amount="5.99",
+                    plan_cycle="month",
+                )
+
+        class FakePaymentRepo:
+            def link_tenant_transact_item(self, order_id: str, tenant_id: str) -> dict:
+                return {
+                    "Update": {
+                        "TableName": "unit-payments",
+                        "Key": {"id": f"PAYMENT#{order_id}"},
+                        "UpdateExpression": "SET tenant_id = :tid",
+                        "ExpressionAttributeValues": {":tid": tenant_id},
+                    }
+                }
+
+        paid_catalog = FakeOnboardingPlanCatalog(
+            self_service=True,
+            is_free=False,
+            limit_cycle="month",
+        )
+        paid_catalog._monthly_price = Decimal("5.99")
+
+        with (
+            patch.object(self.handler, "_tenant_repo", return_value=tenant_repo),
+            patch.object(self.handler, "_verification_repo", return_value=verification_repo),
+            patch.object(self.handler, "_plan_catalog", return_value=paid_catalog),
+            patch.object(self.handler, "_certificate_validator", return_value=validator),
+            patch.object(self.handler, "_certificate_store", return_value=store),
+            patch.object(self.handler, "_payment_verifier", return_value=FakePaymentVerifier()),
+            patch.object(self.handler, "DynamoPaymentRepository", return_value=FakePaymentRepo()),
+            patch.object(self.handler, "_PAYMENTS_TABLE", new="unit-payments"),
+            patch.object(self.handler, "require_current_context", return_value=idempotency_context),
+        ):
+            response = self.handler.handler(
+                _confirm_event(order_id="ORDER-PAY-1"), self.context
+            )
+
+        self.assertEqual(response["statusCode"], 201)
+        commit_call = tenant_repo.commit_calls[0]
+        extra_items = commit_call["extra_transact_items"]
+        self.assertEqual(len(extra_items), 2)
+        payment_item = next(
+            (i for i in extra_items if "PAYMENT#" in str(i.get("Update", {}).get("Key", {}))),
+            None,
+        )
+        self.assertIsNotNone(payment_item, "payment link transact item missing from transaction")
+        self.assertEqual(
+            payment_item["Update"]["UpdateExpression"], "SET tenant_id = :tid"
+        )
+
     def test_unknown_route_returns_404(self) -> None:
         event = api_event(method="GET", path="/does-not-exist")
 
