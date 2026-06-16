@@ -3,7 +3,7 @@
 Indice y reglas no negociables. Patrones de construccion y reglas de negocio viven en
 `context/` (ver tablas abajo) — leerlos segun la tarea.
 
-Ultima actualizacion: 2026-06-14.
+Ultima actualizacion: 2026-06-16.
 
 ## Objetivo Del Producto
 
@@ -16,6 +16,7 @@ El sistema administra:
 - `clients`: compradores/clientes dentro de cada tenant.
 - `auth`: login Cognito SRP expuesto por Lambda.
 - `workers`: onboarding, emails, migraciones y outbox async.
+- `subscriptions`: pagos PayPal Orders API por ciclo de plan (MoR de la suscripcion SaaS).
 
 No existe todavia un Lambda `invoices`. Cuando se implemente, debe respetar las reglas SRI
 y no mezclar "Consumidor Final" con `clients` (ver `context/CLIENTS.md`).
@@ -27,13 +28,18 @@ Region principal: `sa-east-1`.
 ## Estado Actual
 
 Implementado: CRUD y filtros server-side de `tenants`, `plans` y `clients`; auth SRP via
-Lambda; onboarding publico con OTP; validacion/carga/reemplazo de certificados p12;
-emails transaccionales; worker diario de vencimiento de certificados; paginacion opaca,
+Lambda; onboarding publico con OTP + pago PayPal obligatorio para planes de pago;
+validacion/carga/reemplazo de certificados p12; emails transaccionales; workers diarios
+(vencimiento de certificados, recordatorio/vencimiento de suscripcion); paginacion opaca,
 idempotencia HTTP, locks transaccionales, outbox transaccional y separacion publica/admin
-de planes.
+de planes; PayPal Orders API completo (create + capture + status, idempotencia, IPayPalClient
+en domain); endpoint de renovacion autenticado; pagina de billing en frontend (Fase 3 de
+`context/SUBSCRIPTIONS.md`).
 
 Proximo hito de producto: **invoices/documents** — emision SRI, secuenciales,
-XAdES-BES, almacenamiento legal y batch jobs. Ver `context/INVOICES.md`.
+XAdES-BES, almacenamiento legal y batch jobs. Ver `context/INVOICES.md`. En paralelo,
+**subscriptions** Fase 4: renovacion automatica por link en email. Ver
+`context/SUBSCRIPTIONS.md`.
 
 ## Memorias Base
 
@@ -57,6 +63,7 @@ Reglas de negocio, flujos y DynamoDB especificos de cada dominio (incluye su sec
 | `context/ONBOARDING.md` | Registro self-service con OTP, certificados p12, lead Enterprise |
 | `context/CERTIFICATES.md` | Validacion, almacenamiento y ciclo de vida de certificados digitales p12 |
 | `context/INVOICES.md` | Emision de documentos, numeracion SRI, XAdES-BES, batch jobs (**pendiente**) |
+| `context/SUBSCRIPTIONS.md` | Suscripcion SaaS via PayPal (MoR), webhooks, checkout en onboarding (**fase 1 de 4**) |
 
 ## Mapa De Deuda Tecnica
 
@@ -69,9 +76,10 @@ corresponda. Estado actual por capa/dominio:
 | `context/TENANTS.md` | Listado admin con scan para alta cardinalidad/dashboard |
 | `context/PLANS.md` | `list()` con scan completo aceptable solo para catalogo chico |
 | `context/CLIENTS.md` | Busqueda `q` y validacion batch no escalan para cargas masivas |
-| `context/ONBOARDING.md` | Billing y queue dedicada Enterprise automatica son alcance futuro |
+| `context/ONBOARDING.md` | Queue dedicada Enterprise automatica es alcance futuro |
 | `context/CERTIFICATES.md` | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras |
 | `context/INVOICES.md` | Dominio pendiente; deuda anticipada de IVA/SRI/reintentos |
+| `context/SUBSCRIPTIONS.md` | Sin renovacion automatica por email (Fase 4); sin webhooks PayPal; scan en worker |
 
 ## Stack
 

@@ -33,3 +33,4 @@ class ConfirmOnboardingOtpCommand:
     plan_id: str
     certificate_b64: str | None = None
     cert_password: str | None = None
+    order_id: str | None = None

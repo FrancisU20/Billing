@@ -27,6 +27,7 @@ export const onboardingRequestSchema = onboardingBaseRequestSchema.extend({
 export const onboardingOtpConfirmRequestSchema = onboardingRequestSchema.extend({
   verification_id: z.string().min(1),
   otp: z.string().length(6, 'El código debe tener 6 dígitos'),
+  order_id: z.string().min(1).max(36).optional(),
 })
 
 export const onboardingOtpRequestResultSchema = z.object({

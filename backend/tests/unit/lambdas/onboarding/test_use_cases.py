@@ -37,11 +37,13 @@ class FakeOnboardingPlanCatalog(IPlanCatalog):
         active: bool = True,
         self_service: bool = True,
         limit_cycle: str = "month",
+        is_free: bool = True,
     ) -> None:
         self.exists = exists
         self.active = active
         self.self_service = self_service
         self.limit_cycle = limit_cycle
+        self.is_free = is_free
         self.checked_ids: list[str] = []
 
     def get(self, plan_id: str) -> PlanSummary:
@@ -50,7 +52,12 @@ class FakeOnboardingPlanCatalog(IPlanCatalog):
             raise PlanNotFoundError()
         if not self.active:
             raise PlanNotActiveError()
-        return PlanSummary(id=plan_id, self_service=self.self_service, limit_cycle=self.limit_cycle)
+        return PlanSummary(
+            id=plan_id,
+            self_service=self.self_service,
+            limit_cycle=self.limit_cycle,
+            is_free=self.is_free,
+        )
 
 
 class FakeCertificateValidator:

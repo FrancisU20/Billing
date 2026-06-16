@@ -150,29 +150,47 @@ Aplica solo a planes con `self_service=true`. Para `self_service=false` (Enterpr
       - no guarda p12 ni cert_password
    e. Envia OTP al email
 
-5. POST /onboarding/otp/confirm (publico, sin JWT)
-   Body: { verification_id, otp, ruc, trade_name, legal_name, email, phone?, plan_id,
-           certificate_b64, cert_password }
+5. [Solo planes de pago] Frontend navega a payment.tsx:
+   - RegisterOtpScreen detecta `isPaidPlan` → guarda `otpValue` en store → navega a
+     `Routes.public.registerPayment` (SIN llamar a /otp/confirm todavia)
+   - RegisterPaymentScreen crea orden PayPal on mount
+   - Usuario aprueba en navegador del sistema (Linking.openURL con paypalApprovalUrl)
+   - "Ya completé el pago" → getPayment → capturePayment si APPROVED → guarda order_id en store
+   - Llama /otp/confirm con order_id incluido
 
-6. Handler confirma:
+   [Planes gratuitos] Frontend llama /otp/confirm directamente sin order_id.
+
+6. POST /onboarding/otp/confirm (publico, sin JWT)
+   Body: { verification_id, otp, ruc, trade_name, legal_name, email, phone?, plan_id,
+           certificate_b64, cert_password, order_id? }
+
+   (El campo `order_id` esta en `_IGNORED_FIELDS` de `payload_signature.py` — no afecta
+   el hash de integridad; el hash se calcula sin el, tanto en request como en confirm.)
+
+7. Handler confirma:
    a. Verifica OTP, expiracion e intentos
    b. Revalida certificado p12 completo contra el RUC
-   c. Secrets Manager PutSecretValue:
+   c. Si plan es de pago (`not plan.is_free`): verifica via `IPaymentVerifier`:
+      - `order_id` debe estar presente en body → `OnboardingPaymentRequiredError` (422) si no
+      - Payment debe existir → 422 si no encontrado
+      - Payment.status debe ser CAPTURED → 422 si no
+      El `IPaymentVerifier` lee la tabla `payments` sin acoplar el dominio onboarding a infra.
+   d. Secrets Manager PutSecretValue:
       - Path: /codelabs-billing/{env}/tenant/{tenant_id}/certificate
       - Contenido: { "p12_b64": "...", "password": "..." }
-      - Si DynamoDB falla luego, el handler intenta limpiar el secreto huérfano.
-   d. DynamoDB TransactWriteItems:
+      - Si DynamoDB falla luego, el handler intenta limpiar el secreto huerfano.
+   e. DynamoDB TransactWriteItems:
       - Tenant (status=active, sri_environment=testing, certificate metadata)
       - RUC lock — MISMO mecanismo `RUC#{ruc}` / `TENANT_RUC_LOCK` de TENANTS.md.
       - Idempotency record
-   e. Outbox: encola evento TenantCreatedEvent
+   f. Outbox: encola evento TenantCreatedEvent
       - El worker tenant_onboarding llama AdminCreateUser con clave temporal
       - Worker email_notifications envia email con clave temporal
 
-7. Respuesta: { success: true, data: { tenant_id, email } }
-8. Cliente recibe email con clave temporal
-9. Cliente hace login → challenge NEW_PASSWORD_REQUIRED → cambia clave
-10. Dashboard arranca en sri_environment=testing
+8. Respuesta: { success: true, data: { tenant_id, email } }
+9. Cliente recibe email con clave temporal
+10. Cliente hace login → challenge NEW_PASSWORD_REQUIRED → cambia clave
+11. Dashboard arranca en sri_environment=testing
 ```
 
 ## Flujo Enterprise — Lead Capture (`self_service=false`)
@@ -380,17 +398,25 @@ Rutas en `frontend/app/(public)/register/`:
 details.tsx      # paso 2: datos empresa (RUC, razon social, contacto, contabilidad) -> RegisterDetailsScreen
 certificate.tsx  # paso 3: p12 + clave; se omite si plan.self_service=false
 otp.tsx          # paso 4: confirmacion OTP
-confirm.tsx       # confirmacion — mensaje distinto segun self_service (login vs "te contactaremos") -> RegisterConfirmScreen
+payment.tsx      # paso 5 (solo planes de pago): pago PayPal -> RegisterPaymentScreen
+confirm.tsx      # confirmacion — mensaje distinto segun self_service (login vs "te contactaremos") -> RegisterConfirmScreen
 ```
 
 Si el store no tiene `selectedPlan`/`result` (usuario entra directo a `details` o
 `confirm`), ambas pantallas redirigen a `Routes.root` (`/`), donde puede elegir un plan.
+`RegisterPaymentScreen` tambien verifica `otpValue` en store — si no esta, redirige a root.
 
 Feature: `frontend/features/onboarding/` — `schemas.ts`, `api.ts`, `form.ts`, `store.ts`
 (Zustand: `selectedPlan`, `formValues`, `certificateValues`,
-`otpRequestIdempotencyKey`, `otpConfirmIdempotencyKey`, `verification`, `result`),
+`otpRequestIdempotencyKey`, `otpConfirmIdempotencyKey`, `verification`, `result`,
+`otpValue`, `orderId`),
 `components/RegistrationForm.tsx`,
-`screens/Register{Details,Certificate,Otp,Confirm}Screen.tsx`.
+`screens/Register{Details,Certificate,Otp,Payment,Confirm}Screen.tsx`.
+
+Logica de bifurcacion en `RegisterOtpScreen`:
+- `isPaidPlan(monthly_price, annual_price)` — `parseFloat(price) > 0`
+- Si es de pago: `setOtpValue(otp)` + `router.push(registerPayment)` (sin llamar confirm)
+- Si es gratis: llama `confirmOtp` directamente como antes
 
 - `hooks/useRequestOtp.ts`: encapsula la llamada a `/onboarding/otp/request` +
   `setVerification`, con navegacion a `otp` por defecto (`options?.navigate`, default
@@ -540,10 +566,25 @@ ese worker solo corre para tenants `self_service=true`.
 - [x] Omitir paso de certificado si `plan.self_service=false`
 - [x] Paso `otp.tsx`: ingreso de codigo y mensajes claros
 
+### Backend — Fase 3 (completado — pago obligatorio en onboarding)
+
+- [x] `IPaymentVerifier` en `tenants/domain/repositories/` — abstraccion de verificacion de pago
+- [x] `PaymentVerifier` en `tenants/infra/` — lee tabla payments
+- [x] `ConfirmOnboardingOtpUseCase`: verifica CAPTURED si plan es de pago
+- [x] `OnboardingPaymentRequiredError` (422) si plan de pago sin order_id
+- [x] `order_id` en `_IGNORED_FIELDS` de `payload_signature.py`
+- [x] Tests actualizados: `FakeOnboardingPlanCatalog` con `is_free=True` como default
+
+### Frontend — Fase 3 (completado — paso payment en wizard)
+
+- [x] `otpValue` y `orderId` en store Zustand
+- [x] `RegisterOtpScreen`: bifurcacion planes gratis vs pago (`isPaidPlan`)
+- [x] `RegisterPaymentScreen`: crea orden on mount, abre PayPal, captura, llama /otp/confirm
+- [x] Ruta `payment.tsx` en `(public)/register/`
+- [x] `Routes.public.registerPayment`
+
 ## Decisiones Futuras
 
-- Billing no esta en scope de Phase 1. El tenant queda en el plan seleccionado sin cobranza
-  automatica; la facturacion es manual o futura integracion con proveedor de pagos.
 - Provisioning automatico de queue dedicada Enterprise no esta en scope del flujo actual:
   Enterprise es `lead capture`. Antes de vender Enterprise self-service, decidir entre
   script admin o parametro SSM + CDK.

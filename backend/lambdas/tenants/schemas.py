@@ -28,3 +28,7 @@ class UpdateTenantRequest(BaseModel):
 
 class ToggleStatusRequest(BaseModel):
     status: str = Field(..., pattern="^(active|suspended|inactive)$")
+
+
+class ApplyRenewalRequest(BaseModel):
+    order_id: str = Field(..., min_length=1, max_length=36)

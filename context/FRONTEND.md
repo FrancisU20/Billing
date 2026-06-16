@@ -133,6 +133,27 @@ si es especifico de un dominio, va en `features/{area}/components/`.
 | `components/NavigationMenu.tsx`, `AccountMenu.tsx`, `MenuSurface.tsx`, `UserAvatar.tsx` | piezas internas de `AppNavBar`                                                                                                                                                                                     |
 | `items.ts`                                                                              | items del menu de navegacion                                                                                                                                                                                       |
 
+## Marketing Y Paginas Legales
+
+`features/marketing/` contiene el landing publico (`LandingScreen` +
+`HeroSection`/`FeaturesSection`/`HowItWorksSection`/`PlansSection`/`LandingHeader`/`LandingFooter`)
+y las paginas legales:
+
+- `content/legal.ts` — contenido tipado (`LegalContent`/`LegalSection`/`LegalBlock`: parrafos
+  `{ type: 'p' }` o listas `{ type: 'list' }`), separado de la presentacion. Email de contacto
+  centralizado ahi (`CONTACT_EMAIL = ventas@codelabsecuador.com`).
+- `components/LegalPageLayout.tsx` — layout unico (reusa `LandingHeader`/`LandingFooter`, hero
+  oscuro con `colors.nav`) para cualquier pagina legal. Para agregar una pagina legal nueva:
+  agregar su `LegalContent` en `content/legal.ts`, un screen trivial que pase ese contenido al
+  layout, ruta en `Routes.public.legal*` y archivo en `app/(public)/legal/`.
+- Rutas: `Routes.public.legalTerms`, `legalPrivacy`, `legalRefund` →
+  `/legal/terms`, `/legal/privacy`, `/legal/refund`. Linkeadas desde `LandingFooter` (visibles en
+  toda la app).
+
+Nota: el export web (`expo export --platform web`) es CSR puro — el HTML inicial no contiene el
+contenido de estas paginas ni de `PlansSection`. Si un crawler que no ejecuta JS necesita ver ese
+contenido (ej. verificacion de Paddle), evaluar SSG/prerender para `(public)` como tarea aparte.
+
 ## Routing (Expo Router)
 
 Grupos de rutas en `app/`:

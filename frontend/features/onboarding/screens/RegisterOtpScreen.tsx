@@ -17,6 +17,10 @@ import { useRequestOtp } from '../hooks/useRequestOtp'
 import { otpFormValuesSchema, type OtpFormValues } from '../schemas'
 import { useOnboardingStore } from '../store'
 
+function isPaidPlan(monthlyPrice: string, annualPrice: string): boolean {
+  return parseFloat(monthlyPrice) > 0 || parseFloat(annualPrice) > 0
+}
+
 export function RegisterOtpScreen() {
   const { semantic } = useTheme()
   const router = useRouter()
@@ -25,6 +29,7 @@ export function RegisterOtpScreen() {
   const certificateValues = useOnboardingStore((state) => state.certificateValues)
   const verification = useOnboardingStore((state) => state.verification)
   const otpConfirmIdempotencyKey = useOnboardingStore((state) => state.otpConfirmIdempotencyKey)
+  const setOtpValue = useOnboardingStore((state) => state.setOtpValue)
   const setResult = useOnboardingStore((state) => state.setResult)
   const requestOtp = useRequestOtp()
   const [resent, setResent] = useState(false)
@@ -50,6 +55,14 @@ export function RegisterOtpScreen() {
 
   const { submitting, error, submit } = useFormSubmit(async (values: OtpFormValues) => {
     if (!selectedPlan || !formValues || !verification || !otpConfirmIdempotencyKey) return
+
+    const planIsPaid = isPaidPlan(selectedPlan.monthly_price, selectedPlan.annual_price)
+    if (planIsPaid) {
+      setOtpValue(values.otp.trim())
+      router.push(Routes.public.registerPayment as Href)
+      return
+    }
+
     const result = await onboardingApi.confirmOtp(
       {
         ...formValuesToOnboardingPayload(formValues, selectedPlan.id),

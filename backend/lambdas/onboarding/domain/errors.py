@@ -36,3 +36,18 @@ class OnboardingOtpAttemptsExceededError(BusinessError):
 class OnboardingPayloadMismatchError(BusinessError):
     code = "ONBOARDING_PAYLOAD_MISMATCH"
     default_message = "Los datos del registro no coinciden con la verificación solicitada."
+
+
+class OnboardingPaymentRequiredError(BusinessError):
+    code = "ONBOARDING_PAYMENT_REQUIRED"
+    default_message = "El plan seleccionado requiere un pago completado para completar el registro."
+
+
+class OnboardingPaymentNotCapturedError(BusinessError):
+    code = "ONBOARDING_PAYMENT_NOT_CAPTURED"
+    default_message = "El pago no fue completado. Intenta de nuevo con un nuevo pago."
+
+
+class OnboardingPaymentNotFoundError(BusinessError):
+    code = "ONBOARDING_PAYMENT_NOT_FOUND"
+    default_message = "No se encontró el pago indicado. Verifica el order_id."

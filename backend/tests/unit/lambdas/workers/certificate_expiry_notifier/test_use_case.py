@@ -40,6 +40,14 @@ class FakeEmailSender(EmailSender):
             }
         )
 
+    def send_subscription_renewal_reminder(
+        self, *, email, legal_rep_name, trade_name, plan_cycle_ends_at, days_remaining
+    ):
+        raise NotImplementedError
+
+    def send_subscription_expired(self, *, email, legal_rep_name, trade_name):
+        raise NotImplementedError
+
 
 class NotifyCertificateExpiryUseCaseTests(unittest.TestCase):
     def test_no_candidates_sends_no_alerts(self) -> None:

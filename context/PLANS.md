@@ -13,6 +13,7 @@ Leer estos archivos en orden antes de escribir codigo en este dominio:
 | `FRONTEND.md` | Patrones de pantalla, design system para `features/plans/` |
 | `TENANTS.md` | `plan_id` asignado a tenant, `plan_status` calculado |
 | `ONBOARDING.md` | Uso de `pruebas_*`, `dedicated_queue` y `self_service` en el flujo de registro |
+| `SUBSCRIPTIONS.md` | `paypal_plan_id` — ID de precio en PayPal por entorno |
 
 ## Proposito
 
@@ -57,6 +58,9 @@ includes_credit_notes        bool
 includes_withholdings        bool
 includes_delivery_notes      bool
 includes_api                 bool
+
+# Suscripcion SaaS (PayPal como Merchant of Record, ver SUBSCRIPTIONS.md):
+paypal_plan_id               str, default "" — ID de precio en PayPal, por entorno
 ```
 
 ### Reglas De Negocio
@@ -157,3 +161,6 @@ sigue devolviendolo. Significa que `POST /onboarding/otp/confirm` con ese `plan_
 
 - El scan completo de `plans` en `list()` no escala si el catalogo crece. Si se agregan
   planes de largo plazo o promocionales con alta rotacion, evaluar paginacion.
+- `paypal_plan_id` queda en `""` en el seed (`v0001_seed_plans`). Se completa por
+  entorno (sandbox/prod) via `PATCH /plans/{id}` o una migracion futura. Ver
+  `context/SUBSCRIPTIONS.md`.

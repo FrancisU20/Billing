@@ -147,7 +147,9 @@ class FakeTenantRepository:
         self.existing_by_ruc: Tenant | None = None
         self.list_result: tuple[list[Tenant], str | None] = ([], None)
         self.certificate_expiry_due: list[Tenant] = []
+        self.subscription_expiry_due: list[Tenant] = []
         self.list_with_certificate_expiry_due_calls: list[datetime] = []
+        self.list_with_subscription_expiry_due_calls: list[datetime] = []
         self.save_calls: list[tuple[Tenant, str]] = []
         self.commit_calls: list[dict[str, Any]] = []
         self.commit_admin_events_calls: list[dict[str, Any]] = []
@@ -221,6 +223,10 @@ class FakeTenantRepository:
     def list_with_certificate_expiry_due(self, before: datetime) -> list[Tenant]:
         self.list_with_certificate_expiry_due_calls.append(before)
         return self.certificate_expiry_due
+
+    def list_with_subscription_expiry_due(self, before: datetime) -> list[Tenant]:
+        self.list_with_subscription_expiry_due_calls.append(before)
+        return self.subscription_expiry_due
 
 
 class FakePlanCatalog:

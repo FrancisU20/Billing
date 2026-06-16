@@ -6,6 +6,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
+from lambdas.tenants.domain.repositories.i_payment_reader import IPaymentReader, PaymentRecord
 from tests.unit.support import (
     FakePlanCatalog,
     FakeTenantRepository,
@@ -18,12 +19,40 @@ from tests.unit.support import (
 )
 
 
+class FakePaymentReader(IPaymentReader):
+    def __init__(self, *, payment: PaymentRecord | None = None) -> None:
+        self._payment = payment
+
+    def get_by_order_id(self, order_id: str) -> PaymentRecord:
+        from lambdas.tenants.domain.errors import SubscriptionRenewalPaymentNotFoundError
+
+        if self._payment is None:
+            raise SubscriptionRenewalPaymentNotFoundError()
+        return self._payment
+
+    def mark_applied_to_tenant(self, order_id: str, tenant_id: str) -> dict:
+        return {"ConditionCheck": {"TableName": "payments", "Key": {"id": f"PAYMENT#{order_id}"}}}
+
+
+def _captured_payment(plan_id: str = "uuid-basic") -> PaymentRecord:
+    return PaymentRecord(
+        order_id="ORD-1",
+        tenant_id="",
+        plan_id=plan_id,
+        amount="5.99",
+        status="CAPTURED",
+        plan_cycle="month",
+        payer_id="PAY-1",
+    )
+
+
 def _load_handler_module():
     configure_unit_environment()
     os.environ["TENANTS_TABLE"] = "unit-tenants"
     os.environ["PLANS_TABLE"] = "unit-plans"
     os.environ["AUDIT_LOG_TABLE"] = "unit-audit"
     os.environ["OUTBOX_TABLE"] = ""
+    os.environ["PAYMENTS_TABLE"] = "unit-payments"
     os.environ.pop("IDEMPOTENCY_TABLE", None)
 
     sys.modules.pop("lambdas.tenants.handler", None)
@@ -324,6 +353,94 @@ class TenantsHandlerTests(unittest.TestCase):
         self.assertEqual(commit["action"], "DELETE")
         self.assertTrue(commit["tenant"].deleted)
         self.assertEqual(commit["events"], [])
+
+
+class SubscriptionRenewalHandlerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.handler = _load_handler_module()
+        self.context = LambdaContext()
+
+    def _call(self, tenant_id: str, body: dict, repo=None, reader=None, claims=None) -> dict:
+        _repo = repo or FakeTenantRepository()
+        _reader = reader or FakePaymentReader()
+        idempotency_context = object()
+        event = api_event(
+            method="POST",
+            path=f"/tenants/{tenant_id}/subscription/renew",
+            path_params={"id": tenant_id},
+            body=body,
+            headers={"X-Idempotency-Key": "renew-1"},
+            claims=claims,
+        )
+        with (
+            patch.object(self.handler, "_repo", return_value=_repo),
+            patch.object(self.handler, "_payment_reader", return_value=_reader),
+            patch.object(self.handler, "require_current_context", return_value=idempotency_context),
+        ):
+            return self.handler.handler(event, self.context)
+
+    def test_returns_200_with_renewal_data(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="tenant-1")
+        repo.tenants[tenant.id] = tenant
+        reader = FakePaymentReader(payment=_captured_payment(plan_id=tenant.plan_id))
+
+        resp = self._call("tenant-1", {"order_id": "ORD-1"}, repo=repo, reader=reader)
+        self.assertEqual(resp["statusCode"], 200)
+        body = decode_response(resp)
+        self.assertEqual(body["data"]["tenant_id"], "tenant-1")
+        self.assertEqual(body["data"]["subscription_status"], "active")
+        self.assertIn("plan_cycle_ends_at", body["data"])
+
+    def test_commit_includes_payment_transact_item(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="tenant-1")
+        repo.tenants[tenant.id] = tenant
+        reader = FakePaymentReader(payment=_captured_payment(plan_id=tenant.plan_id))
+
+        self._call("tenant-1", {"order_id": "ORD-1"}, repo=repo, reader=reader)
+
+        self.assertEqual(len(repo.commit_calls), 1)
+        commit = repo.commit_calls[0]
+        self.assertEqual(commit["action"], "SUBSCRIPTION_RENEWAL")
+        extra = commit.get("extra_transact_items", [])
+        self.assertEqual(len(extra), 1)
+        self.assertIn("ConditionCheck", extra[0])
+
+    def test_forbids_cross_tenant_access(self) -> None:
+        resp = self._call(
+            "other-tenant",
+            {"order_id": "ORD-1"},
+            claims={
+                "custom:is_superadmin": "false",
+                "custom:tenant_id": "tenant-1",
+                "custom:role": "owner",
+            },
+        )
+        self.assertEqual(resp["statusCode"], 403)
+
+    def test_superadmin_can_renew_any_tenant(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="tenant-x")
+        repo.tenants[tenant.id] = tenant
+        reader = FakePaymentReader(payment=_captured_payment(plan_id=tenant.plan_id))
+
+        resp = self._call(
+            "tenant-x",
+            {"order_id": "ORD-1"},
+            repo=repo,
+            reader=reader,
+            claims={"custom:is_superadmin": "true", "custom:tenant_id": ""},
+        )
+        self.assertEqual(resp["statusCode"], 200)
+
+    def test_returns_404_if_payment_not_found(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="tenant-1")
+        repo.tenants[tenant.id] = tenant
+
+        resp = self._call("tenant-1", {"order_id": "MISSING"}, repo=repo)
+        self.assertEqual(resp["statusCode"], 404)
 
 
 if __name__ == "__main__":

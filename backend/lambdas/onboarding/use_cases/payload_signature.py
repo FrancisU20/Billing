@@ -5,7 +5,7 @@ import json
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
-_IGNORED_FIELDS = {"certificate_b64", "cert_password", "otp", "verification_id"}
+_IGNORED_FIELDS = {"certificate_b64", "cert_password", "otp", "verification_id", "order_id"}
 
 
 def onboarding_payload_hash(payload: Any) -> str:

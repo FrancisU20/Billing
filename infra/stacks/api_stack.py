@@ -171,6 +171,7 @@ class ApiStack(Stack):
                 **_common_env,
                 "TENANTS_TABLE":     database.tenants_table.table_name,
                 "PLANS_TABLE":       database.plans_table.table_name,
+                "PAYMENTS_TABLE":    database.payments_table.table_name,
                 "AUDIT_LOG_TABLE":   database.audit_table.table_name,
                 "IDEMPOTENCY_TABLE": database.idempotency_table.table_name,
                 "OUTBOX_TABLE":      database.outbox_table.table_name,
@@ -178,6 +179,7 @@ class ApiStack(Stack):
         )
         database.tenants_table.grant_read_write_data(tenants_fn)
         database.plans_table.grant_read_data(tenants_fn)
+        database.payments_table.grant_read_write_data(tenants_fn)
         database.audit_table.grant_read_write_data(tenants_fn)
         database.idempotency_table.grant_read_write_data(tenants_fn)
         database.outbox_table.grant_write_data(tenants_fn)
@@ -386,6 +388,42 @@ class ApiStack(Stack):
             targets  = [events_targets.LambdaFunction(certificate_expiry_notifier_fn)],
         )
 
+        # ── Subscription Renewal Notifier Worker ──────────────────────────────
+        # Corre diario: avisa a los tenants que su suscripcion vence en 7 dias
+        # y suspende (expire_subscription) a los que ya vencieron.
+        subscription_renewal_notifier_fn = lmb.Function(
+            self, "SubscriptionRenewalNotifierWorker",
+            function_name = f"codelabs-billing-{env}-subscription-renewal-notifier",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.workers.subscription_renewal_notifier.handler.handler",
+            timeout       = Duration.seconds(60),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "TENANTS_TABLE":      database.tenants_table.table_name,
+                "AUDIT_LOG_TABLE":    database.audit_table.table_name,
+                "BREVO_SECRET_NAME":  f"codelabs-billing-{env}/brevo-api-key",
+                "BREVO_SENDER_EMAIL": "noreply@codelabsecuador.com",
+                "BREVO_SENDER_NAME":  "CodeLabs Billing",
+            },
+        )
+        database.tenants_table.grant_read_write_data(subscription_renewal_notifier_fn)
+        database.audit_table.grant_read_write_data(subscription_renewal_notifier_fn)
+        subscription_renewal_notifier_fn.add_to_role_policy(iam.PolicyStatement(
+            actions   = ["secretsmanager:GetSecretValue"],
+            resources = [
+                f"arn:aws:secretsmanager:{region}:*:secret:codelabs-billing-{env}/brevo-api-key*"
+            ],
+        ))
+
+        events.Rule(
+            self, "SubscriptionRenewalNotifierSchedule",
+            schedule = events.Schedule.expression("cron(0 10 * * ? *)"),
+            targets  = [events_targets.LambdaFunction(subscription_renewal_notifier_fn)],
+        )
+
         # ── Dominio personalizado — ACM + Route53 ─────────────────────────────
         # El certificado va en la misma región que el API Gateway (sa-east-1).
         # Distinto al certificado del frontend (CloudFront), que debe ir en us-east-1.
@@ -453,6 +491,7 @@ class ApiStack(Stack):
             (apigwv2.HttpMethod.PATCH,  "/tenants/{id}"),
             (apigwv2.HttpMethod.PATCH,  "/tenants/{id}/status"),
             (apigwv2.HttpMethod.POST,   "/tenants/{id}/onboarding/retry"),
+            (apigwv2.HttpMethod.POST,   "/tenants/{id}/subscription/renew"),
             (apigwv2.HttpMethod.DELETE, "/tenants/{id}"),
         ]:
             api.add_routes(
@@ -602,6 +641,7 @@ class ApiStack(Stack):
                 **_common_env,
                 "TENANTS_TABLE":     database.tenants_table.table_name,
                 "PLANS_TABLE":       database.plans_table.table_name,
+                "PAYMENTS_TABLE":    database.payments_table.table_name,
                 "AUDIT_LOG_TABLE":   database.audit_table.table_name,
                 "IDEMPOTENCY_TABLE": database.idempotency_table.table_name,
                 "OUTBOX_TABLE":      database.outbox_table.table_name,
@@ -610,6 +650,7 @@ class ApiStack(Stack):
         )
         database.tenants_table.grant_read_write_data(onboarding_api_fn)
         database.plans_table.grant_read_data(onboarding_api_fn)
+        database.payments_table.grant_read_data(onboarding_api_fn)
         database.audit_table.grant_read_write_data(onboarding_api_fn)
         database.idempotency_table.grant_read_write_data(onboarding_api_fn)
         database.outbox_table.grant_write_data(onboarding_api_fn)
@@ -630,21 +671,81 @@ class ApiStack(Stack):
                 integration = onboarding_integration,
             ))
 
-        request_throttle = throttling_cfg.get("onboarding_otp_request", {})
-        confirm_throttle = throttling_cfg.get("onboarding_otp_confirm", {})
-        default_throttle = throttling_cfg.get("default", {})
+        # ── Subscriptions Lambda (PayPal Orders API — pagos por plan) ────────
+        frontend_domain = domain_cfg.get("frontend", "")
+        paypal_base_url = (
+            f"https://{frontend_domain}/register/payment?payment_status="
+            if frontend_domain
+            else "https://billing-dev.codelabsecuador.com/register/payment?payment_status="
+        )
+        subscriptions_fn = lmb.Function(
+            self, "SubscriptionsFunction",
+            function_name = f"codelabs-billing-{env}-subscriptions",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.subscriptions.handler.handler",
+            timeout       = Duration.seconds(15),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "PAYMENTS_TABLE":          database.payments_table.table_name,
+                "PLANS_TABLE":             database.plans_table.table_name,
+                "IDEMPOTENCY_TABLE":       database.idempotency_table.table_name,
+                "PAYPAL_CREDENTIALS_NAME": f"codelabs-billing-{env}/paypal-credentials",
+                "PAYPAL_API_URL":          "https://api-m.paypal.com" if env == "prod" else "https://api-m.sandbox.paypal.com",
+                "PAYPAL_RETURN_URL":       f"{paypal_base_url}approved",
+                "PAYPAL_CANCEL_URL":       f"{paypal_base_url}cancelled",
+            },
+        )
+        database.payments_table.grant_read_write_data(subscriptions_fn)
+        database.plans_table.grant_read_data(subscriptions_fn)
+        database.idempotency_table.grant_read_write_data(subscriptions_fn)
+        subscriptions_fn.add_to_role_policy(iam.PolicyStatement(
+            actions   = ["secretsmanager:GetSecretValue"],
+            resources = [
+                f"arn:aws:secretsmanager:{region}:*:secret:codelabs-billing-{env}/paypal-credentials*"
+            ],
+        ))
+
+        subscriptions_integration = integrations.HttpLambdaIntegration(
+            "SubscriptionsIntegration", subscriptions_fn
+        )
+
+        # Público por diseño: el pago ocurre durante el onboarding, antes de que
+        # el tenant exista y tenga JWT.
+        subscriptions_routes: list[apigwv2.HttpRoute] = []
+        subscriptions_routes.extend(api.add_routes(
+            path        = "/subscriptions/payments",
+            methods     = [apigwv2.HttpMethod.POST],
+            integration = subscriptions_integration,
+        ))
+        subscriptions_routes.extend(api.add_routes(
+            path        = "/subscriptions/payments/{order_id}/capture",
+            methods     = [apigwv2.HttpMethod.POST],
+            integration = subscriptions_integration,
+        ))
+        subscriptions_routes.extend(api.add_routes(
+            path        = "/subscriptions/payments/{order_id}",
+            methods     = [apigwv2.HttpMethod.GET],
+            integration = subscriptions_integration,
+        ))
+
+        # ── Throttle de stage — todas las rutas con override por ruta ─────────
+        # RouteSettings y DefaultRouteSettings se consolidan aquí, después de que
+        # todas las rutas están registradas, para poder usar add_dependency en cada
+        # una y evitar el error "Unable to find Route by key" en CloudFormation.
+        request_throttle       = throttling_cfg.get("onboarding_otp_request", {})
+        confirm_throttle       = throttling_cfg.get("onboarding_otp_confirm", {})
+        pay_create_throttle    = throttling_cfg.get("payment_create", {})
+        pay_capture_throttle   = throttling_cfg.get("payment_capture", {})
+        pay_get_throttle       = throttling_cfg.get("payment_get", {})
+        default_throttle       = throttling_cfg.get("default", {})
         if api.default_stage:
             cfn_stage = api.default_stage.node.default_child
-            # El stage referencia las rutas de onboarding por RouteKey en
-            # RouteSettings (override L1, ver abajo). CloudFormation no infiere
-            # esa dependencia automaticamente, asi que sin este add_dependency
-            # puede intentar actualizar el stage antes de crear las rutas y
-            # ApiGatewayV2 responde "Unable to find Route by key ...".
-            for onboarding_route in onboarding_routes:
-                cfn_stage.add_dependency(onboarding_route.node.default_child)
-            # Throttle de stage para el resto de rutas (auth, tenants, clients, plans):
-            # sin esto, el stage usa el limite por defecto de la cuenta (muy alto), lo
-            # que deja /auth/login y demas rutas sin proteccion de abuso/costo.
+            throttled_routes = onboarding_routes + subscriptions_routes
+            for route in throttled_routes:
+                cfn_stage.add_dependency(route.node.default_child)
             cfn_stage.add_property_override("DefaultRouteSettings", {
                 "ThrottlingBurstLimit": default_throttle.get("burst_limit", 20),
                 "ThrottlingRateLimit": default_throttle.get("rate_limit", 10),
@@ -657,6 +758,18 @@ class ApiStack(Stack):
                 "POST /onboarding/otp/confirm": {
                     "ThrottlingBurstLimit": confirm_throttle.get("burst_limit", 10),
                     "ThrottlingRateLimit": confirm_throttle.get("rate_limit", 2),
+                },
+                "POST /subscriptions/payments": {
+                    "ThrottlingBurstLimit": pay_create_throttle.get("burst_limit", 5),
+                    "ThrottlingRateLimit": pay_create_throttle.get("rate_limit", 2),
+                },
+                "POST /subscriptions/payments/{order_id}/capture": {
+                    "ThrottlingBurstLimit": pay_capture_throttle.get("burst_limit", 10),
+                    "ThrottlingRateLimit": pay_capture_throttle.get("rate_limit", 5),
+                },
+                "GET /subscriptions/payments/{order_id}": {
+                    "ThrottlingBurstLimit": pay_get_throttle.get("burst_limit", 20),
+                    "ThrottlingRateLimit": pay_get_throttle.get("rate_limit", 10),
                 },
             })
 

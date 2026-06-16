@@ -26,13 +26,16 @@ from lambdas.tenants.domain.commands import (
     UpdateTenantCommand,
 )
 from lambdas.tenants.domain.enums import PlanStatus, SriEnvironment, TenantStatus
+from lambdas.tenants.infra.payment_reader import DynamoPaymentReader
 from lambdas.tenants.infra.plan_catalog import DynamoPlanCatalog
 from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
 from lambdas.tenants.schemas import (
+    ApplyRenewalRequest,
     CreateTenantRequest,
     ToggleStatusRequest,
     UpdateTenantRequest,
 )
+from lambdas.tenants.use_cases.apply_subscription_renewal import ApplySubscriptionRenewalUseCase
 from lambdas.tenants.use_cases.create_tenant import CreateTenantUseCase
 from lambdas.tenants.use_cases.delete_tenant import DeleteTenantUseCase
 from lambdas.tenants.use_cases.get_tenant import GetTenantUseCase
@@ -49,6 +52,7 @@ from shared.errors import ForbiddenError, NotFoundError, ValidationError
 # ── Cold start ────────────────────────────────────────────────────────────────
 _TABLE = get_table("TENANTS_TABLE")
 _PLANS_TABLE = get_table("PLANS_TABLE")
+_PAYMENTS_TABLE = get_table("PAYMENTS_TABLE") if env("PAYMENTS_TABLE", "") else None
 _AUDIT_TABLE = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
 _OUTBOX_TABLE = get_table("OUTBOX_TABLE") if env("OUTBOX_TABLE", "") else None
 
@@ -59,6 +63,10 @@ def _repo() -> DynamoTenantRepository:
 
 def _plan_catalog() -> DynamoPlanCatalog:
     return DynamoPlanCatalog(_PLANS_TABLE)
+
+
+def _payment_reader() -> DynamoPaymentReader | None:
+    return DynamoPaymentReader(_PAYMENTS_TABLE) if _PAYMENTS_TABLE else None
 
 
 def _parse_list_query(params: dict) -> ListTenantsQuery:
@@ -249,6 +257,38 @@ def _retry_onboarding(request: Request, context) -> dict:
 
 
 @lambda_handler
+@require_role("owner", "admin", "superadmin")
+@idempotent
+def _apply_renewal(request: Request, context) -> dict:
+    tenant_id = require_path_param(request, "id")
+    if not request.is_superadmin and request.tenant_id != tenant_id:
+        raise ForbiddenError()
+    body = parse(ApplyRenewalRequest, request.body)
+    repo = _repo()
+    tenant, result, payment_transact = ApplySubscriptionRenewalUseCase(
+        repo, _payment_reader()
+    ).execute(tenant_id, body.order_id, request.user_id)
+    response = ApiResponse.ok(
+        {
+            "tenant_id": result.tenant_id,
+            "plan_cycle_ends_at": result.plan_cycle_ends_at,
+            "subscription_status": result.subscription_status,
+        },
+        request.request_id,
+    )
+    repo.commit(
+        tenant=tenant,
+        user_id=request.user_id,
+        action="SUBSCRIPTION_RENEWAL",
+        events=[],
+        idempotency=require_current_context(),
+        response=response,
+        extra_transact_items=[payment_transact],
+    )
+    return response
+
+
+@lambda_handler
 @require_superadmin
 @idempotent
 def _delete(request: Request, context) -> dict:
@@ -272,6 +312,7 @@ def _delete(request: Request, context) -> dict:
 _ID_PATTERN = re.compile(r"^/tenants/[^/]+$")
 _STATUS_PATTERN = re.compile(r"^/tenants/[^/]+/status$")
 _ONBOARDING_RETRY_PATTERN = re.compile(r"^/tenants/[^/]+/onboarding/retry$")
+_SUBSCRIPTION_RENEW_PATTERN = re.compile(r"^/tenants/[^/]+/subscription/renew$")
 
 
 def handler(event: dict, context) -> dict:
@@ -292,6 +333,10 @@ def handler(event: dict, context) -> dict:
     if _ONBOARDING_RETRY_PATTERN.match(path):
         if method == "POST":
             return _retry_onboarding(event, context)
+
+    if _SUBSCRIPTION_RENEW_PATTERN.match(path):
+        if method == "POST":
+            return _apply_renewal(event, context)
 
     if _ID_PATTERN.match(path):
         if method == "GET":

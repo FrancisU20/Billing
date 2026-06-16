@@ -14,6 +14,7 @@ backend/
     tenants/     # empresas SaaS globales
     plans/       # catalogo comercial global
     clients/     # clientes por tenant
+    subscriptions/ # webhooks de Paddle (suscripcion SaaS del tenant)
     workers/     # outbox_relay, tenant_onboarding, email_notifications, migrations
   shared/        # errores, logging, fechas, db, value objects, audit, secrets, events, certificados
   migrations/    # migraciones DynamoDB versionadas
@@ -71,7 +72,7 @@ Reglas:
 | --- | --- |
 | `handler.py` | `@lambda_handler`, errores centralizados, logger |
 | `sqs_handler.py` | workers SQS con partial batch failure |
-| `parser.py` | `Request.from_event`, `parse`, path params |
+| `parser.py` | `Request.from_event`, `parse`, path params, `Request.raw_body` |
 | `permissions.py` | `require_role`, `require_superadmin` |
 | `response.py` | contrato HTTP estandar |
 | `idempotency.py` | reserva atomica por `X-Idempotency-Key` |
@@ -116,6 +117,15 @@ Reglas:
 - `next_token` es opaco. El frontend no lo decodifica.
 - Los filtros via query params se validan en handler y se aplican en repositorio.
 - Si se agregan listas nuevas, usar `DEFAULT_LIST_LIMIT` y `clamp_list_limit()` en backend.
+
+### `Request.raw_body`
+
+`Request.from_event` expone tanto `body` (dict ya parseado) como `raw_body` (string
+crudo del body, con el `base64` decodificado si aplica, antes del `json.loads`). Usar
+`raw_body` cuando se necesite verificar una firma HMAC sobre el payload exacto que
+envio el caller (ej. webhooks) — re-serializar `body` con `json.dumps` no reproduce los
+mismos bytes firmados. Ver `lambdas/subscriptions/infra/paddle_signature.py` y
+`context/SUBSCRIPTIONS.md`.
 
 ## Auth — Resumen
 

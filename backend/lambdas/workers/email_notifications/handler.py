@@ -12,9 +12,11 @@ Flow:
         → user receives initial access credentials
 
 Recognized events:
-    OnboardingOtpRequestedEvent — verification email for public registration
-    OwnerCreatedEvent           — welcome email to the owner of a newly created tenant
-    EnterpriseLeadCreatedEvent  — internal notification to the sales team
+    OnboardingOtpRequestedEvent          — verification email for public registration
+    OwnerCreatedEvent                    — welcome email to the owner of a newly created tenant
+    EnterpriseLeadCreatedEvent           — internal notification to the sales team
+    SubscriptionRenewalReminderEvent     — subscription expiry reminder to tenant owner
+    SubscriptionExpiredEvent             — subscription expired / account suspended notice
 
 Any unknown event is ignored (does not count as a batch failure).
 """
@@ -26,6 +28,12 @@ from lambdas.workers.email_notifications.use_cases.send_enterprise_lead_notifica
 )
 from lambdas.workers.email_notifications.use_cases.send_onboarding_otp import (
     SendOnboardingOtpUseCase,
+)
+from lambdas.workers.email_notifications.use_cases.send_subscription_expired import (
+    SendSubscriptionExpiredUseCase,
+)
+from lambdas.workers.email_notifications.use_cases.send_subscription_renewal_reminder import (
+    SendSubscriptionRenewalReminderUseCase,
 )
 from lambdas.workers.email_notifications.use_cases.send_welcome_email import (
     SendWelcomeEmailUseCase,
@@ -69,6 +77,24 @@ def handler(record: SQSRecord, context) -> None:
             ruc=data.get("ruc", ""),
             email=data.get("email", ""),
             plan_id=data.get("plan_id", ""),
+        )
+        return
+
+    if event_type == "SubscriptionRenewalReminderEvent":
+        SendSubscriptionRenewalReminderUseCase(_email_sender).execute(
+            email=data.get("email", ""),
+            legal_rep_name=data.get("legal_rep_name", ""),
+            trade_name=data.get("trade_name", ""),
+            plan_cycle_ends_at=data.get("plan_cycle_ends_at", ""),
+            days_remaining=int(data.get("days_remaining", 0)),
+        )
+        return
+
+    if event_type == "SubscriptionExpiredEvent":
+        SendSubscriptionExpiredUseCase(_email_sender).execute(
+            email=data.get("email", ""),
+            legal_rep_name=data.get("legal_rep_name", ""),
+            trade_name=data.get("trade_name", ""),
         )
         return
 

@@ -15,6 +15,7 @@ from lambdas.onboarding.infra.onboarding_commit_repository import DynamoOnboardi
 from lambdas.onboarding.infra.onboarding_verification_repository import (
     DynamoOnboardingVerificationRepository,
 )
+from lambdas.onboarding.infra.payment_verifier import DynamoPaymentVerifier
 from lambdas.onboarding.infra.plan_catalog import DynamoPlanCatalog
 from lambdas.onboarding.schemas import OnboardingOtpConfirmRequest, OnboardingRequest
 from lambdas.onboarding.use_cases.confirm_onboarding_otp import ConfirmOnboardingOtpUseCase
@@ -29,6 +30,7 @@ from shared.errors import NotFoundError
 # ── Cold start ────────────────────────────────────────────────────────────────
 _TENANTS_TABLE = get_table("TENANTS_TABLE")
 _PLANS_TABLE = get_table("PLANS_TABLE")
+_PAYMENTS_TABLE = get_table("PAYMENTS_TABLE") if env("PAYMENTS_TABLE", "") else None
 _AUDIT_TABLE = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
 _OUTBOX_TABLE = get_table("OUTBOX_TABLE") if env("OUTBOX_TABLE", "") else None
 
@@ -59,6 +61,10 @@ def _certificate_validator() -> CertificateValidator:
 
 def _certificate_store() -> CertificateStore:
     return CertificateStore()
+
+
+def _payment_verifier() -> DynamoPaymentVerifier | None:
+    return DynamoPaymentVerifier(_PAYMENTS_TABLE) if _PAYMENTS_TABLE else None
 
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
@@ -122,6 +128,7 @@ def _confirm_otp(request: Request, context) -> dict:
         plan_id=body.plan_id,
         certificate_b64=body.certificate_b64,
         cert_password=body.cert_password,
+        order_id=body.order_id,
     )
     result = ConfirmOnboardingOtpUseCase(
         _plan_catalog(),
@@ -129,6 +136,7 @@ def _confirm_otp(request: Request, context) -> dict:
         _verification_repo(),
         _certificate_validator(),
         _certificate_store(),
+        _payment_verifier(),
     ).execute(command)
 
     if result.tenant:

@@ -41,6 +41,10 @@ class ITenantRepository(ABC):
         """Active/suspended, non-deleted tenants with cert_expires_at <= before."""
 
     @abstractmethod
+    def list_with_subscription_expiry_due(self, before: datetime) -> list[Tenant]:
+        """Active, non-deleted tenants with subscription_status='active' and plan_cycle_ends_at <= before."""  # noqa: E501
+
+    @abstractmethod
     def commit(
         self,
         *,

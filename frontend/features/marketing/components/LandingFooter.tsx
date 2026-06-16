@@ -15,9 +15,20 @@ export function LandingFooter() {
         <Logo size={20} style={styles.mark} />
         <Text style={styles.text}>© {year} CodeLabs Ecuador · Facturación electrónica SRI</Text>
       </View>
-      <Pressable onPress={() => router.push(Routes.auth.login)}>
-        <Text style={styles.link}>Iniciar sesión</Text>
-      </Pressable>
+      <View style={styles.links}>
+        <Pressable onPress={() => router.push(Routes.public.legalTerms)}>
+          <Text style={styles.link}>Términos</Text>
+        </Pressable>
+        <Pressable onPress={() => router.push(Routes.public.legalPrivacy)}>
+          <Text style={styles.link}>Privacidad</Text>
+        </Pressable>
+        <Pressable onPress={() => router.push(Routes.public.legalRefund)}>
+          <Text style={styles.link}>Reembolsos</Text>
+        </Pressable>
+        <Pressable onPress={() => router.push(Routes.auth.login)}>
+          <Text style={styles.link}>Iniciar sesión</Text>
+        </Pressable>
+      </View>
     </View>
   )
 }
@@ -35,6 +46,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[6],
   },
   brand: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: spacing[2], minWidth: 0 },
+  links: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
   mark: { borderRadius: radius.xs, overflow: 'hidden' },
   text: { color: overlay.text.faint, flexShrink: 1, fontSize: typography.size.xs },
   link: {

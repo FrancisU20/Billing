@@ -39,3 +39,25 @@ class EmailSender(ABC):
         days_remaining: int,
     ) -> None:
         """Warn the tenant that its digital certificate is about to expire."""
+
+    @abstractmethod
+    def send_subscription_renewal_reminder(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        trade_name: str,
+        plan_cycle_ends_at: str,
+        days_remaining: int,
+    ) -> None:
+        """Remind the tenant to renew their subscription before it expires."""
+
+    @abstractmethod
+    def send_subscription_expired(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        trade_name: str,
+    ) -> None:
+        """Notify the tenant that their subscription has expired and access is suspended."""

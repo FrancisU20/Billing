@@ -1,0 +1,48 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Literal
+
+PaymentStatus = Literal["CREATED", "CAPTURED", "FAILED"]
+
+
+@dataclass
+class Payment:
+    order_id: str
+    tenant_id: str
+    plan_id: str
+    amount: str
+    currency: str
+    status: PaymentStatus
+    plan_cycle: str = "month"
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    captured_at: datetime | None = None
+    payer_id: str | None = None
+    payer_email: str | None = None
+    error_detail: str | None = None
+
+    def capture(self, payer_id: str, payer_email: str | None) -> None:
+        self.status = "CAPTURED"
+        self.captured_at = datetime.now(UTC)
+        self.payer_id = payer_id
+        self.payer_email = payer_email
+
+    def fail(self, detail: str) -> None:
+        self.status = "FAILED"
+        self.error_detail = detail
+
+    def to_dict(self) -> dict:
+        return {
+            "order_id": self.order_id,
+            "tenant_id": self.tenant_id,
+            "plan_id": self.plan_id,
+            "plan_cycle": self.plan_cycle,
+            "amount": self.amount,
+            "currency": self.currency,
+            "status": self.status,
+            "created_at": self.created_at.isoformat(),
+            "captured_at": self.captured_at.isoformat() if self.captured_at else None,
+            "payer_id": self.payer_id,
+            "payer_email": self.payer_email,
+        }

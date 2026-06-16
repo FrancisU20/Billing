@@ -157,6 +157,26 @@ class DatabaseStack(Stack):
             removal_policy = removal,
         )
 
+        # ── Payments ──────────────────────────────────────────────────────────
+        # PK: id ("PAYMENT#{order_id}") — registro de pagos PayPal Orders API
+        # GSI tenant-payments-index (PK=tenant_id) — pagos por tenant (renovaciones)
+        self.payments_table = ddb.Table(
+            self, "PaymentsTable",
+            table_name    = f"codelabs-billing-{env}-payments",
+            partition_key = ddb.Attribute(name="id", type=ddb.AttributeType.STRING),
+            billing_mode  = ddb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=pitr,
+            ),
+            removal_policy = removal,
+        )
+        self.payments_table.add_global_secondary_index(
+            index_name     = "tenant-payments-index",
+            partition_key  = ddb.Attribute(name="tenant_id", type=ddb.AttributeType.STRING),
+            sort_key       = ddb.Attribute(name="created_at", type=ddb.AttributeType.STRING),
+            projection_type= ddb.ProjectionType.ALL,
+        )
+
         # ── Outputs para scripts operativos y CI/CD ──────────────────────────
         CfnOutput(self, "TenantsTableName",
                   value=self.tenants_table.table_name,
@@ -185,3 +205,7 @@ class DatabaseStack(Stack):
         CfnOutput(self, "MigrationsTableName",
                   value=self.migrations_table.table_name,
                   export_name=f"CodeLabsBilling-{env}-MigrationsTableName")
+
+        CfnOutput(self, "PaymentsTableName",
+                  value=self.payments_table.table_name,
+                  export_name=f"CodeLabsBilling-{env}-PaymentsTableName")

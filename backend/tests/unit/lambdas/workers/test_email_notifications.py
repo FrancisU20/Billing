@@ -23,6 +23,8 @@ class FakeEmailSender(EmailSender):
         self.otp_sent: list[dict] = []
         self.enterprise_leads_sent: list[dict] = []
         self.certificate_expiry_alerts_sent: list[dict] = []
+        self.renewal_reminders_sent: list[dict] = []
+        self.subscription_expired_sent: list[dict] = []
         self._should_fail = should_fail
 
     def send_onboarding_otp(
@@ -85,6 +87,44 @@ class FakeEmailSender(EmailSender):
                 "ruc": ruc,
                 "cert_expires_at": cert_expires_at,
                 "days_remaining": days_remaining,
+            }
+        )
+
+    def send_subscription_renewal_reminder(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        trade_name: str,
+        plan_cycle_ends_at: str,
+        days_remaining: int,
+    ) -> None:
+        if self._should_fail:
+            raise RuntimeError("Brevo unavailable")
+        self.renewal_reminders_sent.append(
+            {
+                "email": email,
+                "legal_rep_name": legal_rep_name,
+                "trade_name": trade_name,
+                "plan_cycle_ends_at": plan_cycle_ends_at,
+                "days_remaining": days_remaining,
+            }
+        )
+
+    def send_subscription_expired(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        trade_name: str,
+    ) -> None:
+        if self._should_fail:
+            raise RuntimeError("Brevo unavailable")
+        self.subscription_expired_sent.append(
+            {
+                "email": email,
+                "legal_rep_name": legal_rep_name,
+                "trade_name": trade_name,
             }
         )
 
@@ -281,6 +321,14 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
             def send_certificate_expiry_alert(
                 self, *, email, legal_rep_name, trade_name, ruc, cert_expires_at, days_remaining
             ):
+                raise NotImplementedError
+
+            def send_subscription_renewal_reminder(
+                self, *, email, legal_rep_name, trade_name, plan_cycle_ends_at, days_remaining
+            ):
+                raise NotImplementedError
+
+            def send_subscription_expired(self, *, email, legal_rep_name, trade_name):
                 raise NotImplementedError
 
         mod._email_sender = PartialFakeSender()

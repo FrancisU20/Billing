@@ -25,3 +25,4 @@ class OnboardingOtpConfirmRequest(OnboardingBaseRequest):
     otp: str = Field(..., min_length=6, max_length=6)
     certificate_b64: str | None = Field(None, min_length=1)
     cert_password: str | None = Field(None, min_length=1, max_length=200)
+    order_id: str | None = Field(None, min_length=1, max_length=36)

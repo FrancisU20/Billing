@@ -143,6 +143,35 @@ class DynamoTenantRepository(ITenantRepository):
 
         return tenants, encode_cursor(next_cursor)
 
+    def list_with_subscription_expiry_due(self, before: datetime) -> list[Tenant]:
+        """Return active tenants with a paid plan whose cycle ends before `before`."""
+        filter_expr = (
+            Attr("entity_type").eq("TENANT")
+            & Attr("deleted").eq(False)
+            & Attr("status").eq(TenantStatus.ACTIVE.value)
+            & Attr("subscription_status").eq("active")
+            & Attr("plan_cycle_ends_at").exists()
+            & Attr("plan_cycle_ends_at").lte(before.isoformat())
+        )
+
+        tenants: list[Tenant] = []
+        scan_kwargs: dict = {"FilterExpression": filter_expr}
+        while True:
+            try:
+                resp = self._table.scan(**scan_kwargs)
+            except ClientError as e:
+                _log.error("DynamoDB scan error", error=str(e))
+                raise DatabaseError() from e
+
+            tenants.extend(self._from_item(item) for item in resp.get("Items", []))
+
+            last_key = resp.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            scan_kwargs["ExclusiveStartKey"] = last_key
+
+        return tenants
+
     def list_with_certificate_expiry_due(self, before: datetime) -> list[Tenant]:
         filter_expr = (
             Attr("entity_type").eq("TENANT")
@@ -454,6 +483,13 @@ class DynamoTenantRepository(ITenantRepository):
                 if tenant.onboarding_completed_at
                 else None
             ),
+            "paypal_payer_id": tenant.paypal_payer_id,
+            "subscription_status": tenant.subscription_status,
+            "subscription_renewal_reminder_sent_at": (
+                tenant.subscription_renewal_reminder_sent_at.isoformat()
+                if tenant.subscription_renewal_reminder_sent_at
+                else None
+            ),
             "version": tenant.version,
             "deleted": tenant.deleted,
             "created_at": tenant.created_at.isoformat(),
@@ -502,6 +538,13 @@ class DynamoTenantRepository(ITenantRepository):
             else None,
             onboarding_completed_at=datetime.fromisoformat(item["onboarding_completed_at"])
             if item.get("onboarding_completed_at")
+            else None,
+            paypal_payer_id=item.get("paypal_payer_id"),
+            subscription_status=item.get("subscription_status"),
+            subscription_renewal_reminder_sent_at=datetime.fromisoformat(
+                item["subscription_renewal_reminder_sent_at"]
+            )
+            if item.get("subscription_renewal_reminder_sent_at")
             else None,
             version=item.get("version", 1),
             deleted=item.get("deleted", False),

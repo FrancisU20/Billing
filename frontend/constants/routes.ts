@@ -9,7 +9,11 @@ export const Routes = {
     registerDetails: '/(public)/register/details' as const,
     registerCertificate: '/(public)/register/certificate' as const,
     registerOtp: '/(public)/register/otp' as const,
+    registerPayment: '/(public)/register/payment' as const,
     registerConfirm: '/(public)/register/confirm' as const,
+    legalTerms: '/(public)/legal/terms' as const,
+    legalPrivacy: '/(public)/legal/privacy' as const,
+    legalRefund: '/(public)/legal/refund' as const,
   },
   app: {
     profile: '/(app)/profile' as const,
@@ -26,6 +30,7 @@ export const Routes = {
   },
   tenant: {
     dashboard: '/(app)/(tenant)/dashboard' as const,
+    billing: '/(app)/(tenant)/billing' as const,
     clients: '/(app)/(tenant)/clients' as const,
     clientNew: '/(app)/(tenant)/clients/new' as const,
     clientDetail: (id: string) => `/(app)/(tenant)/clients/${id}` as const,

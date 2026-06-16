@@ -66,6 +66,9 @@ class Tenant(GlobalEntity):
     cert_expiry_alert_60_sent_at: datetime | None = None
     cert_expiry_alert_30_sent_at: datetime | None = None
     onboarding_completed_at: datetime | None = None
+    paypal_payer_id: str | None = None
+    subscription_status: str | None = None
+    subscription_renewal_reminder_sent_at: datetime | None = None
 
     # ── factory ───────────────────────────────────────────────────────────────
 
@@ -158,6 +161,27 @@ class Tenant(GlobalEntity):
             and now >= self.cert_expires_at - timedelta(days=threshold)
         ]
 
+    def apply_subscription_renewal(
+        self, *, payer_id: str, plan_cycle: str, now: datetime, updated_by: str
+    ) -> None:
+        base = max(now, self.plan_cycle_ends_at) if self.plan_cycle_ends_at else now
+        self.plan_cycle_ends_at = base + _cycle_duration(plan_cycle)
+        self.paypal_payer_id = payer_id
+        self.subscription_status = "active"
+        self.subscription_renewal_reminder_sent_at = None
+        if self.status == TenantStatus.SUSPENDED:
+            self.status = TenantStatus.ACTIVE
+        self.touch(updated_by)
+
+    def expire_subscription(self, *, updated_by: str) -> None:
+        self.subscription_status = "expired"
+        self.status = TenantStatus.SUSPENDED
+        self.touch(updated_by)
+
+    def mark_renewal_reminder_sent(self, *, sent_at: datetime, updated_by: str) -> None:
+        self.subscription_renewal_reminder_sent_at = sent_at
+        self.touch(updated_by)
+
     def mark_certificate_expiry_alert_sent(
         self, threshold_days: int, sent_at: datetime, updated_by: str
     ) -> None:
@@ -213,6 +237,13 @@ class Tenant(GlobalEntity):
             ),
             "onboarding_completed_at": (
                 self.onboarding_completed_at.isoformat() if self.onboarding_completed_at else None
+            ),
+            "paypal_payer_id": self.paypal_payer_id,
+            "subscription_status": self.subscription_status,
+            "subscription_renewal_reminder_sent_at": (
+                self.subscription_renewal_reminder_sent_at.isoformat()
+                if self.subscription_renewal_reminder_sent_at
+                else None
             ),
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),

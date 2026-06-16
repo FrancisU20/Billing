@@ -4,7 +4,9 @@ from __future__ import annotations
 HTTP API Gateway v2 event parser.
 
 Extracts from the event:
-- body (JSON)
+- body (JSON) and raw_body (decoded string, pre-JSON — needed for HMAC
+  signature verification of webhooks, where re-serializing the parsed
+  JSON would not reproduce the exact signed bytes)
 - path_params, query_params, headers
 - JWT claims: tenant_id, user_id, role, is_superadmin
 - idempotency_key from the X-Idempotency-Key header
@@ -30,16 +32,19 @@ from shared.errors import MissingTenantContextError, ValidationError
 T = TypeVar("T", bound=BaseModel)
 
 
-def _parse_body(event: dict) -> dict:
-    raw_body = event.get("body")
-    if not raw_body:
-        return {}
-
+def _decode_raw_body(event: dict) -> str:
+    raw_body = event.get("body") or ""
     if event.get("isBase64Encoded"):
         try:
-            raw_body = base64.b64decode(raw_body).decode("utf-8")
+            return base64.b64decode(raw_body).decode("utf-8")
         except Exception as exc:
             raise ValidationError("Body base64 inválido") from exc
+    return raw_body
+
+
+def _parse_body(raw_body: str) -> dict:
+    if not raw_body:
+        return {}
 
     try:
         body = json.loads(raw_body)
@@ -67,6 +72,7 @@ def _path_with_query(path: str, query_params: dict) -> str:
 @dataclass(frozen=True)
 class Request:
     body: dict
+    raw_body: str
     path_params: dict
     query_params: dict
     headers: dict
@@ -86,7 +92,8 @@ class Request:
         http = ctx.get("http", {})
         claims = ctx.get("authorizer", {}).get("jwt", {}).get("claims", {})
         headers = {k.lower(): v for k, v in (event.get("headers") or {}).items()}
-        body = _parse_body(event)
+        raw_body = _decode_raw_body(event)
+        body = _parse_body(raw_body)
         query_params = event.get("queryStringParameters") or {}
         path = http.get("path", event.get("rawPath", ""))
 
@@ -100,6 +107,7 @@ class Request:
 
         return cls(
             body=body,
+            raw_body=raw_body,
             path_params=event.get("pathParameters") or {},
             query_params=query_params,
             headers=headers,

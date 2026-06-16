@@ -99,5 +99,51 @@ class AttachCertificateResetsAlertFlagsTests(unittest.TestCase):
         self.assertIsNone(tenant.cert_expiry_alert_30_sent_at)
 
 
+class ApplySubscriptionRenewalTenantTests(unittest.TestCase):
+    def test_clears_reminder_flag_on_renewal(self) -> None:
+        now = datetime.now(UTC)
+        tenant = make_tenant(
+            subscription_renewal_reminder_sent_at=now - timedelta(days=2),
+            plan_cycle_ends_at=now,
+        )
+
+        tenant.apply_subscription_renewal(
+            payer_id="PAY-1",
+            plan_cycle="month",
+            now=now,
+            updated_by="user-1",
+        )
+
+        self.assertIsNone(tenant.subscription_renewal_reminder_sent_at)
+
+    def test_sets_subscription_status_active(self) -> None:
+        now = datetime.now(UTC)
+        tenant = make_tenant(subscription_status="expired")
+
+        tenant.apply_subscription_renewal(
+            payer_id="PAY-1",
+            plan_cycle="month",
+            now=now,
+            updated_by="user-1",
+        )
+
+        self.assertEqual(tenant.subscription_status, "active")
+
+    def test_extends_cycle_from_current_end_date(self) -> None:
+        now = datetime.now(UTC)
+        future = now + timedelta(days=10)
+        tenant = make_tenant(plan_cycle_ends_at=future)
+
+        tenant.apply_subscription_renewal(
+            payer_id="PAY-1",
+            plan_cycle="month",
+            now=now,
+            updated_by="user-1",
+        )
+
+        # Extended from future (not from now) — base = max(now, future) = future
+        self.assertGreater(tenant.plan_cycle_ends_at, future)
+
+
 if __name__ == "__main__":
     unittest.main()
