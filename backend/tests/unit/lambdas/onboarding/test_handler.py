@@ -367,9 +367,7 @@ class OnboardingHandlerTests(unittest.TestCase):
             patch.object(self.handler, "_PAYMENTS_TABLE", new="unit-payments"),
             patch.object(self.handler, "require_current_context", return_value=idempotency_context),
         ):
-            response = self.handler.handler(
-                _confirm_event(order_id="ORDER-PAY-1"), self.context
-            )
+            response = self.handler.handler(_confirm_event(order_id="ORDER-PAY-1"), self.context)
 
         self.assertEqual(response["statusCode"], 201)
         commit_call = tenant_repo.commit_calls[0]
@@ -380,9 +378,7 @@ class OnboardingHandlerTests(unittest.TestCase):
             None,
         )
         self.assertIsNotNone(payment_item, "payment link transact item missing from transaction")
-        self.assertEqual(
-            payment_item["Update"]["UpdateExpression"], "SET tenant_id = :tid"
-        )
+        self.assertEqual(payment_item["Update"]["UpdateExpression"], "SET tenant_id = :tid")
 
     def test_unknown_route_returns_404(self) -> None:
         event = api_event(method="GET", path="/does-not-exist")
