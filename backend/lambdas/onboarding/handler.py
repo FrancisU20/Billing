@@ -27,9 +27,6 @@ from shared.certificates.validator import CertificateValidator
 from shared.config import env
 from shared.db.client import get_table
 from shared.errors import NotFoundError
-from shared.logger import get_logger
-
-_log = get_logger(__name__)
 
 # ── Cold start ────────────────────────────────────────────────────────────────
 _TENANTS_TABLE = get_table("TENANTS_TABLE")
@@ -147,6 +144,13 @@ def _confirm_otp(request: Request, context) -> dict:
         response = ApiResponse.created(
             {"tenant_id": result.tenant.id, "email": result.tenant.email}, request.request_id
         )
+        payment_transact_items = []
+        if body.order_id and _PAYMENTS_TABLE:
+            payment_transact_items.append(
+                DynamoPaymentRepository(_PAYMENTS_TABLE).link_tenant_transact_item(
+                    body.order_id, result.tenant.id
+                )
+            )
         try:
             _commit_repo().commit_tenant_registration(
                 tenant=result.tenant,
@@ -154,21 +158,11 @@ def _confirm_otp(request: Request, context) -> dict:
                 events=result.events,
                 idempotency=require_current_context(),
                 response=response,
+                extra_transact_items=payment_transact_items or None,
             )
         except Exception:
             _certificate_store().delete_certificate(tenant_id=result.tenant.id)
             raise
-        if body.order_id and _PAYMENTS_TABLE:
-            try:
-                DynamoPaymentRepository(_PAYMENTS_TABLE).link_tenant(
-                    body.order_id, result.tenant.id
-                )
-            except Exception:
-                _log.error(
-                    "link_tenant failed after commit — payment not indexed in GSI",
-                    order_id=body.order_id,
-                    tenant_id=result.tenant.id,
-                )
         return response
 
     response = ApiResponse.created({"message": "Te contactaremos pronto."}, request.request_id)

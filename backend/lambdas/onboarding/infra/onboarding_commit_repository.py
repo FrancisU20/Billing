@@ -42,7 +42,11 @@ class DynamoOnboardingCommitRepository:
         events: list[DomainEvent],
         idempotency: IdempotencyContext,
         response: dict,
+        extra_transact_items: list[dict] | None = None,
     ) -> None:
+        items = [self._verification_repo.mark_used_transact_item(verification)]
+        if extra_transact_items:
+            items.extend(extra_transact_items)
         try:
             self._tenant_repo.commit(
                 tenant=tenant,
@@ -51,9 +55,7 @@ class DynamoOnboardingCommitRepository:
                 events=events,
                 idempotency=idempotency,
                 response=response,
-                extra_transact_items=[
-                    self._verification_repo.mark_used_transact_item(verification)
-                ],
+                extra_transact_items=items,
             )
         except ExtraTransactionConditionFailedError as exc:
             raise OnboardingOtpInvalidError() from exc

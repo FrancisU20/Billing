@@ -35,6 +35,16 @@ class DynamoPaymentRepository(IPaymentRepository):
             _log.error("DynamoDB update_item error (link_tenant)", error=str(exc))
             raise DatabaseError() from exc
 
+    def link_tenant_transact_item(self, order_id: str, tenant_id: str) -> dict:
+        return {
+            "Update": {
+                "TableName": self._table.table_name,
+                "Key": {"id": f"PAYMENT#{order_id}"},
+                "UpdateExpression": "SET tenant_id = :tid",
+                "ExpressionAttributeValues": {":tid": tenant_id},
+            }
+        }
+
     def get_by_order_id(self, order_id: str) -> Payment:
         try:
             resp = self._table.get_item(Key={"id": f"PAYMENT#{order_id}"})
