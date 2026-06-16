@@ -35,7 +35,7 @@ Frontend (wizard)        Backend                  dLocal Go
    | [OTP correcto]         |                        |
    | navega a payment.tsx   |                        |
    |-- POST /subscriptions/payments (plan_id) ------>|
-   |                   crea payment                  |
+   |                   crea payment con allow_transparent=true |
    |<-- { order_id, checkout_token, amount, currency }
    |                       |                        |
    | SDK dLocal SmartFields (checkout_token)        |
@@ -88,7 +88,8 @@ subscriptions/
     entities/
       payment.py         Payment (order_id, tenant_id, plan_id, checkout_token, plan_cycle, ...)
   infra/
-    dlocal_client.py     DLocalClient(IDLocalClient): Bearer {api_key}:{secret_key}
+    dlocal_client.py     DLocalClient(IDLocalClient): Bearer {api_key}:{secret_key};
+                         create payment envia allow_transparent=true para SmartFields
     payment_repository.py  DynamoDB (PK = "PAYMENT#{order_id}")
     plan_catalog.py      Lectura local de planes sin importar lambdas.plans.*
   use_cases/
@@ -273,6 +274,8 @@ Antes de activar el pago en cada entorno:
 3. Para prod: usar credenciales de produccion.
 4. Configurar `EXPO_PUBLIC_DLOCALGO_SMARTFIELDS_KEY` en el build del frontend
    (clave SmartFields, diferente de api_key/secret_key — solicitarla a soporte dLocal).
+   En GitHub Actions vive como secret del environment (`dev`, `staging`, `prod`) y se inyecta
+   en el step de build web.
 
 ## Frontend — Subscriptions
 

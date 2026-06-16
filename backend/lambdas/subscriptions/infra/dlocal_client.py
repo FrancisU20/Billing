@@ -49,8 +49,7 @@ class DLocalClient(IDLocalClient):
                 "amount": amount,
                 "currency": currency,
                 "country": country,
-                "payment_method_id": "CARD",
-                "payment_method_flow": "TRANSPARENT",
+                "allow_transparent": True,
             },
         )
         return DLocalCreatePaymentResult(

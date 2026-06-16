@@ -637,6 +637,7 @@ jobs:
         working-directory: frontend
         env:
           EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_DLOCALGO_SMARTFIELDS_KEY: ${{ secrets.EXPO_PUBLIC_DLOCALGO_SMARTFIELDS_KEY }}
         run: npx expo export --platform web
 
       # Assets con hash en el nombre: inmutable a largo plazo.
