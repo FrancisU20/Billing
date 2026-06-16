@@ -5,15 +5,16 @@ import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Routes } from '@/constants/routes'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { radius, shadow, spacing, typography } from '@/constants/tokens'
+import { useAsync } from '@/lib/hooks/useAsync'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useTheme } from '@/lib/theme-context'
 import { subscriptionsApi } from '@/features/subscriptions/api'
 import { onboardingApi } from '../api'
 import { formValuesToOnboardingPayload } from '../form'
 import { useOnboardingStore } from '../store'
-import type { CreatePaymentResult } from '@/features/subscriptions/schemas'
 
 export function RegisterPaymentScreen() {
   const { semantic } = useTheme()
@@ -25,11 +26,12 @@ export function RegisterPaymentScreen() {
   const verification = useOnboardingStore((state) => state.verification)
   const otpValue = useOnboardingStore((state) => state.otpValue)
   const otpConfirmIdempotencyKey = useOnboardingStore((state) => state.otpConfirmIdempotencyKey)
+  const createPaymentIdempotencyKey = useOnboardingStore(
+    (state) => state.createPaymentIdempotencyKey,
+  )
   const setOrderId = useOnboardingStore((state) => state.setOrderId)
   const setResult = useOnboardingStore((state) => state.setResult)
 
-  const [order, setOrder] = useState<CreatePaymentResult | null>(null)
-  const [orderError, setOrderError] = useState<string | null>(null)
   const [paypalOpened, setPaypalOpened] = useState(false)
 
   useEffect(() => {
@@ -38,34 +40,29 @@ export function RegisterPaymentScreen() {
     }
   }, [selectedPlan, formValues, verification, otpValue, router])
 
-  const createOrder = useCallback(async () => {
-    if (!selectedPlan) return
-    setOrderError(null)
-    try {
-      const result = await subscriptionsApi.createPayment({
-        plan_id: selectedPlan.id,
-        currency: 'USD',
-      })
-      setOrder(result)
-    } catch {
-      setOrderError('No se pudo crear la orden de pago. Intenta de nuevo.')
-    }
-  }, [selectedPlan])
+  const createOrderFn = useCallback(async () => {
+    return subscriptionsApi.createPayment(
+      { plan_id: selectedPlan!.id, currency: 'USD' },
+      createPaymentIdempotencyKey!,
+    )
+  }, [selectedPlan, createPaymentIdempotencyKey])
+
+  const {
+    data: order,
+    loading: creatingOrder,
+    error: createError,
+    execute: createOrder,
+  } = useAsync(createOrderFn)
 
   useEffect(() => {
+    if (!selectedPlan) return
     createOrder()
-  }, [createOrder])
-
-  const handleOpenPayPal = async () => {
-    if (!order) return
-    const url = subscriptionsApi.paypalApprovalUrl(order.order_id)
-    await Linking.openURL(url)
-    setPaypalOpened(true)
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const {
     submitting,
-    error,
+    error: confirmError,
     submit: confirmPayment,
   } = useFormSubmit(async () => {
     if (
@@ -79,7 +76,6 @@ export function RegisterPaymentScreen() {
       return
 
     const payment = await subscriptionsApi.getPayment(order.order_id)
-
     if (payment.status === 'APPROVED') {
       await subscriptionsApi.capturePayment(order.order_id)
     } else if (payment.status !== 'CAPTURED') {
@@ -121,11 +117,11 @@ export function RegisterPaymentScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View
           style={[
-            styles.section,
-            { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
+            styles.card,
+            { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
           ]}
         >
-          <View style={[styles.planRow, { borderBottomColor: semantic.border.default }]}>
+          <View style={styles.planRow}>
             <View style={[styles.planIcon, { backgroundColor: semantic.accent.subtle }]}>
               <Ionicons name="pricetag-outline" size={20} color={semantic.accent.default} />
             </View>
@@ -139,28 +135,31 @@ export function RegisterPaymentScreen() {
             </View>
           </View>
 
-          {orderError ? (
-            <View>
-              <Text style={[styles.errorText, { color: semantic.status.error }]}>{orderError}</Text>
-              <Button variant="outline" size="md" fullWidth onPress={createOrder}>
+          <View style={[styles.divider, { backgroundColor: semantic.border.default }]} />
+
+          {creatingOrder ? (
+            <LoadingSpinner compact label="Preparando orden de pago..." />
+          ) : createError ? (
+            <>
+              <ApiErrorBanner error={createError} />
+              <Button variant="outline" size="md" fullWidth onPress={() => createOrder()}>
                 Reintentar
               </Button>
-            </View>
-          ) : !order ? (
-            <Text style={[styles.hint, { color: semantic.text.secondary }]}>
-              Preparando la orden de pago…
-            </Text>
-          ) : (
+            </>
+          ) : order ? (
             <>
               <View
                 style={[
                   styles.infoBox,
-                  { backgroundColor: semantic.accent.subtle, borderColor: semantic.accent.default },
+                  {
+                    backgroundColor: semantic.accent.subtle,
+                    borderColor: semantic.accent.default,
+                  },
                 ]}
               >
                 <Ionicons
                   name="information-circle-outline"
-                  size={18}
+                  size={16}
                   color={semantic.accent.default}
                 />
                 <Text style={[styles.infoText, { color: semantic.text.primary }]}>
@@ -169,13 +168,22 @@ export function RegisterPaymentScreen() {
                 </Text>
               </View>
 
-              <Button variant="primary" size="lg" fullWidth onPress={handleOpenPayPal}>
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                onPress={async () => {
+                  const url = subscriptionsApi.paypalApprovalUrl(order.order_id)
+                  await Linking.openURL(url)
+                  setPaypalOpened(true)
+                }}
+              >
                 Pagar con PayPal
               </Button>
 
               {paypalOpened ? (
                 <>
-                  {error ? <ApiErrorBanner error={error} /> : null}
+                  {confirmError ? <ApiErrorBanner error={confirmError} /> : null}
                   <Button
                     variant="secondary"
                     size="lg"
@@ -188,7 +196,7 @@ export function RegisterPaymentScreen() {
                 </>
               ) : null}
             </>
-          )}
+          ) : null}
 
           <Button variant="ghost" size="lg" fullWidth onPress={() => router.back()}>
             Volver
@@ -212,19 +220,14 @@ const styles = StyleSheet.create({
     lineHeight: typography.size.base * typography.lineHeight.normal,
   },
   scroll: { padding: spacing[5], paddingBottom: spacing[12] },
-  section: {
-    borderRadius: radius.md,
+  card: {
+    borderRadius: radius['2xl'],
     borderWidth: 1,
+    padding: spacing[5],
     gap: spacing[4],
-    padding: spacing[4],
+    ...shadow.md,
   },
-  planRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[3],
-    paddingBottom: spacing[4],
-    borderBottomWidth: 1,
-  },
+  planRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   planIcon: {
     width: 44,
     height: 44,
@@ -235,6 +238,7 @@ const styles = StyleSheet.create({
   planInfo: { flex: 1, gap: spacing[1] },
   planName: { fontSize: typography.size.base, fontWeight: typography.weight.semibold },
   planPrice: { fontSize: typography.size.xl, fontWeight: typography.weight.bold },
+  divider: { height: 1 },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -246,12 +250,6 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: typography.size.sm,
-    lineHeight: typography.size.sm * typography.lineHeight.normal,
-  },
-  errorText: { fontSize: typography.size.sm, textAlign: 'center' },
-  hint: {
-    fontSize: typography.size.sm,
-    textAlign: 'center',
     lineHeight: typography.size.sm * typography.lineHeight.normal,
   },
 })

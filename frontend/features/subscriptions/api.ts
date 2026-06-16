@@ -16,8 +16,11 @@ function paypalApprovalUrl(orderId: string): string {
 }
 
 export const subscriptionsApi = {
-  createPayment: (body: { plan_id: string; currency: string }) =>
-    api.post('/subscriptions/payments', body, createPaymentResultSchema, { auth: false }),
+  createPayment: (body: { plan_id: string; currency: string }, idempotencyKey: string) =>
+    api.post('/subscriptions/payments', body, createPaymentResultSchema, {
+      auth: false,
+      idempotencyKey,
+    }),
 
   capturePayment: (orderId: string) =>
     api.post(`/subscriptions/payments/${orderId}/capture`, {}, capturePaymentResultSchema, {

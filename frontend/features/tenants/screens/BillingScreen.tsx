@@ -22,20 +22,21 @@ export function BillingScreen() {
 
   const [order, setOrder] = useState<CreatePaymentResult | null>(null)
   const [paypalOpened, setPaypalOpened] = useState(false)
+  const [createOrderKey] = useState(() => createIdempotencyKey('subscription-create-order'))
   const [renewalKey] = useState(() => createIdempotencyKey('subscription-renewal'))
   const [success, setSuccess] = useState(false)
 
   const handleCreateOrder = useCallback(async () => {
     if (!tenant) return
-    const result = await subscriptionsApi.createPayment({
-      plan_id: tenant.plan_id,
-      currency: 'USD',
-    })
+    const result = await subscriptionsApi.createPayment(
+      { plan_id: tenant.plan_id, currency: 'USD' },
+      createOrderKey,
+    )
     setOrder(result)
     const url = subscriptionsApi.paypalApprovalUrl(result.order_id)
     await Linking.openURL(url)
     setPaypalOpened(true)
-  }, [tenant])
+  }, [tenant, createOrderKey])
 
   const {
     submitting: creatingOrder,

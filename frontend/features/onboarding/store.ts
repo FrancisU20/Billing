@@ -14,6 +14,7 @@ interface OnboardingState {
   certificateValues: CertificateFormValues | null
   otpRequestIdempotencyKey: string | null
   otpConfirmIdempotencyKey: string | null
+  createPaymentIdempotencyKey: string | null
   verification: OnboardingOtpRequestResult | null
   otpValue: string | null
   orderId: string | null
@@ -37,6 +38,7 @@ const initialState: OnboardingState = {
   certificateValues: null,
   otpRequestIdempotencyKey: null,
   otpConfirmIdempotencyKey: null,
+  createPaymentIdempotencyKey: null,
   verification: null,
   otpValue: null,
   orderId: null,
@@ -53,6 +55,8 @@ export const useOnboardingStore = create<OnboardingState & OnboardingActions>((s
         state.otpRequestIdempotencyKey ?? createIdempotencyKey('onboarding-otp-request'),
       otpConfirmIdempotencyKey:
         state.otpConfirmIdempotencyKey ?? createIdempotencyKey('onboarding-otp-confirm'),
+      createPaymentIdempotencyKey:
+        state.createPaymentIdempotencyKey ?? createIdempotencyKey('onboarding-create-payment'),
     })),
 
   setFormValues: (values: RegistrationFormValues) => set({ formValues: values }),
