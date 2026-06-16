@@ -7,17 +7,20 @@ from decimal import Decimal
 from lambdas.subscriptions.domain.commands import CreatePaymentCommand
 from lambdas.subscriptions.domain.entities.payment import Payment
 from lambdas.subscriptions.domain.errors import FreePlanPaymentError, PaymentCreationError
+from lambdas.subscriptions.domain.repositories.i_dlocal_client import IDLocalClient
 from lambdas.subscriptions.domain.repositories.i_payment_repository import IPaymentRepository
-from lambdas.subscriptions.domain.repositories.i_paypal_client import IPayPalClient
 from lambdas.subscriptions.domain.repositories.i_plan_catalog import IPlanCatalog
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
 
+_COUNTRY = "EC"
+
 
 @dataclass
 class CreatePaymentResult:
     order_id: str
+    checkout_token: str
     amount: str
     currency: str
 
@@ -26,11 +29,11 @@ class CreatePaymentUseCase:
     def __init__(
         self,
         plan_catalog: IPlanCatalog,
-        paypal: IPayPalClient,
+        dlocal: IDLocalClient,
         payment_repo: IPaymentRepository,
     ) -> None:
         self._plans = plan_catalog
-        self._paypal = paypal
+        self._dlocal = dlocal
         self._payments = payment_repo
 
     def execute(self, cmd: CreatePaymentCommand) -> CreatePaymentResult:
@@ -42,24 +45,26 @@ class CreatePaymentUseCase:
         amount = _plan_price(plan.monthly_price, plan.annual_price, plan.limit_cycle)
 
         try:
-            order = self._paypal.create_order(amount, cmd.currency)
+            result = self._dlocal.create_payment(amount, cmd.currency, _COUNTRY)
         except (urllib.error.HTTPError, urllib.error.URLError) as exc:
-            _log.error("PayPal create order failed", error=str(exc))
+            _log.error("dLocal create payment failed", error=str(exc))
             raise PaymentCreationError() from exc
 
         payment = Payment(
-            order_id=order.order_id,
+            order_id=result.payment_id,
             tenant_id=None,
             plan_id=cmd.plan_id,
             amount=amount,
             currency=cmd.currency,
             status="CREATED",
             plan_cycle=plan.limit_cycle,
+            checkout_token=result.checkout_token,
         )
         self._payments.save(payment)
 
         return CreatePaymentResult(
-            order_id=order.order_id,
+            order_id=result.payment_id,
+            checkout_token=result.checkout_token,
             amount=amount,
             currency=cmd.currency,
         )

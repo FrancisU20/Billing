@@ -99,7 +99,7 @@ class ConfirmOnboardingOtpUseCase:
                 raise OnboardingPaymentRequiredError()
             if self._payment_verifier is None:
                 raise InternalError("payment verifier not configured")
-            payment_info = self._payment_verifier.get_captured_payment(cmd.order_id)
+            payment_info = self._payment_verifier.get_confirmed_payment(cmd.order_id)
 
         metadata = self._certificate_validator.validate_base64(
             certificate_b64=cmd.certificate_b64,
@@ -124,7 +124,7 @@ class ConfirmOnboardingOtpUseCase:
             plan_limit_cycle=plan_limit_cycle,
         )
         if payment_info:
-            tenant.paypal_payer_id = payment_info.payer_id
+            tenant.dlocal_payer_id = payment_info.payer_id
             tenant.subscription_status = "active"
         secret_arn = self._certificate_store.put_certificate(
             tenant_id=tenant.id,

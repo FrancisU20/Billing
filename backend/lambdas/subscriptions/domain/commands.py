@@ -10,5 +10,7 @@ class CreatePaymentCommand:
 
 
 @dataclass
-class CapturePaymentCommand:
+class ConfirmPaymentCommand:
     order_id: str
+    card_token: str
+    payer_email: str | None = None

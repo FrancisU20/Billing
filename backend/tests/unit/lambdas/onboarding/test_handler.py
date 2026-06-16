@@ -328,7 +328,7 @@ class OnboardingHandlerTests(unittest.TestCase):
         idempotency_context = object()
 
         class FakePaymentVerifier:
-            def get_captured_payment(self, order_id: str) -> CapturedPaymentInfo:
+            def get_confirmed_payment(self, order_id: str) -> CapturedPaymentInfo:
                 return CapturedPaymentInfo(
                     order_id=order_id,
                     payer_id="PAYER-1",

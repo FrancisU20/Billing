@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
@@ -7,6 +7,7 @@ import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Routes } from '@/constants/routes'
+import { config } from '@/constants/config'
 import { radius, shadow, spacing, typography } from '@/constants/tokens'
 import { useAsync } from '@/lib/hooks/useAsync'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
@@ -15,6 +16,30 @@ import { subscriptionsApi } from '@/features/subscriptions/api'
 import { onboardingApi } from '../api'
 import { formValuesToOnboardingPayload } from '../form'
 import { useOnboardingStore } from '../store'
+
+declare global {
+  interface Window {
+    dlocalgo?: (key: string) => DLocalGoInstance
+  }
+}
+
+interface DLocalGoInstance {
+  fields: (opts: {
+    merchantCheckoutToken: string
+    locale: string
+    country: string
+  }) => DLocalGoFields
+}
+
+interface DLocalGoFields {
+  create: (type: string) => DLocalGoField
+  createCardToken: (opts?: { holderName?: string }) => Promise<{ token: string }>
+}
+
+interface DLocalGoField {
+  mount: (selector: string) => void
+  unmount: () => void
+}
 
 export function RegisterPaymentScreen() {
   const { semantic } = useTheme()
@@ -32,7 +57,9 @@ export function RegisterPaymentScreen() {
   const setOrderId = useOnboardingStore((state) => state.setOrderId)
   const setResult = useOnboardingStore((state) => state.setResult)
 
-  const [paypalOpened, setPaypalOpened] = useState(false)
+  const smartFieldsRef = useRef<DLocalGoFields | null>(null)
+  const [sdkReady, setSdkReady] = useState(false)
+  const [sdkError, setSdkError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!selectedPlan || !formValues || !verification || !otpValue) {
@@ -60,6 +87,49 @@ export function RegisterPaymentScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Load SmartFields SDK and mount card fields once we have a checkout_token
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !order?.checkout_token) return
+    if (!config.dlocalgo.smartFieldsKey) {
+      setSdkError('SmartFields key not configured.')
+      return
+    }
+
+    const scriptId = 'dlocalgo-smartfields-sdk'
+    const init = () => {
+      try {
+        const dlocalgo = window.dlocalgo!(config.dlocalgo.smartFieldsKey)
+        const fields = dlocalgo.fields({
+          merchantCheckoutToken: order.checkout_token,
+          locale: 'es',
+          country: 'EC',
+        })
+        const cardNumber = fields.create('cardNumber')
+        const cardExpiry = fields.create('cardExpiry')
+        const cardCvc = fields.create('cardCvc')
+        cardNumber.mount('#dlocalgo-card-number')
+        cardExpiry.mount('#dlocalgo-card-expiry')
+        cardCvc.mount('#dlocalgo-card-cvv')
+        smartFieldsRef.current = fields
+        setSdkReady(true)
+      } catch {
+        setSdkError('Error al inicializar el formulario de pago.')
+      }
+    }
+
+    if (document.getElementById(scriptId)) {
+      if (window.dlocalgo) init()
+      return
+    }
+
+    const script = document.createElement('script')
+    script.id = scriptId
+    script.src = config.dlocalgo.sdkUrl
+    script.onload = init
+    script.onerror = () => setSdkError('No se pudo cargar el formulario de pago.')
+    document.head.appendChild(script)
+  }, [order?.checkout_token])
+
   const {
     submitting,
     error: confirmError,
@@ -75,12 +145,13 @@ export function RegisterPaymentScreen() {
     )
       return
 
-    const payment = await subscriptionsApi.getPayment(order.order_id)
-    if (payment.status === 'APPROVED') {
-      await subscriptionsApi.capturePayment(order.order_id)
-    } else if (payment.status !== 'CAPTURED') {
-      throw new Error(`El pago no ha sido completado en PayPal (estado: ${payment.status}).`)
+    if (Platform.OS !== 'web' || !smartFieldsRef.current) {
+      throw new Error('El pago con tarjeta está disponible solo en la versión web.')
     }
+
+    const { token: cardToken } = await smartFieldsRef.current.createCardToken()
+
+    await subscriptionsApi.confirmPayment(order.order_id, { card_token: cardToken })
 
     setOrderId(order.order_id)
 
@@ -138,7 +209,7 @@ export function RegisterPaymentScreen() {
           <View style={[styles.divider, { backgroundColor: semantic.border.default }]} />
 
           {creatingOrder ? (
-            <LoadingSpinner compact label="Preparando orden de pago..." />
+            <LoadingSpinner compact label="Preparando formulario de pago..." />
           ) : createError ? (
             <>
               <ApiErrorBanner error={createError} />
@@ -148,53 +219,105 @@ export function RegisterPaymentScreen() {
             </>
           ) : order ? (
             <>
-              <View
-                style={[
-                  styles.infoBox,
-                  {
-                    backgroundColor: semantic.accent.subtle,
-                    borderColor: semantic.accent.default,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="information-circle-outline"
-                  size={16}
-                  color={semantic.accent.default}
-                />
-                <Text style={[styles.infoText, { color: semantic.text.primary }]}>
-                  Al presionar &quot;Pagar con PayPal&quot; serás redirigido a PayPal para autorizar
-                  el pago. Regresa a esta pantalla una vez completado.
-                </Text>
-              </View>
-
-              <Button
-                variant="primary"
-                size="lg"
-                fullWidth
-                onPress={async () => {
-                  const url = subscriptionsApi.paypalApprovalUrl(order.order_id)
-                  await Linking.openURL(url)
-                  setPaypalOpened(true)
-                }}
-              >
-                Pagar con PayPal
-              </Button>
-
-              {paypalOpened ? (
+              {Platform.OS !== 'web' ? (
+                <View
+                  style={[
+                    styles.infoBox,
+                    {
+                      backgroundColor: semantic.status.errorBg,
+                      borderColor: semantic.status.error,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={16}
+                    color={semantic.status.error}
+                  />
+                  <Text style={[styles.infoText, { color: semantic.status.error }]}>
+                    El pago con tarjeta está disponible solo en la versión web.
+                  </Text>
+                </View>
+              ) : sdkError ? (
+                <View
+                  style={[
+                    styles.infoBox,
+                    {
+                      backgroundColor: semantic.status.errorBg,
+                      borderColor: semantic.status.error,
+                    },
+                  ]}
+                >
+                  <Ionicons name="alert-circle-outline" size={16} color={semantic.status.error} />
+                  <Text style={[styles.infoText, { color: semantic.status.error }]}>
+                    {sdkError}
+                  </Text>
+                </View>
+              ) : (
                 <>
+                  {!sdkReady && <LoadingSpinner compact label="Cargando formulario de pago..." />}
+
+                  {/* SmartFields card containers — SDK mounts iframe into each nativeID */}
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                      Número de tarjeta
+                    </Text>
+                    <View
+                      nativeID="dlocalgo-card-number"
+                      style={[
+                        styles.fieldContainer,
+                        { borderColor: semantic.border.default, backgroundColor: semantic.bg.page },
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.fieldRow}>
+                    <View style={[styles.fieldGroup, styles.fieldHalf]}>
+                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                        Vencimiento
+                      </Text>
+                      <View
+                        nativeID="dlocalgo-card-expiry"
+                        style={[
+                          styles.fieldContainer,
+                          {
+                            borderColor: semantic.border.default,
+                            backgroundColor: semantic.bg.page,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <View style={[styles.fieldGroup, styles.fieldHalf]}>
+                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                        CVV
+                      </Text>
+                      <View
+                        nativeID="dlocalgo-card-cvv"
+                        style={[
+                          styles.fieldContainer,
+                          {
+                            borderColor: semantic.border.default,
+                            backgroundColor: semantic.bg.page,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </View>
+
                   {confirmError ? <ApiErrorBanner error={confirmError} /> : null}
+
                   <Button
-                    variant="secondary"
+                    variant="primary"
                     size="lg"
                     fullWidth
                     isLoading={submitting}
+                    disabled={!sdkReady}
                     onPress={() => confirmPayment()}
                   >
-                    Ya completé el pago en PayPal
+                    Pagar ${price} USD
                   </Button>
                 </>
-              ) : null}
+              )}
             </>
           ) : null}
 
@@ -251,5 +374,15 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: typography.size.sm,
     lineHeight: typography.size.sm * typography.lineHeight.normal,
+  },
+  fieldGroup: { gap: spacing[1] },
+  fieldRow: { flexDirection: 'row', gap: spacing[3] },
+  fieldHalf: { flex: 1 },
+  fieldLabel: { fontSize: typography.size.xs },
+  fieldContainer: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    overflow: 'hidden',
   },
 })

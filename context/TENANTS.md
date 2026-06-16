@@ -13,7 +13,7 @@ Leer estos archivos en orden antes de escribir codigo en este dominio:
 | `FRONTEND.md` | Patrones de pantalla, design system para `features/tenants/` |
 | `AUTH.md` | Todos los endpoints requieren rol `superadmin` |
 | `PLANS.md` | `plan_id` se valida contra catalogo de planes activo |
-| `SUBSCRIPTIONS.md` | Campos `paddle_*`/`subscription_status`, independientes de `status`/`plan_status` |
+| `SUBSCRIPTIONS.md` | Campos `dlocal_payer_id`/`subscription_status`, independientes de `status`/`plan_status` |
 
 ## Proposito
 
@@ -58,9 +58,8 @@ cert_expiry_alert_60_sent_at, cert_expiry_alert_30_sent_at
 onboarding_completed_at
 deleted            bool, soft delete
 
-# Suscripcion SaaS (PayPal como Merchant of Record, ver SUBSCRIPTIONS.md):
-paypal_payer_id      str | None
-paypal_subscription_id  str | None
+# Suscripcion SaaS (dLocal Go como pasarela, ver SUBSCRIPTIONS.md):
+dlocal_payer_id      str | None
 subscription_status     str | None — active | suspended | cancelled | expired
 ```
 

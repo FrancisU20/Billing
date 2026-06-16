@@ -8,26 +8,19 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from lambdas.subscriptions.domain.entities.payment import Payment
-from lambdas.subscriptions.domain.errors import (
-    PaymentNotFoundError,
+from lambdas.subscriptions.domain.errors import PaymentNotFoundError
+from lambdas.subscriptions.domain.repositories.i_dlocal_client import (
+    DLocalConfirmPaymentResult,
+    DLocalCreatePaymentResult,
 )
 from lambdas.subscriptions.domain.repositories.i_plan_catalog import IPlanCatalog, PlanSummary
-from lambdas.subscriptions.infra.paypal_client import PayPalCaptureResult, PayPalOrderResult
 from tests.unit.support import LambdaContext, api_event, configure_unit_environment, decode_response
 
 configure_unit_environment()
 os.environ.setdefault("PAYMENTS_TABLE", "unit-payments")
 os.environ.setdefault("PLANS_TABLE", "unit-plans")
-os.environ.setdefault("PAYPAL_CREDENTIALS_NAME", "unit/paypal-creds")
-os.environ.setdefault("PAYPAL_API_URL", "https://api-m.sandbox.paypal.com")
-os.environ.setdefault(
-    "PAYPAL_RETURN_URL",
-    "https://billing-dev.codelabsecuador.com/register/payment?payment_status=approved",
-)
-os.environ.setdefault(
-    "PAYPAL_CANCEL_URL",
-    "https://billing-dev.codelabsecuador.com/register/payment?payment_status=cancelled",
-)
+os.environ.setdefault("DLOCALGO_CREDENTIALS_NAME", "unit/dlocalgo-creds")
+os.environ.setdefault("DLOCALGO_API_URL", "https://api-sbx.dlocalgo.com")
 
 
 # ── Fakes ─────────────────────────────────────────────────────────────────────
@@ -53,33 +46,45 @@ class FakePlanCatalog(IPlanCatalog):
         )
 
 
-class FakePayPalClient:
+class FakeDLocalClient:
     def __init__(
         self,
         *,
-        order_id: str = "ORD-001",
-        payer_id: str = "PAY-001",
+        payment_id: str = "DP-001",
+        checkout_token: str = "mct_test",
+        confirm_status: str = "PAID",
+        payer_id: str | None = "user-001",
         payer_email: str | None = "buyer@example.com",
         create_raises: Exception | None = None,
-        capture_raises: Exception | None = None,
+        confirm_raises: Exception | None = None,
     ) -> None:
-        self._order_id = order_id
+        self._payment_id = payment_id
+        self._checkout_token = checkout_token
+        self._confirm_status = confirm_status
         self._payer_id = payer_id
         self._payer_email = payer_email
         self._create_raises = create_raises
-        self._capture_raises = capture_raises
+        self._confirm_raises = confirm_raises
 
-    def create_order(self, amount: str, currency: str) -> PayPalOrderResult:
+    def create_payment(self, amount: str, currency: str, country: str) -> DLocalCreatePaymentResult:
         if self._create_raises:
             raise self._create_raises
-        return PayPalOrderResult(order_id=self._order_id)
+        return DLocalCreatePaymentResult(
+            payment_id=self._payment_id,
+            checkout_token=self._checkout_token,
+        )
 
-    def capture_order(self, order_id: str) -> PayPalCaptureResult:
-        if self._capture_raises:
-            raise self._capture_raises
-        return PayPalCaptureResult(
-            order_id=order_id,
-            status="COMPLETED",
+    def confirm_payment(
+        self,
+        checkout_token: str,
+        card_token: str,
+        payer_email: str | None,
+    ) -> DLocalConfirmPaymentResult:
+        if self._confirm_raises:
+            raise self._confirm_raises
+        return DLocalConfirmPaymentResult(
+            payment_id=self._payment_id,
+            status=self._confirm_status,
             payer_id=self._payer_id,
             payer_email=self._payer_email,
         )
@@ -113,7 +118,7 @@ def _reload_handler():
     mod_name = "lambdas.subscriptions.handler"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
-    _fake_creds = {"client_id": "x", "secret": "y"}
+    _fake_creds = {"api_key": "test-key", "secret_key": "test-secret"}
     with (
         patch("shared.db.client.get_table"),
         patch("shared.secrets.client.get_secret_json", return_value=_fake_creds),
@@ -128,23 +133,25 @@ _handler_mod = _reload_handler()
 
 
 class CreatePaymentHandlerTests(unittest.TestCase):
-    def _call(self, body: dict, plan_catalog=None, paypal=None, repo=None) -> dict:
+    def _call(self, body: dict, plan_catalog=None, dlocal=None, repo=None) -> dict:
         event = api_event(method="POST", path="/subscriptions/payments", body=body)
         _catalog = plan_catalog or FakePlanCatalog()
-        _pp = paypal or FakePayPalClient()
+        _dl = dlocal or FakeDLocalClient()
         _repo = repo or FakePaymentRepository()
         with (
             patch.object(_handler_mod, "DynamoPlanCatalog", return_value=_catalog),
-            patch.object(_handler_mod, "_paypal", return_value=_pp),
+            patch.object(_handler_mod, "_dlocal", return_value=_dl),
             patch.object(_handler_mod, "DynamoPaymentRepository", return_value=_repo),
         ):
             return _handler_mod.handler(event, LambdaContext())
 
-    def test_returns_201_with_order_id(self) -> None:
-        resp = self._call({"plan_id": "plan-1"}, paypal=FakePayPalClient(order_id="ORD-X"))
+    def test_returns_201_with_order_id_and_checkout_token(self) -> None:
+        dlocal = FakeDLocalClient(payment_id="DP-X", checkout_token="mct_xyz")
+        resp = self._call({"plan_id": "plan-1"}, dlocal=dlocal)
         body = decode_response(resp)
         self.assertEqual(resp["statusCode"], 201)
-        self.assertEqual(body["data"]["order_id"], "ORD-X")
+        self.assertEqual(body["data"]["order_id"], "DP-X")
+        self.assertEqual(body["data"]["checkout_token"], "mct_xyz")
         self.assertEqual(body["data"]["amount"], "5.99")
 
     def test_returns_422_for_free_plan(self) -> None:
@@ -161,13 +168,13 @@ class CreatePaymentHandlerTests(unittest.TestCase):
         self.assertEqual(resp["statusCode"], 400)
 
     def test_unknown_route_returns_404(self) -> None:
-        event = api_event(method="GET", path="/subscriptions/payments")
+        event = api_event(method="DELETE", path="/subscriptions/payments")
         resp = _handler_mod.handler(event, LambdaContext())
         self.assertEqual(resp["statusCode"], 404)
 
 
-class CapturePaymentHandlerTests(unittest.TestCase):
-    def _repo_with_payment(self, order_id: str = "ORD-1") -> FakePaymentRepository:
+class ConfirmPaymentHandlerTests(unittest.TestCase):
+    def _repo_with_payment(self, order_id: str = "DP-1") -> FakePaymentRepository:
         repo = FakePaymentRepository()
         repo.save(
             Payment(
@@ -177,55 +184,62 @@ class CapturePaymentHandlerTests(unittest.TestCase):
                 amount="5.99",
                 currency="USD",
                 status="CREATED",
+                checkout_token="mct_tok",
             )
         )
         return repo
 
-    def _call(self, order_id: str, paypal=None, repo=None) -> dict:
+    def _call(self, order_id: str, body: dict, dlocal=None, repo=None) -> dict:
         event = api_event(
             method="POST",
-            path=f"/subscriptions/payments/{order_id}/capture",
+            path=f"/subscriptions/payments/{order_id}/confirm",
+            body=body,
             path_params={"order_id": order_id},
         )
-        _pp = paypal or FakePayPalClient()
+        _dl = dlocal or FakeDLocalClient()
         _repo = repo or self._repo_with_payment(order_id)
         with (
-            patch.object(_handler_mod, "_paypal", return_value=_pp),
+            patch.object(_handler_mod, "_dlocal", return_value=_dl),
             patch.object(_handler_mod, "DynamoPaymentRepository", return_value=_repo),
         ):
             return _handler_mod.handler(event, LambdaContext())
 
-    def test_returns_200_with_payer_info(self) -> None:
-        repo = self._repo_with_payment("ORD-1")
-        paypal = FakePayPalClient(payer_id="PAY-99", payer_email="a@b.com")
-        resp = self._call("ORD-1", paypal=paypal, repo=repo)
+    def test_returns_200_with_paid_status(self) -> None:
+        repo = self._repo_with_payment("DP-1")
+        dlocal = FakeDLocalClient(payer_id="user-99", payer_email="a@b.com", confirm_status="PAID")
+        resp = self._call("DP-1", {"card_token": "card_tok_abc"}, dlocal=dlocal, repo=repo)
         self.assertEqual(resp["statusCode"], 200)
         body = decode_response(resp)
-        self.assertEqual(body["data"]["status"], "CAPTURED")
-        self.assertEqual(body["data"]["payer_id"], "PAY-99")
+        self.assertEqual(body["data"]["status"], "PAID")
+        self.assertEqual(body["data"]["payer_id"], "user-99")
 
-    def test_returns_409_if_already_captured(self) -> None:
+    def test_returns_409_if_already_paid(self) -> None:
         repo = FakePaymentRepository()
         repo.save(
             Payment(
-                order_id="ORD-1",
+                order_id="DP-1",
                 tenant_id=None,
                 plan_id="p",
                 amount="5.99",
                 currency="USD",
-                status="CAPTURED",
+                status="PAID",
+                checkout_token="mct_tok",
             )
         )
-        resp = self._call("ORD-1", repo=repo)
+        resp = self._call("DP-1", {"card_token": "card_tok"}, repo=repo)
         self.assertEqual(resp["statusCode"], 409)
 
     def test_returns_404_if_payment_not_found(self) -> None:
-        resp = self._call("UNKNOWN", repo=FakePaymentRepository())
+        resp = self._call("UNKNOWN", {"card_token": "card_tok"}, repo=FakePaymentRepository())
         self.assertEqual(resp["statusCode"], 404)
+
+    def test_returns_400_for_missing_card_token(self) -> None:
+        resp = self._call("DP-1", {})
+        self.assertEqual(resp["statusCode"], 400)
 
 
 class GetPaymentHandlerTests(unittest.TestCase):
-    def _repo_with_payment(self, order_id: str = "ORD-1") -> FakePaymentRepository:
+    def _repo_with_payment(self, order_id: str = "DP-1") -> FakePaymentRepository:
         repo = FakePaymentRepository()
         repo.save(
             Payment(
@@ -234,7 +248,7 @@ class GetPaymentHandlerTests(unittest.TestCase):
                 plan_id="plan-abc",
                 amount="5.99",
                 currency="USD",
-                status="CAPTURED",
+                status="PAID",
                 plan_cycle="month",
             )
         )
@@ -251,11 +265,11 @@ class GetPaymentHandlerTests(unittest.TestCase):
             return _handler_mod.handler(event, LambdaContext())
 
     def test_returns_200_with_payment_data(self) -> None:
-        resp = self._call("ORD-1")
+        resp = self._call("DP-1")
         self.assertEqual(resp["statusCode"], 200)
         body = decode_response(resp)
-        self.assertEqual(body["data"]["order_id"], "ORD-1")
-        self.assertEqual(body["data"]["status"], "CAPTURED")
+        self.assertEqual(body["data"]["order_id"], "DP-1")
+        self.assertEqual(body["data"]["status"], "PAID")
         self.assertEqual(body["data"]["plan_cycle"], "month")
 
     def test_returns_404_if_not_found(self) -> None:

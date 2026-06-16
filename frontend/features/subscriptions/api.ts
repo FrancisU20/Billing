@@ -1,19 +1,10 @@
 import { api } from '@/lib/api/client'
-import { config } from '@/constants/config'
 import {
   applyRenewalResultSchema,
-  capturePaymentResultSchema,
+  confirmPaymentResultSchema,
   createPaymentResultSchema,
   paymentStatusSchema,
 } from './schemas'
-
-function paypalApprovalUrl(orderId: string): string {
-  const base =
-    config.env === 'prod'
-      ? 'https://www.paypal.com/checkoutnow'
-      : 'https://www.sandbox.paypal.com/checkoutnow'
-  return `${base}?token=${orderId}`
-}
 
 export const subscriptionsApi = {
   createPayment: (body: { plan_id: string; currency: string }, idempotencyKey: string) =>
@@ -22,8 +13,8 @@ export const subscriptionsApi = {
       idempotencyKey,
     }),
 
-  capturePayment: (orderId: string) =>
-    api.post(`/subscriptions/payments/${orderId}/capture`, {}, capturePaymentResultSchema, {
+  confirmPayment: (orderId: string, body: { card_token: string; payer_email?: string | null }) =>
+    api.post(`/subscriptions/payments/${orderId}/confirm`, body, confirmPaymentResultSchema, {
       auth: false,
     }),
 
@@ -37,6 +28,4 @@ export const subscriptionsApi = {
       applyRenewalResultSchema,
       { idempotencyKey },
     ),
-
-  paypalApprovalUrl,
 }

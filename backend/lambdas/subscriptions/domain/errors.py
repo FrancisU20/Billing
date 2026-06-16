@@ -18,8 +18,8 @@ class PaymentNotFoundError(NotFoundError):
     default_message = "Pago no encontrado."
 
 
-class PaymentAlreadyCapturedError(AppError):
-    code = "PAYMENT_ALREADY_CAPTURED"
+class PaymentAlreadyConfirmedError(AppError):
+    code = "PAYMENT_ALREADY_CONFIRMED"
     default_message = "El pago ya fue procesado."
     status_code = 409
 
@@ -30,7 +30,7 @@ class PaymentCreationError(AppError):
     status_code = 502
 
 
-class PaymentCaptureError(AppError):
-    code = "PAYMENT_CAPTURE_FAILED"
-    default_message = "No se pudo procesar el pago."
+class PaymentConfirmError(AppError):
+    code = "PAYMENT_CONFIRM_FAILED"
+    default_message = "No se pudo confirmar el pago."
     status_code = 502

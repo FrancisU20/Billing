@@ -483,7 +483,7 @@ class DynamoTenantRepository(ITenantRepository):
                 if tenant.onboarding_completed_at
                 else None
             ),
-            "paypal_payer_id": tenant.paypal_payer_id,
+            "dlocal_payer_id": tenant.dlocal_payer_id,
             "subscription_status": tenant.subscription_status,
             "subscription_renewal_reminder_sent_at": (
                 tenant.subscription_renewal_reminder_sent_at.isoformat()
@@ -539,7 +539,7 @@ class DynamoTenantRepository(ITenantRepository):
             onboarding_completed_at=datetime.fromisoformat(item["onboarding_completed_at"])
             if item.get("onboarding_completed_at")
             else None,
-            paypal_payer_id=item.get("paypal_payer_id"),
+            dlocal_payer_id=item.get("dlocal_payer_id"),
             subscription_status=item.get("subscription_status"),
             subscription_renewal_reminder_sent_at=datetime.fromisoformat(
                 item["subscription_renewal_reminder_sent_at"]

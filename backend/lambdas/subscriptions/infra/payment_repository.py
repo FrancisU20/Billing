@@ -68,8 +68,10 @@ class DynamoPaymentRepository(IPaymentRepository):
             "plan_cycle": payment.plan_cycle,
             "created_at": payment.created_at.isoformat(),
         }
-        if payment.captured_at:
-            item["captured_at"] = payment.captured_at.isoformat()
+        if payment.checkout_token:
+            item["checkout_token"] = payment.checkout_token
+        if payment.confirmed_at:
+            item["confirmed_at"] = payment.confirmed_at.isoformat()
         if payment.payer_id:
             item["payer_id"] = payment.payer_id
         if payment.payer_email:
@@ -89,9 +91,10 @@ class DynamoPaymentRepository(IPaymentRepository):
             currency=item.get("currency", "USD"),
             status=item.get("status", "CREATED"),
             plan_cycle=item.get("plan_cycle", "month"),
+            checkout_token=item.get("checkout_token"),
             created_at=datetime.fromisoformat(item["created_at"]),
-            captured_at=datetime.fromisoformat(item["captured_at"])
-            if item.get("captured_at")
+            confirmed_at=datetime.fromisoformat(item["confirmed_at"])
+            if item.get("confirmed_at")
             else None,
             payer_id=item.get("payer_id"),
             payer_email=item.get("payer_email"),

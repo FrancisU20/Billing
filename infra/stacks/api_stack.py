@@ -671,13 +671,7 @@ class ApiStack(Stack):
                 integration = onboarding_integration,
             ))
 
-        # ── Subscriptions Lambda (PayPal Orders API — pagos por plan) ────────
-        frontend_domain = domain_cfg.get("frontend", "")
-        paypal_base_url = (
-            f"https://{frontend_domain}/register/payment?payment_status="
-            if frontend_domain
-            else "https://billing-dev.codelabsecuador.com/register/payment?payment_status="
-        )
+        # ── Subscriptions Lambda (dLocal Go SmartFields — pagos por plan) ──────
         subscriptions_fn = lmb.Function(
             self, "SubscriptionsFunction",
             function_name = f"codelabs-billing-{env}-subscriptions",
@@ -689,13 +683,11 @@ class ApiStack(Stack):
             memory_size   = 256,
             environment   = {
                 **_common_env,
-                "PAYMENTS_TABLE":          database.payments_table.table_name,
-                "PLANS_TABLE":             database.plans_table.table_name,
-                "IDEMPOTENCY_TABLE":       database.idempotency_table.table_name,
-                "PAYPAL_CREDENTIALS_NAME": f"codelabs-billing-{env}/paypal-credentials",
-                "PAYPAL_API_URL":          "https://api-m.paypal.com" if env == "prod" else "https://api-m.sandbox.paypal.com",
-                "PAYPAL_RETURN_URL":       f"{paypal_base_url}approved",
-                "PAYPAL_CANCEL_URL":       f"{paypal_base_url}cancelled",
+                "PAYMENTS_TABLE":             database.payments_table.table_name,
+                "PLANS_TABLE":                database.plans_table.table_name,
+                "IDEMPOTENCY_TABLE":          database.idempotency_table.table_name,
+                "DLOCALGO_CREDENTIALS_NAME":  f"codelabs-billing-{env}/dlocalgo-credentials",
+                "DLOCALGO_API_URL":           "https://api.dlocalgo.com" if env == "prod" else "https://api-sbx.dlocalgo.com",
             },
         )
         database.payments_table.grant_read_write_data(subscriptions_fn)
@@ -704,7 +696,7 @@ class ApiStack(Stack):
         subscriptions_fn.add_to_role_policy(iam.PolicyStatement(
             actions   = ["secretsmanager:GetSecretValue"],
             resources = [
-                f"arn:aws:secretsmanager:{region}:*:secret:codelabs-billing-{env}/paypal-credentials*"
+                f"arn:aws:secretsmanager:{region}:*:secret:codelabs-billing-{env}/dlocalgo-credentials*"
             ],
         ))
 
@@ -721,7 +713,7 @@ class ApiStack(Stack):
             integration = subscriptions_integration,
         ))
         subscriptions_routes.extend(api.add_routes(
-            path        = "/subscriptions/payments/{order_id}/capture",
+            path        = "/subscriptions/payments/{order_id}/confirm",
             methods     = [apigwv2.HttpMethod.POST],
             integration = subscriptions_integration,
         ))
@@ -738,7 +730,7 @@ class ApiStack(Stack):
         request_throttle       = throttling_cfg.get("onboarding_otp_request", {})
         confirm_throttle       = throttling_cfg.get("onboarding_otp_confirm", {})
         pay_create_throttle    = throttling_cfg.get("payment_create", {})
-        pay_capture_throttle   = throttling_cfg.get("payment_capture", {})
+        pay_capture_throttle   = throttling_cfg.get("payment_confirm", throttling_cfg.get("payment_capture", {}))
         pay_get_throttle       = throttling_cfg.get("payment_get", {})
         default_throttle       = throttling_cfg.get("default", {})
         if api.default_stage:
@@ -763,7 +755,7 @@ class ApiStack(Stack):
                     "ThrottlingBurstLimit": pay_create_throttle.get("burst_limit", 5),
                     "ThrottlingRateLimit": pay_create_throttle.get("rate_limit", 2),
                 },
-                "POST /subscriptions/payments/{order_id}/capture": {
+                "POST /subscriptions/payments/{order_id}/confirm": {
                     "ThrottlingBurstLimit": pay_capture_throttle.get("burst_limit", 10),
                     "ThrottlingRateLimit": pay_capture_throttle.get("rate_limit", 5),
                 },

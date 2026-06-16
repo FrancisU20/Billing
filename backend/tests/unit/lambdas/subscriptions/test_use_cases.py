@@ -4,22 +4,22 @@ import unittest
 import urllib.error
 from decimal import Decimal
 
-from lambdas.subscriptions.domain.commands import CapturePaymentCommand, CreatePaymentCommand
+from lambdas.subscriptions.domain.commands import ConfirmPaymentCommand, CreatePaymentCommand
 from lambdas.subscriptions.domain.entities.payment import Payment
 from lambdas.subscriptions.domain.errors import (
     FreePlanPaymentError,
-    PaymentAlreadyCapturedError,
-    PaymentCaptureError,
+    PaymentAlreadyConfirmedError,
+    PaymentConfirmError,
     PaymentCreationError,
     PaymentNotFoundError,
 )
-from lambdas.subscriptions.domain.repositories.i_paypal_client import (
-    IPayPalClient,
-    PayPalCaptureResult,
-    PayPalOrderResult,
+from lambdas.subscriptions.domain.repositories.i_dlocal_client import (
+    DLocalConfirmPaymentResult,
+    DLocalCreatePaymentResult,
+    IDLocalClient,
 )
 from lambdas.subscriptions.domain.repositories.i_plan_catalog import IPlanCatalog, PlanSummary
-from lambdas.subscriptions.use_cases.capture_payment import CapturePaymentUseCase
+from lambdas.subscriptions.use_cases.confirm_payment import ConfirmPaymentUseCase
 from lambdas.subscriptions.use_cases.create_payment import CreatePaymentUseCase
 from lambdas.subscriptions.use_cases.get_payment import GetPaymentUseCase
 
@@ -50,37 +50,49 @@ class FakePlanCatalog(IPlanCatalog):
         )
 
 
-class FakePayPalClient(IPayPalClient):
+class FakeDLocalClient(IDLocalClient):
     def __init__(
         self,
         *,
-        order_id: str = "ORDER-123",
-        payer_id: str = "PAYER-456",
+        payment_id: str = "DP-001",
+        checkout_token: str = "mct_test_token",
+        payer_id: str | None = "user-123",
         payer_email: str | None = "payer@example.com",
+        confirm_status: str = "PAID",
         create_raises: Exception | None = None,
-        capture_raises: Exception | None = None,
+        confirm_raises: Exception | None = None,
     ) -> None:
-        self._order_id = order_id
+        self._payment_id = payment_id
+        self._checkout_token = checkout_token
         self._payer_id = payer_id
         self._payer_email = payer_email
+        self._confirm_status = confirm_status
         self._create_raises = create_raises
-        self._capture_raises = capture_raises
-        self.create_calls: list[tuple[str, str]] = []
-        self.capture_calls: list[str] = []
+        self._confirm_raises = confirm_raises
+        self.create_calls: list[tuple[str, str, str]] = []
+        self.confirm_calls: list[tuple[str, str, str | None]] = []
 
-    def create_order(self, amount: str, currency: str) -> PayPalOrderResult:
-        self.create_calls.append((amount, currency))
+    def create_payment(self, amount: str, currency: str, country: str) -> DLocalCreatePaymentResult:
+        self.create_calls.append((amount, currency, country))
         if self._create_raises:
             raise self._create_raises
-        return PayPalOrderResult(order_id=self._order_id)
+        return DLocalCreatePaymentResult(
+            payment_id=self._payment_id,
+            checkout_token=self._checkout_token,
+        )
 
-    def capture_order(self, order_id: str) -> PayPalCaptureResult:
-        self.capture_calls.append(order_id)
-        if self._capture_raises:
-            raise self._capture_raises
-        return PayPalCaptureResult(
-            order_id=order_id,
-            status="COMPLETED",
+    def confirm_payment(
+        self,
+        checkout_token: str,
+        card_token: str,
+        payer_email: str | None,
+    ) -> DLocalConfirmPaymentResult:
+        self.confirm_calls.append((checkout_token, card_token, payer_email))
+        if self._confirm_raises:
+            raise self._confirm_raises
+        return DLocalConfirmPaymentResult(
+            payment_id=self._payment_id,
+            status=self._confirm_status,
             payer_id=self._payer_id,
             payer_email=self._payer_email,
         )
@@ -111,24 +123,31 @@ class FakePaymentRepository:
 
 
 class CreatePaymentUseCaseTests(unittest.TestCase):
-    def _use_case(self, catalog=None, paypal=None, repo=None):
+    def _use_case(self, catalog=None, dlocal=None, repo=None):
         return CreatePaymentUseCase(
             plan_catalog=catalog or FakePlanCatalog(),
-            paypal=paypal or FakePayPalClient(),
+            dlocal=dlocal or FakeDLocalClient(),
             payment_repo=repo or FakePaymentRepository(),
         )
 
-    def test_creates_order_and_persists_payment(self) -> None:
+    def test_creates_payment_and_returns_checkout_token(self) -> None:
         repo = FakePaymentRepository()
-        paypal = FakePayPalClient(order_id="ORD-1")
-        result = self._use_case(paypal=paypal, repo=repo).execute(
+        dlocal = FakeDLocalClient(payment_id="DP-1", checkout_token="mct_abc")
+        result = self._use_case(dlocal=dlocal, repo=repo).execute(
             CreatePaymentCommand(plan_id="plan-abc")
         )
-        self.assertEqual(result.order_id, "ORD-1")
+        self.assertEqual(result.order_id, "DP-1")
+        self.assertEqual(result.checkout_token, "mct_abc")
         self.assertEqual(result.amount, "5.99")
         self.assertEqual(result.currency, "USD")
         self.assertEqual(len(repo.saved), 1)
         self.assertEqual(repo.saved[0].status, "CREATED")
+        self.assertEqual(repo.saved[0].checkout_token, "mct_abc")
+
+    def test_passes_country_ec(self) -> None:
+        dlocal = FakeDLocalClient()
+        self._use_case(dlocal=dlocal).execute(CreatePaymentCommand(plan_id="plan-abc"))
+        self.assertEqual(dlocal.create_calls[0][2], "EC")
 
     def test_uses_annual_price_for_year_cycle(self) -> None:
         catalog = FakePlanCatalog(
@@ -136,34 +155,29 @@ class CreatePaymentUseCaseTests(unittest.TestCase):
             annual_price=Decimal("57.00"),
             limit_cycle="year",
         )
-        paypal = FakePayPalClient()
-        repo = FakePaymentRepository()
-        result = self._use_case(catalog=catalog, paypal=paypal, repo=repo).execute(
+        dlocal = FakeDLocalClient()
+        result = self._use_case(catalog=catalog, dlocal=dlocal).execute(
             CreatePaymentCommand(plan_id="plan-y")
         )
         self.assertEqual(result.amount, "57.00")
-        self.assertEqual(paypal.create_calls[0][0], "57.00")
+        self.assertEqual(dlocal.create_calls[0][0], "57.00")
 
     def test_raises_for_free_plan(self) -> None:
-        catalog = FakePlanCatalog(
-            monthly_price=Decimal("0.00"),
-            annual_price=Decimal("0.00"),
-            is_free=True,
-        )
+        catalog = FakePlanCatalog(is_free=True)
         with self.assertRaises(FreePlanPaymentError):
             self._use_case(catalog=catalog).execute(CreatePaymentCommand(plan_id="free"))
 
-    def test_raises_payment_creation_error_on_paypal_http_error(self) -> None:
-        paypal = FakePayPalClient(
+    def test_raises_payment_creation_error_on_http_error(self) -> None:
+        dlocal = FakeDLocalClient(
             create_raises=urllib.error.HTTPError(None, 500, "Server Error", {}, None)
         )
         with self.assertRaises(PaymentCreationError):
-            self._use_case(paypal=paypal).execute(CreatePaymentCommand(plan_id="plan-x"))
+            self._use_case(dlocal=dlocal).execute(CreatePaymentCommand(plan_id="plan-x"))
 
     def test_raises_payment_creation_error_on_network_error(self) -> None:
-        paypal = FakePayPalClient(create_raises=urllib.error.URLError("Connection refused"))
+        dlocal = FakeDLocalClient(create_raises=urllib.error.URLError("Connection refused"))
         with self.assertRaises(PaymentCreationError):
-            self._use_case(paypal=paypal).execute(CreatePaymentCommand(plan_id="plan-x"))
+            self._use_case(dlocal=dlocal).execute(CreatePaymentCommand(plan_id="plan-x"))
 
     def test_payment_stored_with_plan_id(self) -> None:
         repo = FakePaymentRepository()
@@ -171,11 +185,16 @@ class CreatePaymentUseCaseTests(unittest.TestCase):
         self.assertEqual(repo.saved[0].plan_id, "plan-z")
 
 
-# ── CapturePaymentUseCase ─────────────────────────────────────────────────────
+# ── ConfirmPaymentUseCase ─────────────────────────────────────────────────────
 
 
-class CapturePaymentUseCaseTests(unittest.TestCase):
-    def _repo_with_payment(self, order_id: str = "ORD-1") -> FakePaymentRepository:
+class ConfirmPaymentUseCaseTests(unittest.TestCase):
+    def _repo_with_payment(
+        self,
+        order_id: str = "DP-1",
+        checkout_token: str = "mct_abc",
+        status: str = "CREATED",
+    ) -> FakePaymentRepository:
         repo = FakePaymentRepository()
         repo.save(
             Payment(
@@ -184,71 +203,90 @@ class CapturePaymentUseCaseTests(unittest.TestCase):
                 plan_id="plan-abc",
                 amount="5.99",
                 currency="USD",
-                status="CREATED",
+                status=status,
+                checkout_token=checkout_token,
             )
         )
         return repo
 
-    def _use_case(self, paypal=None, repo=None):
-        return CapturePaymentUseCase(
-            paypal=paypal or FakePayPalClient(),
+    def _use_case(self, dlocal=None, repo=None):
+        return ConfirmPaymentUseCase(
+            dlocal=dlocal or FakeDLocalClient(),
             payment_repo=repo or self._repo_with_payment(),
         )
 
-    def test_captures_and_updates_payment(self) -> None:
-        repo = self._repo_with_payment("ORD-1")
-        paypal = FakePayPalClient(payer_id="PAY-9", payer_email="x@x.com")
-        result = CapturePaymentUseCase(paypal=paypal, payment_repo=repo).execute(
-            CapturePaymentCommand(order_id="ORD-1")
+    def test_confirms_and_sets_paid_status(self) -> None:
+        repo = self._repo_with_payment("DP-1", "mct_tok")
+        dlocal = FakeDLocalClient(payer_id="user-9", payer_email="x@x.com", confirm_status="PAID")
+        result = ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
+            ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok_abc")
         )
-        self.assertEqual(result.status, "CAPTURED")
-        self.assertEqual(result.payer_id, "PAY-9")
-        stored = repo.get_by_order_id("ORD-1")
-        self.assertEqual(stored.status, "CAPTURED")
-        self.assertIsNotNone(stored.captured_at)
+        self.assertEqual(result.status, "PAID")
+        self.assertEqual(result.payer_id, "user-9")
+        stored = repo.get_by_order_id("DP-1")
+        self.assertEqual(stored.status, "PAID")
+        self.assertIsNotNone(stored.confirmed_at)
 
-    def test_raises_if_already_captured(self) -> None:
-        repo = FakePaymentRepository()
-        payment = Payment(
-            order_id="ORD-1",
-            tenant_id=None,
-            plan_id="p",
-            amount="5.99",
-            currency="USD",
-            status="CAPTURED",
+    def test_passes_checkout_token_to_dlocal(self) -> None:
+        repo = self._repo_with_payment("DP-1", "mct_special")
+        dlocal = FakeDLocalClient()
+        ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
+            ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok")
         )
-        repo.save(payment)
-        with self.assertRaises(PaymentAlreadyCapturedError):
-            CapturePaymentUseCase(paypal=FakePayPalClient(), payment_repo=repo).execute(
-                CapturePaymentCommand(order_id="ORD-1")
+        self.assertEqual(dlocal.confirm_calls[0][0], "mct_special")
+
+    def test_accepts_authorized_status(self) -> None:
+        repo = self._repo_with_payment("DP-1", "mct_tok")
+        dlocal = FakeDLocalClient(confirm_status="AUTHORIZED")
+        result = ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
+            ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok")
+        )
+        self.assertEqual(result.status, "PAID")
+
+    def test_marks_failed_for_rejected_status(self) -> None:
+        repo = self._repo_with_payment("DP-1", "mct_tok")
+        dlocal = FakeDLocalClient(confirm_status="REJECTED")
+        result = ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
+            ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok")
+        )
+        self.assertEqual(result.status, "FAILED")
+        stored = repo.get_by_order_id("DP-1")
+        self.assertEqual(stored.status, "FAILED")
+        self.assertIn("REJECTED", stored.error_detail)
+
+    def test_raises_if_already_paid(self) -> None:
+        repo = self._repo_with_payment("DP-1", "mct_tok", status="PAID")
+        with self.assertRaises(PaymentAlreadyConfirmedError):
+            ConfirmPaymentUseCase(dlocal=FakeDLocalClient(), payment_repo=repo).execute(
+                ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok")
             )
 
     def test_raises_if_payment_not_found(self) -> None:
         with self.assertRaises(PaymentNotFoundError):
             self._use_case(repo=FakePaymentRepository()).execute(
-                CapturePaymentCommand(order_id="MISSING")
+                ConfirmPaymentCommand(order_id="MISSING", card_token="card_tok")
             )
 
-    def test_marks_failed_and_raises_on_paypal_http_error(self) -> None:
-        repo = self._repo_with_payment("ORD-1")
-        paypal = FakePayPalClient(
-            capture_raises=urllib.error.HTTPError(None, 422, "Unprocessable", {}, None)
+    def test_marks_failed_and_raises_on_http_error(self) -> None:
+        repo = self._repo_with_payment("DP-1", "mct_tok")
+        dlocal = FakeDLocalClient(
+            confirm_raises=urllib.error.HTTPError(None, 422, "Unprocessable", {}, None)
         )
-        with self.assertRaises(PaymentCaptureError):
-            CapturePaymentUseCase(paypal=paypal, payment_repo=repo).execute(
-                CapturePaymentCommand(order_id="ORD-1")
+        with self.assertRaises(PaymentConfirmError):
+            ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
+                ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok")
             )
-        stored = repo.get_by_order_id("ORD-1")
+        stored = repo.get_by_order_id("DP-1")
         self.assertEqual(stored.status, "FAILED")
 
     def test_marks_failed_and_raises_on_network_error(self) -> None:
-        repo = self._repo_with_payment("ORD-1")
-        paypal = FakePayPalClient(capture_raises=urllib.error.URLError("timeout"))
-        with self.assertRaises(PaymentCaptureError):
-            CapturePaymentUseCase(paypal=paypal, payment_repo=repo).execute(
-                CapturePaymentCommand(order_id="ORD-1")
+        repo = self._repo_with_payment("DP-1", "mct_tok")
+        dlocal = FakeDLocalClient(confirm_raises=urllib.error.URLError("timeout"))
+        with self.assertRaises(PaymentConfirmError):
+            ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
+                ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok")
             )
-        stored = repo.get_by_order_id("ORD-1")
+        stored = repo.get_by_order_id("DP-1")
         self.assertEqual(stored.status, "FAILED")
 
 
@@ -258,7 +296,7 @@ class CapturePaymentUseCaseTests(unittest.TestCase):
 class GetPaymentUseCaseTests(unittest.TestCase):
     def _repo_with_payment(
         self,
-        order_id: str = "ORD-1",
+        order_id: str = "DP-1",
         plan_cycle: str = "month",
     ) -> FakePaymentRepository:
         repo = FakePaymentRepository()
@@ -269,17 +307,17 @@ class GetPaymentUseCaseTests(unittest.TestCase):
                 plan_id="plan-abc",
                 amount="5.99",
                 currency="USD",
-                status="CAPTURED",
+                status="PAID",
                 plan_cycle=plan_cycle,
             )
         )
         return repo
 
     def test_returns_payment_dict_with_plan_cycle(self) -> None:
-        repo = self._repo_with_payment("ORD-1", plan_cycle="year")
-        result = GetPaymentUseCase(repo).execute("ORD-1")
-        self.assertEqual(result["order_id"], "ORD-1")
-        self.assertEqual(result["status"], "CAPTURED")
+        repo = self._repo_with_payment("DP-1", plan_cycle="year")
+        result = GetPaymentUseCase(repo).execute("DP-1")
+        self.assertEqual(result["order_id"], "DP-1")
+        self.assertEqual(result["status"], "PAID")
         self.assertEqual(result["plan_cycle"], "year")
         self.assertEqual(result["amount"], "5.99")
 

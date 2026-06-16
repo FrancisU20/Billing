@@ -16,9 +16,9 @@ class CapturedPaymentInfo:
 
 class IPaymentVerifier(ABC):
     @abstractmethod
-    def get_captured_payment(self, order_id: str) -> CapturedPaymentInfo:
-        """Return payment info only if status is CAPTURED.
+    def get_confirmed_payment(self, order_id: str) -> CapturedPaymentInfo:
+        """Return payment info only if status is PAID or AUTHORIZED.
 
         Raises OnboardingPaymentNotFoundError if order_id does not exist.
-        Raises OnboardingPaymentNotCapturedError if status is not CAPTURED.
+        Raises OnboardingPaymentNotCapturedError if payment has not been confirmed.
         """

@@ -153,9 +153,9 @@ Aplica solo a planes con `self_service=true`. Para `self_service=false` (Enterpr
 5. [Solo planes de pago] Frontend navega a payment.tsx:
    - RegisterOtpScreen detecta `isPaidPlan` → guarda `otpValue` en store → navega a
      `Routes.public.registerPayment` (SIN llamar a /otp/confirm todavia)
-   - RegisterPaymentScreen crea orden PayPal on mount
-   - Usuario aprueba en navegador del sistema (Linking.openURL con paypalApprovalUrl)
-   - "Ya completé el pago" → getPayment → capturePayment si APPROVED → guarda order_id en store
+   - RegisterPaymentScreen crea payment dLocal on mount (recibe order_id + checkout_token)
+   - SDK SmartFields carga iframe de tarjeta (Platform.OS === 'web' unicamente)
+   - Payer ingresa tarjeta → SDK retorna card_token → confirmPayment → guarda order_id en store
    - Llama /otp/confirm con order_id incluido
 
    [Planes gratuitos] Frontend llama /otp/confirm directamente sin order_id.
@@ -173,7 +173,7 @@ Aplica solo a planes con `self_service=true`. Para `self_service=false` (Enterpr
    c. Si plan es de pago (`not plan.is_free`): verifica via `IPaymentVerifier`:
       - `order_id` debe estar presente en body → `OnboardingPaymentRequiredError` (422) si no
       - Payment debe existir → 422 si no encontrado
-      - Payment.status debe ser CAPTURED → 422 si no
+      - Payment.status debe ser PAID o AUTHORIZED → 422 si no
       El `IPaymentVerifier` lee la tabla `payments` sin acoplar el dominio onboarding a infra.
    d. Secrets Manager PutSecretValue:
       - Path: /codelabs-billing/{env}/tenant/{tenant_id}/certificate
@@ -398,7 +398,7 @@ Rutas en `frontend/app/(public)/register/`:
 details.tsx      # paso 2: datos empresa (RUC, razon social, contacto, contabilidad) -> RegisterDetailsScreen
 certificate.tsx  # paso 3: p12 + clave; se omite si plan.self_service=false
 otp.tsx          # paso 4: confirmacion OTP
-payment.tsx      # paso 5 (solo planes de pago): pago PayPal -> RegisterPaymentScreen
+payment.tsx      # paso 5 (solo planes de pago): pago dLocal SmartFields -> RegisterPaymentScreen
 confirm.tsx      # confirmacion — mensaje distinto segun self_service (login vs "te contactaremos") -> RegisterConfirmScreen
 ```
 
@@ -570,7 +570,7 @@ ese worker solo corre para tenants `self_service=true`.
 
 - [x] `IPaymentVerifier` en `tenants/domain/repositories/` — abstraccion de verificacion de pago
 - [x] `PaymentVerifier` en `tenants/infra/` — lee tabla payments
-- [x] `ConfirmOnboardingOtpUseCase`: verifica CAPTURED si plan es de pago
+- [x] `ConfirmOnboardingOtpUseCase`: verifica PAID/AUTHORIZED si plan es de pago
 - [x] `OnboardingPaymentRequiredError` (422) si plan de pago sin order_id
 - [x] `order_id` en `_IGNORED_FIELDS` de `payload_signature.py`
 - [x] Tests actualizados: `FakeOnboardingPlanCatalog` con `is_free=True` como default
@@ -579,7 +579,7 @@ ese worker solo corre para tenants `self_service=true`.
 
 - [x] `otpValue` y `orderId` en store Zustand
 - [x] `RegisterOtpScreen`: bifurcacion planes gratis vs pago (`isPaidPlan`)
-- [x] `RegisterPaymentScreen`: crea orden on mount, abre PayPal, captura, llama /otp/confirm
+- [x] `RegisterPaymentScreen`: crea payment dLocal on mount, SmartFields, confirm, llama /otp/confirm
 - [x] Ruta `payment.tsx` en `(public)/register/`
 - [x] `Routes.public.registerPayment`
 

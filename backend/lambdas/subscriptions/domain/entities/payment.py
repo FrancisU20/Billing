@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
 
-PaymentStatus = Literal["CREATED", "CAPTURED", "FAILED"]
+PaymentStatus = Literal["CREATED", "PENDING", "PAID", "REJECTED", "CANCELLED", "FAILED"]
 
 
 @dataclass
@@ -16,15 +16,16 @@ class Payment:
     currency: str
     status: PaymentStatus
     plan_cycle: str = "month"
+    checkout_token: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
-    captured_at: datetime | None = None
+    confirmed_at: datetime | None = None
     payer_id: str | None = None
     payer_email: str | None = None
     error_detail: str | None = None
 
-    def capture(self, payer_id: str, payer_email: str | None) -> None:
-        self.status = "CAPTURED"
-        self.captured_at = datetime.now(UTC)
+    def confirm(self, payer_id: str | None, payer_email: str | None) -> None:
+        self.status = "PAID"
+        self.confirmed_at = datetime.now(UTC)
         self.payer_id = payer_id
         self.payer_email = payer_email
 
@@ -42,7 +43,7 @@ class Payment:
             "currency": self.currency,
             "status": self.status,
             "created_at": self.created_at.isoformat(),
-            "captured_at": self.captured_at.isoformat() if self.captured_at else None,
+            "confirmed_at": self.confirmed_at.isoformat() if self.confirmed_at else None,
             "payer_id": self.payer_id,
             "payer_email": self.payer_email,
         }

@@ -15,12 +15,14 @@ from shared.logger import get_logger
 
 _log = get_logger(__name__)
 
+_PAID_STATUSES = frozenset({"PAID", "AUTHORIZED"})
+
 
 class DynamoPaymentVerifier(IPaymentVerifier):
     def __init__(self, payments_table) -> None:
         self._table = payments_table
 
-    def get_captured_payment(self, order_id: str) -> CapturedPaymentInfo:
+    def get_confirmed_payment(self, order_id: str) -> CapturedPaymentInfo:
         try:
             resp = self._table.get_item(Key={"id": f"PAYMENT#{order_id}"})
         except ClientError as exc:
@@ -31,7 +33,7 @@ class DynamoPaymentVerifier(IPaymentVerifier):
         if not item:
             raise OnboardingPaymentNotFoundError()
 
-        if item.get("status") != "CAPTURED":
+        if item.get("status") not in _PAID_STATUSES:
             raise OnboardingPaymentNotCapturedError()
 
         return CapturedPaymentInfo(

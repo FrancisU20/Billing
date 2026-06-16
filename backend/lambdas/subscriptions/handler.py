@@ -4,9 +4,9 @@ from __future__ import annotations
 Subscriptions Lambda — AWS entry point.
 
 Routes:
-    POST /subscriptions/payments                         create PayPal order  (public)
-    POST /subscriptions/payments/{order_id}/capture      capture payment      (public)
-    GET  /subscriptions/payments/{order_id}              get payment status   (public)
+    POST /subscriptions/payments                          create dLocal payment   (public)
+    POST /subscriptions/payments/{order_id}/confirm       confirm with card token  (public)
+    GET  /subscriptions/payments/{order_id}               get payment status       (public)
 """
 
 import re
@@ -15,12 +15,12 @@ from lambdas._base.handler import public_lambda_handler
 from lambdas._base.idempotency import idempotent
 from lambdas._base.parser import Request, parse, require_path_param
 from lambdas._base.response import ApiResponse
-from lambdas.subscriptions.domain.commands import CapturePaymentCommand, CreatePaymentCommand
+from lambdas.subscriptions.domain.commands import ConfirmPaymentCommand, CreatePaymentCommand
+from lambdas.subscriptions.infra.dlocal_client import DLocalClient
 from lambdas.subscriptions.infra.payment_repository import DynamoPaymentRepository
-from lambdas.subscriptions.infra.paypal_client import PayPalClient
 from lambdas.subscriptions.infra.plan_catalog import DynamoPlanCatalog
-from lambdas.subscriptions.schemas import CreatePaymentRequest
-from lambdas.subscriptions.use_cases.capture_payment import CapturePaymentUseCase
+from lambdas.subscriptions.schemas import ConfirmPaymentRequest, CreatePaymentRequest
+from lambdas.subscriptions.use_cases.confirm_payment import ConfirmPaymentUseCase
 from lambdas.subscriptions.use_cases.create_payment import CreatePaymentUseCase
 from lambdas.subscriptions.use_cases.get_payment import GetPaymentUseCase
 from shared.config import env
@@ -33,14 +33,12 @@ _PLANS_TABLE = get_table("PLANS_TABLE")
 _IDEMPOTENCY_TABLE = get_table("IDEMPOTENCY_TABLE") if env("IDEMPOTENCY_TABLE", "") else None
 
 
-def _paypal() -> PayPalClient:
-    creds = get_secret_json(env("PAYPAL_CREDENTIALS_NAME"))
-    return PayPalClient(
-        base_url=env("PAYPAL_API_URL"),
-        client_id=creds["client_id"],
-        secret=creds["secret"],
-        return_url=env("PAYPAL_RETURN_URL"),
-        cancel_url=env("PAYPAL_CANCEL_URL"),
+def _dlocal() -> DLocalClient:
+    creds = get_secret_json(env("DLOCALGO_CREDENTIALS_NAME"))
+    return DLocalClient(
+        base_url=env("DLOCALGO_API_URL"),
+        api_key=creds["api_key"],
+        secret_key=creds["secret_key"],
     )
 
 
@@ -50,7 +48,7 @@ def _create_payment(request: Request, context) -> dict:
     body = parse(CreatePaymentRequest, request.body)
     result = CreatePaymentUseCase(
         plan_catalog=DynamoPlanCatalog(_PLANS_TABLE),
-        paypal=_paypal(),
+        dlocal=_dlocal(),
         payment_repo=DynamoPaymentRepository(_PAYMENTS_TABLE),
     ).execute(
         CreatePaymentCommand(
@@ -59,18 +57,30 @@ def _create_payment(request: Request, context) -> dict:
         )
     )
     return ApiResponse.created(
-        {"order_id": result.order_id, "amount": result.amount, "currency": result.currency},
+        {
+            "order_id": result.order_id,
+            "checkout_token": result.checkout_token,
+            "amount": result.amount,
+            "currency": result.currency,
+        },
         request.request_id,
     )
 
 
 @public_lambda_handler
-def _capture_payment(request: Request, context) -> dict:
+def _confirm_payment(request: Request, context) -> dict:
     order_id = require_path_param(request, "order_id")
-    result = CapturePaymentUseCase(
-        paypal=_paypal(),
+    body = parse(ConfirmPaymentRequest, request.body)
+    result = ConfirmPaymentUseCase(
+        dlocal=_dlocal(),
         payment_repo=DynamoPaymentRepository(_PAYMENTS_TABLE),
-    ).execute(CapturePaymentCommand(order_id=order_id))
+    ).execute(
+        ConfirmPaymentCommand(
+            order_id=order_id,
+            card_token=body.card_token,
+            payer_email=body.payer_email,
+        )
+    )
     return ApiResponse.ok(
         {
             "order_id": result.order_id,
@@ -83,7 +93,7 @@ def _capture_payment(request: Request, context) -> dict:
 
 
 _PAYMENT_ID_PATTERN = re.compile(r"^/subscriptions/payments/([^/]+)$")
-_CAPTURE_PATTERN = re.compile(r"^/subscriptions/payments/[^/]+/capture$")
+_CONFIRM_PATTERN = re.compile(r"^/subscriptions/payments/[^/]+/confirm$")
 
 
 @public_lambda_handler
@@ -104,8 +114,8 @@ def handler(event: dict, context) -> dict:
     if method == "POST" and path == "/subscriptions/payments":
         return _create_payment(event, context)
 
-    if method == "POST" and _CAPTURE_PATTERN.match(path):
-        return _capture_payment(event, context)
+    if method == "POST" and _CONFIRM_PATTERN.match(path):
+        return _confirm_payment(event, context)
 
     if method == "GET" and _PAYMENT_ID_PATTERN.match(path):
         return _get_payment(event, context)

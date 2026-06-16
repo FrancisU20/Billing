@@ -158,7 +158,7 @@ class DatabaseStack(Stack):
         )
 
         # ── Payments ──────────────────────────────────────────────────────────
-        # PK: id ("PAYMENT#{order_id}") — registro de pagos PayPal Orders API
+        # PK: id ("PAYMENT#{order_id}") — registro de pagos dLocal Go
         # GSI tenant-payments-index (PK=tenant_id) — pagos por tenant (renovaciones)
         self.payments_table = ddb.Table(
             self, "PaymentsTable",

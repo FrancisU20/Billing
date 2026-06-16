@@ -21,7 +21,31 @@ function resolveApiUrl(): string {
   return PROD_API_URL
 }
 
+function resolveEnv(): 'dev' | 'staging' | 'prod' {
+  return (extra.env as 'dev' | 'staging' | 'prod') ?? (__DEV__ ? 'dev' : 'prod')
+}
+
+function resolveDLocalGoSmartFieldsKey(): string {
+  if (process.env.EXPO_PUBLIC_DLOCALGO_SMARTFIELDS_KEY) {
+    return process.env.EXPO_PUBLIC_DLOCALGO_SMARTFIELDS_KEY
+  }
+  if (extra.dlocalgoSmartFieldsKey) return extra.dlocalgoSmartFieldsKey as string
+  return ''
+}
+
+function resolveDLocalGoSdkUrl(env: 'dev' | 'staging' | 'prod'): string {
+  return env === 'prod'
+    ? 'https://checkout.dlocalgo.com/js/dlocalgo-smartfields-bundled.js'
+    : 'https://checkout-sbx.dlocalgo.com/js/dlocalgo-smartfields-bundled.js'
+}
+
+const _env = resolveEnv()
+
 export const config = {
   apiUrl: resolveApiUrl(),
-  env: (extra.env as 'dev' | 'staging' | 'prod') ?? (__DEV__ ? 'dev' : 'prod'),
+  env: _env,
+  dlocalgo: {
+    smartFieldsKey: resolveDLocalGoSmartFieldsKey(),
+    sdkUrl: resolveDLocalGoSdkUrl(_env),
+  },
 } as const
