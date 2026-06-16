@@ -43,8 +43,8 @@ class OnboardingPaymentRequiredError(BusinessError):
     default_message = "El plan seleccionado requiere un pago completado para completar el registro."
 
 
-class OnboardingPaymentNotCapturedError(BusinessError):
-    code = "ONBOARDING_PAYMENT_NOT_CAPTURED"
+class OnboardingPaymentNotConfirmedError(BusinessError):
+    code = "ONBOARDING_PAYMENT_NOT_CONFIRMED"
     default_message = "El pago no fue completado. Intenta de nuevo con un nuevo pago."
 
 

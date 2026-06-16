@@ -103,25 +103,33 @@ frontend/   # Expo Router app                              -> context/FRONTEND.m
 infra/      # CDK stacks (stacks/, config/)                -> context/BACKEND.md
 ```
 
-## Comandos De Validacion
+## Antes De Hacer Push — Regla No Negociable
 
-Ejecutar desde la raiz salvo indicacion contraria.
+**`make ci` debe pasar en verde antes de cualquier push o PR.**
+
+Es el espejo exacto de `pr-checks.yml`. Si falla aqui, fallara en CI y bloqueara el PR.
+No hay excepcion: ni "es solo docs", ni "es un hotfix pequeno".
 
 ```bash
-make test
-backend/.venv/bin/ruff check backend/lambdas backend/shared backend/tests
-cd frontend && npm run typecheck
-cd frontend && npm run lint
-cd frontend && npm run format:check
-cd frontend && npm run test:run
-cd frontend && npm run build:web
+make ci          # corre todo: lint, security, tests, frontend, cdk
+make ci-backend  # solo backend (lint + format + tests + coverage)
+make ci-security # solo bandit + pip-audit
+make ci-frontend # solo frontend (format + lint + typecheck + tests)
+make ci-cdk      # solo validacion CDK
 ```
 
-Comandos utiles:
+Prerequisito una sola vez: instalar deps de CI en el venv local:
 
 ```bash
-make superadmin   # sincroniza superadmin Cognito desde variables de entorno o .env
-make token        # imprime ID token Cognito por defecto
+backend/.venv/bin/pip install -r backend/requirements-ci.txt
+```
+
+## Comandos Utiles
+
+```bash
+make test        # tests rapidos sin coverage (para iterar en desarrollo)
+make superadmin  # sincroniza superadmin Cognito desde variables de entorno o .env
+make token       # imprime ID token Cognito por defecto
 ```
 
 Nunca imprimir tokens, passwords ni secretos en logs. Para validar token sin exponerlo:
@@ -132,6 +140,7 @@ TOKEN=$(make -s token); echo ${#TOKEN}
 
 ## Reglas De Git Y Deploy
 
+- **`make ci` verde antes de cualquier push.** Ver seccion anterior.
 - No hacer `git push` sin confirmacion explicita.
 - No agregar `Co-Authored-By` en commits.
 - `CLAUDE.md` y `context/` son memoria versionada de este proyecto personal; no ignorarlos.
@@ -191,12 +200,12 @@ Los pasos de implementacion detallados estan en `context/BACKEND.md` (backend) y
 
 ## Antes De Cerrar Cualquier Cambio
 
-1. Revisar `git status --short`.
-2. No revertir cambios ajenos.
-3. Correr validaciones relevantes.
-4. Si tocaste backend: `make test` y ruff.
-5. Si tocaste frontend: `format:check`, `typecheck`, `lint`, `test:run`;
-   si cambia build/routing, tambien `build:web`.
-6. Reportar lo que cambiaste, pruebas ejecutadas y cualquier riesgo residual.
-7. Si cambiaste reglas o flujos de un dominio: actualizar el archivo `.md` de ese dominio.
-8. Si cambiaste un patron transversal: actualizar `context/BACKEND.md` o `context/FRONTEND.md`.
+1. Revisar `git status --short`. No revertir cambios ajenos.
+2. Correr `make ci` y confirmar que pasa en verde.
+3. Si `make ci` es lento y el cambio es acotado, como minimo:
+   - Backend solo: `make ci-backend && make ci-security`.
+   - Frontend solo: `make ci-frontend`.
+   - Cualquier cambio en `infra/`: agregar `make ci-cdk`.
+4. Reportar lo que cambiaste, que stages de CI se corrieron y cualquier riesgo residual.
+5. Si cambiaste reglas o flujos de un dominio: actualizar el archivo `.md` de ese dominio.
+6. Si cambiaste un patron transversal: actualizar `context/BACKEND.md` o `context/FRONTEND.md`.

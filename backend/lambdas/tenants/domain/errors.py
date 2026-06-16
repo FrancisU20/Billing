@@ -33,8 +33,8 @@ class SubscriptionRenewalPaymentNotFoundError(NotFoundError):
     default_message = "No se encontró el pago de renovación indicado."
 
 
-class SubscriptionRenewalPaymentNotCapturedError(BusinessError):
-    code = "RENEWAL_PAYMENT_NOT_CAPTURED"
+class SubscriptionRenewalPaymentNotConfirmedError(BusinessError):
+    code = "RENEWAL_PAYMENT_NOT_CONFIRMED"
     default_message = "El pago de renovación no fue completado. Inicia un nuevo pago."
 
 

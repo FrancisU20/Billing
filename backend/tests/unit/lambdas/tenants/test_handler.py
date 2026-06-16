@@ -40,7 +40,7 @@ def _captured_payment(plan_id: str = "uuid-basic") -> PaymentRecord:
         tenant_id="",
         plan_id=plan_id,
         amount="5.99",
-        status="CAPTURED",
+        status="PAID",
         plan_cycle="month",
         payer_id="PAY-1",
     )

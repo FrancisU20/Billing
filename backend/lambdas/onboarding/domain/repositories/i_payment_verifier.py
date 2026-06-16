@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class CapturedPaymentInfo:
+class ConfirmedPaymentInfo:
     order_id: str
     payer_id: str
     payer_email: str | None
@@ -16,9 +16,9 @@ class CapturedPaymentInfo:
 
 class IPaymentVerifier(ABC):
     @abstractmethod
-    def get_confirmed_payment(self, order_id: str) -> CapturedPaymentInfo:
+    def get_confirmed_payment(self, order_id: str) -> ConfirmedPaymentInfo:
         """Return payment info only if status is PAID or AUTHORIZED.
 
         Raises OnboardingPaymentNotFoundError if order_id does not exist.
-        Raises OnboardingPaymentNotCapturedError if payment has not been confirmed.
+        Raises OnboardingPaymentNotConfirmedError if payment has not been confirmed.
         """

@@ -3,11 +3,11 @@ from __future__ import annotations
 from botocore.exceptions import ClientError
 
 from lambdas.onboarding.domain.errors import (
-    OnboardingPaymentNotCapturedError,
+    OnboardingPaymentNotConfirmedError,
     OnboardingPaymentNotFoundError,
 )
 from lambdas.onboarding.domain.repositories.i_payment_verifier import (
-    CapturedPaymentInfo,
+    ConfirmedPaymentInfo,
     IPaymentVerifier,
 )
 from shared.errors import DatabaseError
@@ -22,7 +22,7 @@ class DynamoPaymentVerifier(IPaymentVerifier):
     def __init__(self, payments_table) -> None:
         self._table = payments_table
 
-    def get_confirmed_payment(self, order_id: str) -> CapturedPaymentInfo:
+    def get_confirmed_payment(self, order_id: str) -> ConfirmedPaymentInfo:
         try:
             resp = self._table.get_item(Key={"id": f"PAYMENT#{order_id}"})
         except ClientError as exc:
@@ -34,9 +34,9 @@ class DynamoPaymentVerifier(IPaymentVerifier):
             raise OnboardingPaymentNotFoundError()
 
         if item.get("status") not in _PAID_STATUSES:
-            raise OnboardingPaymentNotCapturedError()
+            raise OnboardingPaymentNotConfirmedError()
 
-        return CapturedPaymentInfo(
+        return ConfirmedPaymentInfo(
             order_id=item.get("order_id", ""),
             payer_id=item.get("payer_id", ""),
             payer_email=item.get("payer_email"),

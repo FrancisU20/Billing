@@ -7,7 +7,7 @@ from lambdas.tenants.domain.commands import ToggleStatusCommand, UpdateTenantCom
 from lambdas.tenants.domain.enums import SriEnvironment, TenantStatus
 from lambdas.tenants.domain.errors import (
     SubscriptionRenewalPaymentAlreadyAppliedError,
-    SubscriptionRenewalPaymentNotCapturedError,
+    SubscriptionRenewalPaymentNotConfirmedError,
     SubscriptionRenewalPlanMismatchError,
     TenantNotFoundError,
     TenantRucAlreadyExistsError,
@@ -57,7 +57,7 @@ def _captured_payment(
         tenant_id=tenant_id,
         plan_id=plan_id,
         amount="5.99",
-        status="CAPTURED",
+        status="PAID",
         plan_cycle=plan_cycle,
         payer_id="PAY-1",
     )
@@ -271,7 +271,7 @@ class ApplySubscriptionRenewalUseCaseTests(unittest.TestCase):
             plan_cycle="month",
             payer_id="",
         )
-        with self.assertRaises(SubscriptionRenewalPaymentNotCapturedError):
+        with self.assertRaises(SubscriptionRenewalPaymentNotConfirmedError):
             self._execute(payment=payment)
 
     def test_raises_if_payment_applied_to_other_tenant(self) -> None:

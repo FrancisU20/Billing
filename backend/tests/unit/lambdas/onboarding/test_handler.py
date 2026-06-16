@@ -318,7 +318,7 @@ class OnboardingHandlerTests(unittest.TestCase):
     def test_confirm_otp_paid_plan_includes_payment_link_in_transaction(self) -> None:
         from decimal import Decimal
 
-        from lambdas.onboarding.domain.repositories.i_payment_verifier import CapturedPaymentInfo
+        from lambdas.onboarding.domain.repositories.i_payment_verifier import ConfirmedPaymentInfo
         from tests.unit.support import FakeTenantRepository
 
         tenant_repo = FakeTenantRepository()
@@ -328,8 +328,8 @@ class OnboardingHandlerTests(unittest.TestCase):
         idempotency_context = object()
 
         class FakePaymentVerifier:
-            def get_confirmed_payment(self, order_id: str) -> CapturedPaymentInfo:
-                return CapturedPaymentInfo(
+            def get_confirmed_payment(self, order_id: str) -> ConfirmedPaymentInfo:
+                return ConfirmedPaymentInfo(
                     order_id=order_id,
                     payer_id="PAYER-1",
                     payer_email="buyer@example.com",

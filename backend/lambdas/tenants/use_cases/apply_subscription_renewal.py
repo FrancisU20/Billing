@@ -5,12 +5,14 @@ from datetime import UTC, datetime
 
 from lambdas.tenants.domain.errors import (
     SubscriptionRenewalPaymentAlreadyAppliedError,
-    SubscriptionRenewalPaymentNotCapturedError,
+    SubscriptionRenewalPaymentNotConfirmedError,
     SubscriptionRenewalPlanMismatchError,
     TenantNotFoundError,
 )
 from lambdas.tenants.domain.repositories.i_payment_reader import IPaymentReader
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
+
+_PAID_STATUSES = frozenset({"PAID", "AUTHORIZED"})
 
 
 @dataclass(frozen=True)
@@ -36,8 +38,8 @@ class ApplySubscriptionRenewalUseCase:
 
         payment = self._payment_reader.get_by_order_id(order_id)
 
-        if payment.status != "CAPTURED":
-            raise SubscriptionRenewalPaymentNotCapturedError()
+        if payment.status not in _PAID_STATUSES:
+            raise SubscriptionRenewalPaymentNotConfirmedError()
 
         if payment.tenant_id not in ("", tenant_id):
             raise SubscriptionRenewalPaymentAlreadyAppliedError()
