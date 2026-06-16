@@ -39,7 +39,6 @@ class DynamoPaymentRepository(IPaymentRepository):
     def _to_item(self, payment: Payment) -> dict:
         item: dict = {
             "id": f"PAYMENT#{payment.order_id}",
-            "tenant_id": payment.tenant_id,
             "order_id": payment.order_id,
             "plan_id": payment.plan_id,
             "amount": payment.amount,
@@ -54,6 +53,8 @@ class DynamoPaymentRepository(IPaymentRepository):
             item["payer_id"] = payment.payer_id
         if payment.payer_email:
             item["payer_email"] = payment.payer_email
+        if payment.tenant_id:
+            item["tenant_id"] = payment.tenant_id
         if payment.error_detail:
             item["error_detail"] = payment.error_detail
         return item
