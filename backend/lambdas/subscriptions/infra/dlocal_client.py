@@ -46,7 +46,7 @@ class DLocalClient(IDLocalClient):
             "POST",
             "/v1/payments",
             {
-                "amount": amount,
+                "amount": float(amount),  # dLocal Go requires number, not string
                 "currency": currency,
                 "country": country,
                 "allow_transparent": True,
@@ -63,9 +63,9 @@ class DLocalClient(IDLocalClient):
         card_token: str,
         payer_email: str | None,
     ) -> DLocalConfirmPaymentResult:
-        body: dict = {"card": {"token": card_token}}
+        body: dict = {"cardToken": card_token}
         if payer_email:
-            body["payer"] = {"email": payer_email}
+            body["clientEmail"] = payer_email
         resp = self._request("POST", f"/v1/payments/confirm/{checkout_token}", body)
         payer = resp.get("payer", {})
         return DLocalConfirmPaymentResult(

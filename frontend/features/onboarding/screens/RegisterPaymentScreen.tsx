@@ -19,21 +19,18 @@ import { useOnboardingStore } from '../store'
 
 declare global {
   interface Window {
-    dlocalgo?: (key: string) => DLocalGoInstance
+    dlocalGo?: DLocalGoInstance
   }
 }
 
 interface DLocalGoInstance {
-  fields: (opts: {
-    merchantCheckoutToken: string
-    locale: string
-    country: string
-  }) => DLocalGoFields
+  initialize: (key: string, checkoutToken: string) => Promise<void>
+  fields: () => DLocalGoFields
+  createCardToken: (field: DLocalGoField, opts?: { name?: string }) => Promise<{ token: string }>
 }
 
 interface DLocalGoFields {
-  create: (type: string) => DLocalGoField
-  createCardToken: (opts?: { holderName?: string }) => Promise<{ token: string }>
+  create: (type: string, opts?: object) => DLocalGoField
 }
 
 interface DLocalGoField {
@@ -57,7 +54,7 @@ export function RegisterPaymentScreen() {
   const setOrderId = useOnboardingStore((state) => state.setOrderId)
   const setResult = useOnboardingStore((state) => state.setResult)
 
-  const smartFieldsRef = useRef<DLocalGoFields | null>(null)
+  const smartFieldsRef = useRef<DLocalGoField | null>(null)
   const [sdkReady, setSdkReady] = useState(false)
   const [sdkError, setSdkError] = useState<string | null>(null)
 
@@ -87,7 +84,7 @@ export function RegisterPaymentScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Load SmartFields SDK and mount card fields once we have a checkout_token
+  // Load SmartFields SDK and mount card field once we have a checkout_token
   useEffect(() => {
     if (Platform.OS !== 'web' || !order?.checkout_token) return
     if (!config.dlocalgo.smartFieldsKey) {
@@ -96,21 +93,13 @@ export function RegisterPaymentScreen() {
     }
 
     const scriptId = 'dlocalgo-smartfields-sdk'
-    const init = () => {
+    const init = async () => {
       try {
-        const dlocalgo = window.dlocalgo!(config.dlocalgo.smartFieldsKey)
-        const fields = dlocalgo.fields({
-          merchantCheckoutToken: order.checkout_token,
-          locale: 'es',
-          country: 'EC',
-        })
-        const cardNumber = fields.create('cardNumber')
-        const cardExpiry = fields.create('cardExpiry')
-        const cardCvc = fields.create('cardCvc')
-        cardNumber.mount('#dlocalgo-card-number')
-        cardExpiry.mount('#dlocalgo-card-expiry')
-        cardCvc.mount('#dlocalgo-card-cvv')
-        smartFieldsRef.current = fields
+        await window.dlocalGo!.initialize(config.dlocalgo.smartFieldsKey, order.checkout_token)
+        const fields = window.dlocalGo!.fields()
+        const cardField = fields.create('card')
+        cardField.mount('#dlocalgo-card-field')
+        smartFieldsRef.current = cardField
         setSdkReady(true)
       } catch {
         setSdkError('Error al inicializar el formulario de pago.')
@@ -118,7 +107,7 @@ export function RegisterPaymentScreen() {
     }
 
     if (document.getElementById(scriptId)) {
-      if (window.dlocalgo) init()
+      if (window.dlocalGo) init()
       return
     }
 
@@ -149,7 +138,7 @@ export function RegisterPaymentScreen() {
       throw new Error('El pago con tarjeta está disponible solo en la versión web.')
     }
 
-    const { token: cardToken } = await smartFieldsRef.current.createCardToken()
+    const { token: cardToken } = await window.dlocalGo!.createCardToken(smartFieldsRef.current)
 
     await subscriptionsApi.confirmPayment(order.order_id, { card_token: cardToken })
 
@@ -257,51 +246,17 @@ export function RegisterPaymentScreen() {
                 <>
                   {!sdkReady && <LoadingSpinner compact label="Cargando formulario de pago..." />}
 
-                  {/* SmartFields card containers — SDK mounts iframe into each nativeID */}
                   <View style={styles.fieldGroup}>
                     <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                      Número de tarjeta
+                      Datos de tarjeta
                     </Text>
                     <View
-                      nativeID="dlocalgo-card-number"
+                      nativeID="dlocalgo-card-field"
                       style={[
                         styles.fieldContainer,
                         { borderColor: semantic.border.default, backgroundColor: semantic.bg.page },
                       ]}
                     />
-                  </View>
-
-                  <View style={styles.fieldRow}>
-                    <View style={[styles.fieldGroup, styles.fieldHalf]}>
-                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                        Vencimiento
-                      </Text>
-                      <View
-                        nativeID="dlocalgo-card-expiry"
-                        style={[
-                          styles.fieldContainer,
-                          {
-                            borderColor: semantic.border.default,
-                            backgroundColor: semantic.bg.page,
-                          },
-                        ]}
-                      />
-                    </View>
-                    <View style={[styles.fieldGroup, styles.fieldHalf]}>
-                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                        CVV
-                      </Text>
-                      <View
-                        nativeID="dlocalgo-card-cvv"
-                        style={[
-                          styles.fieldContainer,
-                          {
-                            borderColor: semantic.border.default,
-                            backgroundColor: semantic.bg.page,
-                          },
-                        ]}
-                      />
-                    </View>
                   </View>
 
                   {confirmError ? <ApiErrorBanner error={confirmError} /> : null}
@@ -376,8 +331,6 @@ const styles = StyleSheet.create({
     lineHeight: typography.size.sm * typography.lineHeight.normal,
   },
   fieldGroup: { gap: spacing[1] },
-  fieldRow: { flexDirection: 'row', gap: spacing[3] },
-  fieldHalf: { flex: 1 },
   fieldLabel: { fontSize: typography.size.xs },
   fieldContainer: {
     height: 48,
