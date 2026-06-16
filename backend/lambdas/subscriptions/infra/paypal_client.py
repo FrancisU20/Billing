@@ -37,7 +37,7 @@ def _get_access_token(base_url: str, client_id: str, secret: str) -> str:
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310
+    with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310  # nosec B310
         body = json.loads(resp.read())
 
     token = body["access_token"]
@@ -77,7 +77,7 @@ class PayPalClient(IPayPalClient):
             method=method,
         )
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310
+            with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310  # nosec B310
                 return json.loads(resp.read())
         except urllib.error.HTTPError as exc:
             error_body = exc.read().decode()

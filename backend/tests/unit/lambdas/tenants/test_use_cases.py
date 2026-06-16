@@ -263,8 +263,13 @@ class ApplySubscriptionRenewalUseCaseTests(unittest.TestCase):
 
     def test_raises_if_payment_not_captured(self) -> None:
         payment = PaymentRecord(
-            order_id="ORD-1", tenant_id="", plan_id="uuid-basic",
-            amount="5.99", status="CREATED", plan_cycle="month", payer_id="",
+            order_id="ORD-1",
+            tenant_id="",
+            plan_id="uuid-basic",
+            amount="5.99",
+            status="CREATED",
+            plan_cycle="month",
+            payer_id="",
         )
         with self.assertRaises(SubscriptionRenewalPaymentNotCapturedError):
             self._execute(payment=payment)

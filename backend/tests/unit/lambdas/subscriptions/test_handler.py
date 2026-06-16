@@ -20,8 +20,14 @@ os.environ.setdefault("PAYMENTS_TABLE", "unit-payments")
 os.environ.setdefault("PLANS_TABLE", "unit-plans")
 os.environ.setdefault("PAYPAL_CREDENTIALS_NAME", "unit/paypal-creds")
 os.environ.setdefault("PAYPAL_API_URL", "https://api-m.sandbox.paypal.com")
-os.environ.setdefault("PAYPAL_RETURN_URL", "https://billing-dev.codelabsecuador.com/register/payment?payment_status=approved")
-os.environ.setdefault("PAYPAL_CANCEL_URL", "https://billing-dev.codelabsecuador.com/register/payment?payment_status=cancelled")
+os.environ.setdefault(
+    "PAYPAL_RETURN_URL",
+    "https://billing-dev.codelabsecuador.com/register/payment?payment_status=approved",
+)
+os.environ.setdefault(
+    "PAYPAL_CANCEL_URL",
+    "https://billing-dev.codelabsecuador.com/register/payment?payment_status=cancelled",
+)
 
 
 # ── Fakes ─────────────────────────────────────────────────────────────────────
@@ -194,10 +200,16 @@ class CapturePaymentHandlerTests(unittest.TestCase):
 
     def test_returns_409_if_already_captured(self) -> None:
         repo = FakePaymentRepository()
-        repo.save(Payment(
-            order_id="ORD-1", tenant_id="", plan_id="p",
-            amount="5.99", currency="USD", status="CAPTURED",
-        ))
+        repo.save(
+            Payment(
+                order_id="ORD-1",
+                tenant_id="",
+                plan_id="p",
+                amount="5.99",
+                currency="USD",
+                status="CAPTURED",
+            )
+        )
         resp = self._call("ORD-1", repo=repo)
         self.assertEqual(resp["statusCode"], 409)
 

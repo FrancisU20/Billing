@@ -155,9 +155,7 @@ class CreatePaymentUseCaseTests(unittest.TestCase):
             self._use_case(paypal=paypal).execute(CreatePaymentCommand(plan_id="plan-x"))
 
     def test_raises_payment_creation_error_on_network_error(self) -> None:
-        paypal = FakePayPalClient(
-            create_raises=urllib.error.URLError("Connection refused")
-        )
+        paypal = FakePayPalClient(create_raises=urllib.error.URLError("Connection refused"))
         with self.assertRaises(PaymentCreationError):
             self._use_case(paypal=paypal).execute(CreatePaymentCommand(plan_id="plan-x"))
 
@@ -206,14 +204,18 @@ class CapturePaymentUseCaseTests(unittest.TestCase):
     def test_raises_if_already_captured(self) -> None:
         repo = FakePaymentRepository()
         payment = Payment(
-            order_id="ORD-1", tenant_id="", plan_id="p", amount="5.99",
-            currency="USD", status="CAPTURED",
+            order_id="ORD-1",
+            tenant_id="",
+            plan_id="p",
+            amount="5.99",
+            currency="USD",
+            status="CAPTURED",
         )
         repo.save(payment)
         with self.assertRaises(PaymentAlreadyCapturedError):
-            CapturePaymentUseCase(
-                paypal=FakePayPalClient(), payment_repo=repo
-            ).execute(CapturePaymentCommand(order_id="ORD-1"))
+            CapturePaymentUseCase(paypal=FakePayPalClient(), payment_repo=repo).execute(
+                CapturePaymentCommand(order_id="ORD-1")
+            )
 
     def test_raises_if_payment_not_found(self) -> None:
         with self.assertRaises(PaymentNotFoundError):
@@ -235,9 +237,7 @@ class CapturePaymentUseCaseTests(unittest.TestCase):
 
     def test_marks_failed_and_raises_on_network_error(self) -> None:
         repo = self._repo_with_payment("ORD-1")
-        paypal = FakePayPalClient(
-            capture_raises=urllib.error.URLError("timeout")
-        )
+        paypal = FakePayPalClient(capture_raises=urllib.error.URLError("timeout"))
         with self.assertRaises(PaymentCaptureError):
             CapturePaymentUseCase(paypal=paypal, payment_repo=repo).execute(
                 CapturePaymentCommand(order_id="ORD-1")
