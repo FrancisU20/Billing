@@ -10,7 +10,7 @@ PaymentStatus = Literal["CREATED", "CAPTURED", "FAILED"]
 @dataclass
 class Payment:
     order_id: str
-    tenant_id: str
+    tenant_id: str | None
     plan_id: str
     amount: str
     currency: str

@@ -90,6 +90,7 @@ class FakePaymentRepository:
     def __init__(self) -> None:
         self._store: dict[str, Payment] = {}
         self.saved: list[Payment] = []
+        self.linked: list[tuple[str, str]] = []
 
     def save(self, payment: Payment) -> None:
         self._store[payment.order_id] = payment
@@ -99,6 +100,11 @@ class FakePaymentRepository:
         if order_id not in self._store:
             raise PaymentNotFoundError()
         return self._store[order_id]
+
+    def link_tenant(self, order_id: str, tenant_id: str) -> None:
+        self.linked.append((order_id, tenant_id))
+        if order_id in self._store:
+            self._store[order_id].tenant_id = tenant_id
 
 
 # ── CreatePaymentUseCase ──────────────────────────────────────────────────────
@@ -174,7 +180,7 @@ class CapturePaymentUseCaseTests(unittest.TestCase):
         repo.save(
             Payment(
                 order_id=order_id,
-                tenant_id="",
+                tenant_id=None,
                 plan_id="plan-abc",
                 amount="5.99",
                 currency="USD",
@@ -205,7 +211,7 @@ class CapturePaymentUseCaseTests(unittest.TestCase):
         repo = FakePaymentRepository()
         payment = Payment(
             order_id="ORD-1",
-            tenant_id="",
+            tenant_id=None,
             plan_id="p",
             amount="5.99",
             currency="USD",
@@ -259,7 +265,7 @@ class GetPaymentUseCaseTests(unittest.TestCase):
         repo.save(
             Payment(
                 order_id=order_id,
-                tenant_id="",
+                tenant_id=None,
                 plan_id="plan-abc",
                 amount="5.99",
                 currency="USD",

@@ -11,3 +11,6 @@ class IPaymentRepository(ABC):
 
     @abstractmethod
     def get_by_order_id(self, order_id: str) -> Payment: ...
+
+    @abstractmethod
+    def link_tenant(self, order_id: str, tenant_id: str) -> None: ...

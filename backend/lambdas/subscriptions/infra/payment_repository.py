@@ -24,6 +24,17 @@ class DynamoPaymentRepository(IPaymentRepository):
             _log.error("DynamoDB put_item error", error=str(exc))
             raise DatabaseError() from exc
 
+    def link_tenant(self, order_id: str, tenant_id: str) -> None:
+        try:
+            self._table.update_item(
+                Key={"id": f"PAYMENT#{order_id}"},
+                UpdateExpression="SET tenant_id = :tid",
+                ExpressionAttributeValues={":tid": tenant_id},
+            )
+        except ClientError as exc:
+            _log.error("DynamoDB update_item error (link_tenant)", error=str(exc))
+            raise DatabaseError() from exc
+
     def get_by_order_id(self, order_id: str) -> Payment:
         try:
             resp = self._table.get_item(Key={"id": f"PAYMENT#{order_id}"})
@@ -62,7 +73,7 @@ class DynamoPaymentRepository(IPaymentRepository):
     def _from_item(self, item: dict) -> Payment:
         return Payment(
             order_id=item.get("order_id", ""),
-            tenant_id=item.get("tenant_id", ""),
+            tenant_id=item.get("tenant_id"),
             plan_id=item.get("plan_id", ""),
             amount=item.get("amount", "0.00"),
             currency=item.get("currency", "USD"),

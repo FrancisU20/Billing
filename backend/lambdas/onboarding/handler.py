@@ -20,12 +20,16 @@ from lambdas.onboarding.infra.plan_catalog import DynamoPlanCatalog
 from lambdas.onboarding.schemas import OnboardingOtpConfirmRequest, OnboardingRequest
 from lambdas.onboarding.use_cases.confirm_onboarding_otp import ConfirmOnboardingOtpUseCase
 from lambdas.onboarding.use_cases.request_onboarding_otp import RequestOnboardingOtpUseCase
+from lambdas.subscriptions.infra.payment_repository import DynamoPaymentRepository
 from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
 from shared.certificates.store import CertificateStore
 from shared.certificates.validator import CertificateValidator
 from shared.config import env
 from shared.db.client import get_table
 from shared.errors import NotFoundError
+from shared.logger import get_logger
+
+_log = get_logger(__name__)
 
 # ── Cold start ────────────────────────────────────────────────────────────────
 _TENANTS_TABLE = get_table("TENANTS_TABLE")
@@ -154,6 +158,17 @@ def _confirm_otp(request: Request, context) -> dict:
         except Exception:
             _certificate_store().delete_certificate(tenant_id=result.tenant.id)
             raise
+        if body.order_id and _PAYMENTS_TABLE:
+            try:
+                DynamoPaymentRepository(_PAYMENTS_TABLE).link_tenant(
+                    body.order_id, result.tenant.id
+                )
+            except Exception:
+                _log.error(
+                    "link_tenant failed after commit — payment not indexed in GSI",
+                    order_id=body.order_id,
+                    tenant_id=result.tenant.id,
+                )
         return response
 
     response = ApiResponse.created({"message": "Te contactaremos pronto."}, request.request_id)

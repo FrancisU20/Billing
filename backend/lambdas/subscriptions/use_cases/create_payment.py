@@ -49,7 +49,7 @@ class CreatePaymentUseCase:
 
         payment = Payment(
             order_id=order.order_id,
-            tenant_id="",
+            tenant_id=None,
             plan_id=cmd.plan_id,
             amount=amount,
             currency=cmd.currency,
