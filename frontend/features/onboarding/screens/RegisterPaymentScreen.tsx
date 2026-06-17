@@ -67,6 +67,8 @@ export function RegisterPaymentScreen() {
 
   const [cardholderName, setCardholderName] = useState('')
   const [nameError, setNameError] = useState<string | null>(null)
+  const [payerEmail, setPayerEmail] = useState('')
+  const [payerDocument, setPayerDocument] = useState('')
 
   const {
     submitting,
@@ -100,8 +102,8 @@ export function RegisterPaymentScreen() {
     await subscriptionsApi.confirmPayment(order.order_id, {
       card_token: cardToken,
       payer_name: cardholderName.trim(),
-      payer_email: formValues.email,
-      payer_document: formValues.ruc,
+      payer_email: payerEmail.trim(),
+      payer_document: payerDocument.trim(),
     })
 
     setOrderId(order.order_id)
@@ -251,6 +253,52 @@ export function RegisterPaymentScreen() {
                     ) : null}
                   </View>
 
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                      Email del pagador
+                    </Text>
+                    <TextInput
+                      value={payerEmail}
+                      onChangeText={setPayerEmail}
+                      placeholder="correo@ejemplo.com"
+                      placeholderTextColor={semantic.text.secondary}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="email-address"
+                      style={[
+                        styles.nameInput,
+                        {
+                          borderColor: semantic.border.default,
+                          backgroundColor: semantic.bg.page,
+                          color: semantic.text.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                      Cédula / RUC del pagador
+                    </Text>
+                    <TextInput
+                      value={payerDocument}
+                      onChangeText={setPayerDocument}
+                      placeholder="10 o 13 dígitos"
+                      placeholderTextColor={semantic.text.secondary}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="number-pad"
+                      style={[
+                        styles.nameInput,
+                        {
+                          borderColor: semantic.border.default,
+                          backgroundColor: semantic.bg.page,
+                          color: semantic.text.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+
                   {confirmError ? <ApiErrorBanner error={confirmError} /> : null}
 
                   <Button
@@ -258,7 +306,12 @@ export function RegisterPaymentScreen() {
                     size="lg"
                     fullWidth
                     isLoading={submitting}
-                    disabled={!sdkReady || !cardholderName.trim()}
+                    disabled={
+                      !sdkReady ||
+                      !cardholderName.trim() ||
+                      !payerEmail.trim() ||
+                      !payerDocument.trim()
+                    }
                     onPress={() => confirmPayment()}
                   >
                     Pagar ${price} USD

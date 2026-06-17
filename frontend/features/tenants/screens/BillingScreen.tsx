@@ -27,6 +27,8 @@ export function BillingScreen() {
   const [success, setSuccess] = useState(false)
   const [cardholderName, setCardholderName] = useState('')
   const [nameError, setNameError] = useState<string | null>(null)
+  const [payerEmail, setPayerEmail] = useState('')
+  const [payerDocument, setPayerDocument] = useState('')
 
   const { fieldRef, sdkReady, sdkError } = useDLocalSmartFields({
     checkoutToken: order?.checkout_token,
@@ -73,8 +75,8 @@ export function BillingScreen() {
     await subscriptionsApi.confirmPayment(order.order_id, {
       card_token: cardToken,
       payer_name: cardholderName.trim(),
-      payer_email: user!.email,
-      payer_document: tenant.ruc,
+      payer_email: payerEmail.trim(),
+      payer_document: payerDocument.trim(),
     })
 
     await subscriptionsApi.applyRenewal(tenantId, order.order_id, renewalKey)
@@ -87,6 +89,8 @@ export function BillingScreen() {
     setOrder(null)
     setCardholderName('')
     setNameError(null)
+    setPayerEmail('')
+    setPayerDocument('')
   }, [])
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando..." />
@@ -299,6 +303,52 @@ export function BillingScreen() {
                       ) : null}
                     </View>
 
+                    <View style={styles.fieldGroup}>
+                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                        Email del pagador
+                      </Text>
+                      <TextInput
+                        value={payerEmail}
+                        onChangeText={setPayerEmail}
+                        placeholder="correo@ejemplo.com"
+                        placeholderTextColor={semantic.text.secondary}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        keyboardType="email-address"
+                        style={[
+                          styles.nameInput,
+                          {
+                            borderColor: semantic.border.default,
+                            backgroundColor: semantic.bg.page,
+                            color: semantic.text.primary,
+                          },
+                        ]}
+                      />
+                    </View>
+
+                    <View style={styles.fieldGroup}>
+                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                        Cédula / RUC del pagador
+                      </Text>
+                      <TextInput
+                        value={payerDocument}
+                        onChangeText={setPayerDocument}
+                        placeholder="10 o 13 dígitos"
+                        placeholderTextColor={semantic.text.secondary}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        keyboardType="number-pad"
+                        style={[
+                          styles.nameInput,
+                          {
+                            borderColor: semantic.border.default,
+                            backgroundColor: semantic.bg.page,
+                            color: semantic.text.primary,
+                          },
+                        ]}
+                      />
+                    </View>
+
                     {confirmError ? <ApiErrorBanner error={confirmError} /> : null}
 
                     <Button
@@ -306,7 +356,12 @@ export function BillingScreen() {
                       size="lg"
                       fullWidth
                       isLoading={confirming}
-                      disabled={!sdkReady || !cardholderName.trim()}
+                      disabled={
+                        !sdkReady ||
+                        !cardholderName.trim() ||
+                        !payerEmail.trim() ||
+                        !payerDocument.trim()
+                      }
                       onPress={() => confirmRenewal()}
                     >
                       Confirmar pago
