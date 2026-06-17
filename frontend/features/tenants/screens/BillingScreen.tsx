@@ -54,7 +54,7 @@ export function BillingScreen() {
     error: confirmError,
     submit: confirmRenewal,
   } = useFormSubmit(async () => {
-    if (!order || !tenantId) return
+    if (!order || !tenantId || !tenant) return
 
     if (!cardholderName.trim()) {
       setNameError('Ingresa el nombre del titular de la tarjeta.')
@@ -70,7 +70,12 @@ export function BillingScreen() {
       name: cardholderName.trim(),
     })
 
-    await subscriptionsApi.confirmPayment(order.order_id, { card_token: cardToken })
+    await subscriptionsApi.confirmPayment(order.order_id, {
+      card_token: cardToken,
+      payer_name: cardholderName.trim(),
+      payer_email: user!.email,
+      payer_document: tenant.ruc,
+    })
 
     await subscriptionsApi.applyRenewal(tenantId, order.order_id, renewalKey)
     setSuccess(true)

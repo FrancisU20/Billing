@@ -97,7 +97,12 @@ export function RegisterPaymentScreen() {
       name: cardholderName.trim(),
     })
 
-    await subscriptionsApi.confirmPayment(order.order_id, { card_token: cardToken })
+    await subscriptionsApi.confirmPayment(order.order_id, {
+      card_token: cardToken,
+      payer_name: cardholderName.trim(),
+      payer_email: formValues.email,
+      payer_document: formValues.ruc,
+    })
 
     setOrderId(order.order_id)
 

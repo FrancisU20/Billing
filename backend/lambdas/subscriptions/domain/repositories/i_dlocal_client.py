@@ -29,5 +29,7 @@ class IDLocalClient(ABC):
         self,
         checkout_token: str,
         card_token: str,
-        payer_email: str | None,
+        payer_name: str,
+        payer_email: str,
+        payer_document: str,
     ) -> DLocalConfirmPaymentResult: ...

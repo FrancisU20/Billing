@@ -10,4 +10,6 @@ class CreatePaymentRequest(BaseModel):
 
 class ConfirmPaymentRequest(BaseModel):
     card_token: str = Field(..., min_length=1)
-    payer_email: str | None = None
+    payer_name: str = Field(..., min_length=1)
+    payer_email: str = Field(..., min_length=1)
+    payer_document: str = Field(..., min_length=1)

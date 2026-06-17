@@ -70,7 +70,7 @@ class FakeDLocalClient(IDLocalClient):
         self._create_raises = create_raises
         self._confirm_raises = confirm_raises
         self.create_calls: list[tuple[str, str, str]] = []
-        self.confirm_calls: list[tuple[str, str, str | None]] = []
+        self.confirm_calls: list[tuple[str, str, str, str, str]] = []
 
     def create_payment(self, amount: str, currency: str, country: str) -> DLocalCreatePaymentResult:
         self.create_calls.append((amount, currency, country))
@@ -85,9 +85,13 @@ class FakeDLocalClient(IDLocalClient):
         self,
         checkout_token: str,
         card_token: str,
-        payer_email: str | None,
+        payer_name: str,
+        payer_email: str,
+        payer_document: str,
     ) -> DLocalConfirmPaymentResult:
-        self.confirm_calls.append((checkout_token, card_token, payer_email))
+        self.confirm_calls.append(
+            (checkout_token, card_token, payer_name, payer_email, payer_document)
+        )
         if self._confirm_raises:
             raise self._confirm_raises
         return DLocalConfirmPaymentResult(
@@ -219,7 +223,13 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         repo = self._repo_with_payment("DP-1", "mct_tok")
         dlocal = FakeDLocalClient(payer_id="user-9", payer_email="x@x.com", confirm_status="PAID")
         result = ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
-            ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok_abc")
+            ConfirmPaymentCommand(
+                order_id="DP-1",
+                card_token="card_tok_abc",
+                payer_name="Test User",
+                payer_email="test@example.com",
+                payer_document="1712345678",
+            )
         )
         self.assertEqual(result.status, "PAID")
         self.assertEqual(result.payer_id, "user-9")
@@ -231,7 +241,13 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         repo = self._repo_with_payment("DP-1", "mct_special")
         dlocal = FakeDLocalClient()
         ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
-            ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok")
+            ConfirmPaymentCommand(
+                order_id="DP-1",
+                card_token="card_tok",
+                payer_name="Test User",
+                payer_email="test@example.com",
+                payer_document="1712345678",
+            )
         )
         self.assertEqual(dlocal.confirm_calls[0][0], "mct_special")
 
@@ -239,7 +255,13 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         repo = self._repo_with_payment("DP-1", "mct_tok")
         dlocal = FakeDLocalClient(confirm_status="AUTHORIZED")
         result = ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
-            ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok")
+            ConfirmPaymentCommand(
+                order_id="DP-1",
+                card_token="card_tok",
+                payer_name="Test User",
+                payer_email="test@example.com",
+                payer_document="1712345678",
+            )
         )
         self.assertEqual(result.status, "PAID")
 
@@ -247,7 +269,13 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         repo = self._repo_with_payment("DP-1", "mct_tok")
         dlocal = FakeDLocalClient(confirm_status="REJECTED")
         result = ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
-            ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok")
+            ConfirmPaymentCommand(
+                order_id="DP-1",
+                card_token="card_tok",
+                payer_name="Test User",
+                payer_email="test@example.com",
+                payer_document="1712345678",
+            )
         )
         self.assertEqual(result.status, "FAILED")
         stored = repo.get_by_order_id("DP-1")
@@ -258,13 +286,25 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         repo = self._repo_with_payment("DP-1", "mct_tok", status="PAID")
         with self.assertRaises(PaymentAlreadyConfirmedError):
             ConfirmPaymentUseCase(dlocal=FakeDLocalClient(), payment_repo=repo).execute(
-                ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok")
+                ConfirmPaymentCommand(
+                    order_id="DP-1",
+                    card_token="card_tok",
+                    payer_name="Test User",
+                    payer_email="test@example.com",
+                    payer_document="1712345678",
+                )
             )
 
     def test_raises_if_payment_not_found(self) -> None:
         with self.assertRaises(PaymentNotFoundError):
             self._use_case(repo=FakePaymentRepository()).execute(
-                ConfirmPaymentCommand(order_id="MISSING", card_token="card_tok")
+                ConfirmPaymentCommand(
+                    order_id="MISSING",
+                    card_token="card_tok",
+                    payer_name="Test User",
+                    payer_email="test@example.com",
+                    payer_document="1712345678",
+                )
             )
 
     def test_marks_failed_and_raises_on_http_error(self) -> None:
@@ -274,7 +314,13 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         )
         with self.assertRaises(PaymentConfirmError):
             ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
-                ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok")
+                ConfirmPaymentCommand(
+                    order_id="DP-1",
+                    card_token="card_tok",
+                    payer_name="Test User",
+                    payer_email="test@example.com",
+                    payer_document="1712345678",
+                )
             )
         stored = repo.get_by_order_id("DP-1")
         self.assertEqual(stored.status, "FAILED")
@@ -284,7 +330,13 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         dlocal = FakeDLocalClient(confirm_raises=urllib.error.URLError("timeout"))
         with self.assertRaises(PaymentConfirmError):
             ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
-                ConfirmPaymentCommand(order_id="DP-1", card_token="card_tok")
+                ConfirmPaymentCommand(
+                    order_id="DP-1",
+                    card_token="card_tok",
+                    payer_name="Test User",
+                    payer_email="test@example.com",
+                    payer_document="1712345678",
+                )
             )
         stored = repo.get_by_order_id("DP-1")
         self.assertEqual(stored.status, "FAILED")

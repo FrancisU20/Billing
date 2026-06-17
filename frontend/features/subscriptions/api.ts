@@ -13,7 +13,10 @@ export const subscriptionsApi = {
       idempotencyKey,
     }),
 
-  confirmPayment: (orderId: string, body: { card_token: string; payer_email?: string | null }) =>
+  confirmPayment: (
+    orderId: string,
+    body: { card_token: string; payer_name: string; payer_email: string; payer_document: string },
+  ) =>
     api.post(`/subscriptions/payments/${orderId}/confirm`, body, confirmPaymentResultSchema, {
       auth: false,
     }),

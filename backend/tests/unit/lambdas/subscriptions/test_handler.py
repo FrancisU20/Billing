@@ -78,7 +78,9 @@ class FakeDLocalClient:
         self,
         checkout_token: str,
         card_token: str,
-        payer_email: str | None,
+        payer_name: str,
+        payer_email: str,
+        payer_document: str,
     ) -> DLocalConfirmPaymentResult:
         if self._confirm_raises:
             raise self._confirm_raises
@@ -207,7 +209,17 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
     def test_returns_200_with_paid_status(self) -> None:
         repo = self._repo_with_payment("DP-1")
         dlocal = FakeDLocalClient(payer_id="user-99", payer_email="a@b.com", confirm_status="PAID")
-        resp = self._call("DP-1", {"card_token": "card_tok_abc"}, dlocal=dlocal, repo=repo)
+        resp = self._call(
+            "DP-1",
+            {
+                "card_token": "card_tok_abc",
+                "payer_name": "Test User",
+                "payer_email": "test@example.com",
+                "payer_document": "1712345678",
+            },
+            dlocal=dlocal,
+            repo=repo,
+        )
         self.assertEqual(resp["statusCode"], 200)
         body = decode_response(resp)
         self.assertEqual(body["data"]["status"], "PAID")
@@ -226,11 +238,29 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
                 checkout_token="mct_tok",
             )
         )
-        resp = self._call("DP-1", {"card_token": "card_tok"}, repo=repo)
+        resp = self._call(
+            "DP-1",
+            {
+                "card_token": "card_tok",
+                "payer_name": "Test User",
+                "payer_email": "test@example.com",
+                "payer_document": "1712345678",
+            },
+            repo=repo,
+        )
         self.assertEqual(resp["statusCode"], 409)
 
     def test_returns_404_if_payment_not_found(self) -> None:
-        resp = self._call("UNKNOWN", {"card_token": "card_tok"}, repo=FakePaymentRepository())
+        resp = self._call(
+            "UNKNOWN",
+            {
+                "card_token": "card_tok",
+                "payer_name": "Test User",
+                "payer_email": "test@example.com",
+                "payer_document": "1712345678",
+            },
+            repo=FakePaymentRepository(),
+        )
         self.assertEqual(resp["statusCode"], 404)
 
     def test_returns_400_for_missing_card_token(self) -> None:

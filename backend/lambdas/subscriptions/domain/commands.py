@@ -13,4 +13,6 @@ class CreatePaymentCommand:
 class ConfirmPaymentCommand:
     order_id: str
     card_token: str
-    payer_email: str | None = None
+    payer_name: str
+    payer_email: str
+    payer_document: str
