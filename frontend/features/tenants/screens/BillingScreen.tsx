@@ -248,6 +248,22 @@ export function BillingScreen() {
 
                     <View style={styles.fieldGroup}>
                       <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                        Datos de tarjeta
+                      </Text>
+                      <View
+                        nativeID="billing-card-field"
+                        style={[
+                          styles.fieldContainer,
+                          {
+                            borderColor: semantic.border.default,
+                            backgroundColor: semantic.bg.page,
+                          },
+                        ]}
+                      />
+                    </View>
+
+                    <View style={styles.fieldGroup}>
+                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
                         Nombre del titular
                       </Text>
                       <TextInput
@@ -276,22 +292,6 @@ export function BillingScreen() {
                           {nameError}
                         </Text>
                       ) : null}
-                    </View>
-
-                    <View style={styles.fieldGroup}>
-                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                        Datos de tarjeta
-                      </Text>
-                      <View
-                        nativeID="billing-card-field"
-                        style={[
-                          styles.fieldContainer,
-                          {
-                            borderColor: semantic.border.default,
-                            backgroundColor: semantic.bg.page,
-                          },
-                        ]}
-                      />
                     </View>
 
                     {confirmError ? <ApiErrorBanner error={confirmError} /> : null}

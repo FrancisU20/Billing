@@ -205,6 +205,19 @@ export function RegisterPaymentScreen() {
 
                   <View style={styles.fieldGroup}>
                     <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                      Datos de tarjeta
+                    </Text>
+                    <View
+                      nativeID="dlocalgo-card-field"
+                      style={[
+                        styles.fieldContainer,
+                        { borderColor: semantic.border.default, backgroundColor: semantic.bg.page },
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
                       Nombre del titular
                     </Text>
                     <TextInput
@@ -231,19 +244,6 @@ export function RegisterPaymentScreen() {
                         {nameError}
                       </Text>
                     ) : null}
-                  </View>
-
-                  <View style={styles.fieldGroup}>
-                    <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                      Datos de tarjeta
-                    </Text>
-                    <View
-                      nativeID="dlocalgo-card-field"
-                      style={[
-                        styles.fieldContainer,
-                        { borderColor: semantic.border.default, backgroundColor: semantic.bg.page },
-                      ]}
-                    />
                   </View>
 
                   {confirmError ? <ApiErrorBanner error={confirmError} /> : null}
