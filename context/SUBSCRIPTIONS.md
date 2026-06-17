@@ -150,6 +150,13 @@ El cobro automatico requiere que el worker tenga configurados `PLANS_TABLE`,
 `PAYMENTS_TABLE` y `DLOCALGO_CREDENTIALS_NAME`. Si alguno falta, el worker cae al
 comportamiento anterior (solo notificacion/expiracion), sin auto-charge.
 
+**Grace period para `payment_failed`**: si el primer cobro automatico falla, el tenant
+queda en `payment_failed` y el worker reintenta diariamente durante 7 dias
+(`_PAYMENT_FAILED_GRACE_DAYS = 7`) contados desde `plan_cycle_ends_at`. Al superar la
+gracia (o si no hay `dlocal_payer_id`), la suscripcion se expira y se envia el email de
+expiracion. El email de pago fallido solo se envia **una vez** (en el primer fallo);
+los reintentos siguientes no reenvian el email aunque fallen.
+
 ## Estado payment_failed
 
 `subscription_status = "payment_failed"` indica que el cobro automatico fallo. El tenant:
@@ -457,6 +464,10 @@ Errores:
 - 402 `SAVED_CARD_REJECTED` — dLocal rechazo el cobro o fallo la llamada HTTP.
 - 422 `RETRY_PAYMENT_NOT_ELIGIBLE` — el status no es `payment_failed` ni `expired`.
 
+**Garantia transaccional**: Payment y Tenant se escriben en el mismo `transact_write`
+via `save_transact_item()`. Si el commit del Tenant falla, el Payment tampoco queda
+escrito — no hay riesgo de pagos huerfanos por este path.
+
 ## DynamoDB Schema
 
 Tabla: `payments`. PK = `id` (sin SK).
@@ -646,6 +657,8 @@ campos esten completos.
 El `subscription_renewal_notifier` requiere `PLANS_TABLE`, `PAYMENTS_TABLE` y
 `DLOCALGO_CREDENTIALS_NAME` para habilitar el cobro automatico. Si alguna variable
 falta, el worker funciona en modo degradado (solo notificaciones, sin auto-charge).
+Grace period: 7 dias desde `plan_cycle_ends_at`; tras agotarse expira sin reintentar.
+Email de pago fallido: una sola vez por ciclo (no se reenvía en reintentos).
 
 ## Deuda Tecnica
 
@@ -656,11 +669,3 @@ falta, el worker funciona en modo degradado (solo notificaciones, sin auto-charg
   mecanismo para detectar perdida de eventos mas alla de los logs de Lambda.
 - Orders con status `PENDING` (3DS iniciado pero no completado) no tienen limpieza
   automatica — quedan indefinidamente en DynamoDB sin un worker que los expire o notifique.
-- `RetryPaymentUseCase` guarda el `Payment` con `payment_repo.save()` antes del
-  `repo.commit(tenant)`. Si el commit falla, el Payment queda en DynamoDB pero el tenant
-  sigue en `payment_failed`. En el siguiente retry se crea un nuevo Payment — el anterior
-  queda huerfano (detectable por el `orphan_payment_notifier`). Aceptable como deuda
-  tecnica; la solucion correcta seria un `transact_write` que incluya el Payment.
-- `payment_failed` puede quedar bloqueado indefinidamente si el tenant no tiene
-  `dlocal_payer_id` y no tiene acceso a la pantalla de billing (ej. acceso revocado).
-  El worker diario no tiene logica de limpieza ni expiracion para este estado.
