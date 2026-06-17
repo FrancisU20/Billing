@@ -225,6 +225,8 @@ bundling (`_code`) y permisos IAM explicitos que el resto de Lambdas en `api_sta
 
 - `certificate_expiry_notifier`: cron diario `cron(0 9 * * ? *)` (09:00 UTC), alerta
   60/30 dias antes de `cert_expires_at`. Ver `CERTIFICATES.md`.
+- `subscription_renewal_notifier`: cron diario `cron(0 10 * * ? *)` (10:00 UTC), notifica
+  vencimiento de suscripcion SaaS. Ver `SUBSCRIPTIONS.md`.
 
 Idempotencia entre corridas: si la tarea no tiene una tabla de tracking propia, guardar
 el estado "ya procesado" en la entidad de dominio afectada (ver

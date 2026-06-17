@@ -41,7 +41,8 @@ id                  UUID, PK — identidad interna
 entity_type         "PLAN"
 slug                identidad publica, inmutable despues de crear
 name                nombre para mostrar
-price               Decimal, serializado como string en API y DynamoDB
+monthly_price       Decimal, serializado como string en API y DynamoDB
+annual_price        Decimal, serializado como string en API y DynamoDB
 document_limit      int, -1 = ilimitado
 limit_cycle         month | year
 active              bool
@@ -146,13 +147,13 @@ sea < 100 planes. No replicar este patron para entidades de alta cardinalidad.
 
 ## Catalogo — Valores Por Plan (seed `v0001_seed_plans`)
 
-| slug | document_limit | pruebas_monthly_docs_limit | pruebas_monthly_bulk_limit | dedicated_queue | self_service |
-| --- | --- | --- | --- | --- | --- |
-| free | 20 | 20 | 0 | false | true |
-| basic | 50 | 50 | 0 | false | true |
-| pyme | 300 | 200 | 50 | false | true |
-| pro | 1000 | 500 | 200 | false | true |
-| enterprise | -1 | -1 | -1 | true | false |
+| slug | monthly_price | annual_price | document_limit | pruebas_monthly_docs_limit | pruebas_monthly_bulk_limit | dedicated_queue | self_service |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| free | 0.00 | 0.00 | 20 | 20 | 0 | false | true |
+| basic | 5.99 | 57.00 | 50 | 50 | 0 | false | true |
+| pyme | 14.99 | 143.00 | 300 | 200 | 50 | false | true |
+| pro | 29.99 | 287.00 | 1000 | 500 | 200 | false | true |
+| enterprise | 59.99 | 575.00 | -1 | -1 | -1 | true | false |
 
 `self_service=false` (solo Enterprise) no oculta el plan del catalogo publico — `GET /plans`
 sigue devolviendolo. Significa que `POST /onboarding/otp/confirm` con ese `plan_id` toma la rama

@@ -42,7 +42,9 @@ Frontend (wizard)        Backend                  dLocal Go
    | payer ingresa tarjeta                          |
    | SDK -> card_token                              |
    |-- POST /subscriptions/payments/{order_id}/confirm
-   |        { card_token }                  ------->|
+   |        { card_token, client_first_name,        |
+   |          client_last_name, client_email,        |
+   |          client_document_type, client_document }|
    |<-- { status: "PAID", payer_id, ... }           |
    |                       |                        |
    |-- POST /onboarding/otp/confirm (con order_id)  |
@@ -61,7 +63,9 @@ Frontend (billing.tsx)   Backend                  dLocal Go
    | SDK SmartFields (checkout_token)                |
    | payer ingresa tarjeta -> card_token             |
    |-- POST /subscriptions/payments/{order_id}/confirm
-   |        { card_token }                  ------->|
+   |        { card_token, client_first_name,         |
+   |          client_last_name, client_email,         |
+   |          client_document_type, client_document } |
    |<-- { status: "PAID" }                          |
    |-- POST /tenants/{id}/subscription/renew         |
    |         marca pago aplicado (tenant_id fijo)    |
@@ -169,7 +173,14 @@ Errores: 422 `FREE_PLAN_NO_PAYMENT`, 404 `PLAN_NOT_FOUND`, 502 `PAYMENT_CREATION
 
 Request:
 ```json
-{ "card_token": "tok_xxx", "payer_email": "buyer@example.com" }
+{
+  "card_token": "tok_xxx",
+  "client_first_name": "Juan",
+  "client_last_name": "Pérez",
+  "client_email": "buyer@example.com",
+  "client_document_type": "CI",
+  "client_document": "1712345678"
+}
 ```
 
 Response 200:
@@ -286,17 +297,45 @@ Antes de activar el pago en cada entorno:
 - `schemas.ts` — `createPaymentResultSchema`, `confirmPaymentResultSchema`,
   `paymentStatusSchema`, `applyRenewalResultSchema`
 - `api.ts` — `subscriptionsApi.{createPayment, confirmPayment, getPayment, applyRenewal}`
+  `confirmPayment` recibe `{ card_token, client_first_name, client_last_name, client_email,
+  client_document_type, client_document }`.
+- `dlocal-types.ts` — interfaces TypeScript del SDK dLocal Go: `DLocalGoInstance`,
+  `DLocalGoField`, `DLocalCardFieldOptions`; `declare global { Window.dlocalGo }`.
+- `dlocal-field-options.ts` — estilos del campo SmartFields adaptados al tema activo.
+- `use-dlocal-smartfields.ts` — hook React que encapsula carga del SDK, inicializacion,
+  mount/unmount y estados `sdkReady`/`sdkError`. StrictMode-safe con flag `cancelled`.
 
 SmartFields SDK:
 - Sandbox: `https://checkout-sbx.dlocalgo.com/js/dlocalgo-smartfields-bundled.js`
 - Produccion: `https://checkout.dlocalgo.com/js/dlocalgo-smartfields-bundled.js`
 Seleccion via `config.env === 'prod'` en `constants/config.ts`.
 
-El SDK se carga dinamicamente (`Platform.OS === 'web'` check) vía `document.createElement('script')`.
+El SDK se carga dinamicamente (`Platform.OS === 'web'` check) via `document.createElement('script')`.
 En nativo (iOS/Android) se muestra un mensaje de "solo disponible en web".
 
-Pantalla de billing: `frontend/features/tenants/screens/BillingScreen.tsx`
-Flujo: "Pagar con tarjeta" → `createPayment` → SDK SmartFields → `confirmPayment` → `applyRenewal`
+### Formulario De Pago (ambas pantallas)
+
+El pagador ingresa manualmente todos sus datos — no se infieren del perfil del tenant
+(quien paga puede ser el contador con su tarjeta personal):
+
+| Campo UI | Estado React | Enviado como |
+| --- | --- | --- |
+| Campo de tarjeta (SDK iframe) | ref SDK | `card_token` via `createCardToken` |
+| Nombre | `firstName` | `client_first_name` |
+| Apellido | `lastName` | `client_last_name` |
+| Email | `payerEmail` | `client_email` |
+| Tipo de documento (CI / RUC) | `documentType` | `client_document_type` |
+| Numero de documento | `payerDocument` | `client_document` |
+
+El boton de pago queda deshabilitado (opaco) hasta que el SDK este listo y todos los
+campos esten completos.
+
+### Pantallas
+
+- Onboarding: `frontend/features/onboarding/screens/RegisterPaymentScreen.tsx`
+  Flujo: `createPayment` on mount → SDK SmartFields → formulario pagador → `confirmPayment` → `/otp/confirm`
+- Billing (renovacion): `frontend/features/tenants/screens/BillingScreen.tsx`
+  Flujo: "Pagar con tarjeta" → `createPayment` → SDK SmartFields → formulario pagador → `confirmPayment` → `applyRenewal`
 
 ## Worker Diario — subscription_renewal_notifier
 
@@ -311,3 +350,13 @@ Escanea tenants activos con `plan_cycle_ends_at <= now + 7 dias`.
   pero el frontend no lo gestiona aun. A implementar cuando sea necesario.
 - `list_with_subscription_expiry_due` en `DynamoTenantRepository` usa scan — aceptable
   con poco volumen; convertir en GSI cuando la cardinalidad lo requiera.
+
+## Deuda Solventada
+
+- 2026-06-16: confirm payload corregido a campos flat `clientFirstName/LastName/Email/
+  DocumentType/Document` (camelCase para dLocal) — eliminaba error 908 "Missing fields".
+  El cuerpo anterior enviaba objeto `payer` anidado que dLocal rechazaba silenciosamente.
+- 2026-06-16: datos del pagador separados del perfil del tenant: se ingresan manualmente
+  en el formulario (el pagador puede ser el contador con su propia tarjeta/cedula).
+- 2026-06-16: nombre del titular dividido en Nombre + Apellido; selector explícito CI/RUC;
+  boton deshabilitado hasta completar todos los campos (opacidad 0.45 via prop `disabled`).

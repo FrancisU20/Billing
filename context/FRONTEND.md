@@ -38,7 +38,7 @@ frontend/
 ```
 
 Features actuales: `auth`, `marketing`, `onboarding`, `tenants`, `plans`, `clients`,
-`navigation` y `design-system`.
+`subscriptions`, `navigation` y `design-system`.
 
 ## Design System
 

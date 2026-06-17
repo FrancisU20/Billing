@@ -60,7 +60,7 @@ deleted            bool, soft delete
 
 # Suscripcion SaaS (dLocal Go como pasarela, ver SUBSCRIPTIONS.md):
 dlocal_payer_id      str | None
-subscription_status     str | None — active | suspended | cancelled | expired
+subscription_status     str | None — "active" | "expired" | None
 ```
 
 ### Maquina De Estados

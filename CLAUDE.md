@@ -32,9 +32,10 @@ Lambda; onboarding publico con OTP + pago dLocal Go SmartFields obligatorio para
 pago; validacion/carga/reemplazo de certificados p12; emails transaccionales; workers diarios
 (vencimiento de certificados, recordatorio/vencimiento de suscripcion); paginacion opaca,
 idempotencia HTTP, locks transaccionales, outbox transaccional y separacion publica/admin
-de planes; dLocal Go SmartFields completo (create + confirm, IDLocalClient en domain);
-endpoint de renovacion autenticado; pagina de billing en frontend (Fase 3 de
-`context/SUBSCRIPTIONS.md`).
+de planes; dLocal Go SmartFields completo (create + confirm con campos `client_*` alineados
+a la API de dLocal Go); formulario de pago con datos del pagador (nombre, apellido, email,
+tipo/numero de documento) independiente del perfil del tenant; endpoint de renovacion
+autenticado; pagina de billing en frontend (Fase 3 de `context/SUBSCRIPTIONS.md`).
 
 Proximo hito de producto: **invoices/documents** — emision SRI, secuenciales,
 XAdES-BES, almacenamiento legal y batch jobs. Ver `context/INVOICES.md`. En paralelo,
@@ -79,7 +80,7 @@ corresponda. Estado actual por capa/dominio:
 | `context/ONBOARDING.md` | Queue dedicada Enterprise automatica es alcance futuro |
 | `context/CERTIFICATES.md` | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras |
 | `context/INVOICES.md` | Dominio pendiente; deuda anticipada de IVA/SRI/reintentos |
-| `context/SUBSCRIPTIONS.md` | Sin checkout de renovacion por email (Fase 4); sin webhooks dLocal; sin 3DS; scan en worker |
+| `context/SUBSCRIPTIONS.md` | Sin checkout de renovacion por email (Fase 4); sin webhooks dLocal; sin 3DS; scan en worker de renovacion |
 
 ## Stack
 
