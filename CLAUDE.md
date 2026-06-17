@@ -40,7 +40,12 @@ del perfil del tenant; guard `pending_payment` con auto-activate via `pending_or
 `PendingActivationBanner`; retry con backoff exponencial en activate y renew; endpoint de
 activacion (`POST /tenants/{id}/subscription/activate`) con Phase 1 pre-save de
 `pending_order_id`; endpoint de renovacion; endpoint de reembolso superadmin; pagina de
-billing en frontend.
+billing en frontend; **markup 12%** sobre precio neto del plan (`shared/billing.py`,
+`gross_price()`); pantalla de activacion sin boton intermedio (auto-crea order al montar)
+con `PriceBreakdown` (plan + comision + total); **cobro automatico** en worker de renovacion
+via `dlocal_payer_id` guardado con estado `payment_failed` si falla + email de accion
+requerida; endpoint `POST /tenants/{id}/subscription/retry-payment` (tarjeta guardada,
+402 si rechazada); `PaymentFailedBanner` con reintento automatico y opcion de nueva tarjeta.
 
 Proximo hito de producto: **invoices/documents** — emision SRI, secuenciales,
 XAdES-BES, almacenamiento legal y batch jobs. Ver `context/INVOICES.md`.
@@ -83,7 +88,7 @@ corresponda. Estado actual por capa/dominio:
 | `context/ONBOARDING.md` | Queue dedicada Enterprise automatica es alcance futuro |
 | `context/CERTIFICATES.md` | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras |
 | `context/INVOICES.md` | Dominio pendiente; deuda anticipada de IVA/SRI/reintentos |
-| `context/SUBSCRIPTIONS.md` | Scans en workers (aceptable hasta ~10 K); webhook sin DLQ; orders PENDING (3DS) sin limpieza automatica |
+| `context/SUBSCRIPTIONS.md` | Scans en workers (aceptable hasta ~10 K); webhook sin DLQ; orders PENDING (3DS) sin limpieza; RetryPayment guarda Payment no-transaccionalmente; payment_failed sin expiracion automatica |
 
 ## Stack
 

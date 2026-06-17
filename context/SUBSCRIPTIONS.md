@@ -6,8 +6,10 @@ autenticado, endpoint de renovacion, worker diario de vencimiento con link `/bil
 email, pagina de billing, webhook dLocal Go con HMAC-SHA256, endpoint de reembolso
 (superadmin), manejo de 3DS en frontend (`use3dsFlow` hook), formulario de pago con datos
 del pagador independiente del perfil del tenant, **resiliencia de 4 capas** en el flujo
-de activacion/renovacion (retry, degradacion graceful, guard auto-activate,
-reconciliador cada 5 min).
+de activacion/renovacion (retry, degradacion graceful, guard auto-activate, reconciliador
+cada 5 min), **markup 12%** sobre el precio neto del plan, **cobro automatico** en
+renovacion via `dlocal_payer_id` guardado, estado `payment_failed` con banner de accion
+requerida y endpoint `retry-payment` para reintentar tarjeta guardada.
 
 ## Lee Tambien Antes De Empezar
 
@@ -99,6 +101,72 @@ pasarela — `CreatePaymentUseCase` lanza `FreePlanPaymentError` (422).
 En el modelo Netflix, tenants con plan gratuito no tienen `subscription_status='pending_payment'`
 y pasan directo al dashboard sin pantalla de activacion.
 
+## Markup De Procesamiento (12%)
+
+Todo pago de suscripcion incluye un 12% de comision fija. El precio neto queda en el plan;
+el cliente paga el precio gross.
+
+```python
+# backend/shared/billing.py
+MARKUP_PCT = Decimal("0.12")
+
+def gross_price(net: str) -> str:
+    # ej. "5.99" -> "6.71"
+    return f"{(Decimal(net) * (1 + MARKUP_PCT)).quantize(Decimal('0.01'), ROUND_HALF_UP):.2f}"
+```
+
+El endpoint `POST /subscriptions/payments` ahora devuelve tres campos de precio:
+
+```json
+{ "amount": "6.71", "net_amount": "5.99", "markup_pct": "12", "currency": "USD" }
+```
+
+- `amount` = precio gross cobrado a dLocal (lo que se debita de la tarjeta).
+- `net_amount` = precio base del plan (sin markup).
+- `markup_pct` = porcentaje de comision como string entero.
+
+`RetryPaymentUseCase` y el cobro automatico del worker usan `gross_price()` de la misma
+funcion para garantizar coherencia. El markup se aplica igual para ciclo mensual y anual.
+
+## Cobro Automatico En Renovacion
+
+El worker diario `subscription_renewal_notifier` extiende su logica cuando el tenant tiene
+`dlocal_payer_id` guardado de un pago anterior:
+
+```
+tenant vencido + dlocal_payer_id SET
+  → POST /v1/payments { payer: { id: payer_id }, amount: gross_price(plan), ... }
+  → PAID  → payment.save() + apply_subscription_renewal() + repo.save(tenant)
+  → FAILED / REJECTED → tenant.mark_payment_failed() + repo.save() + send_payment_failed email
+
+tenant vencido + sin dlocal_payer_id
+  → expire_subscription() + send_subscription_expired email (flujo anterior)
+```
+
+`mark_payment_failed()` setea `subscription_status = "payment_failed"`. El tenant sigue
+activo en la plataforma pero ve el `PaymentFailedBanner` en cada pantalla.
+
+El cobro automatico requiere que el worker tenga configurados `PLANS_TABLE`,
+`PAYMENTS_TABLE` y `DLOCALGO_CREDENTIALS_NAME`. Si alguno falta, el worker cae al
+comportamiento anterior (solo notificacion/expiracion), sin auto-charge.
+
+## Estado payment_failed
+
+`subscription_status = "payment_failed"` indica que el cobro automatico fallo. El tenant:
+- Puede seguir navegando el dashboard (no se bloquea la sesion).
+- Ve `PaymentFailedBanner` encima del Stack en toda la app (`(tenant)/_layout.tsx`).
+- El banner intenta `POST /tenants/{id}/subscription/retry-payment` automaticamente al montar.
+  - Si tiene exito → `refresh()` del tenant → banner desaparece.
+  - Si falla → muestra dos botones: "Reintentar tarjeta guardada" y "Pagar con tarjeta nueva".
+- "Pagar con tarjeta nueva" navega a `/billing` donde `BillingScreen` adapta su UI para
+  `payment_failed` y permite pagar con SmartFields → `POST /tenants/{id}/subscription/renew`.
+
+Transiciones desde `payment_failed`:
+```
+payment_failed ──► active   (via retry-payment exitoso o renew exitoso con nueva tarjeta)
+payment_failed ──► expired  (si el worker diario vuelve a correr y no tiene payer_id)
+```
+
 ## Resiliencia De Pago — 4 Capas
 
 El flujo de pago puede fallar despues de que dLocal confirma PAID (fallo de red en
@@ -156,7 +224,9 @@ subscriptions/
     commands.py          CreatePaymentCommand, ConfirmPaymentCommand
     errors.py            FreePlanPaymentError, PaymentNotFoundError, ...
     repositories/
-      i_dlocal_client.py IDLocalClient (ABC), DLocalCreatePaymentResult, DLocalConfirmPaymentResult
+      i_dlocal_client.py IDLocalClient (ABC): create_payment, confirm_payment, charge_saved_payer,
+                         refund_payment. Results: DLocalCreatePaymentResult,
+                         DLocalConfirmPaymentResult, DLocalDirectChargeResult
       i_payment_repository.py  save(), get_by_order_id(), link_tenant(), link_tenant_transact_item()
       i_plan_catalog.py  PlanSummary (monthly_price, annual_price, limit_cycle, is_free)
     entities/
@@ -185,7 +255,10 @@ backend/lambdas/tenants/
   use_cases/
     activate_subscription.py  ActivateSubscriptionUseCase — Phase1 (set_pending_order_id)
                                + Phase2 (transact_write activacion + linkeo payment)
-    apply_subscription_renewal.py  ApplySubscriptionRenewalUseCase
+    apply_subscription_renewal.py  ApplySubscriptionRenewalUseCase — acepta cualquier
+                               subscription_status; solo valida que el pago este PAID
+    retry_payment.py      RetryPaymentUseCase — cobra via dlocal_payer_id guardado;
+                          elegible en status "payment_failed" | "expired"; 402 si rechazado
   infra/
     payment_reader.py    DynamoPaymentReader
 
@@ -237,6 +310,7 @@ frontend/features/tenants/screens/BillingScreen.tsx
 | POST | `/subscriptions/webhooks/dlocal` | HMAC-SHA256 (sin JWT) | Recibe notificaciones asincronas de dLocal Go |
 | POST | `/tenants/{id}/subscription/activate` | JWT (tenant owner/admin) | Activa suscripcion pending_payment |
 | POST | `/tenants/{id}/subscription/renew` | JWT (tenant owner/admin) | Aplica renovacion de ciclo |
+| POST | `/tenants/{id}/subscription/retry-payment` | JWT (tenant owner/admin) | Reintenta cobro con tarjeta guardada |
 
 ### POST /subscriptions/payments
 
@@ -249,8 +323,20 @@ Request:
 
 Response 201:
 ```json
-{ "data": { "order_id": "DP-12345", "checkout_token": "mct_xxx", "amount": "5.99", "currency": "USD" } }
+{
+  "data": {
+    "order_id": "DP-12345",
+    "checkout_token": "mct_xxx",
+    "amount": "6.71",
+    "net_amount": "5.99",
+    "markup_pct": "12",
+    "currency": "USD"
+  }
+}
 ```
+
+`amount` es el valor gross cobrado a dLocal. `net_amount` es el precio base del plan.
+El frontend muestra el desglose via `PriceBreakdown`.
 
 Errores: 422 `FREE_PLAN_NO_PAYMENT`, 404 `PLAN_NOT_FOUND`, 502 `PAYMENT_CREATION_FAILED`.
 
@@ -354,6 +440,23 @@ Response 200:
 { "data": { "tenant_id": "...", "plan_cycle_ends_at": "...", "subscription_status": "active" } }
 ```
 
+### POST /tenants/{id}/subscription/retry-payment
+
+Requiere `X-Idempotency-Key`. Cobra con el `dlocal_payer_id` guardado del tenant.
+Solo elegible si `subscription_status` es `"payment_failed"` o `"expired"`.
+
+Request: sin body (los datos del pago se derivan del tenant).
+
+Response 200:
+```json
+{ "data": { "tenant_id": "...", "plan_cycle_ends_at": "...", "subscription_status": "active" } }
+```
+
+Errores:
+- 422 `NO_SAVED_PAYMENT_METHOD` — el tenant nunca confirmo un pago con SmartFields.
+- 402 `SAVED_CARD_REJECTED` — dLocal rechazo el cobro o fallo la llamada HTTP.
+- 422 `RETRY_PAYMENT_NOT_ELIGIBLE` — el status no es `payment_failed` ni `expired`.
+
 ## DynamoDB Schema
 
 Tabla: `payments`. PK = `id` (sin SK).
@@ -392,20 +495,34 @@ GSI `tenant-payments-index`: PK=`tenant_id`, SK=`created_at`. Para historial por
 | `PaymentAlreadyConfirmedError` | `AppError` | 409 | Orden ya confirmada (PAID) |
 | `PaymentCreationError` | `AppError` | 502 | dLocal rechaza create |
 | `PaymentConfirmError` | `AppError` | 502 | dLocal rechaza confirm o status no-PAID |
+| `NoSavedPaymentMethodError` | `BusinessError` | 422 | Tenant sin `dlocal_payer_id` en retry-payment |
+| `SavedCardRejectedError` | `AppError` | **402** | dLocal rechaza cobro automatico o retry |
+| `RetryPaymentNotEligibleError` | `BusinessError` | 422 | subscription_status no elegible para retry |
 
-Nota: `BusinessError` → HTTP 422 (no 400). Ver `BACKEND.md` para la jerarquia de errores.
+Nota: `BusinessError` → HTTP 422 (no 400). `SavedCardRejectedError` usa 402 para que el
+frontend pueda distinguir rechazo de tarjeta de un error de servidor. Ver `BACKEND.md`.
 
 ## Campos De Suscripcion En Tenant
 
 ```python
-dlocal_payer_id                        str | None  — payer_id de la ultima confirmacion
-subscription_status                    str | None  — "active" | "expired" | "none" | "pending_payment"
+dlocal_payer_id                        str | None  — payer_id de la ultima confirmacion SmartFields;
+                                                     habilitado cobra automatico y retry-payment
+subscription_status                    str | None  — "active" | "expired" | "pending_payment"
+                                                     | "payment_failed" | None
 plan_cycle_ends_at                     str | None  — ISO8601 UTC; None cuando pending_payment
 subscription_renewal_reminder_sent_at  str | None  — idempotencia del worker diario
 pending_order_id                       str | None  — order_id PAID pendiente de activar;
                                                      se escribe en Phase 1 de activate,
                                                      se limpia al activar exitosamente.
                                                      Sirve de señal para el guard y el reconciliador.
+```
+
+Metodos de dominio relevantes:
+
+```python
+tenant.mark_payment_failed(*, updated_by)          # subscription_status = "payment_failed"
+tenant.apply_subscription_renewal(...)             # subscription_status = "active"; limpia reminder
+tenant.expire_subscription(*, updated_by)          # subscription_status = "expired"
 ```
 
 `subscription_status` es gestionado por nuestra logica (no por dLocal).
@@ -442,16 +559,29 @@ Antes de activar el pago en cada entorno:
 ## Frontend — Subscriptions
 
 `frontend/features/subscriptions/`:
-- `schemas.ts` — `createPaymentResultSchema`, `confirmPaymentResultSchema`,
-  `paymentStatusSchema`, `applyRenewalResultSchema`
-- `api.ts` — `subscriptionsApi.{createPayment, confirmPayment, getPayment, activateSubscription, applyRenewal}`
+- `schemas.ts` — `createPaymentResultSchema` (incluye `net_amount`, `markup_pct`),
+  `confirmPaymentResultSchema`, `paymentStatusSchema`, `applyRenewalResultSchema`,
+  `retryPaymentResultSchema`
+- `api.ts` — `subscriptionsApi.{createPayment, confirmPayment, getPayment,
+  activateSubscription, applyRenewal, retryPayment}`
 - `components/PendingActivationBanner.tsx` — banner sticky que auto-activa con retry
   y muestra "Reintentar" si falla. Se monta desde `(tenant)/_layout.tsx` cuando
   `pending_payment + pending_order_id`.
+- `components/PaymentFailedBanner.tsx` — auto-reintenta `retry-payment` al montar.
+  En exito llama `onRetried()`. En fallo muestra dos botones: "Reintentar tarjeta
+  guardada" (llama retry-payment de nuevo) y "Pagar con tarjeta nueva" (navega a billing).
+  Se monta desde `(tenant)/_layout.tsx` cuando `subscription_status === 'payment_failed'`.
+- `components/PriceBreakdown.tsx` — muestra desglose: plan, precio base, comision 12%,
+  total a cobrar. Props: `plan`, `netAmount?`, `grossAmount?`. Si no tiene `netAmount`/
+  `grossAmount`, calcula el gross en el cliente con `MARKUP_PCT = 0.12`.
 - `dlocal-types.ts` — interfaces TypeScript del SDK dLocal Go.
 - `dlocal-field-options.ts` — estilos del campo SmartFields adaptados al tema activo.
 - `use-dlocal-smartfields.ts` — hook React que encapsula carga del SDK, inicializacion,
   mount/unmount y estados `sdkReady`/`sdkError`. StrictMode-safe con flag `cancelled`.
+
+`frontend/features/tenants/hooks/usePlan.ts` — `usePlan(planId)`: carga `plansApi.list()`
+y filtra por `planId`. Devuelve `{ plan, loading }`. Usado en `ActivateSubscriptionScreen`,
+`BillingScreen` y `PaymentFailedBanner` para mostrar nombre y precio del plan.
 
 `frontend/lib/utils/retry.ts` — `retryWithBackoff(fn, [1000, 2000, 4000])`. Utilitario
 generico; usado en `ActivateSubscriptionScreen`, `BillingScreen` y `PendingActivationBanner`.
@@ -486,14 +616,22 @@ campos esten completos.
 - **Activacion** (primera sesion): `frontend/features/subscriptions/screens/ActivateSubscriptionScreen.tsx`
   Ruta: `/(app)/activate-subscription` — fuera de `(tenant)/` para evitar loop del guard.
   Guard: `(tenant)/_layout.tsx` detecta `pending_payment` sin `pending_order_id` y redirige aqui.
-  Flujo: `useTenant` carga plan_id → `createPayment` → SDK SmartFields → formulario pagador
-         → `confirmPayment` → `activateSubscription` (con retry) → redirect dashboard.
+  Flujo: `useTenant` + `usePlan` cargan → `createPayment` se llama **automaticamente** al montar
+         (guard `useRef(false)` para evitar doble disparo en StrictMode) → `PriceBreakdown`
+         muestra el desglose mientras el SDK carga → formulario pagador → `confirmPayment`
+         → `activateSubscription` (con retry) → redirect dashboard.
+  Si el usuario cancela, el `useRef` se resetea para poder reintentar.
 
-- **Billing** (renovacion): `frontend/features/tenants/screens/BillingScreen.tsx`
-  Flujo: "Pagar con tarjeta" → `createPayment` → SDK SmartFields → formulario pagador
+- **Billing** (renovacion / pago con tarjeta nueva desde payment_failed):
+  `frontend/features/tenants/screens/BillingScreen.tsx`
+  Adapta su UI cuando `subscription_status === 'payment_failed'` (titulo, hint, badge).
+  Flujo: `createPayment` → SDK SmartFields → `PriceBreakdown` → formulario pagador
          → `confirmPayment` → `applyRenewal` (con retry).
+  `ApplySubscriptionRenewalUseCase` no valida el subscription_status — acepta `payment_failed`
+  y deja el tenant en `active` si el pago es PAID.
 
-- **Guard con banner** `(tenant)/_layout.tsx`:
+- **Guard con banners** `(tenant)/_layout.tsx`:
+  - `payment_failed` → muestra Stack + `PaymentFailedBanner` encima (acceso al dashboard permitido)
   - `pending_payment` + `pending_order_id` → muestra Stack + `PendingActivationBanner`
   - `pending_payment` sin `pending_order_id` → redirect a `ActivateSubscriptionScreen`
   - cualquier otro estado → pass-through
@@ -502,8 +640,12 @@ campos esten completos.
 
 | Worker | Schedule | Funcion |
 | --- | --- | --- |
-| `subscription_renewal_notifier` | `cron(0 10 * * ? *)` (diario) | Envia recordatorio 7d antes y expira suscripciones vencidas |
+| `subscription_renewal_notifier` | `cron(0 10 * * ? *)` (diario) | Recordatorio 7d antes; vencimiento; cobro automatico si tiene payer_id |
 | `pending_activation_reconciler` | `rate(5 minutes)` | Activa tenants con `pending_payment + pending_order_id` |
+
+El `subscription_renewal_notifier` requiere `PLANS_TABLE`, `PAYMENTS_TABLE` y
+`DLOCALGO_CREDENTIALS_NAME` para habilitar el cobro automatico. Si alguna variable
+falta, el worker funciona en modo degradado (solo notificaciones, sin auto-charge).
 
 ## Deuda Tecnica
 
@@ -514,3 +656,11 @@ campos esten completos.
   mecanismo para detectar perdida de eventos mas alla de los logs de Lambda.
 - Orders con status `PENDING` (3DS iniciado pero no completado) no tienen limpieza
   automatica — quedan indefinidamente en DynamoDB sin un worker que los expire o notifique.
+- `RetryPaymentUseCase` guarda el `Payment` con `payment_repo.save()` antes del
+  `repo.commit(tenant)`. Si el commit falla, el Payment queda en DynamoDB pero el tenant
+  sigue en `payment_failed`. En el siguiente retry se crea un nuevo Payment — el anterior
+  queda huerfano (detectable por el `orphan_payment_notifier`). Aceptable como deuda
+  tecnica; la solucion correcta seria un `transact_write` que incluya el Payment.
+- `payment_failed` puede quedar bloqueado indefinidamente si el tenant no tiene
+  `dlocal_payer_id` y no tiene acceso a la pantalla de billing (ej. acceso revocado).
+  El worker diario no tiene logica de limpieza ni expiracion para este estado.

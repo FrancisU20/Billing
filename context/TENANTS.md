@@ -59,8 +59,8 @@ onboarding_completed_at
 deleted            bool, soft delete
 
 # Suscripcion SaaS (dLocal Go como pasarela, ver SUBSCRIPTIONS.md):
-dlocal_payer_id      str | None
-subscription_status     str | None — "active" | "expired" | None
+dlocal_payer_id      str | None  — payer_id guardado; habilita cobro automatico y retry-payment
+subscription_status  str | None  — "active" | "expired" | "pending_payment" | "payment_failed" | None
 ```
 
 ### Maquina De Estados
@@ -111,6 +111,9 @@ Todos los endpoints requieren JWT superadmin salvo `GET /plans` que es publico
 | PATCH | `/tenants/{id}` | actualizar |
 | PATCH | `/tenants/{id}/status` | cambiar estado |
 | POST | `/tenants/{id}/onboarding/retry` | re-encolar provisioning Cognito/email owner |
+| POST | `/tenants/{id}/subscription/activate` | activar suscripcion `pending_payment` |
+| POST | `/tenants/{id}/subscription/renew` | renovar ciclo con pago confirmado |
+| POST | `/tenants/{id}/subscription/retry-payment` | reintentar tarjeta guardada (owner/admin) |
 | DELETE | `/tenants/{id}` | soft delete (no expuesto en UI) |
 
 ## DynamoDB Schema
