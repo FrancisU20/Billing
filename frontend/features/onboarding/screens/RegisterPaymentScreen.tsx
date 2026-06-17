@@ -258,7 +258,7 @@ export function RegisterPaymentScreen() {
                     size="lg"
                     fullWidth
                     isLoading={submitting}
-                    disabled={!sdkReady}
+                    disabled={!sdkReady || !cardholderName.trim()}
                     onPress={() => confirmPayment()}
                   >
                     Pagar ${price} USD

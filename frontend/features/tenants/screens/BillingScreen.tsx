@@ -306,7 +306,7 @@ export function BillingScreen() {
                       size="lg"
                       fullWidth
                       isLoading={confirming}
-                      disabled={!sdkReady}
+                      disabled={!sdkReady || !cardholderName.trim()}
                       onPress={() => confirmRenewal()}
                     >
                       Confirmar pago
