@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect } from 'react'
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native'
+import React, { useCallback, useEffect, useState } from 'react'
+import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
@@ -65,6 +65,9 @@ export function RegisterPaymentScreen() {
     semantic,
   })
 
+  const [cardholderName, setCardholderName] = useState('')
+  const [nameError, setNameError] = useState<string | null>(null)
+
   const {
     submitting,
     error: confirmError,
@@ -80,11 +83,19 @@ export function RegisterPaymentScreen() {
     )
       return
 
+    if (!cardholderName.trim()) {
+      setNameError('Ingresa el nombre del titular de la tarjeta.')
+      return
+    }
+    setNameError(null)
+
     if (Platform.OS !== 'web' || !fieldRef.current) {
       throw new Error('El pago con tarjeta está disponible solo en la versión web.')
     }
 
-    const { token: cardToken } = await window.dlocalGo!.createCardToken(fieldRef.current)
+    const { token: cardToken } = await window.dlocalGo!.createCardToken(fieldRef.current, {
+      name: cardholderName.trim(),
+    })
 
     await subscriptionsApi.confirmPayment(order.order_id, { card_token: cardToken })
 
@@ -194,6 +205,36 @@ export function RegisterPaymentScreen() {
 
                   <View style={styles.fieldGroup}>
                     <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                      Nombre del titular
+                    </Text>
+                    <TextInput
+                      value={cardholderName}
+                      onChangeText={(v) => {
+                        setCardholderName(v)
+                        if (nameError) setNameError(null)
+                      }}
+                      placeholder="Como aparece en la tarjeta"
+                      placeholderTextColor={semantic.text.secondary}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      style={[
+                        styles.nameInput,
+                        {
+                          borderColor: nameError ? semantic.status.error : semantic.border.default,
+                          backgroundColor: semantic.bg.page,
+                          color: semantic.text.primary,
+                        },
+                      ]}
+                    />
+                    {nameError ? (
+                      <Text style={[styles.fieldError, { color: semantic.status.error }]}>
+                        {nameError}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.fieldGroup}>
+                    <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
                       Datos de tarjeta
                     </Text>
                     <View
@@ -278,6 +319,14 @@ const styles = StyleSheet.create({
   },
   fieldGroup: { gap: spacing[1] },
   fieldLabel: { fontSize: typography.size.xs },
+  nameInput: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing[3],
+    fontSize: typography.size.sm,
+  },
+  fieldError: { fontSize: typography.size.xs },
   fieldContainer: {
     height: 48,
     borderWidth: 1,
