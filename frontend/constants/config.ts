@@ -22,6 +22,8 @@ function resolveApiUrl(): string {
 }
 
 function resolveEnv(): 'dev' | 'staging' | 'prod' {
+  const fromEnv = process.env.EXPO_PUBLIC_ENV
+  if (fromEnv === 'dev' || fromEnv === 'staging' || fromEnv === 'prod') return fromEnv
   return (extra.env as 'dev' | 'staging' | 'prod') ?? (__DEV__ ? 'dev' : 'prod')
 }
 
