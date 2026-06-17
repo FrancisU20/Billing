@@ -171,12 +171,14 @@ class ApiStack(Stack):
             memory_size   = 256,
             environment   = {
                 **_common_env,
-                "TENANTS_TABLE":     database.tenants_table.table_name,
-                "PLANS_TABLE":       database.plans_table.table_name,
-                "PAYMENTS_TABLE":    database.payments_table.table_name,
-                "AUDIT_LOG_TABLE":   database.audit_table.table_name,
-                "IDEMPOTENCY_TABLE": database.idempotency_table.table_name,
-                "OUTBOX_TABLE":      database.outbox_table.table_name,
+                "TENANTS_TABLE":             database.tenants_table.table_name,
+                "PLANS_TABLE":               database.plans_table.table_name,
+                "PAYMENTS_TABLE":            database.payments_table.table_name,
+                "AUDIT_LOG_TABLE":           database.audit_table.table_name,
+                "IDEMPOTENCY_TABLE":         database.idempotency_table.table_name,
+                "OUTBOX_TABLE":              database.outbox_table.table_name,
+                "DLOCALGO_CREDENTIALS_NAME": f"codelabs-billing-{env}/dlocalgo-credentials",
+                "DLOCALGO_API_URL":          "https://api.dlocalgo.com" if env == "prod" else "https://api-sbx.dlocalgo.com",
             },
         )
         database.tenants_table.grant_read_write_data(tenants_fn)
@@ -185,6 +187,12 @@ class ApiStack(Stack):
         database.audit_table.grant_read_write_data(tenants_fn)
         database.idempotency_table.grant_read_write_data(tenants_fn)
         database.outbox_table.grant_write_data(tenants_fn)
+        tenants_fn.add_to_role_policy(iam.PolicyStatement(
+            actions   = ["secretsmanager:GetSecretValue"],
+            resources = [
+                f"arn:aws:secretsmanager:{region}:*:secret:codelabs-billing-{env}/dlocalgo-credentials*"
+            ],
+        ))
 
         # ── Certificates Lambda ────────────────────────────────────────────────
         certificates_fn = lmb.Function(
@@ -404,20 +412,27 @@ class ApiStack(Stack):
             memory_size   = 256,
             environment   = {
                 **_common_env,
-                "TENANTS_TABLE":      database.tenants_table.table_name,
-                "AUDIT_LOG_TABLE":    database.audit_table.table_name,
-                "BREVO_SECRET_NAME":  f"codelabs-billing-{env}/brevo-api-key",
-                "BREVO_SENDER_EMAIL": "noreply@codelabsecuador.com",
-                "BREVO_SENDER_NAME":  "CodeLabs Billing",
-                "FRONTEND_URL":       frontend_url,
+                "TENANTS_TABLE":             database.tenants_table.table_name,
+                "AUDIT_LOG_TABLE":           database.audit_table.table_name,
+                "PLANS_TABLE":               database.plans_table.table_name,
+                "PAYMENTS_TABLE":            database.payments_table.table_name,
+                "BREVO_SECRET_NAME":         f"codelabs-billing-{env}/brevo-api-key",
+                "BREVO_SENDER_EMAIL":        "noreply@codelabsecuador.com",
+                "BREVO_SENDER_NAME":         "CodeLabs Billing",
+                "FRONTEND_URL":              frontend_url,
+                "DLOCALGO_CREDENTIALS_NAME": f"codelabs-billing-{env}/dlocalgo-credentials",
+                "DLOCALGO_API_URL":          "https://api.dlocalgo.com" if env == "prod" else "https://api-sbx.dlocalgo.com",
             },
         )
         database.tenants_table.grant_read_write_data(subscription_renewal_notifier_fn)
         database.audit_table.grant_read_write_data(subscription_renewal_notifier_fn)
+        database.plans_table.grant_read_data(subscription_renewal_notifier_fn)
+        database.payments_table.grant_read_write_data(subscription_renewal_notifier_fn)
         subscription_renewal_notifier_fn.add_to_role_policy(iam.PolicyStatement(
             actions   = ["secretsmanager:GetSecretValue"],
             resources = [
-                f"arn:aws:secretsmanager:{region}:*:secret:codelabs-billing-{env}/brevo-api-key*"
+                f"arn:aws:secretsmanager:{region}:*:secret:codelabs-billing-{env}/brevo-api-key*",
+                f"arn:aws:secretsmanager:{region}:*:secret:codelabs-billing-{env}/dlocalgo-credentials*",
             ],
         ))
 
@@ -461,6 +476,36 @@ class ApiStack(Stack):
             self, "OrphanPaymentNotifierSchedule",
             schedule = events.Schedule.expression("cron(0 * * * ? *)"),
             targets  = [events_targets.LambdaFunction(orphan_payment_notifier_fn)],
+        )
+
+        # ── Pending Activation Reconciler Worker ──────────────────────────────
+        # Corre cada 5 minutos: activa tenants con pending_payment que tienen un
+        # pending_order_id grabado (pago confirmado pero activate falló o se perdió
+        # la sesión del browser).
+        pending_activation_reconciler_fn = lmb.Function(
+            self, "PendingActivationReconcilerWorker",
+            function_name = f"codelabs-billing-{env}-pending-activation-reconciler",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.workers.pending_activation_reconciler.handler.handler",
+            timeout       = Duration.seconds(60),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "TENANTS_TABLE":   database.tenants_table.table_name,
+                "PAYMENTS_TABLE":  database.payments_table.table_name,
+                "AUDIT_LOG_TABLE": database.audit_table.table_name,
+            },
+        )
+        database.tenants_table.grant_read_write_data(pending_activation_reconciler_fn)
+        database.payments_table.grant_read_write_data(pending_activation_reconciler_fn)
+        database.audit_table.grant_read_write_data(pending_activation_reconciler_fn)
+
+        events.Rule(
+            self, "PendingActivationReconcilerSchedule",
+            schedule = events.Schedule.expression("rate(5 minutes)"),
+            targets  = [events_targets.LambdaFunction(pending_activation_reconciler_fn)],
         )
 
         # ── Dominio personalizado — ACM + Route53 ─────────────────────────────
@@ -532,6 +577,7 @@ class ApiStack(Stack):
             (apigwv2.HttpMethod.POST,   "/tenants/{id}/onboarding/retry"),
             (apigwv2.HttpMethod.POST,   "/tenants/{id}/subscription/activate"),
             (apigwv2.HttpMethod.POST,   "/tenants/{id}/subscription/renew"),
+            (apigwv2.HttpMethod.POST,   "/tenants/{id}/subscription/retry-payment"),
             (apigwv2.HttpMethod.DELETE, "/tenants/{id}"),
         ]:
             api.add_routes(

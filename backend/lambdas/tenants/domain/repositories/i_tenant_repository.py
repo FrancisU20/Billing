@@ -45,6 +45,16 @@ class ITenantRepository(ABC):
         """Active, non-deleted tenants with subscription_status='active' and plan_cycle_ends_at <= before."""  # noqa: E501
 
     @abstractmethod
+    def set_pending_order_id(self, tenant_id: str, order_id: str) -> None:
+        """Pre-activation bookmark: stores order_id on the tenant before the full activation
+        transaction runs. Survives if the full commit fails, enabling reconciliation."""
+
+    @abstractmethod
+    def list_with_pending_activation(self) -> list[Tenant]:
+        """Non-deleted tenants with subscription_status='pending_payment' and pending_order_id set.
+        Used by the reconciler worker to retry stalled activations."""
+
+    @abstractmethod
     def commit(
         self,
         *,

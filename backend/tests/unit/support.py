@@ -156,6 +156,8 @@ class FakeTenantRepository:
         self.get_by_ruc_calls: list[str] = []
         self.list_calls: list[dict[str, Any]] = []
         self.get_by_id_calls: list[str] = []
+        self.set_pending_order_id_calls: list[tuple[str, str]] = []
+        self.pending_activation_tenants: list[Tenant] = []
         # Exceptions to raise on successive commit() calls before succeeding,
         # e.g. [OptimisticLockError()] retries once then commits normally.
         self.commit_errors: list[Exception] = []
@@ -227,6 +229,14 @@ class FakeTenantRepository:
     def list_with_subscription_expiry_due(self, before: datetime) -> list[Tenant]:
         self.list_with_subscription_expiry_due_calls.append(before)
         return self.subscription_expiry_due
+
+    def set_pending_order_id(self, tenant_id: str, order_id: str) -> None:
+        self.set_pending_order_id_calls.append((tenant_id, order_id))
+        if tenant_id in self.tenants:
+            self.tenants[tenant_id].pending_order_id = order_id
+
+    def list_with_pending_activation(self) -> list[Tenant]:
+        return self.pending_activation_tenants
 
 
 class FakePlanCatalog:

@@ -69,6 +69,7 @@ class Tenant(GlobalEntity):
     dlocal_payer_id: str | None = None
     subscription_status: str | None = None
     subscription_renewal_reminder_sent_at: datetime | None = None
+    pending_order_id: str | None = None
 
     # ── factory ───────────────────────────────────────────────────────────────
 
@@ -169,6 +170,7 @@ class Tenant(GlobalEntity):
         self.dlocal_payer_id = payer_id
         self.subscription_status = "active"
         self.subscription_renewal_reminder_sent_at = None
+        self.pending_order_id = None
         self.touch(updated_by)
 
     def apply_subscription_renewal(
@@ -190,6 +192,10 @@ class Tenant(GlobalEntity):
 
     def mark_renewal_reminder_sent(self, *, sent_at: datetime, updated_by: str) -> None:
         self.subscription_renewal_reminder_sent_at = sent_at
+        self.touch(updated_by)
+
+    def mark_payment_failed(self, *, updated_by: str) -> None:
+        self.subscription_status = "payment_failed"
         self.touch(updated_by)
 
     def mark_certificate_expiry_alert_sent(
@@ -255,6 +261,7 @@ class Tenant(GlobalEntity):
                 if self.subscription_renewal_reminder_sent_at
                 else None
             ),
+            "pending_order_id": self.pending_order_id,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "created_by": self.created_by,

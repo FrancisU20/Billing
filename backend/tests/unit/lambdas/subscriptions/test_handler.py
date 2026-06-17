@@ -12,6 +12,7 @@ from lambdas.subscriptions.domain.errors import PaymentNotFoundError
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import (
     DLocalConfirmPaymentResult,
     DLocalCreatePaymentResult,
+    DLocalDirectChargeResult,
 )
 from lambdas.subscriptions.domain.repositories.i_plan_catalog import IPlanCatalog, PlanSummary
 from tests.unit.support import LambdaContext, api_event, configure_unit_environment, decode_response
@@ -96,6 +97,14 @@ class FakeDLocalClient:
             redirect_url=self._redirect_url,
         )
 
+    def charge_saved_payer(
+        self, payer_id: str, amount: str, currency: str, country: str
+    ) -> DLocalDirectChargeResult:
+        return DLocalDirectChargeResult(payment_id=self._payment_id, status="PAID")
+
+    def refund_payment(self, order_id: str, amount: str, currency: str):
+        pass
+
 
 class FakePaymentRepository:
     def __init__(self) -> None:
@@ -159,7 +168,9 @@ class CreatePaymentHandlerTests(unittest.TestCase):
         self.assertEqual(resp["statusCode"], 201)
         self.assertEqual(body["data"]["order_id"], "DP-X")
         self.assertEqual(body["data"]["checkout_token"], "mct_xyz")
-        self.assertEqual(body["data"]["amount"], "5.99")
+        self.assertEqual(body["data"]["net_amount"], "5.99")
+        self.assertEqual(body["data"]["amount"], "6.71")  # 5.99 * 1.12
+        self.assertEqual(body["data"]["markup_pct"], "12")
 
     def test_returns_422_for_free_plan(self) -> None:
         resp = self._call(

@@ -7,6 +7,7 @@ import urllib.request
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import (
     DLocalConfirmPaymentResult,
     DLocalCreatePaymentResult,
+    DLocalDirectChargeResult,
     DLocalRefundResult,
     IDLocalClient,
 )
@@ -103,4 +104,22 @@ class DLocalClient(IDLocalClient):
         return DLocalRefundResult(
             refund_id=resp.get("id") or "",
             status=resp.get("status") or "REFUNDED",
+        )
+
+    def charge_saved_payer(
+        self, payer_id: str, amount: str, currency: str, country: str
+    ) -> DLocalDirectChargeResult:
+        resp = self._request(
+            "POST",
+            "/v1/payments",
+            {
+                "amount": float(amount),
+                "currency": currency,
+                "country": country,
+                "payer": {"id": payer_id},
+            },
+        )
+        return DLocalDirectChargeResult(
+            payment_id=resp.get("id") or "",
+            status=resp.get("status") or "REJECTED",
         )

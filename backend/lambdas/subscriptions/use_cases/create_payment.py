@@ -10,6 +10,7 @@ from lambdas.subscriptions.domain.errors import FreePlanPaymentError, PaymentCre
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import IDLocalClient
 from lambdas.subscriptions.domain.repositories.i_payment_repository import IPaymentRepository
 from lambdas.subscriptions.domain.repositories.i_plan_catalog import IPlanCatalog
+from shared.billing import gross_price, markup_display_pct
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
@@ -21,8 +22,10 @@ _COUNTRY = "EC"
 class CreatePaymentResult:
     order_id: str
     checkout_token: str
-    amount: str
+    amount: str  # gross — what the client is charged
     currency: str
+    net_amount: str  # plan base price before markup
+    markup_pct: str  # e.g. "12"
 
 
 class CreatePaymentUseCase:
@@ -42,7 +45,8 @@ class CreatePaymentUseCase:
         if plan.is_free:
             raise FreePlanPaymentError()
 
-        amount = _plan_price(plan.monthly_price, plan.annual_price, plan.limit_cycle)
+        net_amount = _plan_price(plan.monthly_price, plan.annual_price, plan.limit_cycle)
+        amount = gross_price(net_amount)
 
         try:
             result = self._dlocal.create_payment(amount, cmd.currency, _COUNTRY)
@@ -67,6 +71,8 @@ class CreatePaymentUseCase:
             checkout_token=result.checkout_token,
             amount=amount,
             currency=cmd.currency,
+            net_amount=net_amount,
+            markup_pct=markup_display_pct(),
         )
 
 

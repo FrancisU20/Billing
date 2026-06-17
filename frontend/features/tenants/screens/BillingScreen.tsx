@@ -9,12 +9,15 @@ import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useTheme } from '@/lib/theme-context'
 import { selectUser, useAuthStore } from '@/features/auth/store'
+import { retryWithBackoff } from '@/lib/utils/retry'
 import { subscriptionsApi } from '@/features/subscriptions/api'
 import { PayerForm, usePayerForm } from '@/features/subscriptions/components/PayerForm'
+import { PriceBreakdown } from '@/features/subscriptions/components/PriceBreakdown'
 import { useDLocalSmartFields } from '@/features/subscriptions/use-dlocal-smartfields'
 import { use3dsFlow } from '@/features/subscriptions/use-3ds-flow'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { useTenant } from '../hooks/useTenant'
+import { usePlan } from '../hooks/usePlan'
 import type { CreatePaymentResult } from '@/features/subscriptions/schemas'
 
 function formatDate(iso: string | null | undefined): string {
@@ -31,6 +34,7 @@ export function BillingScreen() {
   const user = useAuthStore(selectUser)
   const tenantId = user?.tenantId ?? null
   const { tenant, loading, refresh } = useTenant(tenantId)
+  const { plan } = usePlan(tenant?.plan_id)
 
   const [order, setOrder] = useState<CreatePaymentResult | null>(null)
   const [createOrderKey] = useState(() => createIdempotencyKey('subscription-create-order'))
@@ -95,7 +99,9 @@ export function BillingScreen() {
       throw new Error('El pago no fue confirmado por dLocal Go.')
     }
 
-    await subscriptionsApi.applyRenewal(tenantId, order.order_id, renewalKey)
+    await retryWithBackoff(() =>
+      subscriptionsApi.applyRenewal(tenantId, order.order_id, renewalKey),
+    )
     setSuccess(true)
     setOrder(null)
     await refresh()
@@ -134,7 +140,9 @@ export function BillingScreen() {
               onPress={() =>
                 threeDs.checkStatus(async (orderId) => {
                   if (!tenantId) return
-                  await subscriptionsApi.applyRenewal(tenantId, orderId, renewalKey)
+                  await retryWithBackoff(() =>
+                    subscriptionsApi.applyRenewal(tenantId, orderId, renewalKey),
+                  )
                   setSuccess(true)
                   await refresh()
                 })
@@ -178,6 +186,33 @@ export function BillingScreen() {
   const cycleEndsAt = tenant?.plan_cycle_ends_at
   const isActive = subStatus === 'active'
   const isExpired = subStatus === 'expired'
+  const isPaymentFailed = subStatus === 'payment_failed'
+
+  const statusLabel = isActive
+    ? 'Activa'
+    : isExpired
+      ? 'Vencida'
+      : isPaymentFailed
+        ? 'Pago fallido'
+        : 'Sin suscripción'
+
+  const statusColor = isActive
+    ? semantic.status.success
+    : isExpired || isPaymentFailed
+      ? semantic.status.error
+      : semantic.text.secondary
+
+  const statusBg = isActive
+    ? semantic.status.successBg
+    : isExpired || isPaymentFailed
+      ? semantic.status.errorBg
+      : semantic.bg.muted
+
+  const renewalHint = isExpired
+    ? 'Tu suscripción venció. Renuévala para reactivar el acceso.'
+    : isPaymentFailed
+      ? 'El cobro automático falló. Realiza el pago con una tarjeta diferente para reactivar tu cuenta.'
+      : 'Extiende tu suscripción antes de que venza para no interrumpir el servicio.'
 
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
@@ -217,34 +252,17 @@ export function BillingScreen() {
 
           <View style={[styles.divider, { backgroundColor: semantic.border.default }]} />
 
+          {plan ? (
+            <View style={styles.infoRow}>
+              <Text style={[styles.label, { color: semantic.text.secondary }]}>Plan</Text>
+              <Text style={[styles.value, { color: semantic.text.primary }]}>{plan.name}</Text>
+            </View>
+          ) : null}
+
           <View style={styles.infoRow}>
             <Text style={[styles.label, { color: semantic.text.secondary }]}>Estado</Text>
-            <View
-              style={[
-                styles.badge,
-                {
-                  backgroundColor: isActive
-                    ? semantic.status.successBg
-                    : isExpired
-                      ? semantic.status.errorBg
-                      : semantic.bg.muted,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.badgeText,
-                  {
-                    color: isActive
-                      ? semantic.status.success
-                      : isExpired
-                        ? semantic.status.error
-                        : semantic.text.secondary,
-                  },
-                ]}
-              >
-                {isActive ? 'Activa' : isExpired ? 'Vencida' : 'Sin suscripción'}
-              </Text>
+            <View style={[styles.badge, { backgroundColor: statusBg }]}>
+              <Text style={[styles.badgeText, { color: statusColor }]}>{statusLabel}</Text>
             </View>
           </View>
 
@@ -264,17 +282,14 @@ export function BillingScreen() {
             ]}
           >
             <Text style={[styles.sectionTitle, { color: semantic.text.primary }]}>
-              Renovar suscripción
+              {isPaymentFailed ? 'Pagar con tarjeta nueva' : 'Renovar suscripción'}
             </Text>
-            <Text style={[styles.hint, { color: semantic.text.secondary }]}>
-              {isExpired
-                ? 'Tu suscripción venció. Renuévala para reactivar el acceso.'
-                : 'Extiende tu suscripción antes de que venza para no interrumpir el servicio.'}
-            </Text>
+            <Text style={[styles.hint, { color: semantic.text.secondary }]}>{renewalHint}</Text>
 
             {!order ? (
               <>
                 {createError ? <ApiErrorBanner error={createError} /> : null}
+                <PriceBreakdown plan={plan} />
                 <Button
                   variant="primary"
                   size="lg"
@@ -287,6 +302,12 @@ export function BillingScreen() {
               </>
             ) : (
               <>
+                <PriceBreakdown
+                  plan={plan}
+                  netAmount={order.net_amount}
+                  grossAmount={order.amount}
+                />
+
                 {Platform.OS !== 'web' ? (
                   <View
                     style={[

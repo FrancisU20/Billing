@@ -67,6 +67,8 @@ def _create_payment(request: Request, context) -> dict:
             "order_id": result.order_id,
             "checkout_token": result.checkout_token,
             "amount": result.amount,
+            "net_amount": result.net_amount,
+            "markup_pct": result.markup_pct,
             "currency": result.currency,
         },
         request.request_id,

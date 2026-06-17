@@ -199,7 +199,57 @@ class DynamoTenantRepository(ITenantRepository):
 
         return tenants
 
+    def list_with_pending_activation(self) -> list[Tenant]:
+        """Return pending_payment tenants that have a pending_order_id set (payment confirmed
+        but activation transaction never committed)."""
+        filter_expr = (
+            Attr("entity_type").eq("TENANT")
+            & Attr("deleted").eq(False)
+            & Attr("subscription_status").eq("pending_payment")
+            & Attr("pending_order_id").exists()
+        )
+
+        tenants: list[Tenant] = []
+        scan_kwargs: dict = {"FilterExpression": filter_expr}
+        while True:
+            try:
+                resp = self._table.scan(**scan_kwargs)
+            except ClientError as e:
+                _log.error("DynamoDB scan error (list_with_pending_activation)", error=str(e))
+                raise DatabaseError() from e
+
+            tenants.extend(self._from_item(item) for item in resp.get("Items", []))
+
+            last_key = resp.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            scan_kwargs["ExclusiveStartKey"] = last_key
+
+        return tenants
+
     # ── writes ────────────────────────────────────────────────────────────────
+
+    def set_pending_order_id(self, tenant_id: str, order_id: str) -> None:
+        """Lightweight pre-activation write. Records the order association before the full
+        activation transaction runs so the reconciler can retry if the commit fails."""
+        try:
+            self._table.update_item(
+                Key={"id": tenant_id},
+                UpdateExpression="SET pending_order_id = :oid",
+                ConditionExpression=("attribute_exists(#id) AND subscription_status = :status"),
+                ExpressionAttributeNames={"#id": "id"},
+                ExpressionAttributeValues={
+                    ":oid": order_id,
+                    ":status": "pending_payment",
+                },
+            )
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code == "ConditionalCheckFailedException":
+                # Tenant already active or doesn't exist — idempotent no-op.
+                return
+            _log.error("DynamoDB update_item error (set_pending_order_id)", error=str(exc))
+            raise DatabaseError() from exc
 
     def save(self, tenant: Tenant, user_id: str) -> None:
         self.commit(
@@ -490,6 +540,7 @@ class DynamoTenantRepository(ITenantRepository):
                 if tenant.subscription_renewal_reminder_sent_at
                 else None
             ),
+            "pending_order_id": tenant.pending_order_id,
             "version": tenant.version,
             "deleted": tenant.deleted,
             "created_at": tenant.created_at.isoformat(),
@@ -546,6 +597,7 @@ class DynamoTenantRepository(ITenantRepository):
             )
             if item.get("subscription_renewal_reminder_sent_at")
             else None,
+            pending_order_id=item.get("pending_order_id"),
             version=item.get("version", 1),
             deleted=item.get("deleted", False),
             created_at=datetime.fromisoformat(item["created_at"]),

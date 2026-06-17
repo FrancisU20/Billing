@@ -3,8 +3,10 @@ import { z } from 'zod'
 export const createPaymentResultSchema = z.object({
   order_id: z.string().min(1),
   checkout_token: z.string().min(1),
-  amount: z.string().min(1),
+  amount: z.string().min(1), // gross: what the client is charged
   currency: z.string().min(1),
+  net_amount: z.string().min(1), // plan base price before markup
+  markup_pct: z.string().min(1), // e.g. "12"
 })
 
 export const confirmPaymentResultSchema = z.object({
@@ -39,8 +41,15 @@ export const activateSubscriptionResultSchema = z.object({
   subscription_status: z.string().min(1),
 })
 
+export const retryPaymentResultSchema = z.object({
+  tenant_id: z.string().min(1),
+  plan_cycle_ends_at: z.string().min(1),
+  subscription_status: z.string().min(1),
+})
+
 export type CreatePaymentResult = z.infer<typeof createPaymentResultSchema>
 export type ConfirmPaymentResult = z.infer<typeof confirmPaymentResultSchema>
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>
 export type ApplyRenewalResult = z.infer<typeof applyRenewalResultSchema>
 export type ActivateSubscriptionResult = z.infer<typeof activateSubscriptionResultSchema>
+export type RetryPaymentResult = z.infer<typeof retryPaymentResultSchema>

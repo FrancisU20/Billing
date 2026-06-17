@@ -15,6 +15,7 @@ class FakeEmailSender(EmailSender):
     def __init__(self) -> None:
         self.reminders_sent: list[dict] = []
         self.expirations_sent: list[dict] = []
+        self.payment_failed_sent: list[dict] = []
 
     def send_onboarding_otp(self, *, email, legal_rep_name, otp, expires_at):
         raise NotImplementedError
@@ -47,6 +48,11 @@ class FakeEmailSender(EmailSender):
 
     def send_subscription_expired(self, *, email, legal_rep_name, trade_name, renewal_url):
         self.expirations_sent.append(
+            {"email": email, "trade_name": trade_name, "renewal_url": renewal_url}
+        )
+
+    def send_payment_failed(self, *, email, legal_rep_name, trade_name, renewal_url):
+        self.payment_failed_sent.append(
             {"email": email, "trade_name": trade_name, "renewal_url": renewal_url}
         )
 

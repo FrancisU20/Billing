@@ -18,6 +18,7 @@ from lambdas.subscriptions.domain.errors import (
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import (
     DLocalConfirmPaymentResult,
     DLocalCreatePaymentResult,
+    DLocalDirectChargeResult,
     DLocalRefundResult,
     IDLocalClient,
 )
@@ -128,6 +129,11 @@ class FakeDLocalClient(IDLocalClient):
             raise self._refund_raises
         return DLocalRefundResult(refund_id="REF-001", status="REFUNDED")
 
+    def charge_saved_payer(
+        self, payer_id: str, amount: str, currency: str, country: str
+    ) -> DLocalDirectChargeResult:
+        return DLocalDirectChargeResult(payment_id=self._payment_id, status="PAID")
+
 
 class FakePaymentRepository:
     def __init__(self) -> None:
@@ -169,7 +175,9 @@ class CreatePaymentUseCaseTests(unittest.TestCase):
         )
         self.assertEqual(result.order_id, "DP-1")
         self.assertEqual(result.checkout_token, "mct_abc")
-        self.assertEqual(result.amount, "5.99")
+        self.assertEqual(result.net_amount, "5.99")
+        self.assertEqual(result.amount, "6.71")  # 5.99 * 1.12 rounded
+        self.assertEqual(result.markup_pct, "12")
         self.assertEqual(result.currency, "USD")
         self.assertEqual(len(repo.saved), 1)
         self.assertEqual(repo.saved[0].status, "CREATED")
@@ -190,8 +198,9 @@ class CreatePaymentUseCaseTests(unittest.TestCase):
         result = self._use_case(catalog=catalog, dlocal=dlocal).execute(
             CreatePaymentCommand(plan_id="plan-y")
         )
-        self.assertEqual(result.amount, "57.00")
-        self.assertEqual(dlocal.create_calls[0][0], "57.00")
+        self.assertEqual(result.net_amount, "57.00")
+        self.assertEqual(result.amount, "63.84")  # 57.00 * 1.12 rounded
+        self.assertEqual(dlocal.create_calls[0][0], "63.84")
 
     def test_raises_for_free_plan(self) -> None:
         catalog = FakePlanCatalog(is_free=True)

@@ -25,6 +25,12 @@ class DLocalRefundResult:
     status: str
 
 
+@dataclass(frozen=True)
+class DLocalDirectChargeResult:
+    payment_id: str
+    status: str  # "PAID" | "REJECTED" | "FAILED" | ...
+
+
 class IDLocalClient(ABC):
     @abstractmethod
     def create_payment(
@@ -45,3 +51,8 @@ class IDLocalClient(ABC):
 
     @abstractmethod
     def refund_payment(self, order_id: str, amount: str, currency: str) -> DLocalRefundResult: ...
+
+    @abstractmethod
+    def charge_saved_payer(
+        self, payer_id: str, amount: str, currency: str, country: str
+    ) -> DLocalDirectChargeResult: ...

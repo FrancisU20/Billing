@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
@@ -13,8 +13,11 @@ import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useTheme } from '@/lib/theme-context'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { useTenant } from '@/features/tenants/hooks/useTenant'
+import { usePlan } from '@/features/tenants/hooks/usePlan'
+import { retryWithBackoff } from '@/lib/utils/retry'
 import { subscriptionsApi } from '../api'
 import { PayerForm, usePayerForm } from '../components/PayerForm'
+import { PriceBreakdown } from '../components/PriceBreakdown'
 import { useDLocalSmartFields } from '../use-dlocal-smartfields'
 import { use3dsFlow } from '../use-3ds-flow'
 import type { CreatePaymentResult } from '../schemas'
@@ -25,10 +28,12 @@ export function ActivateSubscriptionScreen() {
   const user = useAuthStore(selectUser)
   const tenantId = user?.tenantId ?? null
   const { tenant, loading: tenantLoading } = useTenant(tenantId)
+  const { plan } = usePlan(tenant?.plan_id)
 
   const [order, setOrder] = useState<CreatePaymentResult | null>(null)
   const [createOrderKey] = useState(() => createIdempotencyKey('subscription-activate-create'))
   const [activateKey] = useState(() => createIdempotencyKey('subscription-activate'))
+  const orderTriggered = useRef(false)
 
   const payerForm = usePayerForm()
   const threeDs = use3dsFlow()
@@ -53,6 +58,13 @@ export function ActivateSubscriptionScreen() {
     error: createError,
     submit: startPayment,
   } = useFormSubmit(handleCreateOrder)
+
+  // Auto-create the payment order as soon as tenant data is ready
+  useEffect(() => {
+    if (!tenant || orderTriggered.current) return
+    orderTriggered.current = true
+    startPayment()
+  }, [tenant, startPayment])
 
   const {
     submitting: confirming,
@@ -88,12 +100,15 @@ export function ActivateSubscriptionScreen() {
       throw new Error('El pago no fue confirmado por dLocal Go.')
     }
 
-    await subscriptionsApi.activateSubscription(tenantId, order.order_id, activateKey)
+    await retryWithBackoff(() =>
+      subscriptionsApi.activateSubscription(tenantId, order.order_id, activateKey),
+    )
     router.replace(Routes.tenant.dashboard as Href)
   })
 
   const handleCancel = useCallback(() => {
     setOrder(null)
+    orderTriggered.current = false
     payerForm.reset()
   }, [payerForm])
 
@@ -136,7 +151,9 @@ export function ActivateSubscriptionScreen() {
               onPress={() =>
                 threeDs.checkStatus(async (orderId) => {
                   if (!tenantId) return
-                  await subscriptionsApi.activateSubscription(tenantId, orderId, activateKey)
+                  await retryWithBackoff(() =>
+                    subscriptionsApi.activateSubscription(tenantId, orderId, activateKey),
+                  )
                   router.replace(Routes.tenant.dashboard as Href)
                 })
               }
@@ -207,20 +224,26 @@ export function ActivateSubscriptionScreen() {
 
           <View style={[styles.divider, { backgroundColor: semantic.border.default }]} />
 
-          {!order ? (
+          <PriceBreakdown plan={plan} netAmount={order?.net_amount} grossAmount={order?.amount} />
+
+          {creatingOrder ? (
+            <LoadingSpinner compact label="Preparando formulario de pago..." />
+          ) : createError ? (
             <>
-              {createError ? <ApiErrorBanner error={createError} /> : null}
+              <ApiErrorBanner error={createError} />
               <Button
                 variant="primary"
                 size="lg"
                 fullWidth
-                isLoading={creatingOrder}
-                onPress={() => startPayment()}
+                onPress={() => {
+                  orderTriggered.current = false
+                  startPayment()
+                }}
               >
-                Pagar con tarjeta
+                Reintentar
               </Button>
             </>
-          ) : (
+          ) : order ? (
             <>
               {Platform.OS !== 'web' ? (
                 <View
@@ -297,7 +320,7 @@ export function ActivateSubscriptionScreen() {
                 Cancelar
               </Button>
             </>
-          )}
+          ) : null}
         </View>
       </ScrollView>
     </View>

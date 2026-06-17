@@ -5,6 +5,7 @@ import {
   confirmPaymentResultSchema,
   createPaymentResultSchema,
   paymentStatusSchema,
+  retryPaymentResultSchema,
 } from './schemas'
 
 export const subscriptionsApi = {
@@ -47,4 +48,9 @@ export const subscriptionsApi = {
       activateSubscriptionResultSchema,
       { idempotencyKey },
     ),
+
+  retryPayment: (tenantId: string, idempotencyKey: string) =>
+    api.post(`/tenants/${tenantId}/subscription/retry-payment`, {}, retryPaymentResultSchema, {
+      idempotencyKey,
+    }),
 }

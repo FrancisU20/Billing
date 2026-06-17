@@ -4,13 +4,16 @@ from __future__ import annotations
 Tenants Lambda — AWS entry point.
 
 Routes:
-    POST   /tenants             create tenant        (superadmin)
-    GET    /tenants             list all             (superadmin)
-    GET    /tenants/{id}        get by ID            (superadmin | tenant members)
-    PATCH  /tenants/{id}        update               (superadmin | owner | admin)
-    PATCH  /tenants/{id}/status change status        (superadmin)
-    POST   /tenants/{id}/onboarding/retry            (superadmin)
-    DELETE /tenants/{id}        soft delete          (superadmin)
+    POST   /tenants                                create tenant    (superadmin)
+    GET    /tenants                                list all         (superadmin)
+    GET    /tenants/{id}                           get by ID        (superadmin | tenant members)
+    PATCH  /tenants/{id}                           update           (superadmin | owner | admin)
+    PATCH  /tenants/{id}/status                    change status    (superadmin)
+    POST   /tenants/{id}/onboarding/retry          retry onboarding (superadmin)
+    DELETE /tenants/{id}                           soft delete      (superadmin)
+    POST   /tenants/{id}/subscription/activate     first activation (owner | admin | superadmin)
+    POST   /tenants/{id}/subscription/renew        manual renewal   (owner | admin | superadmin)
+    POST   /tenants/{id}/subscription/retry-payment retry saved card (owner | admin | superadmin)
 """
 import re
 
@@ -19,6 +22,8 @@ from lambdas._base.idempotency import idempotent, require_current_context
 from lambdas._base.parser import Request, parse, require_path_param
 from lambdas._base.permissions import require_role, require_superadmin
 from lambdas._base.response import ApiResponse
+from lambdas.subscriptions.infra.dlocal_client import DLocalClient
+from lambdas.subscriptions.infra.payment_repository import DynamoPaymentRepository
 from lambdas.tenants.domain.commands import (
     CreateTenantCommand,
     RetryTenantOnboardingCommand,
@@ -42,6 +47,7 @@ from lambdas.tenants.use_cases.delete_tenant import DeleteTenantUseCase
 from lambdas.tenants.use_cases.get_tenant import GetTenantUseCase
 from lambdas.tenants.use_cases.list_tenants import ListTenantsQuery, ListTenantsUseCase
 from lambdas.tenants.use_cases.retry_onboarding import RetryTenantOnboardingUseCase
+from lambdas.tenants.use_cases.retry_payment import RetryPaymentUseCase
 from lambdas.tenants.use_cases.toggle_status import ToggleStatusUseCase
 from lambdas.tenants.use_cases.update_tenant import UpdateTenantUseCase
 from shared.config import env
@@ -49,6 +55,7 @@ from shared.dates import parse_date_boundary
 from shared.db.client import get_table
 from shared.db.limits import DEFAULT_LIST_LIMIT, clamp_list_limit
 from shared.errors import ForbiddenError, NotFoundError, ValidationError
+from shared.secrets.client import get_secret_json
 
 # ── Cold start ────────────────────────────────────────────────────────────────
 _TABLE = get_table("TENANTS_TABLE")
@@ -68,6 +75,22 @@ def _plan_catalog() -> DynamoPlanCatalog:
 
 def _payment_reader() -> DynamoPaymentReader | None:
     return DynamoPaymentReader(_PAYMENTS_TABLE) if _PAYMENTS_TABLE else None
+
+
+def _payment_repo() -> DynamoPaymentRepository | None:
+    return DynamoPaymentRepository(_PAYMENTS_TABLE) if _PAYMENTS_TABLE else None
+
+
+def _dlocal_client() -> DLocalClient | None:
+    creds_name = env("DLOCALGO_CREDENTIALS_NAME", "")
+    if not creds_name:
+        return None
+    creds = get_secret_json(creds_name)
+    return DLocalClient(
+        base_url=env("DLOCALGO_API_URL"),
+        api_key=creds["api_key"],
+        secret_key=creds["secret_key"],
+    )
 
 
 def _parse_list_query(params: dict) -> ListTenantsQuery:
@@ -322,6 +345,40 @@ def _apply_renewal(request: Request, context) -> dict:
 
 
 @lambda_handler
+@require_role("owner", "admin", "superadmin")
+@idempotent
+def _retry_payment(request: Request, context) -> dict:
+    tenant_id = require_path_param(request, "id")
+    if not request.is_superadmin and request.tenant_id != tenant_id:
+        raise ForbiddenError()
+    dlocal = _dlocal_client()
+    payment_repo = _payment_repo()
+    if not dlocal or not payment_repo:
+        raise ValidationError("Cobro automático no disponible en este entorno.")
+    repo = _repo()
+    tenant, result = RetryPaymentUseCase(repo, _plan_catalog(), dlocal, payment_repo).execute(
+        tenant_id, request.user_id
+    )
+    response = ApiResponse.ok(
+        {
+            "tenant_id": result.tenant_id,
+            "plan_cycle_ends_at": result.plan_cycle_ends_at,
+            "subscription_status": result.subscription_status,
+        },
+        request.request_id,
+    )
+    repo.commit(
+        tenant=tenant,
+        user_id=request.user_id,
+        action="SUBSCRIPTION_RETRY_PAYMENT",
+        events=[],
+        idempotency=require_current_context(),
+        response=response,
+    )
+    return response
+
+
+@lambda_handler
 @require_superadmin
 @idempotent
 def _delete(request: Request, context) -> dict:
@@ -347,6 +404,7 @@ _STATUS_PATTERN = re.compile(r"^/tenants/[^/]+/status$")
 _ONBOARDING_RETRY_PATTERN = re.compile(r"^/tenants/[^/]+/onboarding/retry$")
 _SUBSCRIPTION_RENEW_PATTERN = re.compile(r"^/tenants/[^/]+/subscription/renew$")
 _SUBSCRIPTION_ACTIVATE_PATTERN = re.compile(r"^/tenants/[^/]+/subscription/activate$")
+_SUBSCRIPTION_RETRY_PAYMENT_PATTERN = re.compile(r"^/tenants/[^/]+/subscription/retry-payment$")
 
 
 def handler(event: dict, context) -> dict:
@@ -375,6 +433,10 @@ def handler(event: dict, context) -> dict:
     if _SUBSCRIPTION_RENEW_PATTERN.match(path):
         if method == "POST":
             return _apply_renewal(event, context)
+
+    if _SUBSCRIPTION_RETRY_PAYMENT_PATTERN.match(path):
+        if method == "POST":
+            return _retry_payment(event, context)
 
     if _ID_PATTERN.match(path):
         if method == "GET":

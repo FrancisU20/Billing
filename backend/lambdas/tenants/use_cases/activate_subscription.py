@@ -51,6 +51,11 @@ class ActivateSubscriptionUseCase:
         if payment.plan_id != tenant.plan_id:
             raise SubscriptionRenewalPlanMismatchError()
 
+        # Phase 1: bookmark the order on the tenant BEFORE the full transaction.
+        # If the commit below fails the order_id survives on DynamoDB, letting the
+        # reconciler worker retry without needing the browser session.
+        self._tenant_repo.set_pending_order_id(tenant_id, order_id)
+
         now = datetime.now(UTC)
         tenant.activate_subscription(
             payer_id=payment.payer_id,

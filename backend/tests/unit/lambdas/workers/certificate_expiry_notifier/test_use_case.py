@@ -48,6 +48,9 @@ class FakeEmailSender(EmailSender):
     def send_subscription_expired(self, *, email, legal_rep_name, trade_name):
         raise NotImplementedError
 
+    def send_payment_failed(self, *, email, legal_rep_name, trade_name, renewal_url):
+        raise NotImplementedError
+
     def send_orphan_payment_alert(
         self, *, superadmin_email, order_id, payer_email, plan_id, amount, currency, confirmed_at
     ):

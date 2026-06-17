@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from shared.errors import BusinessError, ConflictError, NotFoundError
+from shared.errors import AppError, BusinessError, ConflictError, NotFoundError
 
 
 class TenantNotFoundError(NotFoundError):
@@ -51,3 +51,21 @@ class SubscriptionRenewalPlanMismatchError(BusinessError):
 class SubscriptionAlreadyActiveError(ConflictError):
     code = "SUBSCRIPTION_ALREADY_ACTIVE"
     default_message = "La suscripción ya está activa."
+
+
+class NoSavedPaymentMethodError(BusinessError):
+    code = "NO_SAVED_PAYMENT_METHOD"
+    default_message = (
+        "No hay método de pago guardado. Realiza un pago manual para activar tu suscripción."
+    )
+
+
+class SavedCardRejectedError(AppError):
+    code = "SAVED_CARD_REJECTED"
+    default_message = "Tu tarjeta fue rechazada. Intenta con una tarjeta diferente."
+    status_code = 402
+
+
+class RetryPaymentNotEligibleError(BusinessError):
+    code = "RETRY_PAYMENT_NOT_ELIGIBLE"
+    default_message = "La suscripción no tiene pagos pendientes."

@@ -356,5 +356,149 @@ class ActivateSubscriptionUseCaseTests(unittest.TestCase):
             self._execute(payment=payment)
 
 
+class ActivateSubscriptionPreSaveTests(unittest.TestCase):
+    """Verify the Phase-1 pre-save bookmark written before the full commit."""
+
+    def _execute(self, **tenant_overrides):
+        repo = FakeTenantRepository()
+        tenant = make_tenant(
+            id="tenant-1", subscription_status="pending_payment", **tenant_overrides
+        )
+        repo.tenants[tenant.id] = tenant
+        payment = _captured_payment()
+        reader = FakePaymentReader(payment=payment)
+        result = ActivateSubscriptionUseCase(repo, reader).execute(
+            "tenant-1", payment.order_id, "u"
+        )
+        return repo, result
+
+    def test_set_pending_order_id_called_before_commit(self) -> None:
+        repo, _ = self._execute()
+        self.assertEqual(repo.set_pending_order_id_calls, [("tenant-1", "ORD-1")])
+
+    def test_pending_order_id_cleared_on_entity_after_activation(self) -> None:
+        repo, (tenant, _, _) = self._execute()
+        self.assertIsNone(tenant.pending_order_id)
+
+    def test_activation_proceeds_even_when_pre_save_raises_database_error(self) -> None:
+        from shared.errors import DatabaseError
+
+        repo = FakeTenantRepository()
+        tenant = make_tenant(
+            id="tenant-1", subscription_status="pending_payment", plan_cycle_ends_at=None
+        )
+        repo.tenants[tenant.id] = tenant
+
+        def raising(tenant_id, order_id):  # noqa: ARG001
+            raise DatabaseError()
+
+        repo.set_pending_order_id = raising  # type: ignore[method-assign]
+
+        payment = _captured_payment()
+        reader = FakePaymentReader(payment=payment)
+        # Even if the pre-save fails, activation should still raise (caller sees DatabaseError).
+        with self.assertRaises(DatabaseError):
+            ActivateSubscriptionUseCase(repo, reader).execute("tenant-1", payment.order_id, "u")
+
+
+class PendingActivationReconcilerUseCaseTests(unittest.TestCase):
+    from lambdas.workers.pending_activation_reconciler.use_case import (
+        PendingActivationReconcilerUseCase,
+    )
+
+    def _make_pending_tenant(self, **overrides):
+        return make_tenant(
+            id="tenant-1",
+            subscription_status="pending_payment",
+            pending_order_id="ORD-1",
+            plan_cycle_ends_at=None,
+            **overrides,
+        )
+
+    def _run(self, tenants, payment=None):
+        from lambdas.workers.pending_activation_reconciler.use_case import (
+            PendingActivationReconcilerUseCase,
+        )
+
+        repo = FakeTenantRepository()
+        repo.pending_activation_tenants = tenants
+        for t in tenants:
+            repo.tenants[t.id] = t
+        p = payment or _captured_payment()
+        reader = FakePaymentReader(payment=p)
+        result = PendingActivationReconcilerUseCase(repo, reader).execute()
+        return result, repo
+
+    def test_activates_pending_tenant(self) -> None:
+        result, repo = self._run([self._make_pending_tenant()])
+        self.assertEqual(result.activated, 1)
+        self.assertEqual(result.skipped, 0)
+        self.assertEqual(result.errors, 0)
+        self.assertEqual(len(repo.commit_calls), 1)
+
+    def test_skips_tenant_without_pending_order_id(self) -> None:
+        tenant = make_tenant(id="t-1", subscription_status="pending_payment")
+        tenant.pending_order_id = None
+        result, _ = self._run([tenant])
+        self.assertEqual(result.skipped, 1)
+        self.assertEqual(result.activated, 0)
+
+    def test_skips_already_active_tenant(self) -> None:
+        result, _ = self._run(
+            [self._make_pending_tenant()],
+            payment=_captured_payment(),
+        )
+        # Would be activated, not skipped — confirm normal activation.
+        self.assertEqual(result.activated, 1)
+
+    def test_skips_on_plan_mismatch(self) -> None:
+        result, _ = self._run(
+            [self._make_pending_tenant()],
+            payment=_captured_payment(plan_id="uuid-other"),
+        )
+        self.assertEqual(result.skipped, 1)
+        self.assertEqual(result.activated, 0)
+
+    def test_counts_unexpected_error(self) -> None:
+        from lambdas.workers.pending_activation_reconciler.use_case import (
+            PendingActivationReconcilerUseCase,
+        )
+
+        tenant = self._make_pending_tenant()
+        repo = FakeTenantRepository()
+        repo.pending_activation_tenants = [tenant]
+        repo.tenants[tenant.id] = tenant
+        repo.commit_errors = [RuntimeError("boom")]
+        reader = FakePaymentReader(payment=_captured_payment())
+        result = PendingActivationReconcilerUseCase(repo, reader).execute()
+        self.assertEqual(result.errors, 1)
+        self.assertEqual(result.activated, 0)
+
+    def test_processes_multiple_tenants(self) -> None:
+        from lambdas.workers.pending_activation_reconciler.use_case import (
+            PendingActivationReconcilerUseCase,
+        )
+
+        repo = FakeTenantRepository()
+        t1 = make_tenant(
+            id="t-1",
+            subscription_status="pending_payment",
+            pending_order_id="ORD-1",
+            plan_cycle_ends_at=None,
+        )
+        t2 = make_tenant(
+            id="t-2",
+            subscription_status="pending_payment",
+            pending_order_id="ORD-1",
+            plan_cycle_ends_at=None,
+        )
+        repo.pending_activation_tenants = [t1, t2]
+        repo.tenants["t-1"] = t1
+        repo.tenants["t-2"] = t2
+        reader = FakePaymentReader(payment=_captured_payment())
+        result = PendingActivationReconcilerUseCase(repo, reader).execute()
+        self.assertEqual(result.activated, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

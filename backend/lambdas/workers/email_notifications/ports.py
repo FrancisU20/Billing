@@ -65,6 +65,17 @@ class EmailSender(ABC):
         """Notify the tenant that their subscription has expired and access is suspended."""
 
     @abstractmethod
+    def send_payment_failed(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        trade_name: str,
+        renewal_url: str,
+    ) -> None:
+        """Notify the tenant that their automatic recurring payment failed."""
+
+    @abstractmethod
     def send_orphan_payment_alert(
         self,
         *,

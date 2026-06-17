@@ -1,10 +1,13 @@
 # Subscriptions — Dominio
 
-Estado: **implementado Fase 4 completa** — dLocal Go SmartFields (create + confirm + status),
+Estado: **implementado completo** — dLocal Go SmartFields (create + confirm + status),
 modelo Netflix (registro sin pago, activacion en primera sesion), endpoint de activacion
-autenticado, endpoint de renovacion, worker diario de vencimiento con link `/billing` en email,
-pagina de billing, webhook dLocal Go con HMAC-SHA256, endpoint de reembolso (superadmin),
-manejo de 3DS en frontend (`use3dsFlow` hook) y guard flash fix en layout del tenant.
+autenticado, endpoint de renovacion, worker diario de vencimiento con link `/billing` en
+email, pagina de billing, webhook dLocal Go con HMAC-SHA256, endpoint de reembolso
+(superadmin), manejo de 3DS en frontend (`use3dsFlow` hook), formulario de pago con datos
+del pagador independiente del perfil del tenant, **resiliencia de 4 capas** en el flujo
+de activacion/renovacion (retry, degradacion graceful, guard auto-activate,
+reconciliador cada 5 min).
 
 ## Lee Tambien Antes De Empezar
 
@@ -14,7 +17,7 @@ Leer estos archivos en orden antes de escribir codigo en este dominio:
 | --- | --- |
 | `CLAUDE.md` | Reglas no negociables (seguridad, git) |
 | `BACKEND.md` | Patron `public_lambda_handler`, `get_secret_json`, Secrets Manager |
-| `TENANTS.md` | Campos `dlocal_payer_id`, `subscription_status` en Tenant |
+| `TENANTS.md` | Campos `dlocal_payer_id`, `subscription_status`, `pending_order_id` en Tenant |
 | `ONBOARDING.md` | Registro sin pago (modelo Netflix); tenant `pending_payment` al registrarse |
 
 ## Proposito
@@ -46,7 +49,9 @@ Frontend (app autenticada)  Backend              dLocal Go
    | login → JWT               |                    |
    | (tenant)/_layout.tsx      |                    |
    | detecta pending_payment   |                    |
-   | → redirect activate-sub   |                    |
+   |   + pending_order_id?     |                    |
+   |   → si SI: banner auto-activate               |
+   |   → si NO: redirect activate-sub             |
    |                          |                    |
    |-- POST /subscriptions/payments (plan_id) ----->|
    |<-- { order_id, checkout_token, amount }        |
@@ -57,11 +62,19 @@ Frontend (app autenticada)  Backend              dLocal Go
    |<-- { status: "PAID", payer_id }               |
    |                          |                    |
    |-- POST /tenants/{id}/subscription/activate     |
-   |         verifica pago PAID                    |
-   |         activa suscripcion (cycle desde now)  |
+   |    [retry x3: 1s/2s/4s]                       |
+   |    Phase 1: SET pending_order_id = order_id   |
+   |    Phase 2: transact_write (activa tenant +   |
+   |             linkea payment)                   |
    |<-- { plan_cycle_ends_at, subscription_status } |
    | → redirect dashboard                           |
 ```
+
+Si el `activate` falla despues de todas las retries:
+- `pending_order_id` ya fue escrito en DynamoDB (Phase 1 se ejecuta antes del commit).
+- En el mismo request o en la proxima carga, el guard detecta `pending_order_id` y muestra
+  el dashboard con `PendingActivationBanner` que reintenta automaticamente.
+- Si el browser se cierra, el reconciliador (EventBridge cada 5 min) activa al tenant.
 
 ## Flujo De Renovacion — Billing
 
@@ -73,13 +86,11 @@ Frontend (billing.tsx)   Backend                  dLocal Go
    | SDK SmartFields (checkout_token)                |
    | payer ingresa tarjeta -> card_token             |
    |-- POST /subscriptions/payments/{order_id}/confirm
-   |        { card_token, client_first_name,         |
-   |          client_last_name, client_email,         |
-   |          client_document_type, client_document } |
+   |        { card_token, client_* }                |
    |<-- { status: "PAID" }                          |
    |-- POST /tenants/{id}/subscription/renew         |
-   |         marca pago aplicado (tenant_id fijo)    |
-   |         extiende plan_cycle_ends_at             |
+   |    [retry x3: 1s/2s/4s]                       |
+   |         extiende plan_cycle_ends_at            |
    |<-- { plan_cycle_ends_at, subscription_status }  |
 ```
 
@@ -87,6 +98,55 @@ Planes gratuitos (`monthly_price == 0 && annual_price == 0`) no activan la
 pasarela — `CreatePaymentUseCase` lanza `FreePlanPaymentError` (422).
 En el modelo Netflix, tenants con plan gratuito no tienen `subscription_status='pending_payment'`
 y pasan directo al dashboard sin pantalla de activacion.
+
+## Resiliencia De Pago — 4 Capas
+
+El flujo de pago puede fallar despues de que dLocal confirma PAID (fallo de red en
+`activate` o `renew`). La arquitectura tiene 4 capas de recuperacion:
+
+### Capa 1 — Retry con backoff exponencial (frontend)
+
+`retryWithBackoff(fn, [1000, 2000, 4000])` en `lib/utils/retry.ts`.
+Envuelve la llamada a `activateSubscription` (en `ActivateSubscriptionScreen`)
+y `applyRenewal` (en `BillingScreen`), incluyendo el path post-3DS.
+Cubre fallos transitorios de red o cold start de Lambda.
+
+### Capa 2 — `pending_order_id` como bookmark (backend, Phase 1)
+
+En `ActivateSubscriptionUseCase.execute()`, **antes** del `transact_write` principal:
+```python
+self._tenant_repo.set_pending_order_id(tenant_id, order_id)
+# ↑ DynamoDB update_item condicional: solo si subscription_status='pending_payment'
+# Sobrevive si el commit falla. Se limpia cuando activate_subscription() en el
+# domain model setea self.pending_order_id = None (incluido en el transact_write exitoso).
+```
+
+Si el commit falla, el tenant queda con `subscription_status='pending_payment'` +
+`pending_order_id='DP-xxx'`. Ese estado es la señal para las capas 3 y 4.
+
+### Capa 3 — Guard auto-activate (frontend)
+
+`(tenant)/_layout.tsx` revisa al cargar el tenant:
+
+```
+pending_payment + pending_order_id SET  → muestra dashboard + PendingActivationBanner
+pending_payment + pending_order_id NULL → redirect a ActivateSubscriptionScreen
+activo/expirado                         → pass-through normal
+```
+
+`PendingActivationBanner` auto-llama `activateSubscription` (con retry) al montar.
+Si tiene exito llama `refresh()` del `useTenant` hook, que recarga el tenant y
+elimina el banner. Si falla muestra boton "Reintentar".
+
+### Capa 4 — Reconciliador (worker EventBridge cada 5 min)
+
+`backend/lambdas/workers/pending_activation_reconciler/`
+- Disparado por `rate(5 minutes)`.
+- Escanea tenants con `subscription_status='pending_payment'` + `pending_order_id` seteado.
+- Para cada uno ejecuta `ActivateSubscriptionUseCase` + `repo.commit()`.
+- Errores de dominio conocidos (ya activo, plan mismatch, pago no confirmado) → skip.
+- Errores inesperados → log + contador `errors` en el resultado.
+- Cubre el caso extremo: browser cerrado, localStorage limpiado, usuario en otro dispositivo.
 
 ## Arquitectura
 
@@ -108,33 +168,42 @@ subscriptions/
     payment_repository.py  DynamoDB (PK = "PAYMENT#{order_id}")
     plan_catalog.py      Lectura local de planes sin importar lambdas.plans.*
   use_cases/
-    create_payment.py    CreatePaymentUseCase — llama dlocal.create_payment, persiste checkout_token
-    confirm_payment.py   ConfirmPaymentUseCase — llama dlocal.confirm_payment con checkout_token
+    create_payment.py    CreatePaymentUseCase
+    confirm_payment.py   ConfirmPaymentUseCase
     get_payment.py       GetPaymentUseCase
-  schemas.py             CreatePaymentRequest, ConfirmPaymentRequest
   handler.py             POST /subscriptions/payments
                          POST /subscriptions/payments/{order_id}/confirm
                          GET  /subscriptions/payments/{order_id}
+                         POST /subscriptions/payments/{order_id}/refund
+                         POST /subscriptions/webhooks/dlocal
 
 # Activacion y Renovacion viven en tenants/ (endpoints autenticados):
 backend/lambdas/tenants/
   domain/
-    commands.py          ApplySubscriptionRenewalCommand (+ existing)
-    errors.py            SubscriptionAlreadyActiveError, PaymentNotCapturedError,
-                         PaymentAlreadyAppliedError, ... (+ existing)
     repositories/
       i_payment_reader.py     IPaymentReader (ABC) — lectura y mark_applied de Payment
-      i_payment_verifier.py   IPaymentVerifier (ABC) — alias/extension de IPaymentReader
   use_cases/
-    activate_subscription.py  ActivateSubscriptionUseCase — primera activacion pending_payment
-    apply_subscription_renewal.py  ApplySubscriptionRenewalUseCase — renovacion de ciclo
+    activate_subscription.py  ActivateSubscriptionUseCase — Phase1 (set_pending_order_id)
+                               + Phase2 (transact_write activacion + linkeo payment)
+    apply_subscription_renewal.py  ApplySubscriptionRenewalUseCase
   infra/
-    payment_verifier.py    DynamoPaymentVerifier: verifica status PAID o AUTHORIZED
+    payment_reader.py    DynamoPaymentReader
 
-# Worker diario:
+# Workers:
 backend/lambdas/workers/subscription_renewal_notifier/
-  handler.py             EventBridge cron(0 10 * * ? *)
+  handler.py             EventBridge cron(0 10 * * ? *) — recordatorio/vencimiento diario
   use_case.py            NotifySubscriptionRenewalUseCase
+
+backend/lambdas/workers/pending_activation_reconciler/
+  handler.py             EventBridge rate(5 minutes) — activa tenants con pending_order_id
+  use_case.py            PendingActivationReconcilerUseCase
+
+# Frontend:
+frontend/lib/utils/retry.ts                                   retryWithBackoff()
+frontend/features/subscriptions/components/PendingActivationBanner.tsx
+frontend/app/(app)/(tenant)/_layout.tsx                       guard con auto-activate
+frontend/features/subscriptions/screens/ActivateSubscriptionScreen.tsx
+frontend/features/tenants/screens/BillingScreen.tsx
 ```
 
 ## Componentes Externos
@@ -165,8 +234,8 @@ backend/lambdas/workers/subscription_renewal_notifier/
 | POST | `/subscriptions/payments/{order_id}/confirm` | ninguna (publico) | Confirma pago con card_token |
 | GET  | `/subscriptions/payments/{order_id}` | ninguna (publico) | Consulta estado del pago |
 | POST | `/subscriptions/payments/{order_id}/refund` | JWT superadmin | Reembolsa pago PAID via dLocal |
-| POST | `/subscriptions/webhooks/dlocal` | HMAC-SHA256 (ninguna JWT) | Recibe notificaciones asincronas de dLocal Go |
-| POST | `/tenants/{id}/subscription/activate` | JWT (tenant owner/admin) | Activa suscripcion pending_payment (primera vez) |
+| POST | `/subscriptions/webhooks/dlocal` | HMAC-SHA256 (sin JWT) | Recibe notificaciones asincronas de dLocal Go |
+| POST | `/tenants/{id}/subscription/activate` | JWT (tenant owner/admin) | Activa suscripcion pending_payment |
 | POST | `/tenants/{id}/subscription/renew` | JWT (tenant owner/admin) | Aplica renovacion de ciclo |
 
 ### POST /subscriptions/payments
@@ -307,7 +376,7 @@ Payment PAID (campos adicionales):
   payer_id      = "user-id"
   payer_email   = "buyer@example.com"
 
-Payment linkeado (tras onboarding o renovacion):
+Payment linkeado (tras activate o renovacion):
   tenant_id     = "tenant-real-uuid"   ← se fija atomicamente con repo.commit()
 ```
 
@@ -329,18 +398,22 @@ Nota: `BusinessError` → HTTP 422 (no 400). Ver `BACKEND.md` para la jerarquia 
 ## Campos De Suscripcion En Tenant
 
 ```python
-dlocal_payer_id                     str | None  — payer_id de la ultima confirmacion
-subscription_status                 str | None  — "active" | "expired" | "none" | "pending_payment"
-plan_cycle_ends_at                  str | None  — ISO8601 UTC; None cuando pending_payment
+dlocal_payer_id                        str | None  — payer_id de la ultima confirmacion
+subscription_status                    str | None  — "active" | "expired" | "none" | "pending_payment"
+plan_cycle_ends_at                     str | None  — ISO8601 UTC; None cuando pending_payment
 subscription_renewal_reminder_sent_at  str | None  — idempotencia del worker diario
+pending_order_id                       str | None  — order_id PAID pendiente de activar;
+                                                     se escribe en Phase 1 de activate,
+                                                     se limpia al activar exitosamente.
+                                                     Sirve de señal para el guard y el reconciliador.
 ```
 
 `subscription_status` es gestionado por nuestra logica (no por dLocal).
 
 `activate_subscription(payer_id, plan_cycle, now, updated_by)` — primera activacion:
-setea `plan_cycle_ends_at = now + ciclo` (base siempre es `now`, el ciclo arranca al
-pagar), `subscription_status="active"`, `dlocal_payer_id`. Opuesto a `apply_subscription_renewal`
-que usa `max(now, plan_cycle_ends_at)` para no perder dias del ciclo anterior.
+setea `plan_cycle_ends_at = now + ciclo`, `subscription_status="active"`, `dlocal_payer_id`,
+y limpia `pending_order_id = None`. Opuesto a `apply_subscription_renewal` que usa
+`max(now, plan_cycle_ends_at)` para no perder dias del ciclo anterior.
 
 `apply_subscription_renewal(plan_cycle)` — renovacion: extiende `plan_cycle_ends_at`
 desde `max(now, plan_cycle_ends_at)`, setea `subscription_status="active"` y limpia
@@ -372,14 +445,16 @@ Antes de activar el pago en cada entorno:
 - `schemas.ts` — `createPaymentResultSchema`, `confirmPaymentResultSchema`,
   `paymentStatusSchema`, `applyRenewalResultSchema`
 - `api.ts` — `subscriptionsApi.{createPayment, confirmPayment, getPayment, activateSubscription, applyRenewal}`
-  `confirmPayment` recibe `{ card_token, client_first_name, client_last_name, client_email,
-  client_document_type, client_document }`.
-  `activateSubscription(tenantId, orderId, idempotencyKey)` llama `POST /tenants/{id}/subscription/activate`.
-- `dlocal-types.ts` — interfaces TypeScript del SDK dLocal Go: `DLocalGoInstance`,
-  `DLocalGoField`, `DLocalCardFieldOptions`; `declare global { Window.dlocalGo }`.
+- `components/PendingActivationBanner.tsx` — banner sticky que auto-activa con retry
+  y muestra "Reintentar" si falla. Se monta desde `(tenant)/_layout.tsx` cuando
+  `pending_payment + pending_order_id`.
+- `dlocal-types.ts` — interfaces TypeScript del SDK dLocal Go.
 - `dlocal-field-options.ts` — estilos del campo SmartFields adaptados al tema activo.
 - `use-dlocal-smartfields.ts` — hook React que encapsula carga del SDK, inicializacion,
   mount/unmount y estados `sdkReady`/`sdkError`. StrictMode-safe con flag `cancelled`.
+
+`frontend/lib/utils/retry.ts` — `retryWithBackoff(fn, [1000, 2000, 4000])`. Utilitario
+generico; usado en `ActivateSubscriptionScreen`, `BillingScreen` y `PendingActivationBanner`.
 
 SmartFields SDK:
 - Sandbox: `https://checkout-sbx.dlocalgo.com/js/dlocalgo-smartfields-bundled.js`
@@ -408,34 +483,34 @@ campos esten completos.
 
 ### Pantallas
 
-- Activacion (primera sesion): `frontend/features/subscriptions/screens/ActivateSubscriptionScreen.tsx`
+- **Activacion** (primera sesion): `frontend/features/subscriptions/screens/ActivateSubscriptionScreen.tsx`
   Ruta: `/(app)/activate-subscription` — fuera de `(tenant)/` para evitar loop del guard.
-  Guard: `(tenant)/_layout.tsx` detecta `subscription_status === 'pending_payment'` y redirige aqui.
+  Guard: `(tenant)/_layout.tsx` detecta `pending_payment` sin `pending_order_id` y redirige aqui.
   Flujo: `useTenant` carga plan_id → `createPayment` → SDK SmartFields → formulario pagador
-         → `confirmPayment` → `activateSubscription` → redirect dashboard.
-- Billing (renovacion): `frontend/features/tenants/screens/BillingScreen.tsx`
-  Flujo: "Pagar con tarjeta" → `createPayment` → SDK SmartFields → formulario pagador → `confirmPayment` → `applyRenewal`
+         → `confirmPayment` → `activateSubscription` (con retry) → redirect dashboard.
 
-## Worker Diario — subscription_renewal_notifier
+- **Billing** (renovacion): `frontend/features/tenants/screens/BillingScreen.tsx`
+  Flujo: "Pagar con tarjeta" → `createPayment` → SDK SmartFields → formulario pagador
+         → `confirmPayment` → `applyRenewal` (con retry).
 
-Lambda disparada por EventBridge `cron(0 10 * * ? *)` (10:00 UTC).
-Escanea tenants activos con `plan_cycle_ends_at <= now + 7 dias`.
+- **Guard con banner** `(tenant)/_layout.tsx`:
+  - `pending_payment` + `pending_order_id` → muestra Stack + `PendingActivationBanner`
+  - `pending_payment` sin `pending_order_id` → redirect a `ActivateSubscriptionScreen`
+  - cualquier otro estado → pass-through
+
+## Workers De Suscripcion
+
+| Worker | Schedule | Funcion |
+| --- | --- | --- |
+| `subscription_renewal_notifier` | `cron(0 10 * * ? *)` (diario) | Envia recordatorio 7d antes y expira suscripciones vencidas |
+| `pending_activation_reconciler` | `rate(5 minutes)` | Activa tenants con `pending_payment + pending_order_id` |
 
 ## Deuda Tecnica
 
-- `list_with_subscription_expiry_due` en `DynamoTenantRepository` usa scan — aceptable
-  hasta ~10 K tenants activos; convertir en GSI cuando la cardinalidad lo requiera.
-- Webhook dLocal no tiene retry/dead-letter: si el handler falla, dLocal reintentara
-  segun su politica de reintentos pero no hay DLQ ni alerta para detectar perdida de eventos.
-- 3DS no tiene timeout de sesion: si el usuario cierra la pestana sin completar la
-  verificacion, el order queda `PENDING` en DynamoDB indefinidamente sin limpieza automatica.
-
-## Deuda Solventada
-
-- 2026-06-16: confirm payload corregido a campos flat `clientFirstName/LastName/Email/
-  DocumentType/Document` (camelCase para dLocal) — eliminaba error 908 "Missing fields".
-  El cuerpo anterior enviaba objeto `payer` anidado que dLocal rechazaba silenciosamente.
-- 2026-06-16: datos del pagador separados del perfil del tenant: se ingresan manualmente
-  en el formulario (el pagador puede ser el contador con su propia tarjeta/cedula).
-- 2026-06-16: nombre del titular dividido en Nombre + Apellido; selector explícito CI/RUC;
-  boton deshabilitado hasta completar todos los campos (opacidad 0.45 via prop `disabled`).
+- Scans en workers (`list_with_subscription_expiry_due`, `list_with_pending_activation`)
+  usan scan completo — aceptables hasta ~10 K tenants activos; migrar a GSI cuando la
+  cardinalidad lo requiera.
+- Webhook dLocal no tiene DLQ ni alerta: si el handler falla repetidamente, no hay
+  mecanismo para detectar perdida de eventos mas alla de los logs de Lambda.
+- Orders con status `PENDING` (3DS iniciado pero no completado) no tienen limpieza
+  automatica — quedan indefinidamente en DynamoDB sin un worker que los expire o notifique.

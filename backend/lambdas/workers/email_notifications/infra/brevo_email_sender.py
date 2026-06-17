@@ -508,6 +508,75 @@ def _build_certificate_expiry_alert_html(
 </html>"""
 
 
+def _build_payment_failed_html(legal_rep_name: str, trade_name: str, renewal_url: str) -> str:
+    safe_name = escape(legal_rep_name, quote=True)
+    safe_trade_name = escape(trade_name, quote=True)
+    safe_url = escape(renewal_url, quote=True)
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:40px 20px">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+          <tr>
+            <td style="background:#1a1a2e;padding:32px 40px">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
+                CodeLabs Billing
+              </h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px">
+              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+                Hola, {safe_name}
+              </h2>
+              <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                No pudimos procesar el cobro automático de la suscripción de
+                <strong>{safe_trade_name}</strong>. Tu tarjeta fue rechazada.
+                Para mantener el acceso, realiza el pago manualmente.
+              </p>
+
+              <a href="{safe_url}"
+                 style="display:inline-block;background:#b91c1c;color:#ffffff;
+                        text-decoration:none;padding:14px 28px;border-radius:6px;
+                        font-size:15px;font-weight:700;margin:0 0 24px">
+                Pagar ahora &rarr;
+              </a>
+
+              <p style="margin:0;color:#888;font-size:13px">
+                Si el botón no funciona, copia este enlace en tu navegador:<br>
+                <a href="{safe_url}" style="color:#1a1a2e">{safe_url}</a><br><br>
+                Una vez registrado el pago, tu cuenta continuará activa sin interrupciones.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f8f9fa;padding:20px 40px;
+                       border-top:1px solid #e9ecef">
+              <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
+                © CodeLabs Billing · Ecuador
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
 def _build_orphan_payment_alert_html(
     order_id: str,
     payer_email: str,
@@ -696,6 +765,23 @@ class BrevoEmailSender(EmailSender):
             "htmlContent": _build_subscription_expired_html(
                 legal_rep_name, trade_name, renewal_url
             ),
+        }
+        _send(api_key, payload, log_email=email)
+
+    def send_payment_failed(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        trade_name: str,
+        renewal_url: str,
+    ) -> None:
+        api_key = _get_api_key()
+        payload = {
+            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "to": [{"email": email, "name": legal_rep_name}],
+            "subject": "Pago fallido — acción requerida para mantener tu cuenta activa",
+            "htmlContent": _build_payment_failed_html(legal_rep_name, trade_name, renewal_url),
         }
         _send(api_key, payload, log_email=email)
 
