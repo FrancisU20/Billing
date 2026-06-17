@@ -185,13 +185,19 @@ Request:
 
 Response 200:
 ```json
-{ "data": { "order_id": "DP-12345", "status": "PAID", "payer_id": "...", "payer_email": "..." } }
+{ "data": { "order_id": "DP-12345", "status": "PAID", "payer_id": "...", "payer_email": "...", "redirect_url": null } }
 ```
 
 Errores: 404 `PAYMENT_NOT_FOUND`, 409 `PAYMENT_ALREADY_CONFIRMED`, 502 `PAYMENT_CONFIRM_FAILED`.
 
-Si dLocal retorna `REJECTED` u otro status no-PAID, el pago queda en `FAILED` y se lanza 502.
-Si dLocal requiere 3DS, el flujo no esta implementado aun (Deuda Tecnica).
+Si dLocal retorna `REJECTED` u otro status no-PAID, el pago queda en `FAILED` y el endpoint
+responde 200 con `status: "FAILED"` para que el frontend pueda mostrar el rechazo sin
+reintentar una confirmacion ya consumida.
+Si dLocal retorna una respuesta estilo SmartFields sample (`success`/`payment_id` sin `status`),
+el adapter normaliza `success=true` sin `redirect_url` a `PAID`.
+Si dLocal requiere 3DS y retorna `redirect_url`, el pago local queda `PENDING` y el frontend
+redirige al pagador. La conciliacion final por webhook/status polling sigue pendiente
+(Deuda Tecnica).
 
 ### GET /subscriptions/payments/{order_id}
 

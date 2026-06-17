@@ -55,6 +55,7 @@ class FakeDLocalClient:
         confirm_status: str = "PAID",
         payer_id: str | None = "user-001",
         payer_email: str | None = "buyer@example.com",
+        redirect_url: str | None = None,
         create_raises: Exception | None = None,
         confirm_raises: Exception | None = None,
     ) -> None:
@@ -63,6 +64,7 @@ class FakeDLocalClient:
         self._confirm_status = confirm_status
         self._payer_id = payer_id
         self._payer_email = payer_email
+        self._redirect_url = redirect_url
         self._create_raises = create_raises
         self._confirm_raises = confirm_raises
 
@@ -91,6 +93,7 @@ class FakeDLocalClient:
             status=self._confirm_status,
             payer_id=self._payer_id,
             payer_email=self._payer_email,
+            redirect_url=self._redirect_url,
         )
 
 
@@ -228,6 +231,30 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
         body = decode_response(resp)
         self.assertEqual(body["data"]["status"], "PAID")
         self.assertEqual(body["data"]["payer_id"], "user-99")
+
+    def test_returns_redirect_url_for_pending_confirmation(self) -> None:
+        repo = self._repo_with_payment("DP-1")
+        dlocal = FakeDLocalClient(
+            confirm_status="PENDING",
+            redirect_url="https://3ds.example.test/auth",
+        )
+        resp = self._call(
+            "DP-1",
+            {
+                "card_token": "card_tok_abc",
+                "client_first_name": "Test",
+                "client_last_name": "User",
+                "client_email": "test@example.com",
+                "client_document_type": "CI",
+                "client_document": "1712345678",
+            },
+            dlocal=dlocal,
+            repo=repo,
+        )
+        self.assertEqual(resp["statusCode"], 200)
+        body = decode_response(resp)
+        self.assertEqual(body["data"]["status"], "PENDING")
+        self.assertEqual(body["data"]["redirect_url"], "https://3ds.example.test/auth")
 
     def test_returns_409_if_already_paid(self) -> None:
         repo = FakePaymentRepository()

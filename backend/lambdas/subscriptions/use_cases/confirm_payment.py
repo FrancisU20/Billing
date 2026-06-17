@@ -23,6 +23,7 @@ class ConfirmPaymentResult:
     status: str
     payer_id: str | None
     payer_email: str | None
+    redirect_url: str | None = None
 
 
 class ConfirmPaymentUseCase:
@@ -58,6 +59,8 @@ class ConfirmPaymentUseCase:
 
         if result.status in _PAID_STATUSES:
             payment.confirm(result.payer_id, result.payer_email)
+        elif result.status == "PENDING":
+            payment.mark_pending("dLocal requires customer action")
         else:
             payment.fail(f"dLocal status: {result.status}")
 
@@ -68,4 +71,5 @@ class ConfirmPaymentUseCase:
             status=payment.status,
             payer_id=payment.payer_id,
             payer_email=payment.payer_email,
+            redirect_url=result.redirect_url,
         )

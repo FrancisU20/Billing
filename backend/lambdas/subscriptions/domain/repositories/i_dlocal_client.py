@@ -16,6 +16,7 @@ class DLocalConfirmPaymentResult:
     status: str
     payer_id: str | None
     payer_email: str | None
+    redirect_url: str | None = None
 
 
 class IDLocalClient(ABC):

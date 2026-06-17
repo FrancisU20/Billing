@@ -94,7 +94,7 @@ export function RegisterPaymentScreen() {
       name: `${firstName.trim()} ${lastName.trim()}`,
     })
 
-    await subscriptionsApi.confirmPayment(order.order_id, {
+    const confirmation = await subscriptionsApi.confirmPayment(order.order_id, {
       card_token: cardToken,
       client_first_name: firstName.trim(),
       client_last_name: lastName.trim(),
@@ -102,6 +102,15 @@ export function RegisterPaymentScreen() {
       client_document_type: documentType,
       client_document: payerDocument.trim(),
     })
+
+    if (confirmation.redirect_url) {
+      window.location.href = confirmation.redirect_url
+      return
+    }
+
+    if (confirmation.status !== 'PAID') {
+      throw new Error('El pago no fue confirmado por dLocal Go.')
+    }
 
     setOrderId(order.order_id)
 

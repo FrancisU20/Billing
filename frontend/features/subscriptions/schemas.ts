@@ -12,6 +12,7 @@ export const confirmPaymentResultSchema = z.object({
   status: z.string().min(1),
   payer_id: z.string().nullable(),
   payer_email: z.string().nullable(),
+  redirect_url: z.string().nullable().optional(),
 })
 
 export const paymentStatusSchema = z.object({

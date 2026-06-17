@@ -81,9 +81,14 @@ class DLocalClient(IDLocalClient):
         }
         resp = self._request("POST", f"/v1/payments/confirm/{checkout_token}", body)
         payer = resp.get("payer", {})
+        redirect_url = resp.get("redirect_url")
+        status = resp.get("status")
+        if not status and resp.get("success") is True:
+            status = "PENDING" if redirect_url else "PAID"
         return DLocalConfirmPaymentResult(
-            payment_id=resp["id"],
-            status=resp.get("status", ""),
+            payment_id=resp.get("id") or resp.get("payment_id") or "",
+            status=status or "",
             payer_id=payer.get("id"),
             payer_email=payer.get("email"),
+            redirect_url=redirect_url,
         )

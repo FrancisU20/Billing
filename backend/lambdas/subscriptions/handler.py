@@ -91,6 +91,7 @@ def _confirm_payment(request: Request, context) -> dict:
             "status": result.status,
             "payer_id": result.payer_id,
             "payer_email": result.payer_email,
+            "redirect_url": result.redirect_url,
         },
         request.request_id,
     )

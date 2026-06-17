@@ -29,6 +29,10 @@ class Payment:
         self.payer_id = payer_id
         self.payer_email = payer_email
 
+    def mark_pending(self, detail: str | None = None) -> None:
+        self.status = "PENDING"
+        self.error_detail = detail
+
     def fail(self, detail: str) -> None:
         self.status = "FAILED"
         self.error_detail = detail

@@ -59,6 +59,7 @@ class FakeDLocalClient(IDLocalClient):
         payer_id: str | None = "user-123",
         payer_email: str | None = "payer@example.com",
         confirm_status: str = "PAID",
+        redirect_url: str | None = None,
         create_raises: Exception | None = None,
         confirm_raises: Exception | None = None,
     ) -> None:
@@ -67,6 +68,7 @@ class FakeDLocalClient(IDLocalClient):
         self._payer_id = payer_id
         self._payer_email = payer_email
         self._confirm_status = confirm_status
+        self._redirect_url = redirect_url
         self._create_raises = create_raises
         self._confirm_raises = confirm_raises
         self.create_calls: list[tuple[str, str, str]] = []
@@ -109,6 +111,7 @@ class FakeDLocalClient(IDLocalClient):
             status=self._confirm_status,
             payer_id=self._payer_id,
             payer_email=self._payer_email,
+            redirect_url=self._redirect_url,
         )
 
 
@@ -299,6 +302,28 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         stored = repo.get_by_order_id("DP-1")
         self.assertEqual(stored.status, "FAILED")
         self.assertIn("REJECTED", stored.error_detail)
+
+    def test_marks_pending_for_redirect_response(self) -> None:
+        repo = self._repo_with_payment("DP-1", "mct_tok")
+        dlocal = FakeDLocalClient(
+            confirm_status="PENDING",
+            redirect_url="https://3ds.example.test/auth",
+        )
+        result = ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
+            ConfirmPaymentCommand(
+                order_id="DP-1",
+                card_token="card_tok",
+                client_first_name="Test",
+                client_last_name="User",
+                client_email="test@example.com",
+                client_document_type="CI",
+                client_document="1712345678",
+            )
+        )
+        self.assertEqual(result.status, "PENDING")
+        self.assertEqual(result.redirect_url, "https://3ds.example.test/auth")
+        stored = repo.get_by_order_id("DP-1")
+        self.assertEqual(stored.status, "PENDING")
 
     def test_raises_if_already_paid(self) -> None:
         repo = self._repo_with_payment("DP-1", "mct_tok", status="PAID")
