@@ -1,40 +1,19 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { radius, shadow, spacing, typography } from '@/constants/tokens'
-import { config } from '@/constants/config'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useTheme } from '@/lib/theme-context'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { subscriptionsApi } from '@/features/subscriptions/api'
+import { useDLocalSmartFields } from '@/features/subscriptions/use-dlocal-smartfields'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { useTenant } from '../hooks/useTenant'
 import type { CreatePaymentResult } from '@/features/subscriptions/schemas'
-
-declare global {
-  interface Window {
-    dlocalGo?: DLocalGoInstance
-  }
-}
-
-interface DLocalGoInstance {
-  initialize: (key: string, checkoutToken: string) => Promise<void>
-  fields: () => DLocalGoFields
-  createCardToken: (field: DLocalGoField, opts?: { name?: string }) => Promise<{ token: string }>
-}
-
-interface DLocalGoFields {
-  create: (type: string, opts?: object) => DLocalGoField
-}
-
-interface DLocalGoField {
-  mount: (selector: string) => void
-  unmount: () => void
-}
 
 export function BillingScreen() {
   const { semantic } = useTheme()
@@ -43,51 +22,15 @@ export function BillingScreen() {
   const { tenant, loading, refresh } = useTenant(tenantId)
 
   const [order, setOrder] = useState<CreatePaymentResult | null>(null)
-  const [sdkReady, setSdkReady] = useState(false)
-  const [sdkError, setSdkError] = useState<string | null>(null)
   const [createOrderKey] = useState(() => createIdempotencyKey('subscription-create-order'))
   const [renewalKey] = useState(() => createIdempotencyKey('subscription-renewal'))
   const [success, setSuccess] = useState(false)
 
-  const smartFieldsRef = useRef<DLocalGoField | null>(null)
-
-  // Load SmartFields SDK and mount card fields once we have a checkout_token
-  useEffect(() => {
-    if (Platform.OS !== 'web' || !order?.checkout_token) return
-    setSdkReady(false)
-    setSdkError(null)
-
-    if (!config.dlocalgo.smartFieldsKey) {
-      setSdkError('SmartFields key not configured.')
-      return
-    }
-
-    const scriptId = 'dlocalgo-smartfields-sdk'
-    const init = async () => {
-      try {
-        await window.dlocalGo!.initialize(config.dlocalgo.smartFieldsKey, order.checkout_token)
-        const fields = window.dlocalGo!.fields()
-        const cardField = fields.create('card')
-        cardField.mount('#billing-card-field')
-        smartFieldsRef.current = cardField
-        setSdkReady(true)
-      } catch {
-        setSdkError('Error al inicializar el formulario de pago.')
-      }
-    }
-
-    if (document.getElementById(scriptId)) {
-      if (window.dlocalGo) init()
-      return
-    }
-
-    const script = document.createElement('script')
-    script.id = scriptId
-    script.src = config.dlocalgo.sdkUrl
-    script.onload = init
-    script.onerror = () => setSdkError('No se pudo cargar el formulario de pago.')
-    document.head.appendChild(script)
-  }, [order?.checkout_token])
+  const { fieldRef, sdkReady, sdkError } = useDLocalSmartFields({
+    checkoutToken: order?.checkout_token,
+    containerId: 'billing-card-field',
+    semantic,
+  })
 
   const handleCreateOrder = useCallback(async () => {
     if (!tenant) return
@@ -111,27 +54,22 @@ export function BillingScreen() {
   } = useFormSubmit(async () => {
     if (!order || !tenantId) return
 
-    if (Platform.OS !== 'web' || !smartFieldsRef.current) {
+    if (Platform.OS !== 'web' || !fieldRef.current) {
       throw new Error('El pago con tarjeta está disponible solo en la versión web.')
     }
 
-    const { token: cardToken } = await window.dlocalGo!.createCardToken(smartFieldsRef.current)
+    const { token: cardToken } = await window.dlocalGo!.createCardToken(fieldRef.current)
 
     await subscriptionsApi.confirmPayment(order.order_id, { card_token: cardToken })
 
     await subscriptionsApi.applyRenewal(tenantId, order.order_id, renewalKey)
     setSuccess(true)
     setOrder(null)
-    setSdkReady(false)
-    smartFieldsRef.current = null
     await refresh()
   })
 
   const handleCancelOrder = useCallback(() => {
     setOrder(null)
-    setSdkReady(false)
-    setSdkError(null)
-    smartFieldsRef.current = null
   }, [])
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando..." />

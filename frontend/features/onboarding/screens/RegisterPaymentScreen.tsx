@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
@@ -7,36 +7,15 @@ import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Routes } from '@/constants/routes'
-import { config } from '@/constants/config'
 import { radius, shadow, spacing, typography } from '@/constants/tokens'
 import { useAsync } from '@/lib/hooks/useAsync'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useTheme } from '@/lib/theme-context'
 import { subscriptionsApi } from '@/features/subscriptions/api'
+import { useDLocalSmartFields } from '@/features/subscriptions/use-dlocal-smartfields'
 import { onboardingApi } from '../api'
 import { formValuesToOnboardingPayload } from '../form'
 import { useOnboardingStore } from '../store'
-
-declare global {
-  interface Window {
-    dlocalGo?: DLocalGoInstance
-  }
-}
-
-interface DLocalGoInstance {
-  initialize: (key: string, checkoutToken: string) => Promise<void>
-  fields: () => DLocalGoFields
-  createCardToken: (field: DLocalGoField, opts?: { name?: string }) => Promise<{ token: string }>
-}
-
-interface DLocalGoFields {
-  create: (type: string, opts?: object) => DLocalGoField
-}
-
-interface DLocalGoField {
-  mount: (selector: string) => void
-  unmount: () => void
-}
 
 export function RegisterPaymentScreen() {
   const { semantic } = useTheme()
@@ -53,10 +32,6 @@ export function RegisterPaymentScreen() {
   )
   const setOrderId = useOnboardingStore((state) => state.setOrderId)
   const setResult = useOnboardingStore((state) => state.setResult)
-
-  const smartFieldsRef = useRef<DLocalGoField | null>(null)
-  const [sdkReady, setSdkReady] = useState(false)
-  const [sdkError, setSdkError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!selectedPlan || !formValues || !verification || !otpValue) {
@@ -84,40 +59,11 @@ export function RegisterPaymentScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Load SmartFields SDK and mount card field once we have a checkout_token
-  useEffect(() => {
-    if (Platform.OS !== 'web' || !order?.checkout_token) return
-    if (!config.dlocalgo.smartFieldsKey) {
-      setSdkError('SmartFields key not configured.')
-      return
-    }
-
-    const scriptId = 'dlocalgo-smartfields-sdk'
-    const init = async () => {
-      try {
-        await window.dlocalGo!.initialize(config.dlocalgo.smartFieldsKey, order.checkout_token)
-        const fields = window.dlocalGo!.fields()
-        const cardField = fields.create('card')
-        cardField.mount('#dlocalgo-card-field')
-        smartFieldsRef.current = cardField
-        setSdkReady(true)
-      } catch {
-        setSdkError('Error al inicializar el formulario de pago.')
-      }
-    }
-
-    if (document.getElementById(scriptId)) {
-      if (window.dlocalGo) init()
-      return
-    }
-
-    const script = document.createElement('script')
-    script.id = scriptId
-    script.src = config.dlocalgo.sdkUrl
-    script.onload = init
-    script.onerror = () => setSdkError('No se pudo cargar el formulario de pago.')
-    document.head.appendChild(script)
-  }, [order?.checkout_token])
+  const { fieldRef, sdkReady, sdkError } = useDLocalSmartFields({
+    checkoutToken: order?.checkout_token,
+    containerId: 'dlocalgo-card-field',
+    semantic,
+  })
 
   const {
     submitting,
@@ -134,11 +80,11 @@ export function RegisterPaymentScreen() {
     )
       return
 
-    if (Platform.OS !== 'web' || !smartFieldsRef.current) {
+    if (Platform.OS !== 'web' || !fieldRef.current) {
       throw new Error('El pago con tarjeta está disponible solo en la versión web.')
     }
 
-    const { token: cardToken } = await window.dlocalGo!.createCardToken(smartFieldsRef.current)
+    const { token: cardToken } = await window.dlocalGo!.createCardToken(fieldRef.current)
 
     await subscriptionsApi.confirmPayment(order.order_id, { card_token: cardToken })
 
