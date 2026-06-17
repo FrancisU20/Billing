@@ -16,6 +16,11 @@ _log = get_logger(__name__)
 
 _PAID_STATUSES = frozenset({"PAID", "AUTHORIZED"})
 
+# Statuses where calling confirm again makes no sense: either it's already done
+# (PAID/AUTHORIZED) or a bank 3DS redirect is in flight and the resolution comes
+# via webhook — not a second confirm call (PENDING).
+_NON_CONFIRMABLE_STATUSES = frozenset({"PAID", "AUTHORIZED", "PENDING"})
+
 
 @dataclass
 class ConfirmPaymentResult:
@@ -34,7 +39,7 @@ class ConfirmPaymentUseCase:
     def execute(self, cmd: ConfirmPaymentCommand) -> ConfirmPaymentResult:
         payment = self._payments.get_by_order_id(cmd.order_id)
 
-        if payment.status == "PAID":
+        if payment.status in _NON_CONFIRMABLE_STATUSES:
             raise PaymentAlreadyConfirmedError()
 
         if not payment.checkout_token:

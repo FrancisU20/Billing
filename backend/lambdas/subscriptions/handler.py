@@ -32,7 +32,10 @@ from lambdas.subscriptions.use_cases.refund_payment import RefundPaymentUseCase
 from shared.config import env
 from shared.db.client import get_table
 from shared.errors import ForbiddenError, NotFoundError
+from shared.logger import get_logger
 from shared.secrets.client import get_secret_json
+
+_log = get_logger(__name__)
 
 _PAYMENTS_TABLE = get_table("PAYMENTS_TABLE")
 _PLANS_TABLE = get_table("PLANS_TABLE")
@@ -151,8 +154,10 @@ def _dlocal_webhook(request: Request, context) -> dict:
 
     event_type = request.body.get("type", "")
     data = request.body.get("data", {})
-    order_id = data.get("order_id") or data.get("id", "")
+    order_id = data.get("order_id", "")
     dlocal_status = data.get("status", "")
+    if not order_id:
+        _log.warning("dLocal webhook missing order_id", event_type=event_type)
 
     if event_type != "PAYMENT" or not order_id or not dlocal_status:
         return ApiResponse.ok({"received": True}, request.request_id)

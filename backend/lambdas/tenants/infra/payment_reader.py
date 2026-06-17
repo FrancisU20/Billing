@@ -43,13 +43,10 @@ class DynamoPaymentReader(IPaymentReader):
                 "UpdateExpression": "SET tenant_id = :tid",
                 # Guard: only if not yet applied to a different tenant.
                 # attribute_not_exists covers payments where tenant_id was never written
-                # (omitted when None — DynamoDB NULL != "" so = :empty would fail).
-                "ConditionExpression": (
-                    "attribute_not_exists(tenant_id) OR tenant_id = :empty OR tenant_id = :tid"
-                ),
+                # (omitted when None — payment_repository._to_item skips falsy tenant_id).
+                "ConditionExpression": ("attribute_not_exists(tenant_id) OR tenant_id = :tid"),
                 "ExpressionAttributeValues": {
                     ":tid": tenant_id,
-                    ":empty": "",
                 },
             }
         }

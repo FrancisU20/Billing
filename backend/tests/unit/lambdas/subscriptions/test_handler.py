@@ -299,6 +299,33 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
         )
         self.assertEqual(resp["statusCode"], 409)
 
+    def test_returns_409_if_pending_3ds(self) -> None:
+        repo = FakePaymentRepository()
+        repo.save(
+            Payment(
+                order_id="DP-1",
+                tenant_id=None,
+                plan_id="p",
+                amount="5.99",
+                currency="USD",
+                status="PENDING",
+                checkout_token="mct_tok",
+            )
+        )
+        resp = self._call(
+            "DP-1",
+            {
+                "card_token": "card_tok",
+                "client_first_name": "Test",
+                "client_last_name": "User",
+                "client_email": "test@example.com",
+                "client_document_type": "CI",
+                "client_document": "1712345678",
+            },
+            repo=repo,
+        )
+        self.assertEqual(resp["statusCode"], 409)
+
     def test_returns_404_if_payment_not_found(self) -> None:
         resp = self._call(
             "UNKNOWN",

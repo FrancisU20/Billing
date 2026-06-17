@@ -45,7 +45,7 @@ class RetryPaymentUseCase:
         self._dlocal = dlocal
         self._payments = payment_repo
 
-    def execute(self, tenant_id: str, updated_by: str) -> tuple[Tenant, RetryPaymentResult]:
+    def execute(self, tenant_id: str, updated_by: str) -> tuple[Tenant, RetryPaymentResult, dict]:
         tenant = self._tenant_repo.get_by_id(tenant_id)
 
         if not tenant.dlocal_payer_id:

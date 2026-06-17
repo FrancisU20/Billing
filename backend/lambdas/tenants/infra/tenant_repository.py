@@ -43,6 +43,12 @@ from shared.logger import get_logger
 _log = get_logger(__name__)
 
 
+def _dt(value: str) -> datetime:
+    """Parse an ISO-8601 datetime string, ensuring the result is always timezone-aware."""
+    dt = datetime.fromisoformat(value)
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
 class DynamoTenantRepository(ITenantRepository):
     def __init__(self, table, audit_table=None, outbox_table=None) -> None:
         self._table = table
@@ -144,12 +150,19 @@ class DynamoTenantRepository(ITenantRepository):
         return tenants, encode_cursor(next_cursor)
 
     def list_with_subscription_expiry_due(self, before: datetime) -> list[Tenant]:
-        """Return active tenants with a paid plan whose cycle ends before `before`."""
+        """Return tenants with a paid plan whose cycle ends before `before`.
+
+        Includes both `active` and `payment_failed` tenants so the renewal worker
+        can retry auto-charge during the grace period and force-expire when it ends.
+        """
         filter_expr = (
             Attr("entity_type").eq("TENANT")
             & Attr("deleted").eq(False)
             & Attr("status").eq(TenantStatus.ACTIVE.value)
-            & Attr("subscription_status").eq("active")
+            & (
+                Attr("subscription_status").eq("active")
+                | Attr("subscription_status").eq("payment_failed")
+            )
             & Attr("plan_cycle_ends_at").exists()
             & Attr("plan_cycle_ends_at").lte(before.isoformat())
         )
@@ -565,48 +578,38 @@ class DynamoTenantRepository(ITenantRepository):
             sri_environment=SriEnvironment(item.get("sri_environment", "testing")),
             status=TenantStatus(item.get("status", "active")),
             plan_id=item.get("plan_id", ""),
-            plan_cycle_ends_at=datetime.fromisoformat(item["plan_cycle_ends_at"])
+            plan_cycle_ends_at=_dt(item["plan_cycle_ends_at"])
             if item.get("plan_cycle_ends_at")
             else None,
             certificate_secret_arn=item.get("certificate_secret_arn"),
             cert_subject_ruc=item.get("cert_subject_ruc"),
-            cert_expires_at=datetime.fromisoformat(item["cert_expires_at"])
-            if item.get("cert_expires_at")
-            else None,
+            cert_expires_at=_dt(item["cert_expires_at"]) if item.get("cert_expires_at") else None,
             cert_issuer=item.get("cert_issuer"),
-            cert_uploaded_at=datetime.fromisoformat(item["cert_uploaded_at"])
+            cert_uploaded_at=_dt(item["cert_uploaded_at"])
             if item.get("cert_uploaded_at")
             else None,
-            cert_expiry_alert_60_sent_at=datetime.fromisoformat(
-                item["cert_expiry_alert_60_sent_at"]
-            )
+            cert_expiry_alert_60_sent_at=_dt(item["cert_expiry_alert_60_sent_at"])
             if item.get("cert_expiry_alert_60_sent_at")
             else None,
-            cert_expiry_alert_30_sent_at=datetime.fromisoformat(
-                item["cert_expiry_alert_30_sent_at"]
-            )
+            cert_expiry_alert_30_sent_at=_dt(item["cert_expiry_alert_30_sent_at"])
             if item.get("cert_expiry_alert_30_sent_at")
             else None,
-            onboarding_completed_at=datetime.fromisoformat(item["onboarding_completed_at"])
+            onboarding_completed_at=_dt(item["onboarding_completed_at"])
             if item.get("onboarding_completed_at")
             else None,
             dlocal_payer_id=item.get("dlocal_payer_id"),
             subscription_status=item.get("subscription_status"),
-            subscription_renewal_reminder_sent_at=datetime.fromisoformat(
-                item["subscription_renewal_reminder_sent_at"]
-            )
+            subscription_renewal_reminder_sent_at=_dt(item["subscription_renewal_reminder_sent_at"])
             if item.get("subscription_renewal_reminder_sent_at")
             else None,
             pending_order_id=item.get("pending_order_id"),
             version=item.get("version", 1),
             deleted=item.get("deleted", False),
-            created_at=datetime.fromisoformat(item["created_at"]),
-            updated_at=datetime.fromisoformat(item["updated_at"]),
+            created_at=_dt(item["created_at"]),
+            updated_at=_dt(item["updated_at"]),
             created_by=item.get("created_by", ""),
             updated_by=item.get("updated_by", ""),
-            deleted_at=datetime.fromisoformat(item["deleted_at"])
-            if item.get("deleted_at")
-            else None,
+            deleted_at=_dt(item["deleted_at"]) if item.get("deleted_at") else None,
             deleted_by=item.get("deleted_by"),
         )
 
