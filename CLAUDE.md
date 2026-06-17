@@ -45,7 +45,9 @@ billing en frontend; **markup 12%** sobre precio neto del plan (`shared/billing.
 con `PriceBreakdown` (plan + comision + total); **cobro automatico** en worker de renovacion
 via `dlocal_payer_id` guardado con estado `payment_failed` si falla + email de accion
 requerida; endpoint `POST /tenants/{id}/subscription/retry-payment` (tarjeta guardada,
-402 si rechazada); `PaymentFailedBanner` con reintento automatico y opcion de nueva tarjeta.
+402 si rechazada); `PaymentFailedBanner` con reintento automatico y opcion de nueva tarjeta;
+**6 bugs de auditoría resueltos** (scan payment_failed, guard PENDING en confirm, webhook
+order_id, mark_applied_to_tenant condition, type hint RetryPaymentUseCase, safe datetime).
 
 Proximo hito de producto: **invoices/documents** — emision SRI, secuenciales,
 XAdES-BES, almacenamiento legal y batch jobs. Ver `context/INVOICES.md`.

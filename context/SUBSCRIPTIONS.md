@@ -368,6 +368,10 @@ Response 200:
 
 Errores: 404 `PAYMENT_NOT_FOUND`, 409 `PAYMENT_ALREADY_CONFIRMED`, 502 `PAYMENT_CONFIRM_FAILED`.
 
+409 se retorna si el pago ya tiene status `PAID`, `AUTHORIZED` o `PENDING`. El estado `PENDING`
+bloquea re-confirmacion porque el proceso 3DS ya esta en vuelo — la resolucion llega via webhook,
+no via un segundo confirm.
+
 Si dLocal retorna `REJECTED` u otro status no-PAID, el pago queda en `FAILED` y el endpoint
 responde 200 con `status: "FAILED"` para que el frontend pueda mostrar el rechazo sin
 reintentar una confirmacion ya consumida.
@@ -413,7 +417,9 @@ Payload esperado (eventos `PAYMENT`):
 
 Comportamiento: actualiza el status del Payment en DynamoDB solo si el status es terminal
 (`PAID`/`APPROVED`→`PAID`, `REJECTED`, `FAILED`, `CANCELLED`) y distinto al actual.
-Eventos con `type != "PAYMENT"` o sin `order_id` se responden 200 sin procesar.
+Eventos con `type != "PAYMENT"`, sin `order_id`, o con `status` vacio se responden 200 sin
+procesar (se loguea warning si falta `order_id`). No se usa ningun campo alternativo como
+fallback: `order_id` es obligatorio en el payload de dLocal.
 Pagos no encontrados se ignoran (idempotente).
 
 ### POST /tenants/{id}/subscription/activate
@@ -657,6 +663,11 @@ campos esten completos.
 El `subscription_renewal_notifier` requiere `PLANS_TABLE`, `PAYMENTS_TABLE` y
 `DLOCALGO_CREDENTIALS_NAME` para habilitar el cobro automatico. Si alguna variable
 falta, el worker funciona en modo degradado (solo notificaciones, sin auto-charge).
+
+El scan `list_with_subscription_expiry_due` incluye tenants con `subscription_status`
+`active` **y** `payment_failed`, para que la logica de gracia y reintento funcione
+en corridas subsecuentes del worker. Tenants en otros estados no son recogidos.
+
 Grace period: 7 dias desde `plan_cycle_ends_at`; tras agotarse expira sin reintentar.
 Email de pago fallido: una sola vez por ciclo (no se reenvía en reintentos).
 
