@@ -1,5 +1,6 @@
 import { api } from '@/lib/api/client'
 import {
+  activateSubscriptionResultSchema,
   applyRenewalResultSchema,
   confirmPaymentResultSchema,
   createPaymentResultSchema,
@@ -36,6 +37,14 @@ export const subscriptionsApi = {
       `/tenants/${tenantId}/subscription/renew`,
       { order_id: orderId },
       applyRenewalResultSchema,
+      { idempotencyKey },
+    ),
+
+  activateSubscription: (tenantId: string, orderId: string, idempotencyKey: string) =>
+    api.post(
+      `/tenants/${tenantId}/subscription/activate`,
+      { order_id: orderId },
+      activateSubscriptionResultSchema,
       { idempotencyKey },
     ),
 }

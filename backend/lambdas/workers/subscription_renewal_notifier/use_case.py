@@ -29,10 +29,12 @@ class NotifySubscriptionRenewalUseCase:
         email_sender: EmailSender,
         *,
         now: datetime,
+        frontend_url: str = "",
     ) -> None:
         self._tenant_repo = tenant_repo
         self._email_sender = email_sender
         self._now = now
+        self._renewal_url = f"{frontend_url.rstrip('/')}/billing"
 
     def execute(self) -> NotifySubscriptionRenewalResult:
         # Fetch active tenants whose cycle ends within REMINDER_DAYS from now
@@ -84,6 +86,7 @@ class NotifySubscriptionRenewalUseCase:
                 email=tenant.email,
                 legal_rep_name=tenant.legal_rep_name,
                 trade_name=tenant.trade_name,
+                renewal_url=self._renewal_url,
             )
             return "expired"
 
@@ -99,6 +102,7 @@ class NotifySubscriptionRenewalUseCase:
                 trade_name=tenant.trade_name,
                 plan_cycle_ends_at=ends_at.isoformat(),
                 days_remaining=days_remaining,
+                renewal_url=self._renewal_url,
             )
             tenant.mark_renewal_reminder_sent(
                 sent_at=self._now,

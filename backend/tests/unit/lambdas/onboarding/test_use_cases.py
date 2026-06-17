@@ -248,6 +248,28 @@ class ConfirmOnboardingOtpUseCaseTests(unittest.TestCase):
         self.assertEqual(len(result.events), 1)
         self.assertIsInstance(result.events[0], TenantCreatedEvent)
 
+    def test_free_plan_tenant_has_no_pending_payment_status(self) -> None:
+        cmd = _confirm_command()
+        verification = _verification_for(cmd)
+
+        result = self._execute_with_verification(
+            cmd, verification, catalog=FakeOnboardingPlanCatalog(is_free=True)
+        )
+
+        self.assertIsNone(result.tenant.subscription_status)
+        self.assertIsNotNone(result.tenant.plan_cycle_ends_at)
+
+    def test_paid_plan_tenant_gets_pending_payment_and_no_cycle_end(self) -> None:
+        cmd = _confirm_command()
+        verification = _verification_for(cmd)
+
+        result = self._execute_with_verification(
+            cmd, verification, catalog=FakeOnboardingPlanCatalog(is_free=False)
+        )
+
+        self.assertEqual(result.tenant.subscription_status, "pending_payment")
+        self.assertIsNone(result.tenant.plan_cycle_ends_at)
+
     def test_enterprise_plan_captures_lead_without_certificate(self) -> None:
         cmd = _confirm_command(certificate_b64=None, cert_password=None)
         verification = _verification_for(cmd, self_service=False)

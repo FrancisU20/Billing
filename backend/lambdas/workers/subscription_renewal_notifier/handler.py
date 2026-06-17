@@ -26,6 +26,7 @@ _log = get_logger(__name__)
 
 _TENANTS_TABLE = get_table("TENANTS_TABLE")
 _AUDIT_TABLE = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
+_FRONTEND_URL = env("FRONTEND_URL", "")
 
 
 def _repo() -> DynamoTenantRepository:
@@ -45,7 +46,7 @@ def handler(event: dict, context) -> dict:
 
     try:
         result = NotifySubscriptionRenewalUseCase(
-            _repo(), _email_sender(), now=datetime.now(UTC)
+            _repo(), _email_sender(), now=datetime.now(UTC), frontend_url=_FRONTEND_URL
         ).execute()
         _log.info(
             "subscription renewal notifications sent",

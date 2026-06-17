@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from lambdas.tenants.domain.commands import ToggleStatusCommand, UpdateTenantCommand
 from lambdas.tenants.domain.enums import SriEnvironment, TenantStatus
 from lambdas.tenants.domain.errors import (
+    SubscriptionAlreadyActiveError,
     SubscriptionRenewalPaymentAlreadyAppliedError,
     SubscriptionRenewalPaymentNotConfirmedError,
     SubscriptionRenewalPlanMismatchError,
@@ -14,6 +15,7 @@ from lambdas.tenants.domain.errors import (
 )
 from lambdas.tenants.domain.events import TenantCreatedEvent
 from lambdas.tenants.domain.repositories.i_payment_reader import IPaymentReader, PaymentRecord
+from lambdas.tenants.use_cases.activate_subscription import ActivateSubscriptionUseCase
 from lambdas.tenants.use_cases.apply_subscription_renewal import ApplySubscriptionRenewalUseCase
 from lambdas.tenants.use_cases.create_tenant import CreateTenantUseCase
 from lambdas.tenants.use_cases.delete_tenant import DeleteTenantUseCase
@@ -283,6 +285,70 @@ class ApplySubscriptionRenewalUseCaseTests(unittest.TestCase):
         payment = _captured_payment(tenant_id="tenant-1")
         (_, result, _), _ = self._execute(payment=payment)
         self.assertEqual(result.tenant_id, "tenant-1")
+
+    def test_raises_if_plan_mismatch(self) -> None:
+        payment = _captured_payment(plan_id="uuid-pro")
+        with self.assertRaises(SubscriptionRenewalPlanMismatchError):
+            self._execute(payment=payment)
+
+
+class ActivateSubscriptionUseCaseTests(unittest.TestCase):
+    def _repo_with_tenant(self, **overrides) -> FakeTenantRepository:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="tenant-1", **overrides)
+        repo.tenants[tenant.id] = tenant
+        return repo
+
+    def _execute(self, repo=None, payment=None):
+        _repo = repo or self._repo_with_tenant(
+            subscription_status="pending_payment", plan_cycle_ends_at=None
+        )
+        _payment = payment or _captured_payment()
+        reader = FakePaymentReader(payment=_payment)
+        return (
+            ActivateSubscriptionUseCase(_repo, reader).execute(
+                "tenant-1", _payment.order_id, "user-1"
+            ),
+            reader,
+        )
+
+    def test_sets_cycle_from_now_and_returns_active_status(self) -> None:
+        before = datetime.now(UTC)
+        (tenant, result, _), _ = self._execute()
+        self.assertIsNotNone(tenant.plan_cycle_ends_at)
+        self.assertGreater(tenant.plan_cycle_ends_at, before)
+        self.assertEqual(result.subscription_status, "active")
+        self.assertEqual(result.tenant_id, "tenant-1")
+
+    def test_marks_payment_applied(self) -> None:
+        (_, _, _), reader = self._execute()
+        self.assertEqual(reader.marked, [("ORD-1", "tenant-1")])
+
+    def test_raises_if_already_active(self) -> None:
+        repo = self._repo_with_tenant(subscription_status="active")
+        with self.assertRaises(SubscriptionAlreadyActiveError):
+            ActivateSubscriptionUseCase(
+                repo, FakePaymentReader(payment=_captured_payment())
+            ).execute("tenant-1", "ORD-1", "user-1")
+
+    def test_raises_if_payment_not_confirmed(self) -> None:
+        payment = _captured_payment()
+        payment = PaymentRecord(
+            order_id=payment.order_id,
+            tenant_id=payment.tenant_id,
+            plan_id=payment.plan_id,
+            amount=payment.amount,
+            status="CREATED",
+            plan_cycle=payment.plan_cycle,
+            payer_id=payment.payer_id,
+        )
+        with self.assertRaises(SubscriptionRenewalPaymentNotConfirmedError):
+            self._execute(payment=payment)
+
+    def test_raises_if_payment_applied_to_other_tenant(self) -> None:
+        payment = _captured_payment(tenant_id="other-tenant")
+        with self.assertRaises(SubscriptionRenewalPaymentAlreadyAppliedError):
+            self._execute(payment=payment)
 
     def test_raises_if_plan_mismatch(self) -> None:
         payment = _captured_payment(plan_id="uuid-pro")

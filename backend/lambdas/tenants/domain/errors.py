@@ -46,3 +46,8 @@ class SubscriptionRenewalPaymentAlreadyAppliedError(ConflictError):
 class SubscriptionRenewalPlanMismatchError(BusinessError):
     code = "RENEWAL_PLAN_MISMATCH"
     default_message = "El pago corresponde a un plan diferente al plan actual del tenant."
+
+
+class SubscriptionAlreadyActiveError(ConflictError):
+    code = "SUBSCRIPTION_ALREADY_ACTIVE"
+    default_message = "La suscripción ya está activa."

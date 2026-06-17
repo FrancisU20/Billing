@@ -12,16 +12,21 @@ from lambdas.subscriptions.domain.errors import (
     PaymentConfirmError,
     PaymentCreationError,
     PaymentNotFoundError,
+    PaymentNotRefundableError,
+    PaymentRefundError,
 )
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import (
     DLocalConfirmPaymentResult,
     DLocalCreatePaymentResult,
+    DLocalRefundResult,
     IDLocalClient,
 )
 from lambdas.subscriptions.domain.repositories.i_plan_catalog import IPlanCatalog, PlanSummary
 from lambdas.subscriptions.use_cases.confirm_payment import ConfirmPaymentUseCase
 from lambdas.subscriptions.use_cases.create_payment import CreatePaymentUseCase
 from lambdas.subscriptions.use_cases.get_payment import GetPaymentUseCase
+from lambdas.subscriptions.use_cases.process_webhook import ProcessWebhookUseCase
+from lambdas.subscriptions.use_cases.refund_payment import RefundPaymentUseCase
 
 # ── Fakes ─────────────────────────────────────────────────────────────────────
 
@@ -62,6 +67,7 @@ class FakeDLocalClient(IDLocalClient):
         redirect_url: str | None = None,
         create_raises: Exception | None = None,
         confirm_raises: Exception | None = None,
+        refund_raises: Exception | None = None,
     ) -> None:
         self._payment_id = payment_id
         self._checkout_token = checkout_token
@@ -71,8 +77,10 @@ class FakeDLocalClient(IDLocalClient):
         self._redirect_url = redirect_url
         self._create_raises = create_raises
         self._confirm_raises = confirm_raises
+        self._refund_raises = refund_raises
         self.create_calls: list[tuple[str, str, str]] = []
         self.confirm_calls: list[tuple[str, str, str, str, str, str, str]] = []
+        self.refund_calls: list[tuple[str, str, str]] = []
 
     def create_payment(self, amount: str, currency: str, country: str) -> DLocalCreatePaymentResult:
         self.create_calls.append((amount, currency, country))
@@ -113,6 +121,12 @@ class FakeDLocalClient(IDLocalClient):
             payer_email=self._payer_email,
             redirect_url=self._redirect_url,
         )
+
+    def refund_payment(self, order_id: str, amount: str, currency: str) -> DLocalRefundResult:
+        self.refund_calls.append((order_id, amount, currency))
+        if self._refund_raises:
+            raise self._refund_raises
+        return DLocalRefundResult(refund_id="REF-001", status="REFUNDED")
 
 
 class FakePaymentRepository:
@@ -427,6 +441,144 @@ class GetPaymentUseCaseTests(unittest.TestCase):
     def test_raises_if_not_found(self) -> None:
         with self.assertRaises(PaymentNotFoundError):
             GetPaymentUseCase(FakePaymentRepository()).execute("MISSING")
+
+
+class RefundPaymentUseCaseTests(unittest.TestCase):
+    def _paid_payment(self, order_id: str = "DP-1") -> Payment:
+        p = Payment(
+            order_id=order_id,
+            tenant_id="tenant-1",
+            plan_id="plan-1",
+            amount="5.99",
+            currency="USD",
+            status="CREATED",
+        )
+        p.confirm(payer_id="user-1", payer_email="p@test.com")
+        return p
+
+    def _repo_with(self, payment: Payment) -> FakePaymentRepository:
+        repo = FakePaymentRepository()
+        repo.save(payment)
+        return repo
+
+    def test_refunds_paid_payment(self) -> None:
+        payment = self._paid_payment()
+        repo = self._repo_with(payment)
+        dlocal = FakeDLocalClient()
+        result = RefundPaymentUseCase(repo, dlocal).execute("DP-1")
+        self.assertEqual(result.order_id, "DP-1")
+        self.assertEqual(result.refund_id, "REF-001")
+        self.assertEqual(result.status, "REFUNDED")
+        self.assertEqual(dlocal.refund_calls, [("DP-1", "5.99", "USD")])
+        self.assertEqual(repo.saved[-1].status, "REFUNDED")
+
+    def test_raises_if_not_found(self) -> None:
+        with self.assertRaises(PaymentNotFoundError):
+            RefundPaymentUseCase(FakePaymentRepository(), FakeDLocalClient()).execute("MISSING")
+
+    def test_raises_if_not_paid(self) -> None:
+        p = Payment(
+            order_id="DP-1",
+            tenant_id="tenant-1",
+            plan_id="plan-1",
+            amount="5.99",
+            currency="USD",
+            status="CREATED",
+        )
+        repo = self._repo_with(p)
+        with self.assertRaises(PaymentNotRefundableError):
+            RefundPaymentUseCase(repo, FakeDLocalClient()).execute("DP-1")
+
+    def test_raises_if_already_refunded(self) -> None:
+        payment = self._paid_payment()
+        payment.refund()
+        repo = self._repo_with(payment)
+        with self.assertRaises(PaymentNotRefundableError):
+            RefundPaymentUseCase(repo, FakeDLocalClient()).execute("DP-1")
+
+    def test_wraps_dlocal_error(self) -> None:
+        payment = self._paid_payment()
+        repo = self._repo_with(payment)
+        dlocal = FakeDLocalClient(refund_raises=RuntimeError("dLocal down"))
+        with self.assertRaises(PaymentRefundError):
+            RefundPaymentUseCase(repo, dlocal).execute("DP-1")
+
+    def test_does_not_save_on_dlocal_failure(self) -> None:
+        payment = self._paid_payment()
+        repo = self._repo_with(payment)
+        initial_save_count = len(repo.saved)
+        dlocal = FakeDLocalClient(refund_raises=RuntimeError("dLocal down"))
+        with self.assertRaises(PaymentRefundError):
+            RefundPaymentUseCase(repo, dlocal).execute("DP-1")
+        self.assertEqual(len(repo.saved), initial_save_count)
+
+
+class ProcessWebhookUseCaseTests(unittest.TestCase):
+    def _repo_with(
+        self, *, order_id: str = "DP-1", status: str = "PENDING"
+    ) -> FakePaymentRepository:
+        repo = FakePaymentRepository()
+        repo.save(
+            Payment(
+                order_id=order_id,
+                tenant_id="tenant-1",
+                plan_id="plan-1",
+                amount="5.99",
+                currency="USD",
+                status=status,
+            )
+        )
+        return repo
+
+    def test_updates_status_to_paid(self) -> None:
+        repo = self._repo_with(status="PENDING")
+        result = ProcessWebhookUseCase(repo).execute("DP-1", "PAID")
+        self.assertEqual(result.status, "PAID")
+        self.assertTrue(result.updated)
+        self.assertEqual(repo.get_by_order_id("DP-1").status, "PAID")
+
+    def test_maps_approved_to_paid(self) -> None:
+        repo = self._repo_with(status="PENDING")
+        result = ProcessWebhookUseCase(repo).execute("DP-1", "APPROVED")
+        self.assertEqual(result.status, "PAID")
+        self.assertTrue(result.updated)
+
+    def test_updates_status_to_rejected(self) -> None:
+        repo = self._repo_with(status="PENDING")
+        result = ProcessWebhookUseCase(repo).execute("DP-1", "REJECTED")
+        self.assertEqual(result.status, "REJECTED")
+        self.assertTrue(result.updated)
+
+    def test_updates_status_to_failed(self) -> None:
+        repo = self._repo_with(status="PENDING")
+        result = ProcessWebhookUseCase(repo).execute("DP-1", "FAILED")
+        self.assertEqual(result.status, "FAILED")
+        self.assertTrue(result.updated)
+
+    def test_no_op_when_status_already_matches(self) -> None:
+        repo = self._repo_with(status="PAID")
+        initial_saves = len(repo.saved)
+        result = ProcessWebhookUseCase(repo).execute("DP-1", "PAID")
+        self.assertFalse(result.updated)
+        self.assertEqual(len(repo.saved), initial_saves)
+
+    def test_no_op_for_unknown_order(self) -> None:
+        result = ProcessWebhookUseCase(FakePaymentRepository()).execute("MISSING", "PAID")
+        self.assertFalse(result.updated)
+        self.assertEqual(result.order_id, "MISSING")
+
+    def test_no_op_for_unmapped_dlocal_status(self) -> None:
+        repo = self._repo_with(status="PENDING")
+        initial_saves = len(repo.saved)
+        result = ProcessWebhookUseCase(repo).execute("DP-1", "PENDING")
+        self.assertFalse(result.updated)
+        self.assertEqual(len(repo.saved), initial_saves)
+
+    def test_status_comparison_is_case_insensitive(self) -> None:
+        repo = self._repo_with(status="PENDING")
+        result = ProcessWebhookUseCase(repo).execute("DP-1", "paid")
+        self.assertEqual(result.status, "PAID")
+        self.assertTrue(result.updated)
 
 
 if __name__ == "__main__":

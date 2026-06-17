@@ -49,6 +49,7 @@ class EmailSender(ABC):
         trade_name: str,
         plan_cycle_ends_at: str,
         days_remaining: int,
+        renewal_url: str,
     ) -> None:
         """Remind the tenant to renew their subscription before it expires."""
 
@@ -59,5 +60,20 @@ class EmailSender(ABC):
         email: str,
         legal_rep_name: str,
         trade_name: str,
+        renewal_url: str,
     ) -> None:
         """Notify the tenant that their subscription has expired and access is suspended."""
+
+    @abstractmethod
+    def send_orphan_payment_alert(
+        self,
+        *,
+        superadmin_email: str,
+        order_id: str,
+        payer_email: str | None,
+        plan_id: str,
+        amount: str,
+        currency: str,
+        confirmed_at: str,
+    ) -> None:
+        """Alert the superadmin about a PAID payment with no associated tenant."""

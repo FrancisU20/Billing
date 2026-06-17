@@ -120,11 +120,13 @@ class ApiStack(Stack):
 
         env        = config["env"]
         region     = config["region"]
-        domain_cfg = config.get("domain", {})
-        cors_cfg   = config.get("cors", {})
-        api_cfg    = config.get("api", {})
-        api_domain = domain_cfg.get("api", "")
-        hz_name    = domain_cfg.get("hosted_zone", "")
+        domain_cfg      = config.get("domain", {})
+        cors_cfg        = config.get("cors", {})
+        api_cfg         = config.get("api", {})
+        api_domain      = domain_cfg.get("api", "")
+        hz_name         = domain_cfg.get("hosted_zone", "")
+        frontend_domain = domain_cfg.get("frontend", "")
+        frontend_url    = f"https://{frontend_domain}" if frontend_domain else ""
         cors_origins = cors_cfg.get("origins", ["*"] if env != "prod" else [])
         cors_headers = cors_cfg.get("headers", ["authorization", "content-type", "x-idempotency-key"])
         throttling_cfg = api_cfg.get("throttling", {})
@@ -407,6 +409,7 @@ class ApiStack(Stack):
                 "BREVO_SECRET_NAME":  f"codelabs-billing-{env}/brevo-api-key",
                 "BREVO_SENDER_EMAIL": "noreply@codelabsecuador.com",
                 "BREVO_SENDER_NAME":  "CodeLabs Billing",
+                "FRONTEND_URL":       frontend_url,
             },
         )
         database.tenants_table.grant_read_write_data(subscription_renewal_notifier_fn)
@@ -422,6 +425,42 @@ class ApiStack(Stack):
             self, "SubscriptionRenewalNotifierSchedule",
             schedule = events.Schedule.expression("cron(0 10 * * ? *)"),
             targets  = [events_targets.LambdaFunction(subscription_renewal_notifier_fn)],
+        )
+
+        # ── Orphan Payment Notifier Worker ────────────────────────────────────
+        # Corre cada hora: detecta pagos PAID sin tenant vinculado (pago flotante)
+        # y alerta al superadmin para recuperacion manual.
+        orphan_payment_notifier_fn = lmb.Function(
+            self, "OrphanPaymentNotifierWorker",
+            function_name = f"codelabs-billing-{env}-orphan-payment-notifier",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.workers.orphan_payment_notifier.handler.handler",
+            timeout       = Duration.seconds(60),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "PAYMENTS_TABLE":               database.payments_table.table_name,
+                "BREVO_SECRET_NAME":            f"codelabs-billing-{env}/brevo-api-key",
+                "BREVO_SENDER_EMAIL":           "noreply@codelabsecuador.com",
+                "BREVO_SENDER_NAME":            "CodeLabs Billing",
+                "SUPERADMIN_EMAIL":             config.get("superadmin_email", ""),
+                "ORPHAN_PAYMENT_GRACE_MINUTES": "30",
+            },
+        )
+        database.payments_table.grant_read_data(orphan_payment_notifier_fn)
+        orphan_payment_notifier_fn.add_to_role_policy(iam.PolicyStatement(
+            actions   = ["secretsmanager:GetSecretValue"],
+            resources = [
+                f"arn:aws:secretsmanager:{region}:*:secret:codelabs-billing-{env}/brevo-api-key*"
+            ],
+        ))
+
+        events.Rule(
+            self, "OrphanPaymentNotifierSchedule",
+            schedule = events.Schedule.expression("cron(0 * * * ? *)"),
+            targets  = [events_targets.LambdaFunction(orphan_payment_notifier_fn)],
         )
 
         # ── Dominio personalizado — ACM + Route53 ─────────────────────────────
@@ -491,6 +530,7 @@ class ApiStack(Stack):
             (apigwv2.HttpMethod.PATCH,  "/tenants/{id}"),
             (apigwv2.HttpMethod.PATCH,  "/tenants/{id}/status"),
             (apigwv2.HttpMethod.POST,   "/tenants/{id}/onboarding/retry"),
+            (apigwv2.HttpMethod.POST,   "/tenants/{id}/subscription/activate"),
             (apigwv2.HttpMethod.POST,   "/tenants/{id}/subscription/renew"),
             (apigwv2.HttpMethod.DELETE, "/tenants/{id}"),
         ]:
@@ -650,7 +690,7 @@ class ApiStack(Stack):
         )
         database.tenants_table.grant_read_write_data(onboarding_api_fn)
         database.plans_table.grant_read_data(onboarding_api_fn)
-        database.payments_table.grant_read_data(onboarding_api_fn)
+        database.payments_table.grant_read_write_data(onboarding_api_fn)
         database.audit_table.grant_read_write_data(onboarding_api_fn)
         database.idempotency_table.grant_read_write_data(onboarding_api_fn)
         database.outbox_table.grant_write_data(onboarding_api_fn)
@@ -704,8 +744,7 @@ class ApiStack(Stack):
             "SubscriptionsIntegration", subscriptions_fn
         )
 
-        # Público por diseño: el pago ocurre durante el onboarding, antes de que
-        # el tenant exista y tenga JWT.
+        # Público por diseño: el pago y confirmación ocurren antes o durante onboarding.
         subscriptions_routes: list[apigwv2.HttpRoute] = []
         subscriptions_routes.extend(api.add_routes(
             path        = "/subscriptions/payments",
@@ -720,6 +759,19 @@ class ApiStack(Stack):
         subscriptions_routes.extend(api.add_routes(
             path        = "/subscriptions/payments/{order_id}",
             methods     = [apigwv2.HttpMethod.GET],
+            integration = subscriptions_integration,
+        ))
+        # Refund — superadmin únicamente; requiere JWT para que API Gateway valide el token.
+        subscriptions_routes.extend(api.add_routes(
+            path        = "/subscriptions/payments/{order_id}/refund",
+            methods     = [apigwv2.HttpMethod.POST],
+            integration = subscriptions_integration,
+            authorizer  = jwt_authorizer,
+        ))
+        # Webhook dLocal Go — público; autenticación vía HMAC-SHA256 en el handler.
+        subscriptions_routes.extend(api.add_routes(
+            path        = "/subscriptions/webhooks/dlocal",
+            methods     = [apigwv2.HttpMethod.POST],
             integration = subscriptions_integration,
         ))
 

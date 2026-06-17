@@ -5,16 +5,12 @@ from datetime import UTC, datetime
 
 from lambdas.onboarding.domain.commands import ConfirmOnboardingOtpCommand
 from lambdas.onboarding.domain.enterprise_lead import EnterpriseLead
-from lambdas.onboarding.domain.errors import (
-    OnboardingPayloadMismatchError,
-    OnboardingPaymentRequiredError,
-)
+from lambdas.onboarding.domain.errors import OnboardingPayloadMismatchError
 from lambdas.onboarding.domain.events import EnterpriseLeadCreatedEvent
 from lambdas.onboarding.domain.onboarding_verification import OnboardingVerification
 from lambdas.onboarding.domain.repositories.i_onboarding_verification_repository import (
     IOnboardingVerificationRepository,
 )
-from lambdas.onboarding.domain.repositories.i_payment_verifier import IPaymentVerifier
 from lambdas.onboarding.domain.repositories.i_plan_catalog import IPlanCatalog
 from lambdas.onboarding.use_cases.payload_signature import onboarding_payload_hash
 from lambdas.tenants.domain.commands import CreateTenantCommand
@@ -26,7 +22,6 @@ from shared.certificates.errors import CertificateInvalidError
 from shared.certificates.store import CertificateStore
 from shared.certificates.validator import CertificateValidator
 from shared.domain.events.domain_event import DomainEvent
-from shared.errors import InternalError
 
 
 @dataclass(frozen=True)
@@ -45,14 +40,12 @@ class ConfirmOnboardingOtpUseCase:
         verification_repo: IOnboardingVerificationRepository,
         certificate_validator: CertificateValidator,
         certificate_store: CertificateStore,
-        payment_verifier: IPaymentVerifier | None = None,
     ) -> None:
         self._plan_catalog = plan_catalog
         self._tenant_repo = tenant_repo
         self._verification_repo = verification_repo
         self._certificate_validator = certificate_validator
         self._certificate_store = certificate_store
-        self._payment_verifier = payment_verifier
 
     def execute(self, cmd: ConfirmOnboardingOtpCommand) -> ConfirmOnboardingOtpResult:
         verification = self._verification_repo.get_by_id(cmd.verification_id)
@@ -92,15 +85,6 @@ class ConfirmOnboardingOtpUseCase:
         if not cmd.certificate_b64 or not cmd.cert_password:
             raise CertificateInvalidError("certificado requerido para self-service")
 
-        # Verify payment for paid plans before any side effects.
-        payment_info = None
-        if not plan_is_free:
-            if not cmd.order_id:
-                raise OnboardingPaymentRequiredError()
-            if self._payment_verifier is None:
-                raise InternalError("payment verifier not configured")
-            payment_info = self._payment_verifier.get_confirmed_payment(cmd.order_id)
-
         metadata = self._certificate_validator.validate_base64(
             certificate_b64=cmd.certificate_b64,
             password=cmd.cert_password,
@@ -123,9 +107,10 @@ class ConfirmOnboardingOtpUseCase:
             ),
             plan_limit_cycle=plan_limit_cycle,
         )
-        if payment_info:
-            tenant.dlocal_payer_id = payment_info.payer_id
-            tenant.subscription_status = "active"
+        if not plan_is_free:
+            # Netflix model: cycle starts at first payment, not at registration.
+            tenant.plan_cycle_ends_at = None
+            tenant.subscription_status = "pending_payment"
         secret_arn = self._certificate_store.put_certificate(
             tenant_id=tenant.id,
             certificate_b64=cmd.certificate_b64,

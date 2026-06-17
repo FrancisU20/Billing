@@ -1,10 +1,10 @@
 # Subscriptions — Dominio
 
-Estado: **implementado Fase 3** — dLocal Go SmartFields (create + confirm + status),
-wiring onboarding con pago obligatorio, endpoint de renovacion, worker diario de
-vencimiento y pagina de billing en frontend.
-Pendiente: checkout de renovacion por email (Fase 4 — link de pago en email) y
-webhooks dLocal.
+Estado: **implementado Fase 4 completa** — dLocal Go SmartFields (create + confirm + status),
+modelo Netflix (registro sin pago, activacion en primera sesion), endpoint de activacion
+autenticado, endpoint de renovacion, worker diario de vencimiento con link `/billing` en email,
+pagina de billing, webhook dLocal Go con HMAC-SHA256, endpoint de reembolso (superadmin),
+manejo de 3DS en frontend (`use3dsFlow` hook) y guard flash fix en layout del tenant.
 
 ## Lee Tambien Antes De Empezar
 
@@ -15,7 +15,7 @@ Leer estos archivos en orden antes de escribir codigo en este dominio:
 | `CLAUDE.md` | Reglas no negociables (seguridad, git) |
 | `BACKEND.md` | Patron `public_lambda_handler`, `get_secret_json`, Secrets Manager |
 | `TENANTS.md` | Campos `dlocal_payer_id`, `subscription_status` en Tenant |
-| `ONBOARDING.md` | El pago ocurre antes de crear el tenant (onboarding publico); `IPaymentVerifier` |
+| `ONBOARDING.md` | Registro sin pago (modelo Netflix); tenant `pending_payment` al registrarse |
 
 ## Proposito
 
@@ -27,30 +27,40 @@ dLocal; nunca pasa por nuestros servidores (PCI DSS).
 Distinto del dominio `INVOICES.md`, que sera la facturacion SRI que el tenant
 emite a sus propios clientes.
 
-## Flujo De Pago — Onboarding (plan de pago)
+## Flujo De Registro (Modelo Netflix)
+
+El registro no requiere pago. La cuenta se crea siempre; el pago ocurre en la primera
+sesion autenticada si el plan es de pago.
 
 ```
-Frontend (wizard)        Backend                  dLocal Go
-   |                       |                        |
-   | [OTP correcto]         |                        |
-   | navega a payment.tsx   |                        |
-   |-- POST /subscriptions/payments (plan_id) ------>|
-   |                   crea payment con allow_transparent=true |
-   |<-- { order_id, checkout_token, amount, currency }
-   |                       |                        |
-   | SDK dLocal SmartFields (checkout_token)        |
-   | payer ingresa tarjeta                          |
-   | SDK -> card_token                              |
+POST /onboarding/otp/confirm
+  → plan gratis:  tenant creado, subscription_status=null  → dashboard
+  → plan de pago: tenant creado, subscription_status='pending_payment', plan_cycle_ends_at=null
+```
+
+## Flujo De Activacion — Primera Sesion (plan de pago)
+
+```
+Frontend (app autenticada)  Backend              dLocal Go
+   |                          |                    |
+   | login → JWT               |                    |
+   | (tenant)/_layout.tsx      |                    |
+   | detecta pending_payment   |                    |
+   | → redirect activate-sub   |                    |
+   |                          |                    |
+   |-- POST /subscriptions/payments (plan_id) ----->|
+   |<-- { order_id, checkout_token, amount }        |
+   | SDK SmartFields (checkout_token)              |
+   | payer ingresa tarjeta → card_token             |
    |-- POST /subscriptions/payments/{order_id}/confirm
-   |        { card_token, client_first_name,        |
-   |          client_last_name, client_email,        |
-   |          client_document_type, client_document }|
-   |<-- { status: "PAID", payer_id, ... }           |
-   |                       |                        |
-   |-- POST /onboarding/otp/confirm (con order_id)  |
-   |         verifica pago PAID en tabla            |
-   |         crea Tenant con subscription activa    |
-   |<-- { success: true, tenant_id }                |
+   |        { card_token, client_* }               |
+   |<-- { status: "PAID", payer_id }               |
+   |                          |                    |
+   |-- POST /tenants/{id}/subscription/activate     |
+   |         verifica pago PAID                    |
+   |         activa suscripcion (cycle desde now)  |
+   |<-- { plan_cycle_ends_at, subscription_status } |
+   | → redirect dashboard                           |
 ```
 
 ## Flujo De Renovacion — Billing
@@ -75,8 +85,8 @@ Frontend (billing.tsx)   Backend                  dLocal Go
 
 Planes gratuitos (`monthly_price == 0 && annual_price == 0`) no activan la
 pasarela — `CreatePaymentUseCase` lanza `FreePlanPaymentError` (422).
-En onboarding, planes gratuitos saltan el paso `payment.tsx` y van directo a
-`/onboarding/otp/confirm` sin `order_id`.
+En el modelo Netflix, tenants con plan gratuito no tienen `subscription_status='pending_payment'`
+y pasan directo al dashboard sin pantalla de activacion.
 
 ## Arquitectura
 
@@ -106,15 +116,18 @@ subscriptions/
                          POST /subscriptions/payments/{order_id}/confirm
                          GET  /subscriptions/payments/{order_id}
 
-# Renovacion vive en tenants/ (endpoint autenticado):
+# Activacion y Renovacion viven en tenants/ (endpoints autenticados):
 backend/lambdas/tenants/
   domain/
     commands.py          ApplySubscriptionRenewalCommand (+ existing)
-    errors.py            PaymentNotCapturedError, PaymentAlreadyAppliedError, ... (+ existing)
+    errors.py            SubscriptionAlreadyActiveError, PaymentNotCapturedError,
+                         PaymentAlreadyAppliedError, ... (+ existing)
     repositories/
-      i_payment_verifier.py   IPaymentVerifier (ABC) — lectura de Payment desde onboarding domain
+      i_payment_reader.py     IPaymentReader (ABC) — lectura y mark_applied de Payment
+      i_payment_verifier.py   IPaymentVerifier (ABC) — alias/extension de IPaymentReader
   use_cases/
-    apply_subscription_renewal.py  ApplySubscriptionRenewalUseCase
+    activate_subscription.py  ActivateSubscriptionUseCase — primera activacion pending_payment
+    apply_subscription_renewal.py  ApplySubscriptionRenewalUseCase — renovacion de ciclo
   infra/
     payment_verifier.py    DynamoPaymentVerifier: verifica status PAID o AUTHORIZED
 
@@ -151,6 +164,9 @@ backend/lambdas/workers/subscription_renewal_notifier/
 | POST | `/subscriptions/payments` | ninguna (publico) | Crea payment dLocal y registra Payment |
 | POST | `/subscriptions/payments/{order_id}/confirm` | ninguna (publico) | Confirma pago con card_token |
 | GET  | `/subscriptions/payments/{order_id}` | ninguna (publico) | Consulta estado del pago |
+| POST | `/subscriptions/payments/{order_id}/refund` | JWT superadmin | Reembolsa pago PAID via dLocal |
+| POST | `/subscriptions/webhooks/dlocal` | HMAC-SHA256 (ninguna JWT) | Recibe notificaciones asincronas de dLocal Go |
+| POST | `/tenants/{id}/subscription/activate` | JWT (tenant owner/admin) | Activa suscripcion pending_payment (primera vez) |
 | POST | `/tenants/{id}/subscription/renew` | JWT (tenant owner/admin) | Aplica renovacion de ciclo |
 
 ### POST /subscriptions/payments
@@ -196,8 +212,9 @@ reintentar una confirmacion ya consumida.
 Si dLocal retorna una respuesta estilo SmartFields sample (`success`/`payment_id` sin `status`),
 el adapter normaliza `success=true` sin `redirect_url` a `PAID`.
 Si dLocal requiere 3DS y retorna `redirect_url`, el pago local queda `PENDING` y el frontend
-redirige al pagador. La conciliacion final por webhook/status polling sigue pendiente
-(Deuda Tecnica).
+abre la URL en nueva pestaña (preserva estado de la app). El usuario vuelve y presiona
+"Ya complete la verificacion" que dispara polling hasta 10 veces cada 3 s via
+`GET /subscriptions/payments/{order_id}`. Ver hook `use-3ds-flow.ts`.
 
 ### GET /subscriptions/payments/{order_id}
 
@@ -209,6 +226,50 @@ Response 200:
 ```
 
 Errores: 404 `PAYMENT_NOT_FOUND`.
+
+### POST /subscriptions/payments/{order_id}/refund
+
+Requiere JWT superadmin. Solo aplicable a pagos con status `PAID` o `AUTHORIZED`.
+
+Response 200:
+```json
+{ "data": { "order_id": "DP-12345", "refund_id": "REF-xxx", "status": "REFUNDED" } }
+```
+
+Errores: 404 `PAYMENT_NOT_FOUND`, 409 `PAYMENT_NOT_REFUNDABLE`, 502 `PAYMENT_REFUND_FAILED`.
+
+### POST /subscriptions/webhooks/dlocal
+
+Endpoint publico (sin JWT). Autenticado via HMAC-SHA256:
+- Header requerido: `X-Signature` — valor hex de `HMAC-SHA256(raw_body, secret_key)`
+- Responde 403 si la firma falta o no coincide.
+
+Payload esperado (eventos `PAYMENT`):
+```json
+{ "type": "PAYMENT", "data": { "order_id": "DP-12345", "status": "PAID|REJECTED|FAILED|CANCELLED" } }
+```
+
+Comportamiento: actualiza el status del Payment en DynamoDB solo si el status es terminal
+(`PAID`/`APPROVED`→`PAID`, `REJECTED`, `FAILED`, `CANCELLED`) y distinto al actual.
+Eventos con `type != "PAYMENT"` o sin `order_id` se responden 200 sin procesar.
+Pagos no encontrados se ignoran (idempotente).
+
+### POST /tenants/{id}/subscription/activate
+
+Requiere `X-Idempotency-Key`. Solo valido cuando `subscription_status == 'pending_payment'`.
+
+Request:
+```json
+{ "order_id": "DP-12345" }
+```
+
+Response 200:
+```json
+{ "data": { "tenant_id": "...", "plan_cycle_ends_at": "...", "subscription_status": "active" } }
+```
+
+Errores: 409 `SUBSCRIPTION_ALREADY_ACTIVE`, 422 `SUBSCRIPTION_RENEWAL_PAYMENT_NOT_CONFIRMED`,
+409 `SUBSCRIPTION_RENEWAL_PAYMENT_ALREADY_APPLIED`, 422 `SUBSCRIPTION_RENEWAL_PLAN_MISMATCH`.
 
 ### POST /tenants/{id}/subscription/renew
 
@@ -269,14 +330,22 @@ Nota: `BusinessError` → HTTP 422 (no 400). Ver `BACKEND.md` para la jerarquia 
 
 ```python
 dlocal_payer_id                     str | None  — payer_id de la ultima confirmacion
-subscription_status                 str | None  — "active" | "expired" | "none"
-plan_cycle_ends_at                  str | None  — ISO8601 UTC; vencimiento del ciclo actual
+subscription_status                 str | None  — "active" | "expired" | "none" | "pending_payment"
+plan_cycle_ends_at                  str | None  — ISO8601 UTC; None cuando pending_payment
 subscription_renewal_reminder_sent_at  str | None  — idempotencia del worker diario
 ```
 
 `subscription_status` es gestionado por nuestra logica (no por dLocal).
-`apply_subscription_renewal(plan_cycle)` extiende `plan_cycle_ends_at` en 1 mes o 1 anio,
-setea `subscription_status="active"` y limpia `subscription_renewal_reminder_sent_at`.
+
+`activate_subscription(payer_id, plan_cycle, now, updated_by)` — primera activacion:
+setea `plan_cycle_ends_at = now + ciclo` (base siempre es `now`, el ciclo arranca al
+pagar), `subscription_status="active"`, `dlocal_payer_id`. Opuesto a `apply_subscription_renewal`
+que usa `max(now, plan_cycle_ends_at)` para no perder dias del ciclo anterior.
+
+`apply_subscription_renewal(plan_cycle)` — renovacion: extiende `plan_cycle_ends_at`
+desde `max(now, plan_cycle_ends_at)`, setea `subscription_status="active"` y limpia
+`subscription_renewal_reminder_sent_at`.
+
 `expire_subscription()` setea `subscription_status="expired"`.
 
 ## Tareas Manuales/Operativas Por Entorno
@@ -302,9 +371,10 @@ Antes de activar el pago en cada entorno:
 `frontend/features/subscriptions/`:
 - `schemas.ts` — `createPaymentResultSchema`, `confirmPaymentResultSchema`,
   `paymentStatusSchema`, `applyRenewalResultSchema`
-- `api.ts` — `subscriptionsApi.{createPayment, confirmPayment, getPayment, applyRenewal}`
+- `api.ts` — `subscriptionsApi.{createPayment, confirmPayment, getPayment, activateSubscription, applyRenewal}`
   `confirmPayment` recibe `{ card_token, client_first_name, client_last_name, client_email,
   client_document_type, client_document }`.
+  `activateSubscription(tenantId, orderId, idempotencyKey)` llama `POST /tenants/{id}/subscription/activate`.
 - `dlocal-types.ts` — interfaces TypeScript del SDK dLocal Go: `DLocalGoInstance`,
   `DLocalGoField`, `DLocalCardFieldOptions`; `declare global { Window.dlocalGo }`.
 - `dlocal-field-options.ts` — estilos del campo SmartFields adaptados al tema activo.
@@ -338,8 +408,11 @@ campos esten completos.
 
 ### Pantallas
 
-- Onboarding: `frontend/features/onboarding/screens/RegisterPaymentScreen.tsx`
-  Flujo: `createPayment` on mount → SDK SmartFields → formulario pagador → `confirmPayment` → `/otp/confirm`
+- Activacion (primera sesion): `frontend/features/subscriptions/screens/ActivateSubscriptionScreen.tsx`
+  Ruta: `/(app)/activate-subscription` — fuera de `(tenant)/` para evitar loop del guard.
+  Guard: `(tenant)/_layout.tsx` detecta `subscription_status === 'pending_payment'` y redirige aqui.
+  Flujo: `useTenant` carga plan_id → `createPayment` → SDK SmartFields → formulario pagador
+         → `confirmPayment` → `activateSubscription` → redirect dashboard.
 - Billing (renovacion): `frontend/features/tenants/screens/BillingScreen.tsx`
   Flujo: "Pagar con tarjeta" → `createPayment` → SDK SmartFields → formulario pagador → `confirmPayment` → `applyRenewal`
 
@@ -350,12 +423,12 @@ Escanea tenants activos con `plan_cycle_ends_at <= now + 7 dias`.
 
 ## Deuda Tecnica
 
-- Checkout de renovacion por email (Fase 4): el worker notifica pero no genera link de pago.
-- Sin webhooks dLocal: no detectamos cambios de estado asincronos desde dLocal.
-- Sin manejo de 3DS: si dLocal requiere autenticacion 3DS, el confirm retorna `redirect_url`
-  pero el frontend no lo gestiona aun. A implementar cuando sea necesario.
 - `list_with_subscription_expiry_due` en `DynamoTenantRepository` usa scan — aceptable
-  con poco volumen; convertir en GSI cuando la cardinalidad lo requiera.
+  hasta ~10 K tenants activos; convertir en GSI cuando la cardinalidad lo requiera.
+- Webhook dLocal no tiene retry/dead-letter: si el handler falla, dLocal reintentara
+  segun su politica de reintentos pero no hay DLQ ni alerta para detectar perdida de eventos.
+- 3DS no tiene timeout de sesion: si el usuario cierra la pestana sin completar la
+  verificacion, el order queda `PENDING` en DynamoDB indefinidamente sin limpieza automatica.
 
 ## Deuda Solventada
 

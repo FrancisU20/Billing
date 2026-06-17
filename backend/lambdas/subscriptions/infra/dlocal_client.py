@@ -7,6 +7,7 @@ import urllib.request
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import (
     DLocalConfirmPaymentResult,
     DLocalCreatePaymentResult,
+    DLocalRefundResult,
     IDLocalClient,
 )
 from shared.logger import get_logger
@@ -91,4 +92,15 @@ class DLocalClient(IDLocalClient):
             payer_id=payer.get("id"),
             payer_email=payer.get("email"),
             redirect_url=redirect_url,
+        )
+
+    def refund_payment(self, order_id: str, amount: str, currency: str) -> DLocalRefundResult:
+        resp = self._request(
+            "POST",
+            f"/v1/payments/{order_id}/refund",
+            {"amount": float(amount), "currency": currency},
+        )
+        return DLocalRefundResult(
+            refund_id=resp.get("id") or "",
+            status=resp.get("status") or "REFUNDED",
         )

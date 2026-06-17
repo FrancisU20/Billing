@@ -35,6 +35,7 @@ from lambdas.tenants.schemas import (
     ToggleStatusRequest,
     UpdateTenantRequest,
 )
+from lambdas.tenants.use_cases.activate_subscription import ActivateSubscriptionUseCase
 from lambdas.tenants.use_cases.apply_subscription_renewal import ApplySubscriptionRenewalUseCase
 from lambdas.tenants.use_cases.create_tenant import CreateTenantUseCase
 from lambdas.tenants.use_cases.delete_tenant import DeleteTenantUseCase
@@ -259,6 +260,38 @@ def _retry_onboarding(request: Request, context) -> dict:
 @lambda_handler
 @require_role("owner", "admin", "superadmin")
 @idempotent
+def _activate_subscription(request: Request, context) -> dict:
+    tenant_id = require_path_param(request, "id")
+    if not request.is_superadmin and request.tenant_id != tenant_id:
+        raise ForbiddenError()
+    body = parse(ApplyRenewalRequest, request.body)
+    repo = _repo()
+    tenant, result, payment_transact = ActivateSubscriptionUseCase(repo, _payment_reader()).execute(
+        tenant_id, body.order_id, request.user_id
+    )
+    response = ApiResponse.ok(
+        {
+            "tenant_id": result.tenant_id,
+            "plan_cycle_ends_at": result.plan_cycle_ends_at,
+            "subscription_status": result.subscription_status,
+        },
+        request.request_id,
+    )
+    repo.commit(
+        tenant=tenant,
+        user_id=request.user_id,
+        action="SUBSCRIPTION_ACTIVATION",
+        events=[],
+        idempotency=require_current_context(),
+        response=response,
+        extra_transact_items=[payment_transact],
+    )
+    return response
+
+
+@lambda_handler
+@require_role("owner", "admin", "superadmin")
+@idempotent
 def _apply_renewal(request: Request, context) -> dict:
     tenant_id = require_path_param(request, "id")
     if not request.is_superadmin and request.tenant_id != tenant_id:
@@ -313,6 +346,7 @@ _ID_PATTERN = re.compile(r"^/tenants/[^/]+$")
 _STATUS_PATTERN = re.compile(r"^/tenants/[^/]+/status$")
 _ONBOARDING_RETRY_PATTERN = re.compile(r"^/tenants/[^/]+/onboarding/retry$")
 _SUBSCRIPTION_RENEW_PATTERN = re.compile(r"^/tenants/[^/]+/subscription/renew$")
+_SUBSCRIPTION_ACTIVATE_PATTERN = re.compile(r"^/tenants/[^/]+/subscription/activate$")
 
 
 def handler(event: dict, context) -> dict:
@@ -333,6 +367,10 @@ def handler(event: dict, context) -> dict:
     if _ONBOARDING_RETRY_PATTERN.match(path):
         if method == "POST":
             return _retry_onboarding(event, context)
+
+    if _SUBSCRIPTION_ACTIVATE_PATTERN.match(path):
+        if method == "POST":
+            return _activate_subscription(event, context)
 
     if _SUBSCRIPTION_RENEW_PATTERN.match(path):
         if method == "POST":

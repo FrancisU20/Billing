@@ -34,3 +34,15 @@ class PaymentConfirmError(AppError):
     code = "PAYMENT_CONFIRM_FAILED"
     default_message = "No se pudo confirmar el pago."
     status_code = 502
+
+
+class PaymentNotRefundableError(AppError):
+    code = "PAYMENT_NOT_REFUNDABLE"
+    default_message = "Solo se pueden reembolsar pagos confirmados (PAID)."
+    status_code = 409
+
+
+class PaymentRefundError(AppError):
+    code = "PAYMENT_REFUND_FAILED"
+    default_message = "No se pudo procesar el reembolso."
+    status_code = 502

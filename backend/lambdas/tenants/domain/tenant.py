@@ -161,6 +161,16 @@ class Tenant(GlobalEntity):
             and now >= self.cert_expires_at - timedelta(days=threshold)
         ]
 
+    def activate_subscription(
+        self, *, payer_id: str, plan_cycle: str, now: datetime, updated_by: str
+    ) -> None:
+        """First payment activation for a pending_payment tenant. Cycle starts from payment date."""
+        self.plan_cycle_ends_at = now + _cycle_duration(plan_cycle)
+        self.dlocal_payer_id = payer_id
+        self.subscription_status = "active"
+        self.subscription_renewal_reminder_sent_at = None
+        self.touch(updated_by)
+
     def apply_subscription_renewal(
         self, *, payer_id: str, plan_cycle: str, now: datetime, updated_by: str
     ) -> None:

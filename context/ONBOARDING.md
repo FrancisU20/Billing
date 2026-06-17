@@ -150,47 +150,38 @@ Aplica solo a planes con `self_service=true`. Para `self_service=false` (Enterpr
       - no guarda p12 ni cert_password
    e. Envia OTP al email
 
-5. [Solo planes de pago] Frontend navega a payment.tsx:
-   - RegisterOtpScreen detecta `isPaidPlan` → guarda `otpValue` en store → navega a
-     `Routes.public.registerPayment` (SIN llamar a /otp/confirm todavia)
-   - RegisterPaymentScreen crea payment dLocal on mount (recibe order_id + checkout_token)
-   - SDK SmartFields carga iframe de tarjeta (Platform.OS === 'web' unicamente)
-   - Payer ingresa tarjeta → SDK retorna card_token → confirmPayment → guarda order_id en store
-   - Llama /otp/confirm con order_id incluido
-
-   [Planes gratuitos] Frontend llama /otp/confirm directamente sin order_id.
+5. Frontend llama /otp/confirm directamente (planes gratis y de pago).
+   El pago ya NO ocurre en este paso — modelo Netflix.
 
 6. POST /onboarding/otp/confirm (publico, sin JWT)
    Body: { verification_id, otp, ruc, trade_name, legal_name, email, phone?, plan_id,
-           certificate_b64, cert_password, order_id? }
-
-   (El campo `order_id` esta en `_IGNORED_FIELDS` de `payload_signature.py` — no afecta
-   el hash de integridad; el hash se calcula sin el, tanto en request como en confirm.)
+           certificate_b64, cert_password }
 
 7. Handler confirma:
    a. Verifica OTP, expiracion e intentos
    b. Revalida certificado p12 completo contra el RUC
-   c. Si plan es de pago (`not plan.is_free`): verifica via `IPaymentVerifier`:
-      - `order_id` debe estar presente en body → `OnboardingPaymentRequiredError` (422) si no
-      - Payment debe existir → 422 si no encontrado
-      - Payment.status debe ser PAID o AUTHORIZED → 422 si no
-      El `IPaymentVerifier` lee la tabla `payments` sin acoplar el dominio onboarding a infra.
-   d. Secrets Manager PutSecretValue:
+   c. Secrets Manager PutSecretValue:
       - Path: /codelabs-billing/{env}/tenant/{tenant_id}/certificate
       - Contenido: { "p12_b64": "...", "password": "..." }
       - Si DynamoDB falla luego, el handler intenta limpiar el secreto huerfano.
-   e. DynamoDB TransactWriteItems:
-      - Tenant (status=active, sri_environment=testing, certificate metadata)
+   d. DynamoDB TransactWriteItems:
+      - Tenant con:
+        - plan gratis: `subscription_status=null`, `plan_cycle_ends_at` calculado
+        - plan de pago: `subscription_status='pending_payment'`, `plan_cycle_ends_at=null`
       - RUC lock — MISMO mecanismo `RUC#{ruc}` / `TENANT_RUC_LOCK` de TENANTS.md.
       - Idempotency record
-   f. Outbox: encola evento TenantCreatedEvent
+   e. Outbox: encola evento TenantCreatedEvent
       - El worker tenant_onboarding llama AdminCreateUser con clave temporal
       - Worker email_notifications envia email con clave temporal
 
 8. Respuesta: { success: true, data: { tenant_id, email } }
 9. Cliente recibe email con clave temporal
 10. Cliente hace login → challenge NEW_PASSWORD_REQUIRED → cambia clave
-11. Dashboard arranca en sri_environment=testing
+11. Si plan de pago: el layout (tenant)/_layout.tsx detecta subscription_status='pending_payment'
+    → redirige automaticamente a /(app)/activate-subscription
+    → usuario paga → POST /tenants/{id}/subscription/activate
+    → subscription_status='active', plan_cycle_ends_at = now + ciclo
+12. Dashboard arranca en sri_environment=testing
 ```
 
 ## Flujo Enterprise — Lead Capture (`self_service=false`)
@@ -566,22 +557,30 @@ ese worker solo corre para tenants `self_service=true`.
 - [x] Omitir paso de certificado si `plan.self_service=false`
 - [x] Paso `otp.tsx`: ingreso de codigo y mensajes claros
 
-### Backend — Fase 3 (completado — pago obligatorio en onboarding)
+### Fase 3 (completado — Modelo Netflix: cuenta primero, pago post-login)
 
-- [x] `IPaymentVerifier` en `tenants/domain/repositories/` — abstraccion de verificacion de pago
-- [x] `PaymentVerifier` en `tenants/infra/` — lee tabla payments
-- [x] `ConfirmOnboardingOtpUseCase`: verifica PAID/AUTHORIZED si plan es de pago
-- [x] `OnboardingPaymentRequiredError` (422) si plan de pago sin order_id
-- [x] `order_id` en `_IGNORED_FIELDS` de `payload_signature.py`
-- [x] Tests actualizados: `FakeOnboardingPlanCatalog` con `is_free=True` como default
+Separacion de registro y pago: la cuenta se crea siempre en onboarding; el pago
+ocurre en la primera sesion autenticada si el plan es de pago.
 
-### Frontend — Fase 3 (completado — paso payment en wizard)
+Backend:
+- [x] `ConfirmOnboardingOtpUseCase`: eliminado `IPaymentVerifier` — no hay pago en onboarding
+- [x] Plan de pago crea tenant con `subscription_status='pending_payment'`, `plan_cycle_ends_at=null`
+- [x] Plan gratis crea tenant con `subscription_status=null` (sin ciclo de pago)
+- [x] `Tenant.activate_subscription()`: domain method — fija `plan_cycle_ends_at` desde `now`
+- [x] `ActivateSubscriptionUseCase`: verifica pago PAID, llama `activate_subscription`, guarda atomicamente
+- [x] `POST /tenants/{id}/subscription/activate` — JWT (owner/admin), mismo schema que renew
+- [x] `SubscriptionAlreadyActiveError` (409) si intentan activar un tenant ya activo
+- [x] CDK: ruta `/tenants/{id}/subscription/activate` con JWT authorizer
 
-- [x] `otpValue` y `orderId` en store Zustand
-- [x] `RegisterOtpScreen`: bifurcacion planes gratis vs pago (`isPaidPlan`)
-- [x] `RegisterPaymentScreen`: crea payment dLocal on mount, SmartFields, confirm, llama /otp/confirm
-- [x] Ruta `payment.tsx` en `(public)/register/`
-- [x] `Routes.public.registerPayment`
+Frontend:
+- [x] `RegisterOtpScreen`: eliminada bifurcacion `isPaidPlan`, siempre llama `/otp/confirm` directo
+- [x] Eliminados `otpValue`, `orderId`, `createPaymentIdempotencyKey`, `setOtpValue`, `setOrderId` del store
+- [x] Eliminados `RegisterPaymentScreen.tsx` y ruta `payment.tsx` (obsoletos)
+- [x] `ActivateSubscriptionScreen`: pantalla SmartFields + PayerForm post-login
+- [x] `/(app)/activate-subscription` — ruta autenticada fuera del grupo `(tenant)`
+- [x] `(tenant)/_layout.tsx`: guard `pending_payment` → redirige a activation screen
+- [x] `subscriptionStatusSchema`: agregado `'pending_payment'` al enum Zod
+- [x] `subscriptionsApi.activateSubscription()` y `activateSubscriptionResultSchema`
 
 ## Decisiones Futuras
 

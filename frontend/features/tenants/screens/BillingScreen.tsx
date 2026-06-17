@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react'
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
@@ -10,10 +10,21 @@ import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useTheme } from '@/lib/theme-context'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { subscriptionsApi } from '@/features/subscriptions/api'
+import { PayerForm, usePayerForm } from '@/features/subscriptions/components/PayerForm'
 import { useDLocalSmartFields } from '@/features/subscriptions/use-dlocal-smartfields'
+import { use3dsFlow } from '@/features/subscriptions/use-3ds-flow'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { useTenant } from '../hooks/useTenant'
 import type { CreatePaymentResult } from '@/features/subscriptions/schemas'
+
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('es-EC', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
 
 export function BillingScreen() {
   const { semantic } = useTheme()
@@ -25,11 +36,9 @@ export function BillingScreen() {
   const [createOrderKey] = useState(() => createIdempotencyKey('subscription-create-order'))
   const [renewalKey] = useState(() => createIdempotencyKey('subscription-renewal'))
   const [success, setSuccess] = useState(false)
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [payerEmail, setPayerEmail] = useState('')
-  const [documentType, setDocumentType] = useState<'CI' | 'RUC'>('CI')
-  const [payerDocument, setPayerDocument] = useState('')
+
+  const payerForm = usePayerForm()
+  const threeDs = use3dsFlow()
 
   const { fieldRef, sdkReady, sdkError } = useDLocalSmartFields({
     checkoutToken: order?.checkout_token,
@@ -63,21 +72,22 @@ export function BillingScreen() {
       throw new Error('El pago con tarjeta está disponible solo en la versión web.')
     }
 
+    const { values } = payerForm
     const { token: cardToken } = await window.dlocalGo!.createCardToken(fieldRef.current, {
-      name: `${firstName.trim()} ${lastName.trim()}`,
+      name: `${values.firstName.trim()} ${values.lastName.trim()}`,
     })
 
     const confirmation = await subscriptionsApi.confirmPayment(order.order_id, {
       card_token: cardToken,
-      client_first_name: firstName.trim(),
-      client_last_name: lastName.trim(),
-      client_email: payerEmail.trim(),
-      client_document_type: documentType,
-      client_document: payerDocument.trim(),
+      client_first_name: values.firstName.trim(),
+      client_last_name: values.lastName.trim(),
+      client_email: values.payerEmail.trim(),
+      client_document_type: values.documentType,
+      client_document: values.payerDocument.trim(),
     })
 
     if (confirmation.redirect_url) {
-      window.location.href = confirmation.redirect_url
+      threeDs.startRedirect(confirmation.redirect_url, order.order_id)
       return
     }
 
@@ -93,28 +103,81 @@ export function BillingScreen() {
 
   const handleCancelOrder = useCallback(() => {
     setOrder(null)
-    setFirstName('')
-    setLastName('')
-    setPayerEmail('')
-    setDocumentType('CI')
-    setPayerDocument('')
-  }, [])
+    payerForm.reset()
+  }, [payerForm])
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando..." />
+
+  if (threeDs.state.phase === 'awaiting' || threeDs.state.phase === 'checking') {
+    return (
+      <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
+        <AppNavBar title="Verificación del banco" subtitle="Autenticación 3DS" />
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
+            ]}
+          >
+            <Text style={[styles.title, { color: semantic.text.primary }]}>
+              Verificación requerida por tu banco
+            </Text>
+            <Text style={[styles.hint, { color: semantic.text.secondary }]}>
+              Tu banco requiere autenticación adicional. Completa la verificación en la pestaña que
+              se abrió y luego regresa aquí para confirmar el pago.
+            </Text>
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              isLoading={threeDs.state.phase === 'checking'}
+              onPress={() =>
+                threeDs.checkStatus(async (orderId) => {
+                  if (!tenantId) return
+                  await subscriptionsApi.applyRenewal(tenantId, orderId, renewalKey)
+                  setSuccess(true)
+                  await refresh()
+                })
+              }
+            >
+              Ya completé la verificación
+            </Button>
+            <Button variant="ghost" size="sm" fullWidth onPress={threeDs.reset}>
+              Cancelar
+            </Button>
+          </View>
+        </ScrollView>
+      </View>
+    )
+  }
+
+  if (threeDs.state.phase === 'failed') {
+    return (
+      <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
+        <AppNavBar title="Facturación" subtitle="Suscripción y pagos" />
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
+            ]}
+          >
+            <Text style={[styles.title, { color: semantic.status.error }]}>
+              {threeDs.state.error}
+            </Text>
+            <Button variant="primary" size="lg" fullWidth onPress={threeDs.reset}>
+              Intentar de nuevo
+            </Button>
+          </View>
+        </ScrollView>
+      </View>
+    )
+  }
 
   const subStatus = tenant?.subscription_status
   const cycleEndsAt = tenant?.plan_cycle_ends_at
   const isActive = subStatus === 'active'
   const isExpired = subStatus === 'expired'
-
-  function formatDate(iso: string | null | undefined): string {
-    if (!iso) return '—'
-    return new Date(iso).toLocaleDateString('es-EC', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
@@ -278,139 +341,7 @@ export function BillingScreen() {
                       />
                     </View>
 
-                    <Text style={[styles.payerSectionLabel, { color: semantic.text.primary }]}>
-                      Datos del pagador
-                    </Text>
-
-                    <View style={styles.fieldRow}>
-                      <View style={[styles.fieldGroup, styles.fieldFlex]}>
-                        <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                          Nombre
-                        </Text>
-                        <TextInput
-                          value={firstName}
-                          onChangeText={setFirstName}
-                          placeholder="Nombre"
-                          placeholderTextColor={semantic.text.secondary}
-                          autoCapitalize="words"
-                          autoCorrect={false}
-                          style={[
-                            styles.nameInput,
-                            {
-                              borderColor: semantic.border.default,
-                              backgroundColor: semantic.bg.page,
-                              color: semantic.text.primary,
-                            },
-                          ]}
-                        />
-                      </View>
-                      <View style={[styles.fieldGroup, styles.fieldFlex]}>
-                        <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                          Apellido
-                        </Text>
-                        <TextInput
-                          value={lastName}
-                          onChangeText={setLastName}
-                          placeholder="Apellido"
-                          placeholderTextColor={semantic.text.secondary}
-                          autoCapitalize="words"
-                          autoCorrect={false}
-                          style={[
-                            styles.nameInput,
-                            {
-                              borderColor: semantic.border.default,
-                              backgroundColor: semantic.bg.page,
-                              color: semantic.text.primary,
-                            },
-                          ]}
-                        />
-                      </View>
-                    </View>
-
-                    <View style={styles.fieldGroup}>
-                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                        Email
-                      </Text>
-                      <TextInput
-                        value={payerEmail}
-                        onChangeText={setPayerEmail}
-                        placeholder="correo@ejemplo.com"
-                        placeholderTextColor={semantic.text.secondary}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        keyboardType="email-address"
-                        style={[
-                          styles.nameInput,
-                          {
-                            borderColor: semantic.border.default,
-                            backgroundColor: semantic.bg.page,
-                            color: semantic.text.primary,
-                          },
-                        ]}
-                      />
-                    </View>
-
-                    <View style={styles.fieldGroup}>
-                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                        Tipo de documento
-                      </Text>
-                      <View style={styles.docTypeRow}>
-                        {(['CI', 'RUC'] as const).map((type) => (
-                          <Pressable
-                            key={type}
-                            onPress={() => setDocumentType(type)}
-                            style={[
-                              styles.docTypeBtn,
-                              {
-                                borderColor:
-                                  documentType === type
-                                    ? semantic.accent.default
-                                    : semantic.border.default,
-                                backgroundColor:
-                                  documentType === type ? semantic.accent.subtle : semantic.bg.page,
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.docTypeBtnText,
-                                {
-                                  color:
-                                    documentType === type
-                                      ? semantic.accent.default
-                                      : semantic.text.secondary,
-                                },
-                              ]}
-                            >
-                              {type === 'CI' ? 'Cédula' : 'RUC'}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </View>
-
-                    <View style={styles.fieldGroup}>
-                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                        Número de documento
-                      </Text>
-                      <TextInput
-                        value={payerDocument}
-                        onChangeText={setPayerDocument}
-                        placeholder={documentType === 'CI' ? '10 dígitos' : '13 dígitos'}
-                        placeholderTextColor={semantic.text.secondary}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        keyboardType="number-pad"
-                        style={[
-                          styles.nameInput,
-                          {
-                            borderColor: semantic.border.default,
-                            backgroundColor: semantic.bg.page,
-                            color: semantic.text.primary,
-                          },
-                        ]}
-                      />
-                    </View>
+                    <PayerForm values={payerForm.values} setters={payerForm.setters} />
 
                     {confirmError ? <ApiErrorBanner error={confirmError} /> : null}
 
@@ -419,13 +350,7 @@ export function BillingScreen() {
                       size="lg"
                       fullWidth
                       isLoading={confirming}
-                      disabled={
-                        !sdkReady ||
-                        !firstName.trim() ||
-                        !lastName.trim() ||
-                        !payerEmail.trim() ||
-                        !payerDocument.trim()
-                      }
+                      disabled={!sdkReady || !payerForm.isComplete}
                       onPress={() => confirmRenewal()}
                     >
                       Confirmar pago
@@ -499,32 +424,7 @@ const styles = StyleSheet.create({
     lineHeight: typography.size.sm * typography.lineHeight.normal,
   },
   fieldGroup: { gap: spacing[1] },
-  fieldFlex: { flex: 1 },
-  fieldRow: { flexDirection: 'row', gap: spacing[3] },
   fieldLabel: { fontSize: typography.size.xs },
-  payerSectionLabel: {
-    fontSize: typography.size.sm,
-    fontWeight: typography.weight.semibold,
-    marginTop: spacing[1],
-  },
-  nameInput: {
-    height: 48,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing[3],
-    fontSize: typography.size.sm,
-  },
-  docTypeRow: { flexDirection: 'row', gap: spacing[2] },
-  docTypeBtn: {
-    flex: 1,
-    height: 48,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  docTypeBtnText: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
-  fieldError: { fontSize: typography.size.xs },
   fieldContainer: {
     height: 48,
     borderWidth: 1,

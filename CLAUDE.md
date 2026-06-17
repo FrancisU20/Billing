@@ -28,19 +28,22 @@ Region principal: `sa-east-1`.
 ## Estado Actual
 
 Implementado: CRUD y filtros server-side de `tenants`, `plans` y `clients`; auth SRP via
-Lambda; onboarding publico con OTP + pago dLocal Go SmartFields obligatorio para planes de
-pago; validacion/carga/reemplazo de certificados p12; emails transaccionales; workers diarios
-(vencimiento de certificados, recordatorio/vencimiento de suscripcion); paginacion opaca,
-idempotencia HTTP, locks transaccionales, outbox transaccional y separacion publica/admin
-de planes; dLocal Go SmartFields completo (create + confirm con campos `client_*` alineados
-a la API de dLocal Go); formulario de pago con datos del pagador (nombre, apellido, email,
-tipo/numero de documento) independiente del perfil del tenant; endpoint de renovacion
-autenticado; pagina de billing en frontend (Fase 3 de `context/SUBSCRIPTIONS.md`).
+Lambda; onboarding publico con OTP sin pago (modelo Netflix — cuenta se crea siempre, plan
+de pago queda `subscription_status='pending_payment'`); validacion/carga/reemplazo de
+certificados p12; emails transaccionales con link de renovacion directo; workers diarios
+(vencimiento de certificados, recordatorio/vencimiento de suscripcion, pagos huerfanos);
+paginacion opaca, idempotencia HTTP, locks transaccionales, outbox transaccional y
+separacion publica/admin de planes; dLocal Go SmartFields completo (create + confirm +
+refund + webhooks con campos `client_*` alineados a la API); manejo de 3DS en frontend
+(redirect a URL del banco + polling de estado); formulario de pago con datos del pagador
+independiente del perfil del tenant; guard de `pending_payment` en primera sesion
+autenticada con pantalla `ActivateSubscriptionScreen`; endpoint de activacion autenticado
+(`POST /tenants/{id}/subscription/activate`); endpoint de renovacion autenticado; endpoint
+de reembolso superadmin (`POST /subscriptions/payments/{order_id}/refund`); pagina de
+billing en frontend.
 
 Proximo hito de producto: **invoices/documents** — emision SRI, secuenciales,
-XAdES-BES, almacenamiento legal y batch jobs. Ver `context/INVOICES.md`. En paralelo,
-**subscriptions** Fase 4: checkout de renovacion por link en email. Ver
-`context/SUBSCRIPTIONS.md`.
+XAdES-BES, almacenamiento legal y batch jobs. Ver `context/INVOICES.md`.
 
 ## Memorias Base
 
@@ -64,7 +67,7 @@ Reglas de negocio, flujos y DynamoDB especificos de cada dominio (incluye su sec
 | `context/ONBOARDING.md` | Registro self-service con OTP, certificados p12, lead Enterprise |
 | `context/CERTIFICATES.md` | Validacion, almacenamiento y ciclo de vida de certificados digitales p12 |
 | `context/INVOICES.md` | Emision de documentos, numeracion SRI, XAdES-BES, batch jobs (**pendiente**) |
-| `context/SUBSCRIPTIONS.md` | Suscripcion SaaS via dLocal Go SmartFields, checkout en onboarding (**fase 3 de 4**) |
+| `context/SUBSCRIPTIONS.md` | Suscripcion SaaS via dLocal Go SmartFields, modelo Netflix, webhooks, 3DS, reembolso (**Fase 4 completa**) |
 
 ## Mapa De Deuda Tecnica
 
@@ -80,7 +83,7 @@ corresponda. Estado actual por capa/dominio:
 | `context/ONBOARDING.md` | Queue dedicada Enterprise automatica es alcance futuro |
 | `context/CERTIFICATES.md` | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras |
 | `context/INVOICES.md` | Dominio pendiente; deuda anticipada de IVA/SRI/reintentos |
-| `context/SUBSCRIPTIONS.md` | Sin checkout de renovacion por email (Fase 4); sin webhooks dLocal; sin 3DS; scan en worker de renovacion |
+| `context/SUBSCRIPTIONS.md` | Scan en worker de renovacion (aceptable hasta ~10 K); webhook sin DLQ; orders PENDING sin limpieza automatica |
 
 ## Stack
 

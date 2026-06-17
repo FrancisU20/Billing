@@ -284,11 +284,16 @@ def _build_enterprise_lead_html(trade_name: str, ruc: str, email: str, plan_id: 
 
 
 def _build_subscription_renewal_reminder_html(
-    legal_rep_name: str, trade_name: str, plan_cycle_ends_at: str, days_remaining: int
+    legal_rep_name: str,
+    trade_name: str,
+    plan_cycle_ends_at: str,
+    days_remaining: int,
+    renewal_url: str,
 ) -> str:
     safe_name = escape(legal_rep_name, quote=True)
     safe_trade_name = escape(trade_name, quote=True)
     safe_ends_at = escape(plan_cycle_ends_at, quote=True)
+    safe_url = escape(renewal_url, quote=True)
 
     return f"""<!DOCTYPE html>
 <html lang="es">
@@ -329,8 +334,16 @@ def _build_subscription_renewal_reminder_html(
                 </p>
               </div>
 
+              <a href="{safe_url}"
+                 style="display:inline-block;background:#1a1a2e;color:#ffffff;
+                        text-decoration:none;padding:14px 28px;border-radius:6px;
+                        font-size:15px;font-weight:700;margin:0 0 24px">
+                Renovar ahora &rarr;
+              </a>
+
               <p style="margin:0;color:#888;font-size:13px">
-                Ingresa a tu panel y completa el pago antes de la fecha indicada.
+                Si el botón no funciona, copia este enlace en tu navegador:<br>
+                <a href="{safe_url}" style="color:#1a1a2e">{safe_url}</a>
               </p>
             </td>
           </tr>
@@ -352,9 +365,10 @@ def _build_subscription_renewal_reminder_html(
 </html>"""
 
 
-def _build_subscription_expired_html(legal_rep_name: str, trade_name: str) -> str:
+def _build_subscription_expired_html(legal_rep_name: str, trade_name: str, renewal_url: str) -> str:
     safe_name = escape(legal_rep_name, quote=True)
     safe_trade_name = escape(trade_name, quote=True)
+    safe_url = escape(renewal_url, quote=True)
 
     return f"""<!DOCTYPE html>
 <html lang="es">
@@ -385,10 +399,19 @@ def _build_subscription_expired_html(legal_rep_name: str, trade_name: str) -> st
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
                 La suscripción de <strong>{safe_trade_name}</strong> ha vencido y
                 tu cuenta ha sido suspendida temporalmente. Para reactivar el acceso,
-                realiza el pago de renovación desde tu panel.
+                realiza el pago de renovación.
               </p>
 
+              <a href="{safe_url}"
+                 style="display:inline-block;background:#b91c1c;color:#ffffff;
+                        text-decoration:none;padding:14px 28px;border-radius:6px;
+                        font-size:15px;font-weight:700;margin:0 0 24px">
+                Reactivar cuenta &rarr;
+              </a>
+
               <p style="margin:0;color:#888;font-size:13px">
+                Si el botón no funciona, copia este enlace en tu navegador:<br>
+                <a href="{safe_url}" style="color:#1a1a2e">{safe_url}</a><br><br>
                 Una vez registrado el pago, tu cuenta se reactivará de inmediato.
               </p>
             </td>
@@ -485,6 +508,96 @@ def _build_certificate_expiry_alert_html(
 </html>"""
 
 
+def _build_orphan_payment_alert_html(
+    order_id: str,
+    payer_email: str,
+    plan_id: str,
+    amount: str,
+    currency: str,
+    confirmed_at: str,
+) -> str:
+    safe_order_id = escape(order_id, quote=True)
+    safe_payer_email = escape(payer_email, quote=True)
+    safe_plan_id = escape(plan_id, quote=True)
+    safe_amount = escape(amount, quote=True)
+    safe_currency = escape(currency, quote=True)
+    safe_confirmed_at = escape(confirmed_at, quote=True)
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:40px 20px">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+          <tr>
+            <td style="background:#b91c1c;padding:32px 40px">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
+                CodeLabs Billing — Alerta operacional
+              </h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px">
+              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+                Pago sin cuenta asociada
+              </h2>
+              <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                Se detectó un pago en estado <strong>PAID</strong> que no tiene
+                un tenant vinculado. El cliente fue cobrado pero su cuenta no fue creada.
+                Revisar y crear el tenant manualmente si corresponde.
+              </p>
+
+              <div style="background:#fff1f2;border-left:4px solid #b91c1c;
+                          border-radius:4px;padding:20px;margin:0 0 24px">
+                <p style="margin:0 0 6px;color:#1a1a2e">
+                  <strong>Order ID (dLocal):</strong> {safe_order_id}
+                </p>
+                <p style="margin:0 0 6px;color:#1a1a2e">
+                  <strong>Email del pagador:</strong> {safe_payer_email}
+                </p>
+                <p style="margin:0 0 6px;color:#1a1a2e">
+                  <strong>Plan:</strong> {safe_plan_id}
+                </p>
+                <p style="margin:0 0 6px;color:#1a1a2e">
+                  <strong>Monto:</strong> {safe_amount} {safe_currency}
+                </p>
+                <p style="margin:0;color:#1a1a2e">
+                  <strong>Confirmado el:</strong> {safe_confirmed_at}
+                </p>
+              </div>
+
+              <p style="margin:0;color:#888;font-size:13px">
+                Para recuperar: crear el tenant via <code>POST /tenants</code> y luego
+                vincular el pago con <code>link_tenant(order_id, tenant_id)</code> en DynamoDB.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f8f9fa;padding:20px 40px;
+                       border-top:1px solid #e9ecef">
+              <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
+                © CodeLabs Billing · Ecuador
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
 class BrevoEmailSender(EmailSender):
     def send_onboarding_otp(
         self,
@@ -554,6 +667,7 @@ class BrevoEmailSender(EmailSender):
         trade_name: str,
         plan_cycle_ends_at: str,
         days_remaining: int,
+        renewal_url: str,
     ) -> None:
         api_key = _get_api_key()
         payload = {
@@ -561,7 +675,7 @@ class BrevoEmailSender(EmailSender):
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": f"Tu suscripción vence en {days_remaining} días — CodeLabs Billing",
             "htmlContent": _build_subscription_renewal_reminder_html(
-                legal_rep_name, trade_name, plan_cycle_ends_at, days_remaining
+                legal_rep_name, trade_name, plan_cycle_ends_at, days_remaining, renewal_url
             ),
         }
         _send(api_key, payload, log_email=email)
@@ -572,12 +686,42 @@ class BrevoEmailSender(EmailSender):
         email: str,
         legal_rep_name: str,
         trade_name: str,
+        renewal_url: str,
     ) -> None:
         api_key = _get_api_key()
         payload = {
             "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": "Tu suscripción ha vencido — CodeLabs Billing",
-            "htmlContent": _build_subscription_expired_html(legal_rep_name, trade_name),
+            "htmlContent": _build_subscription_expired_html(
+                legal_rep_name, trade_name, renewal_url
+            ),
         }
         _send(api_key, payload, log_email=email)
+
+    def send_orphan_payment_alert(
+        self,
+        *,
+        superadmin_email: str,
+        order_id: str,
+        payer_email: str | None,
+        plan_id: str,
+        amount: str,
+        currency: str,
+        confirmed_at: str,
+    ) -> None:
+        api_key = _get_api_key()
+        payload = {
+            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "to": [{"email": superadmin_email}],
+            "subject": f"[ALERTA] Pago sin cuenta — {order_id}",
+            "htmlContent": _build_orphan_payment_alert_html(
+                order_id,
+                payer_email or "desconocido",
+                plan_id,
+                amount,
+                currency,
+                confirmed_at,
+            ),
+        }
+        _send(api_key, payload, log_email=superadmin_email)

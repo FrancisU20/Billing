@@ -19,6 +19,12 @@ class DLocalConfirmPaymentResult:
     redirect_url: str | None = None
 
 
+@dataclass(frozen=True)
+class DLocalRefundResult:
+    refund_id: str
+    status: str
+
+
 class IDLocalClient(ABC):
     @abstractmethod
     def create_payment(
@@ -36,3 +42,6 @@ class IDLocalClient(ABC):
         client_document_type: str,
         client_document: str,
     ) -> DLocalConfirmPaymentResult: ...
+
+    @abstractmethod
+    def refund_payment(self, order_id: str, amount: str, currency: str) -> DLocalRefundResult: ...

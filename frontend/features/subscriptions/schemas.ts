@@ -33,7 +33,14 @@ export const applyRenewalResultSchema = z.object({
   subscription_status: z.string().min(1),
 })
 
+export const activateSubscriptionResultSchema = z.object({
+  tenant_id: z.string().min(1),
+  plan_cycle_ends_at: z.string().min(1),
+  subscription_status: z.string().min(1),
+})
+
 export type CreatePaymentResult = z.infer<typeof createPaymentResultSchema>
 export type ConfirmPaymentResult = z.infer<typeof confirmPaymentResultSchema>
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>
 export type ApplyRenewalResult = z.infer<typeof applyRenewalResultSchema>
+export type ActivateSubscriptionResult = z.infer<typeof activateSubscriptionResultSchema>

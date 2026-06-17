@@ -21,6 +21,7 @@ class SendSubscriptionRenewalReminderUseCase:
         trade_name: str,
         plan_cycle_ends_at: str,
         days_remaining: int,
+        renewal_url: str,
     ) -> None:
         if not email:
             raise ValidationError("email is required to send the renewal reminder")
@@ -32,6 +33,7 @@ class SendSubscriptionRenewalReminderUseCase:
                 trade_name=trade_name,
                 plan_cycle_ends_at=plan_cycle_ends_at,
                 days_remaining=days_remaining,
+                renewal_url=renewal_url,
             )
             _log.info(
                 "subscription renewal reminder sent",

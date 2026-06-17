@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
 
-PaymentStatus = Literal["CREATED", "PENDING", "PAID", "REJECTED", "CANCELLED", "FAILED"]
+PaymentStatus = Literal["CREATED", "PENDING", "PAID", "REJECTED", "CANCELLED", "FAILED", "REFUNDED"]
 
 
 @dataclass
@@ -36,6 +36,9 @@ class Payment:
     def fail(self, detail: str) -> None:
         self.status = "FAILED"
         self.error_detail = detail
+
+    def refund(self) -> None:
+        self.status = "REFUNDED"
 
     def to_dict(self) -> dict:
         return {

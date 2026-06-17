@@ -9,7 +9,6 @@ export const Routes = {
     registerDetails: '/(public)/register/details' as const,
     registerCertificate: '/(public)/register/certificate' as const,
     registerOtp: '/(public)/register/otp' as const,
-    registerPayment: '/(public)/register/payment' as const,
     registerConfirm: '/(public)/register/confirm' as const,
     legalTerms: '/(public)/legal/terms' as const,
     legalPrivacy: '/(public)/legal/privacy' as const,
@@ -17,6 +16,7 @@ export const Routes = {
   },
   app: {
     profile: '/(app)/profile' as const,
+    activateSubscription: '/(app)/activate-subscription' as const,
   },
   superadmin: {
     tenants: '/(app)/(superadmin)/tenants' as const,

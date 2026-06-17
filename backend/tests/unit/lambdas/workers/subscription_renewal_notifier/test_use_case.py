@@ -33,7 +33,7 @@ class FakeEmailSender(EmailSender):
         raise NotImplementedError
 
     def send_subscription_renewal_reminder(
-        self, *, email, legal_rep_name, trade_name, plan_cycle_ends_at, days_remaining
+        self, *, email, legal_rep_name, trade_name, plan_cycle_ends_at, days_remaining, renewal_url
     ):
         self.reminders_sent.append(
             {
@@ -41,11 +41,19 @@ class FakeEmailSender(EmailSender):
                 "trade_name": trade_name,
                 "plan_cycle_ends_at": plan_cycle_ends_at,
                 "days_remaining": days_remaining,
+                "renewal_url": renewal_url,
             }
         )
 
-    def send_subscription_expired(self, *, email, legal_rep_name, trade_name):
-        self.expirations_sent.append({"email": email, "trade_name": trade_name})
+    def send_subscription_expired(self, *, email, legal_rep_name, trade_name, renewal_url):
+        self.expirations_sent.append(
+            {"email": email, "trade_name": trade_name, "renewal_url": renewal_url}
+        )
+
+    def send_orphan_payment_alert(
+        self, *, superadmin_email, order_id, payer_email, plan_id, amount, currency, confirmed_at
+    ):
+        raise NotImplementedError
 
 
 _NOW = datetime(2026, 6, 1, 10, 0, 0, tzinfo=UTC)
@@ -72,7 +80,9 @@ def _tenant_expiring_in(days: int, *, reminder_sent: bool = False, **kwargs):
 class NotifySubscriptionRenewalUseCaseTests(unittest.TestCase):
     def _run(self, repo, email_sender=None):
         sender = email_sender or FakeEmailSender()
-        result = NotifySubscriptionRenewalUseCase(repo, sender, now=_NOW).execute()
+        result = NotifySubscriptionRenewalUseCase(
+            repo, sender, now=_NOW, frontend_url="https://billing.example.com"
+        ).execute()
         return result, sender
 
     def test_sends_reminder_for_tenant_expiring_within_7_days(self) -> None:

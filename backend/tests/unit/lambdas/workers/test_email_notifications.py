@@ -98,6 +98,7 @@ class FakeEmailSender(EmailSender):
         trade_name: str,
         plan_cycle_ends_at: str,
         days_remaining: int,
+        renewal_url: str,
     ) -> None:
         if self._should_fail:
             raise RuntimeError("Brevo unavailable")
@@ -108,6 +109,7 @@ class FakeEmailSender(EmailSender):
                 "trade_name": trade_name,
                 "plan_cycle_ends_at": plan_cycle_ends_at,
                 "days_remaining": days_remaining,
+                "renewal_url": renewal_url,
             }
         )
 
@@ -117,6 +119,7 @@ class FakeEmailSender(EmailSender):
         email: str,
         legal_rep_name: str,
         trade_name: str,
+        renewal_url: str,
     ) -> None:
         if self._should_fail:
             raise RuntimeError("Brevo unavailable")
@@ -127,6 +130,19 @@ class FakeEmailSender(EmailSender):
                 "trade_name": trade_name,
             }
         )
+
+    def send_orphan_payment_alert(
+        self,
+        *,
+        superadmin_email: str,
+        order_id: str,
+        payer_email: str | None,
+        plan_id: str,
+        amount: str,
+        currency: str,
+        confirmed_at: str,
+    ) -> None:
+        raise NotImplementedError
 
 
 # ── Use case ──────────────────────────────────────────────────────────────────
@@ -324,11 +340,31 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                 raise NotImplementedError
 
             def send_subscription_renewal_reminder(
-                self, *, email, legal_rep_name, trade_name, plan_cycle_ends_at, days_remaining
+                self,
+                *,
+                email,
+                legal_rep_name,
+                trade_name,
+                plan_cycle_ends_at,
+                days_remaining,
+                renewal_url,
             ):
                 raise NotImplementedError
 
-            def send_subscription_expired(self, *, email, legal_rep_name, trade_name):
+            def send_subscription_expired(self, *, email, legal_rep_name, trade_name, renewal_url):
+                raise NotImplementedError
+
+            def send_orphan_payment_alert(
+                self,
+                *,
+                superadmin_email,
+                order_id,
+                payer_email,
+                plan_id,
+                amount,
+                currency,
+                confirmed_at,
+            ):
                 raise NotImplementedError
 
         mod._email_sender = PartialFakeSender()

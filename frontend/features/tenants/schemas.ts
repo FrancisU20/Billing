@@ -4,7 +4,9 @@ export const tenantStatusSchema = z.enum(['active', 'suspended', 'inactive'])
 export const sriEnvironmentSchema = z.enum(['testing', 'production'])
 export const planStatusSchema = z.enum(['active', 'expired'])
 
-export const subscriptionStatusSchema = z.enum(['active', 'expired', 'none']).optional()
+export const subscriptionStatusSchema = z
+  .enum(['active', 'expired', 'none', 'pending_payment'])
+  .optional()
 
 export const tenantSchema = z.object({
   id: z.string().min(1),

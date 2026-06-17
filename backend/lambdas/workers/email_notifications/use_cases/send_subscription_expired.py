@@ -19,6 +19,7 @@ class SendSubscriptionExpiredUseCase:
         email: str,
         legal_rep_name: str,
         trade_name: str,
+        renewal_url: str,
     ) -> None:
         if not email:
             raise ValidationError("email is required to send the subscription expired notice")
@@ -28,6 +29,7 @@ class SendSubscriptionExpiredUseCase:
                 email=email,
                 legal_rep_name=legal_rep_name,
                 trade_name=trade_name,
+                renewal_url=renewal_url,
             )
             _log.info("subscription expired email sent", email=email)
         except Exception as exc:
