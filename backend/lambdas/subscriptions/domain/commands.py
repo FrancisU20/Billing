@@ -13,6 +13,8 @@ class CreatePaymentCommand:
 class ConfirmPaymentCommand:
     order_id: str
     card_token: str
-    payer_name: str
-    payer_email: str
-    payer_document: str
+    client_first_name: str
+    client_last_name: str
+    client_email: str
+    client_document_type: str
+    client_document: str

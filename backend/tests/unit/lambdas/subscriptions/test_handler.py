@@ -78,9 +78,11 @@ class FakeDLocalClient:
         self,
         checkout_token: str,
         card_token: str,
-        payer_name: str,
-        payer_email: str,
-        payer_document: str,
+        client_first_name: str,
+        client_last_name: str,
+        client_email: str,
+        client_document_type: str,
+        client_document: str,
     ) -> DLocalConfirmPaymentResult:
         if self._confirm_raises:
             raise self._confirm_raises
@@ -213,9 +215,11 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
             "DP-1",
             {
                 "card_token": "card_tok_abc",
-                "payer_name": "Test User",
-                "payer_email": "test@example.com",
-                "payer_document": "1712345678",
+                "client_first_name": "Test",
+                "client_last_name": "User",
+                "client_email": "test@example.com",
+                "client_document_type": "CI",
+                "client_document": "1712345678",
             },
             dlocal=dlocal,
             repo=repo,
@@ -242,9 +246,11 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
             "DP-1",
             {
                 "card_token": "card_tok",
-                "payer_name": "Test User",
-                "payer_email": "test@example.com",
-                "payer_document": "1712345678",
+                "client_first_name": "Test",
+                "client_last_name": "User",
+                "client_email": "test@example.com",
+                "client_document_type": "CI",
+                "client_document": "1712345678",
             },
             repo=repo,
         )
@@ -255,9 +261,11 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
             "UNKNOWN",
             {
                 "card_token": "card_tok",
-                "payer_name": "Test User",
-                "payer_email": "test@example.com",
-                "payer_document": "1712345678",
+                "client_first_name": "Test",
+                "client_last_name": "User",
+                "client_email": "test@example.com",
+                "client_document_type": "CI",
+                "client_document": "1712345678",
             },
             repo=FakePaymentRepository(),
         )

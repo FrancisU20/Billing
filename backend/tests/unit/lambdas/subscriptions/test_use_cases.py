@@ -70,7 +70,7 @@ class FakeDLocalClient(IDLocalClient):
         self._create_raises = create_raises
         self._confirm_raises = confirm_raises
         self.create_calls: list[tuple[str, str, str]] = []
-        self.confirm_calls: list[tuple[str, str, str, str, str]] = []
+        self.confirm_calls: list[tuple[str, str, str, str, str, str, str]] = []
 
     def create_payment(self, amount: str, currency: str, country: str) -> DLocalCreatePaymentResult:
         self.create_calls.append((amount, currency, country))
@@ -85,12 +85,22 @@ class FakeDLocalClient(IDLocalClient):
         self,
         checkout_token: str,
         card_token: str,
-        payer_name: str,
-        payer_email: str,
-        payer_document: str,
+        client_first_name: str,
+        client_last_name: str,
+        client_email: str,
+        client_document_type: str,
+        client_document: str,
     ) -> DLocalConfirmPaymentResult:
         self.confirm_calls.append(
-            (checkout_token, card_token, payer_name, payer_email, payer_document)
+            (
+                checkout_token,
+                card_token,
+                client_first_name,
+                client_last_name,
+                client_email,
+                client_document_type,
+                client_document,
+            )
         )
         if self._confirm_raises:
             raise self._confirm_raises
@@ -226,9 +236,11 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
             ConfirmPaymentCommand(
                 order_id="DP-1",
                 card_token="card_tok_abc",
-                payer_name="Test User",
-                payer_email="test@example.com",
-                payer_document="1712345678",
+                client_first_name="Test",
+                client_last_name="User",
+                client_email="test@example.com",
+                client_document_type="CI",
+                client_document="1712345678",
             )
         )
         self.assertEqual(result.status, "PAID")
@@ -244,9 +256,11 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
             ConfirmPaymentCommand(
                 order_id="DP-1",
                 card_token="card_tok",
-                payer_name="Test User",
-                payer_email="test@example.com",
-                payer_document="1712345678",
+                client_first_name="Test",
+                client_last_name="User",
+                client_email="test@example.com",
+                client_document_type="CI",
+                client_document="1712345678",
             )
         )
         self.assertEqual(dlocal.confirm_calls[0][0], "mct_special")
@@ -258,9 +272,11 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
             ConfirmPaymentCommand(
                 order_id="DP-1",
                 card_token="card_tok",
-                payer_name="Test User",
-                payer_email="test@example.com",
-                payer_document="1712345678",
+                client_first_name="Test",
+                client_last_name="User",
+                client_email="test@example.com",
+                client_document_type="CI",
+                client_document="1712345678",
             )
         )
         self.assertEqual(result.status, "PAID")
@@ -272,9 +288,11 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
             ConfirmPaymentCommand(
                 order_id="DP-1",
                 card_token="card_tok",
-                payer_name="Test User",
-                payer_email="test@example.com",
-                payer_document="1712345678",
+                client_first_name="Test",
+                client_last_name="User",
+                client_email="test@example.com",
+                client_document_type="CI",
+                client_document="1712345678",
             )
         )
         self.assertEqual(result.status, "FAILED")
@@ -289,9 +307,11 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
                 ConfirmPaymentCommand(
                     order_id="DP-1",
                     card_token="card_tok",
-                    payer_name="Test User",
-                    payer_email="test@example.com",
-                    payer_document="1712345678",
+                    client_first_name="Test",
+                    client_last_name="User",
+                    client_email="test@example.com",
+                    client_document_type="CI",
+                    client_document="1712345678",
                 )
             )
 
@@ -301,9 +321,11 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
                 ConfirmPaymentCommand(
                     order_id="MISSING",
                     card_token="card_tok",
-                    payer_name="Test User",
-                    payer_email="test@example.com",
-                    payer_document="1712345678",
+                    client_first_name="Test",
+                    client_last_name="User",
+                    client_email="test@example.com",
+                    client_document_type="CI",
+                    client_document="1712345678",
                 )
             )
 
@@ -317,9 +339,11 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
                 ConfirmPaymentCommand(
                     order_id="DP-1",
                     card_token="card_tok",
-                    payer_name="Test User",
-                    payer_email="test@example.com",
-                    payer_document="1712345678",
+                    client_first_name="Test",
+                    client_last_name="User",
+                    client_email="test@example.com",
+                    client_document_type="CI",
+                    client_document="1712345678",
                 )
             )
         stored = repo.get_by_order_id("DP-1")
@@ -333,9 +357,11 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
                 ConfirmPaymentCommand(
                     order_id="DP-1",
                     card_token="card_tok",
-                    payer_name="Test User",
-                    payer_email="test@example.com",
-                    payer_document="1712345678",
+                    client_first_name="Test",
+                    client_last_name="User",
+                    client_email="test@example.com",
+                    client_document_type="CI",
+                    client_document="1712345678",
                 )
             )
         stored = repo.get_by_order_id("DP-1")

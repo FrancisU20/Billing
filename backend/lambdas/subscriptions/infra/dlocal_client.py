@@ -65,19 +65,19 @@ class DLocalClient(IDLocalClient):
         self,
         checkout_token: str,
         card_token: str,
-        payer_name: str,
-        payer_email: str,
-        payer_document: str,
+        client_first_name: str,
+        client_last_name: str,
+        client_email: str,
+        client_document_type: str,
+        client_document: str,
     ) -> DLocalConfirmPaymentResult:
-        document_type = "CI" if len(payer_document) == 10 else "RUC"
         body = {
             "cardToken": card_token,
-            "payer": {
-                "name": payer_name,
-                "email": payer_email,
-                "document": payer_document,
-                "document_type": document_type,
-            },
+            "clientFirstName": client_first_name,
+            "clientLastName": client_last_name,
+            "clientEmail": client_email,
+            "clientDocumentType": client_document_type,
+            "clientDocument": client_document,
         }
         resp = self._request("POST", f"/v1/payments/confirm/{checkout_token}", body)
         payer = resp.get("payer", {})

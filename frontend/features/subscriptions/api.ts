@@ -15,7 +15,14 @@ export const subscriptionsApi = {
 
   confirmPayment: (
     orderId: string,
-    body: { card_token: string; payer_name: string; payer_email: string; payer_document: string },
+    body: {
+      card_token: string
+      client_first_name: string
+      client_last_name: string
+      client_email: string
+      client_document_type: string
+      client_document: string
+    },
   ) =>
     api.post(`/subscriptions/payments/${orderId}/confirm`, body, confirmPaymentResultSchema, {
       auth: false,

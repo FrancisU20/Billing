@@ -43,9 +43,11 @@ class ConfirmPaymentUseCase:
             result = self._dlocal.confirm_payment(
                 payment.checkout_token,
                 cmd.card_token,
-                cmd.payer_name,
-                cmd.payer_email,
-                cmd.payer_document,
+                cmd.client_first_name,
+                cmd.client_last_name,
+                cmd.client_email,
+                cmd.client_document_type,
+                cmd.client_document,
             )
         except (urllib.error.HTTPError, urllib.error.URLError) as exc:
             detail = str(exc.code) if isinstance(exc, urllib.error.HTTPError) else str(exc.reason)

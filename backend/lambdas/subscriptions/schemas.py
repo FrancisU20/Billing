@@ -10,6 +10,8 @@ class CreatePaymentRequest(BaseModel):
 
 class ConfirmPaymentRequest(BaseModel):
     card_token: str = Field(..., min_length=1)
-    payer_name: str = Field(..., min_length=1)
-    payer_email: str = Field(..., min_length=1)
-    payer_document: str = Field(..., min_length=1)
+    client_first_name: str = Field(..., min_length=1)
+    client_last_name: str = Field(..., min_length=1)
+    client_email: str = Field(..., min_length=1)
+    client_document_type: str = Field(..., pattern=r"^(CI|RUC)$")
+    client_document: str = Field(..., min_length=1)

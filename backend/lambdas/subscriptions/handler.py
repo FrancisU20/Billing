@@ -78,9 +78,11 @@ def _confirm_payment(request: Request, context) -> dict:
         ConfirmPaymentCommand(
             order_id=order_id,
             card_token=body.card_token,
-            payer_name=body.payer_name,
-            payer_email=body.payer_email,
-            payer_document=body.payer_document,
+            client_first_name=body.client_first_name,
+            client_last_name=body.client_last_name,
+            client_email=body.client_email,
+            client_document_type=body.client_document_type,
+            client_document=body.client_document,
         )
     )
     return ApiResponse.ok(

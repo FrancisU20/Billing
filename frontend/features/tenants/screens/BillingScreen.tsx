@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react'
-import { Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
@@ -25,9 +25,10 @@ export function BillingScreen() {
   const [createOrderKey] = useState(() => createIdempotencyKey('subscription-create-order'))
   const [renewalKey] = useState(() => createIdempotencyKey('subscription-renewal'))
   const [success, setSuccess] = useState(false)
-  const [cardholderName, setCardholderName] = useState('')
-  const [nameError, setNameError] = useState<string | null>(null)
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [payerEmail, setPayerEmail] = useState('')
+  const [documentType, setDocumentType] = useState<'CI' | 'RUC'>('CI')
   const [payerDocument, setPayerDocument] = useState('')
 
   const { fieldRef, sdkReady, sdkError } = useDLocalSmartFields({
@@ -58,25 +59,21 @@ export function BillingScreen() {
   } = useFormSubmit(async () => {
     if (!order || !tenantId || !tenant) return
 
-    if (!cardholderName.trim()) {
-      setNameError('Ingresa el nombre del titular de la tarjeta.')
-      return
-    }
-    setNameError(null)
-
     if (Platform.OS !== 'web' || !fieldRef.current) {
       throw new Error('El pago con tarjeta está disponible solo en la versión web.')
     }
 
     const { token: cardToken } = await window.dlocalGo!.createCardToken(fieldRef.current, {
-      name: cardholderName.trim(),
+      name: `${firstName.trim()} ${lastName.trim()}`,
     })
 
     await subscriptionsApi.confirmPayment(order.order_id, {
       card_token: cardToken,
-      payer_name: cardholderName.trim(),
-      payer_email: payerEmail.trim(),
-      payer_document: payerDocument.trim(),
+      client_first_name: firstName.trim(),
+      client_last_name: lastName.trim(),
+      client_email: payerEmail.trim(),
+      client_document_type: documentType,
+      client_document: payerDocument.trim(),
     })
 
     await subscriptionsApi.applyRenewal(tenantId, order.order_id, renewalKey)
@@ -87,9 +84,10 @@ export function BillingScreen() {
 
   const handleCancelOrder = useCallback(() => {
     setOrder(null)
-    setCardholderName('')
-    setNameError(null)
+    setFirstName('')
+    setLastName('')
     setPayerEmail('')
+    setDocumentType('CI')
     setPayerDocument('')
   }, [])
 
@@ -271,41 +269,58 @@ export function BillingScreen() {
                       />
                     </View>
 
-                    <View style={styles.fieldGroup}>
-                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                        Nombre del titular
-                      </Text>
-                      <TextInput
-                        value={cardholderName}
-                        onChangeText={(v) => {
-                          setCardholderName(v)
-                          if (nameError) setNameError(null)
-                        }}
-                        placeholder="Como aparece en la tarjeta"
-                        placeholderTextColor={semantic.text.secondary}
-                        autoCapitalize="words"
-                        autoCorrect={false}
-                        style={[
-                          styles.nameInput,
-                          {
-                            borderColor: nameError
-                              ? semantic.status.error
-                              : semantic.border.default,
-                            backgroundColor: semantic.bg.page,
-                            color: semantic.text.primary,
-                          },
-                        ]}
-                      />
-                      {nameError ? (
-                        <Text style={[styles.fieldError, { color: semantic.status.error }]}>
-                          {nameError}
+                    <Text style={[styles.payerSectionLabel, { color: semantic.text.primary }]}>
+                      Datos del pagador
+                    </Text>
+
+                    <View style={styles.fieldRow}>
+                      <View style={[styles.fieldGroup, styles.fieldFlex]}>
+                        <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                          Nombre
                         </Text>
-                      ) : null}
+                        <TextInput
+                          value={firstName}
+                          onChangeText={setFirstName}
+                          placeholder="Nombre"
+                          placeholderTextColor={semantic.text.secondary}
+                          autoCapitalize="words"
+                          autoCorrect={false}
+                          style={[
+                            styles.nameInput,
+                            {
+                              borderColor: semantic.border.default,
+                              backgroundColor: semantic.bg.page,
+                              color: semantic.text.primary,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <View style={[styles.fieldGroup, styles.fieldFlex]}>
+                        <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                          Apellido
+                        </Text>
+                        <TextInput
+                          value={lastName}
+                          onChangeText={setLastName}
+                          placeholder="Apellido"
+                          placeholderTextColor={semantic.text.secondary}
+                          autoCapitalize="words"
+                          autoCorrect={false}
+                          style={[
+                            styles.nameInput,
+                            {
+                              borderColor: semantic.border.default,
+                              backgroundColor: semantic.bg.page,
+                              color: semantic.text.primary,
+                            },
+                          ]}
+                        />
+                      </View>
                     </View>
 
                     <View style={styles.fieldGroup}>
                       <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                        Email del pagador
+                        Email
                       </Text>
                       <TextInput
                         value={payerEmail}
@@ -328,12 +343,51 @@ export function BillingScreen() {
 
                     <View style={styles.fieldGroup}>
                       <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
-                        Cédula / RUC del pagador
+                        Tipo de documento
+                      </Text>
+                      <View style={styles.docTypeRow}>
+                        {(['CI', 'RUC'] as const).map((type) => (
+                          <Pressable
+                            key={type}
+                            onPress={() => setDocumentType(type)}
+                            style={[
+                              styles.docTypeBtn,
+                              {
+                                borderColor:
+                                  documentType === type
+                                    ? semantic.accent.default
+                                    : semantic.border.default,
+                                backgroundColor:
+                                  documentType === type ? semantic.accent.subtle : semantic.bg.page,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.docTypeBtnText,
+                                {
+                                  color:
+                                    documentType === type
+                                      ? semantic.accent.default
+                                      : semantic.text.secondary,
+                                },
+                              ]}
+                            >
+                              {type === 'CI' ? 'Cédula' : 'RUC'}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+
+                    <View style={styles.fieldGroup}>
+                      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>
+                        Número de documento
                       </Text>
                       <TextInput
                         value={payerDocument}
                         onChangeText={setPayerDocument}
-                        placeholder="10 o 13 dígitos"
+                        placeholder={documentType === 'CI' ? '10 dígitos' : '13 dígitos'}
                         placeholderTextColor={semantic.text.secondary}
                         autoCapitalize="none"
                         autoCorrect={false}
@@ -358,7 +412,8 @@ export function BillingScreen() {
                       isLoading={confirming}
                       disabled={
                         !sdkReady ||
-                        !cardholderName.trim() ||
+                        !firstName.trim() ||
+                        !lastName.trim() ||
                         !payerEmail.trim() ||
                         !payerDocument.trim()
                       }
@@ -435,7 +490,14 @@ const styles = StyleSheet.create({
     lineHeight: typography.size.sm * typography.lineHeight.normal,
   },
   fieldGroup: { gap: spacing[1] },
+  fieldFlex: { flex: 1 },
+  fieldRow: { flexDirection: 'row', gap: spacing[3] },
   fieldLabel: { fontSize: typography.size.xs },
+  payerSectionLabel: {
+    fontSize: typography.size.sm,
+    fontWeight: typography.weight.semibold,
+    marginTop: spacing[1],
+  },
   nameInput: {
     height: 48,
     borderWidth: 1,
@@ -443,6 +505,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[3],
     fontSize: typography.size.sm,
   },
+  docTypeRow: { flexDirection: 'row', gap: spacing[2] },
+  docTypeBtn: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  docTypeBtnText: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
   fieldError: { fontSize: typography.size.xs },
   fieldContainer: {
     height: 48,
