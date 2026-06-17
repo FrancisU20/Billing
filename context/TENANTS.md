@@ -61,6 +61,8 @@ deleted            bool, soft delete
 # Suscripcion SaaS (dLocal Go como pasarela, ver SUBSCRIPTIONS.md):
 dlocal_payer_id      str | None  — payer_id guardado; habilita cobro automatico y retry-payment
 subscription_status  str | None  — "active" | "expired" | "pending_payment" | "payment_failed" | None
+pending_order_id     str | None  — order_id PAID aun no vinculado al tenant (Phase 1 de activacion);
+                                   se limpia a None al completar activate_subscription()
 ```
 
 ### Maquina De Estados

@@ -488,13 +488,19 @@ Payment CREATED:
   plan_cycle      = "month" | "year"
   amount          = "5.99"
   currency        = "USD"
-  status          = "CREATED" | "PENDING" | "PAID" | "REJECTED" | "CANCELLED" | "FAILED"
+  status          = "CREATED" | "PENDING" | "PAID" | "REJECTED" | "CANCELLED" | "FAILED" | "REFUNDED"
   created_at      = ISO8601
 
 Payment PAID (campos adicionales):
   confirmed_at  = ISO8601
   payer_id      = "user-id"
   payer_email   = "buyer@example.com"
+
+Payment PENDING o FAILED (campos adicionales):
+  error_detail  = "dLocal error: ..." | "dLocal requires customer action" | null
+
+Payment REFUNDED (campos adicionales):
+  status        = "REFUNDED"   ← set por refund_payment use case
 
 Payment linkeado (tras activate o renovacion):
   tenant_id     = "tenant-real-uuid"   ← se fija atomicamente con repo.commit()
@@ -549,11 +555,13 @@ setea `plan_cycle_ends_at = now + ciclo`, `subscription_status="active"`, `dloca
 y limpia `pending_order_id = None`. Opuesto a `apply_subscription_renewal` que usa
 `max(now, plan_cycle_ends_at)` para no perder dias del ciclo anterior.
 
-`apply_subscription_renewal(plan_cycle)` — renovacion: extiende `plan_cycle_ends_at`
-desde `max(now, plan_cycle_ends_at)`, setea `subscription_status="active"` y limpia
-`subscription_renewal_reminder_sent_at`.
+`apply_subscription_renewal(payer_id, plan_cycle, now, updated_by)` — renovacion: extiende
+`plan_cycle_ends_at` desde `max(now, plan_cycle_ends_at)`, setea `subscription_status="active"`,
+actualiza `dlocal_payer_id` con el payer_id del cobro, limpia `subscription_renewal_reminder_sent_at`
+y, si el tenant estaba `SUSPENDED`, lo devuelve a `ACTIVE` (permite reactivar expirados que pagaron).
 
-`expire_subscription()` setea `subscription_status="expired"`.
+`expire_subscription(updated_by)` setea `subscription_status="expired"` **y** `status=SUSPENDED`
+(el tenant pierde acceso al dashboard hasta que renueve).
 
 ## Tareas Manuales/Operativas Por Entorno
 

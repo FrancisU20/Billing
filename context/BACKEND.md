@@ -167,6 +167,22 @@ Los repositorios tenant-scoped reciben `tenant_id` en el constructor. Nunca vien
   `plan_status`) el repositorio puede necesitar caminar varias paginas.
 - Usar `shared/db/limits.py` para defaults y cap de paginacion.
 
+### Composicion Transaccional Entre Repositorios
+
+Cuando un use case necesita escribir en **dos tablas distintas** en el mismo
+`TransactWriteItems` (ej. Payment + Tenant), el repositorio expone un método
+`save_transact_item(entity) -> dict` que retorna el dict `{"Put": {...}}` listo para
+incluir en la transaccion, sin ejecutarla. El use case lo devuelve al handler, que lo
+pasa como `extra_transact_items=[payment_transact]` en `repo.commit()`.
+
+Ejemplo: `IPaymentRepository.save_transact_item(payment)` retorna el item Put del
+Payment; `RetryPaymentUseCase.execute()` lo incluye en su tuple de retorno;
+`tenants/handler.py` lo pasa al commit del Tenant para escritura atomica.
+
+Repositorios que ya usan este patron:
+- `IPaymentRepository.save_transact_item` (Payment → Payments table)
+- `IPaymentReader.mark_applied_to_tenant` (update tenant_id en Payment → Payments table)
+
 ### Fix Conocido
 
 Doble serializacion en `transact_write_items`: usar Python dicts puros con
@@ -226,7 +242,10 @@ bundling (`_code`) y permisos IAM explicitos que el resto de Lambdas en `api_sta
 - `certificate_expiry_notifier`: cron diario `cron(0 9 * * ? *)` (09:00 UTC), alerta
   60/30 dias antes de `cert_expires_at`. Ver `CERTIFICATES.md`.
 - `subscription_renewal_notifier`: cron diario `cron(0 10 * * ? *)` (10:00 UTC), notifica
-  vencimiento de suscripcion SaaS. Ver `SUBSCRIPTIONS.md`.
+  vencimiento, cobra automaticamente si hay `dlocal_payer_id`, gestiona grace period
+  `payment_failed`. Ver `SUBSCRIPTIONS.md`.
+- `pending_activation_reconciler`: rate `rate(5 minutes)`, activa tenants con
+  `pending_payment + pending_order_id` que el flujo principal no pudo completar. Ver `SUBSCRIPTIONS.md`.
 
 Idempotencia entre corridas: si la tarea no tiene una tabla de tracking propia, guardar
 el estado "ya procesado" en la entidad de dominio afectada (ver
