@@ -3,9 +3,14 @@ from __future__ import annotations
 import unittest
 from datetime import UTC, datetime
 
+from lambdas.subscriptions.domain.entities.payment import Payment
+from lambdas.subscriptions.domain.repositories.i_dlocal_client import DLocalDirectChargeResult
 from lambdas.tenants.domain.commands import ToggleStatusCommand, UpdateTenantCommand
 from lambdas.tenants.domain.enums import SriEnvironment, TenantStatus
 from lambdas.tenants.domain.errors import (
+    NoSavedPaymentMethodError,
+    RetryPaymentNotEligibleError,
+    SavedCardRejectedError,
     SubscriptionAlreadyActiveError,
     SubscriptionRenewalPaymentAlreadyAppliedError,
     SubscriptionRenewalPaymentNotConfirmedError,
@@ -20,6 +25,7 @@ from lambdas.tenants.use_cases.apply_subscription_renewal import ApplySubscripti
 from lambdas.tenants.use_cases.create_tenant import CreateTenantUseCase
 from lambdas.tenants.use_cases.delete_tenant import DeleteTenantUseCase
 from lambdas.tenants.use_cases.list_tenants import ListTenantsQuery, ListTenantsUseCase
+from lambdas.tenants.use_cases.retry_payment import RetryPaymentUseCase
 from lambdas.tenants.use_cases.toggle_status import ToggleStatusUseCase
 from lambdas.tenants.use_cases.update_tenant import UpdateTenantUseCase
 from shared.errors import ValidationError
@@ -29,6 +35,32 @@ from tests.unit.support import (
     create_tenant_command,
     make_tenant,
 )
+
+
+class FakeSubscriptionPlanCatalog:
+    """Implements IPlanCatalog.get() for use cases that charge via dLocal."""
+
+    def __init__(
+        self,
+        *,
+        monthly_price: str = "5.99",
+        limit_cycle: str = "month",
+        is_free: bool = False,
+    ) -> None:
+        from decimal import Decimal
+
+        from lambdas.subscriptions.domain.repositories.i_plan_catalog import PlanSummary
+
+        self._summary = PlanSummary(
+            id="uuid-basic",
+            monthly_price=Decimal(monthly_price),
+            annual_price=Decimal(monthly_price) * 12,
+            limit_cycle=limit_cycle,
+            is_free=is_free,
+        )
+
+    def get(self, plan_id: str):
+        return self._summary
 
 
 class FakePaymentReader(IPaymentReader):
@@ -498,6 +530,126 @@ class PendingActivationReconcilerUseCaseTests(unittest.TestCase):
         reader = FakePaymentReader(payment=_captured_payment())
         result = PendingActivationReconcilerUseCase(repo, reader).execute()
         self.assertEqual(result.activated, 2)
+
+
+class FakePaymentRepository:
+    def __init__(self) -> None:
+        self.saved: list[Payment] = []
+        self.transact_items: list[dict] = []
+
+    def save(self, payment: Payment) -> None:
+        self.saved.append(payment)
+
+    def save_transact_item(self, payment: Payment) -> dict:
+        item = {"Put": {"TableName": "payments", "Item": {"id": f"PAYMENT#{payment.order_id}"}}}
+        self.transact_items.append(item)
+        return item
+
+    def get_by_order_id(self, order_id: str):
+        raise NotImplementedError
+
+    def link_tenant(self, order_id: str, tenant_id: str) -> None:
+        raise NotImplementedError
+
+
+class FakeDLocalClient:
+    def __init__(self, *, status: str = "PAID", payment_id: str = "DP-retry-1") -> None:
+        self._status = status
+        self._payment_id = payment_id
+        self.calls: list[dict] = []
+
+    def charge_saved_payer(self, payer_id, amount, currency, country) -> DLocalDirectChargeResult:
+        self.calls.append(
+            {"payer_id": payer_id, "amount": amount, "currency": currency, "country": country}
+        )
+        return DLocalDirectChargeResult(payment_id=self._payment_id, status=self._status)
+
+    def create_payment(self, *a, **kw):
+        raise NotImplementedError
+
+    def confirm_payment(self, *a, **kw):
+        raise NotImplementedError
+
+    def refund_payment(self, *a, **kw):
+        raise NotImplementedError
+
+
+def _tenant_with_payer(
+    subscription_status: str = "payment_failed",
+    plan_id: str = "uuid-basic",
+) -> object:
+    return make_tenant(
+        subscription_status=subscription_status,
+        dlocal_payer_id="PAY-saved",
+        plan_id=plan_id,
+    )
+
+
+class RetryPaymentUseCaseTests(unittest.TestCase):
+    def _run(
+        self,
+        tenant=None,
+        *,
+        dlocal_status: str = "PAID",
+    ):
+        t = tenant or _tenant_with_payer()
+        repo = FakeTenantRepository()
+        repo.tenants[t.id] = t
+        catalog = FakeSubscriptionPlanCatalog()
+        dlocal = FakeDLocalClient(status=dlocal_status)
+        payments = FakePaymentRepository()
+        return RetryPaymentUseCase(repo, catalog, dlocal, payments).execute(t.id, "user-1"), (
+            t,
+            repo,
+            dlocal,
+            payments,
+        )
+
+    def test_charges_saved_payer_and_activates(self) -> None:
+        (tenant, result, transact), (t, repo, dlocal, payments) = self._run()
+        self.assertEqual(result.subscription_status, "active")
+        self.assertIsNotNone(result.plan_cycle_ends_at)
+        self.assertEqual(len(dlocal.calls), 1)
+        self.assertEqual(dlocal.calls[0]["payer_id"], "PAY-saved")
+
+    def test_returns_payment_transact_item(self) -> None:
+        (tenant, result, transact), _ = self._run()
+        self.assertIn("Put", transact)
+
+    def test_payment_saved_via_transact_item_not_direct_save(self) -> None:
+        (tenant, result, transact), (_, _, _, payments) = self._run()
+        self.assertEqual(len(payments.transact_items), 1)
+        self.assertEqual(len(payments.saved), 0)
+
+    def test_raises_if_no_saved_payer_id(self) -> None:
+        t = make_tenant(subscription_status="payment_failed", dlocal_payer_id=None)
+        repo = FakeTenantRepository()
+        repo.tenants[t.id] = t
+        with self.assertRaises(NoSavedPaymentMethodError):
+            RetryPaymentUseCase(
+                repo, FakeSubscriptionPlanCatalog(), FakeDLocalClient(), FakePaymentRepository()
+            ).execute(t.id, "user-1")
+
+    def test_raises_if_status_not_eligible(self) -> None:
+        t = make_tenant(subscription_status="active", dlocal_payer_id="PAY-1")
+        repo = FakeTenantRepository()
+        repo.tenants[t.id] = t
+        with self.assertRaises(RetryPaymentNotEligibleError):
+            RetryPaymentUseCase(
+                repo, FakeSubscriptionPlanCatalog(), FakeDLocalClient(), FakePaymentRepository()
+            ).execute(t.id, "user-1")
+
+    def test_raises_saved_card_rejected_when_dlocal_rejects(self) -> None:
+        with self.assertRaises(SavedCardRejectedError):
+            self._run(dlocal_status="REJECTED")
+
+    def test_eligible_when_expired(self) -> None:
+        (tenant, result, _), _ = self._run(tenant=_tenant_with_payer("expired"))
+        self.assertEqual(result.subscription_status, "active")
+
+    def test_gross_price_applied_to_dlocal_charge(self) -> None:
+        (_, _, _), (_, _, dlocal, _) = self._run()
+        self.assertEqual(dlocal.calls[0]["amount"], "6.71")
 
 
 if __name__ == "__main__":

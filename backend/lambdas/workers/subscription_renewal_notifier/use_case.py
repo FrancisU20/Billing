@@ -19,6 +19,7 @@ _log = get_logger(__name__)
 
 _NOTIFIER_USER_ID = "system:subscription-renewal-notifier"
 _REMINDER_DAYS = 7
+_PAYMENT_FAILED_GRACE_DAYS = 7
 _SECONDS_PER_DAY = 86400
 _COUNTRY = "EC"
 _CURRENCY = "USD"
@@ -100,17 +101,11 @@ class NotifySubscriptionRenewalUseCase:
             return None
 
         if ends_at <= self._now:
+            if tenant.subscription_status == "payment_failed":
+                return self._process_payment_failed(tenant, ends_at)
             if self._can_auto_charge(tenant):
                 return self._try_auto_charge(tenant)
-            # No saved card or auto-charge deps unavailable → expire
-            tenant.expire_subscription(updated_by=_NOTIFIER_USER_ID)
-            self._tenant_repo.save(tenant, user_id=_NOTIFIER_USER_ID)
-            self._email_sender.send_subscription_expired(
-                email=tenant.email,
-                legal_rep_name=tenant.legal_rep_name,
-                trade_name=tenant.trade_name,
-                renewal_url=self._renewal_url,
-            )
+            self._do_expire(tenant)
             return "expired"
 
         # Still active — send reminder if not already sent
@@ -135,6 +130,23 @@ class NotifySubscriptionRenewalUseCase:
             return "reminder"
 
         return None
+
+    def _do_expire(self, tenant) -> None:
+        tenant.expire_subscription(updated_by=_NOTIFIER_USER_ID)
+        self._tenant_repo.save(tenant, user_id=_NOTIFIER_USER_ID)
+        self._email_sender.send_subscription_expired(
+            email=tenant.email,
+            legal_rep_name=tenant.legal_rep_name,
+            trade_name=tenant.trade_name,
+            renewal_url=self._renewal_url,
+        )
+
+    def _process_payment_failed(self, tenant, ends_at) -> str:
+        grace_expires_at = ends_at + timedelta(days=_PAYMENT_FAILED_GRACE_DAYS)
+        if self._now >= grace_expires_at or not self._can_auto_charge(tenant):
+            self._do_expire(tenant)
+            return "expired"
+        return self._try_auto_charge(tenant)
 
     def _can_auto_charge(self, tenant) -> bool:
         return bool(
@@ -201,17 +213,20 @@ class NotifySubscriptionRenewalUseCase:
             )
             return "auto_charged"
         else:
+            was_already_failed = tenant.subscription_status == "payment_failed"
             tenant.mark_payment_failed(updated_by=_NOTIFIER_USER_ID)
             self._tenant_repo.save(tenant, user_id=_NOTIFIER_USER_ID)
-            self._email_sender.send_payment_failed(
-                email=tenant.email,
-                legal_rep_name=tenant.legal_rep_name,
-                trade_name=tenant.trade_name,
-                renewal_url=self._renewal_url,
-            )
+            if not was_already_failed:
+                self._email_sender.send_payment_failed(
+                    email=tenant.email,
+                    legal_rep_name=tenant.legal_rep_name,
+                    trade_name=tenant.trade_name,
+                    renewal_url=self._renewal_url,
+                )
             _log.warning(
                 "auto-charge rejected",
                 tenant_id=tenant.id,
                 dlocal_status=charge_status,
+                repeated=was_already_failed,
             )
             return "payment_failed"

@@ -24,6 +24,15 @@ class DynamoPaymentRepository(IPaymentRepository):
             _log.error("DynamoDB put_item error", error=str(exc))
             raise DatabaseError() from exc
 
+    def save_transact_item(self, payment: Payment) -> dict:
+        return {
+            "Put": {
+                "TableName": self._table.table_name,
+                "Item": self._to_item(payment),
+                "ConditionExpression": "attribute_not_exists(id)",
+            }
+        }
+
     def link_tenant(self, order_id: str, tenant_id: str) -> None:
         try:
             self._table.update_item(

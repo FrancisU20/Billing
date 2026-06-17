@@ -145,6 +145,11 @@ class FakePaymentRepository:
         self._store[payment.order_id] = payment
         self.saved.append(payment)
 
+    def save_transact_item(self, payment: Payment) -> dict:
+        self._store[payment.order_id] = payment
+        self.saved.append(payment)
+        return {"Put": {"TableName": "payments", "Item": {"id": f"PAYMENT#{payment.order_id}"}}}
+
     def get_by_order_id(self, order_id: str) -> Payment:
         if order_id not in self._store:
             raise PaymentNotFoundError()

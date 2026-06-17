@@ -10,6 +10,9 @@ class IPaymentRepository(ABC):
     def save(self, payment: Payment) -> None: ...
 
     @abstractmethod
+    def save_transact_item(self, payment: Payment) -> dict: ...
+
+    @abstractmethod
     def get_by_order_id(self, order_id: str) -> Payment: ...
 
     @abstractmethod

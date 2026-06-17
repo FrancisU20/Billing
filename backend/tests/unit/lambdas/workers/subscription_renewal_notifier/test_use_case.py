@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import unittest
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
+from lambdas.subscriptions.domain.entities.payment import Payment
+from lambdas.subscriptions.domain.repositories.i_dlocal_client import DLocalDirectChargeResult
 from lambdas.workers.email_notifications.ports import EmailSender
 from lambdas.workers.subscription_renewal_notifier.use_case import (
+    _PAYMENT_FAILED_GRACE_DAYS,
     NotifySubscriptionRenewalUseCase,
 )
 from shared.errors import OptimisticLockError
@@ -162,6 +166,180 @@ class NotifySubscriptionRenewalUseCaseTests(unittest.TestCase):
 
         self.assertEqual(result.expirations_processed, 1)
         self.assertEqual(result.reminders_sent, 2)
+
+
+class FakeLocalPlanCatalog:
+    def __init__(self, *, monthly_price: Decimal = Decimal("5.99")) -> None:
+        self._price = monthly_price
+
+    def get(self, plan_id: str):
+        from lambdas.subscriptions.domain.repositories.i_plan_catalog import PlanSummary
+
+        return PlanSummary(
+            id=plan_id,
+            monthly_price=self._price,
+            annual_price=self._price * 12,
+            limit_cycle="month",
+            is_free=False,
+        )
+
+
+class FakeDLocalClient:
+    def __init__(self, *, status: str = "PAID", payment_id: str = "DP-auto-1") -> None:
+        self._status = status
+        self._payment_id = payment_id
+        self.calls: int = 0
+
+    def charge_saved_payer(self, payer_id, amount, currency, country) -> DLocalDirectChargeResult:
+        self.calls += 1
+        return DLocalDirectChargeResult(payment_id=self._payment_id, status=self._status)
+
+    def create_payment(self, *a, **kw):
+        raise NotImplementedError
+
+    def confirm_payment(self, *a, **kw):
+        raise NotImplementedError
+
+    def refund_payment(self, *a, **kw):
+        raise NotImplementedError
+
+
+class FakePaymentRepository:
+    def __init__(self) -> None:
+        self.saved: list[Payment] = []
+
+    def save(self, payment: Payment) -> None:
+        self.saved.append(payment)
+
+    def save_transact_item(self, payment: Payment) -> dict:
+        raise NotImplementedError
+
+    def get_by_order_id(self, order_id: str):
+        raise NotImplementedError
+
+    def link_tenant(self, order_id: str, tenant_id: str) -> None:
+        raise NotImplementedError
+
+
+def _auto_charge_deps(*, dlocal_status: str = "PAID"):
+    catalog = FakeLocalPlanCatalog(monthly_price=Decimal("5.99"))
+    dlocal = FakeDLocalClient(status=dlocal_status)
+    payments = FakePaymentRepository()
+    return catalog, dlocal, payments
+
+
+def _run_with_auto_charge(repo, *, dlocal_status: str = "PAID", sender=None):
+    catalog, dlocal, payments = _auto_charge_deps(dlocal_status=dlocal_status)
+    email_sender = sender or FakeEmailSender()
+    result = NotifySubscriptionRenewalUseCase(
+        repo,
+        email_sender,
+        now=_NOW,
+        frontend_url="https://billing.example.com",
+        plan_catalog=catalog,
+        dlocal=dlocal,
+        payment_repo=payments,
+    ).execute()
+    return result, email_sender, dlocal, payments
+
+
+class AutoChargeTests(unittest.TestCase):
+    def test_auto_charges_expired_tenant_with_saved_card(self) -> None:
+        tenant = make_tenant(
+            subscription_status="active",
+            plan_cycle_ends_at=_NOW - timedelta(days=1),
+            dlocal_payer_id="PAY-1",
+        )
+        repo = _repo_with(tenant)
+        result, _, dlocal, payments = _run_with_auto_charge(repo)
+
+        self.assertEqual(result.auto_charged, 1)
+        self.assertEqual(result.expirations_processed, 0)
+        self.assertEqual(dlocal.calls, 1)
+        self.assertEqual(len(payments.saved), 1)
+        self.assertEqual(tenant.subscription_status, "active")
+
+    def test_expires_when_no_saved_card(self) -> None:
+        tenant = make_tenant(
+            subscription_status="active",
+            plan_cycle_ends_at=_NOW - timedelta(days=1),
+            dlocal_payer_id=None,
+        )
+        repo = _repo_with(tenant)
+        result, sender, _, _ = _run_with_auto_charge(repo)
+
+        self.assertEqual(result.expirations_processed, 1)
+        self.assertEqual(result.auto_charged, 0)
+        self.assertEqual(len(sender.expirations_sent), 1)
+
+    def test_auto_charge_failure_sets_payment_failed_and_sends_email(self) -> None:
+        tenant = make_tenant(
+            subscription_status="active",
+            plan_cycle_ends_at=_NOW - timedelta(days=1),
+            dlocal_payer_id="PAY-1",
+        )
+        repo = _repo_with(tenant)
+        result, sender, _, _ = _run_with_auto_charge(repo, dlocal_status="REJECTED")
+
+        self.assertEqual(result.payment_failed_count, 1)
+        self.assertEqual(tenant.subscription_status, "payment_failed")
+        self.assertEqual(len(sender.payment_failed_sent), 1)
+
+    def test_payment_failed_retry_within_grace_does_not_resend_email(self) -> None:
+        tenant = make_tenant(
+            subscription_status="payment_failed",
+            plan_cycle_ends_at=_NOW - timedelta(days=1),
+            dlocal_payer_id="PAY-1",
+        )
+        repo = _repo_with(tenant)
+        result, sender, dlocal, _ = _run_with_auto_charge(repo, dlocal_status="REJECTED")
+
+        self.assertEqual(result.payment_failed_count, 1)
+        self.assertEqual(dlocal.calls, 1)
+        self.assertEqual(len(sender.payment_failed_sent), 0)
+
+    def test_payment_failed_grace_expired_forces_expire(self) -> None:
+        expired_at = _NOW - timedelta(days=_PAYMENT_FAILED_GRACE_DAYS + 1)
+        tenant = make_tenant(
+            subscription_status="payment_failed",
+            plan_cycle_ends_at=expired_at,
+            dlocal_payer_id="PAY-1",
+        )
+        repo = _repo_with(tenant)
+        result, sender, dlocal, _ = _run_with_auto_charge(repo)
+
+        self.assertEqual(result.expirations_processed, 1)
+        self.assertEqual(result.auto_charged, 0)
+        self.assertEqual(dlocal.calls, 0)
+        self.assertEqual(tenant.subscription_status, "expired")
+        self.assertEqual(len(sender.expirations_sent), 1)
+
+    def test_payment_failed_without_payer_id_expires_immediately(self) -> None:
+        tenant = make_tenant(
+            subscription_status="payment_failed",
+            plan_cycle_ends_at=_NOW - timedelta(days=1),
+            dlocal_payer_id=None,
+        )
+        repo = _repo_with(tenant)
+        result, sender, dlocal, _ = _run_with_auto_charge(repo)
+
+        self.assertEqual(result.expirations_processed, 1)
+        self.assertEqual(dlocal.calls, 0)
+        self.assertEqual(tenant.subscription_status, "expired")
+
+    def test_payment_failed_retry_success_activates(self) -> None:
+        tenant = make_tenant(
+            subscription_status="payment_failed",
+            plan_cycle_ends_at=_NOW - timedelta(days=1),
+            dlocal_payer_id="PAY-1",
+        )
+        repo = _repo_with(tenant)
+        result, _, dlocal, payments = _run_with_auto_charge(repo, dlocal_status="PAID")
+
+        self.assertEqual(result.auto_charged, 1)
+        self.assertEqual(dlocal.calls, 1)
+        self.assertEqual(len(payments.saved), 1)
+        self.assertEqual(tenant.subscription_status, "active")
 
 
 if __name__ == "__main__":

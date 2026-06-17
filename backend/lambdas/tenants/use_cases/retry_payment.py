@@ -46,7 +46,7 @@ class RetryPaymentUseCase:
         self._payments = payment_repo
 
     def execute(self, tenant_id: str, updated_by: str) -> tuple[Tenant, RetryPaymentResult]:
-        tenant = self._tenant_repo.get(tenant_id)
+        tenant = self._tenant_repo.get_by_id(tenant_id)
 
         if not tenant.dlocal_payer_id:
             raise NoSavedPaymentMethodError()
@@ -87,7 +87,7 @@ class RetryPaymentUseCase:
             confirmed_at=now,
             payer_id=tenant.dlocal_payer_id,
         )
-        self._payments.save(payment)
+        payment_transact = self._payments.save_transact_item(payment)
 
         tenant.apply_subscription_renewal(
             payer_id=tenant.dlocal_payer_id,
@@ -103,10 +103,14 @@ class RetryPaymentUseCase:
             amount=amount,
         )
 
-        return tenant, RetryPaymentResult(
-            tenant_id=tenant_id,
-            plan_cycle_ends_at=tenant.plan_cycle_ends_at.isoformat()
-            if tenant.plan_cycle_ends_at
-            else "",
-            subscription_status=tenant.subscription_status or "active",
+        return (
+            tenant,
+            RetryPaymentResult(
+                tenant_id=tenant_id,
+                plan_cycle_ends_at=tenant.plan_cycle_ends_at.isoformat()
+                if tenant.plan_cycle_ends_at
+                else "",
+                subscription_status=tenant.subscription_status or "active",
+            ),
+            payment_transact,
         )

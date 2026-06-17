@@ -356,9 +356,9 @@ def _retry_payment(request: Request, context) -> dict:
     if not dlocal or not payment_repo:
         raise ValidationError("Cobro automático no disponible en este entorno.")
     repo = _repo()
-    tenant, result = RetryPaymentUseCase(repo, _plan_catalog(), dlocal, payment_repo).execute(
-        tenant_id, request.user_id
-    )
+    tenant, result, payment_transact = RetryPaymentUseCase(
+        repo, _plan_catalog(), dlocal, payment_repo
+    ).execute(tenant_id, request.user_id)
     response = ApiResponse.ok(
         {
             "tenant_id": result.tenant_id,
@@ -374,6 +374,7 @@ def _retry_payment(request: Request, context) -> dict:
         events=[],
         idempotency=require_current_context(),
         response=response,
+        extra_transact_items=[payment_transact],
     )
     return response
 
