@@ -14,7 +14,7 @@ backend/
     tenants/     # empresas SaaS globales
     plans/       # catalogo comercial global
     clients/     # clientes por tenant
-    subscriptions/ # webhooks de Paddle (suscripcion SaaS del tenant)
+    subscriptions/ # pagos dLocal Go (suscripcion SaaS del tenant)
     workers/     # outbox_relay, tenant_onboarding, email_notifications, migrations
   shared/        # errores, logging, fechas, db, value objects, audit, secrets, events, certificados
   migrations/    # migraciones DynamoDB versionadas
@@ -123,9 +123,8 @@ Reglas:
 `Request.from_event` expone tanto `body` (dict ya parseado) como `raw_body` (string
 crudo del body, con el `base64` decodificado si aplica, antes del `json.loads`). Usar
 `raw_body` cuando se necesite verificar una firma HMAC sobre el payload exacto que
-envio el caller (ej. webhooks) — re-serializar `body` con `json.dumps` no reproduce los
-mismos bytes firmados. Ver `lambdas/subscriptions/infra/paddle_signature.py` y
-`context/SUBSCRIPTIONS.md`.
+envio el caller (ej. futuros webhooks dLocal) — re-serializar `body` con `json.dumps`
+no reproduce los mismos bytes firmados.
 
 ## Auth — Resumen
 

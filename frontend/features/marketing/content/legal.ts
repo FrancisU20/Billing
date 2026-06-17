@@ -13,7 +13,7 @@ export interface LegalContent {
 }
 
 const CONTACT_EMAIL = 'ventas@codelabsecuador.com'
-const LAST_UPDATED = '15 de junio de 2026'
+const LAST_UPDATED = '17 de junio de 2026'
 
 export const termsContent: LegalContent = {
   title: 'Términos y Condiciones de Uso',
@@ -85,18 +85,16 @@ export const termsContent: LegalContent = {
         {
           type: 'p',
           text:
-            'Los pagos son procesados por Paddle.com Market Limited, nuestro distribuidor ' +
-            'autorizado ("Merchant of Record"). Paddle se encarga de la facturación, los métodos de ' +
-            'pago, los impuestos aplicables a la transacción y la atención de reclamos relacionados ' +
-            'con el cobro. Tu relación contractual de pago es con Paddle; las condiciones de uso del ' +
-            'Servicio descritas aquí son con CodeLabs.',
+            'Los pagos son procesados mediante dLocal Go como pasarela de pagos. CodeLabs no ' +
+            'almacena números de tarjeta ni datos bancarios completos; esos datos se gestionan en ' +
+            'los campos seguros de la pasarela durante el checkout.',
         },
         {
           type: 'p',
           text:
-            'Las suscripciones se renuevan automáticamente al final de cada período salvo ' +
-            'cancelación previa. Cualquier cambio de precios será notificado con antelación ' +
-            'razonable y no afectará a períodos ya pagados.',
+            'La renovación de la suscripción se gestiona mediante el flujo de pago disponible en ' +
+            'la plataforma antes del vencimiento del período contratado. Cualquier cambio de ' +
+            'precios será notificado con antelación razonable y no afectará a períodos ya pagados.',
         },
       ],
     },
@@ -219,8 +217,8 @@ export const termsContent: LegalContent = {
           text:
             'Estos términos se rigen por las leyes de la República del Ecuador. Cualquier disputa ' +
             'relacionada con el Servicio se someterá a los jueces competentes del Ecuador, sin ' +
-            'perjuicio de los mecanismos de resolución de disputas que ofrezca Paddle respecto de ' +
-            'los pagos procesados a través de su plataforma.',
+            'perjuicio de los mecanismos de soporte o resolución de disputas que correspondan al ' +
+            'pago procesado por la pasarela.',
         },
       ],
     },
@@ -271,8 +269,8 @@ export const privacyContent: LegalContent = {
               'y usados exclusivamente para firmar tus documentos.',
             'Datos de uso: registros técnicos de acceso y operación del Servicio, necesarios para ' +
               'seguridad y soporte.',
-            'Datos de pago: gestionados directamente por Paddle, nuestro procesador de pagos. ' +
-              'CodeLabs no almacena números de tarjeta ni datos bancarios.',
+            'Datos de pago: gestionados directamente por dLocal Go como pasarela de pagos. ' +
+              'CodeLabs no almacena números de tarjeta ni datos bancarios completos.',
           ],
         },
       ],
@@ -321,8 +319,8 @@ export const privacyContent: LegalContent = {
             'Amazon Cognito: servicio de autenticación que gestiona tus credenciales de acceso.',
             'Servicio de Rentas Internas (SRI): los comprobantes que emites se envían al SRI para ' +
               'su autorización, conforme a la normativa de facturación electrónica.',
-            'Paddle.com Market Limited: procesa tus pagos de suscripción como entidad ' +
-              'independiente responsable de esos datos, bajo su propia política de privacidad.',
+            'dLocal Go: pasarela usada para procesar pagos de suscripción, bajo sus propios ' +
+              'términos y políticas aplicables al checkout.',
             'Proveedores de correo electrónico transaccional, para el envío de notificaciones de tu ' +
               'cuenta.',
           ],
@@ -336,9 +334,8 @@ export const privacyContent: LegalContent = {
           type: 'p',
           text:
             'La infraestructura principal del Servicio opera en la región de AWS Sudamérica (San ' +
-            'Pablo, Brasil). Los datos de pago procesados por Paddle pueden tratarse en otras ' +
-            'jurisdicciones conforme a su propia política de privacidad y a las salvaguardas que ' +
-            'Paddle aplica como procesador de pagos a nivel global.',
+            'Pablo, Brasil). Los datos de pago procesados por dLocal Go pueden tratarse en otras ' +
+            'jurisdicciones conforme a sus políticas y salvaguardas como pasarela de pagos.',
         },
       ],
     },
@@ -447,10 +444,9 @@ export const refundContent: LegalContent = {
         {
           type: 'p',
           text:
-            'Todos los cobros son procesados por Paddle.com Market Limited, nuestro distribuidor ' +
-            'autorizado ("Merchant of Record"). Verás "Paddle" o "Paddle.com" como comercio en tu ' +
-            'estado de cuenta. Paddle emite el comprobante de pago y gestiona los métodos de pago e ' +
-            'impuestos correspondientes a la transacción.',
+            'Todos los cobros se procesan mediante dLocal Go como pasarela de pagos. CodeLabs no ' +
+            'almacena números de tarjeta ni datos bancarios completos; el pago se confirma durante ' +
+            'el checkout seguro de la pasarela.',
         },
       ],
     },
@@ -501,8 +497,8 @@ export const refundContent: LegalContent = {
           type: 'p',
           text:
             'Puedes cambiar de plan en cualquier momento. Las mejoras (upgrade) se aplican de ' +
-            'inmediato con el ajuste proporcional del cobro gestionado por Paddle. Las reducciones ' +
-            'de plan (downgrade) se aplican a partir del siguiente ciclo de facturación.',
+            'inmediato cuando el pago correspondiente se confirme. Las reducciones de plan ' +
+            '(downgrade) se aplican a partir del siguiente ciclo de facturación.',
         },
       ],
     },
@@ -513,8 +509,8 @@ export const refundContent: LegalContent = {
           type: 'p',
           text:
             `Escríbenos a ${CONTACT_EMAIL} indicando el correo de tu cuenta y el motivo de tu ` +
-            'solicitud. También puedes gestionar reembolsos directamente desde el enlace de soporte ' +
-            'incluido en el recibo de pago enviado por Paddle.',
+            'solicitud. Revisaremos el caso con la información del pago y el uso registrado en la ' +
+            'cuenta.',
         },
       ],
     },

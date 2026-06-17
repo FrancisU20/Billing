@@ -33,7 +33,6 @@ from aws_cdk import (
     aws_certificatemanager as acm,
     aws_events as events,
     aws_events_targets as events_targets,
-    aws_ec2 as ec2,
     aws_iam as iam,
     aws_lambda as lmb,
     aws_lambda_event_sources as event_sources,
@@ -115,7 +114,6 @@ class ApiStack(Stack):
         database,           # DatabaseStack — tablas DynamoDB
         auth,               # AuthStack — Cognito User Pool + Web Client
         queues,             # QueuesStack — SQS queues
-        network,            # NetworkStack — VPC con NAT Instance
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -691,8 +689,6 @@ class ApiStack(Stack):
                 "DLOCALGO_CREDENTIALS_NAME":  f"codelabs-billing-{env}/dlocalgo-credentials",
                 "DLOCALGO_API_URL":           "https://api.dlocalgo.com" if env == "prod" else "https://api-sbx.dlocalgo.com",
             },
-            vpc             = network.vpc,
-            vpc_subnets     = ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
         )
         database.payments_table.grant_read_write_data(subscriptions_fn)
         database.plans_table.grant_read_data(subscriptions_fn)

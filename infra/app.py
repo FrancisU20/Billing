@@ -8,7 +8,6 @@ Reglas:
 - Despliegue: make deploy  (perfil codelabs, sa-east-1)
 
 Stacks:
-  CodeLabsBilling-Dev-Network     → VPC + NAT Instance t4g.nano
   CodeLabsBilling-Dev-Database    → DynamoDB tables
   CodeLabsBilling-Dev-Auth        → Cognito User Pool
   CodeLabsBilling-Dev-Queues      → SQS queues
@@ -32,7 +31,6 @@ from stacks.auth_stack        import AuthStack
 from stacks.certificate_stack import CertificateStack
 from stacks.database_stack    import DatabaseStack
 from stacks.frontend_stack    import FrontendStack
-from stacks.network_stack     import NetworkStack
 from stacks.queues_stack      import QueuesStack
 
 
@@ -50,12 +48,11 @@ sa_env   = cdk.Environment(account=account, region=config["region"])
 us_env   = cdk.Environment(account=account, region="us-east-1")
 prefix   = f"CodeLabsBilling-{env_name.capitalize()}"
 
-network     = NetworkStack(app,   f"{prefix}-Network",  config=config, env=sa_env)
 database    = DatabaseStack(app, f"{prefix}-Database", config=config, env=sa_env)
 auth        = AuthStack(app,     f"{prefix}-Auth",     config=config, env=sa_env)
 queues      = QueuesStack(app,   f"{prefix}-Queues",   config=config, env=sa_env)
 api         = ApiStack(app,      f"{prefix}-Api",      config=config, env=sa_env,
-                       database=database, auth=auth, queues=queues, network=network)
+                       database=database, auth=auth, queues=queues)
 certificate = CertificateStack(app, f"{prefix}-Certificate", config=config,
                                env=us_env, cross_region_references=True)
 frontend    = FrontendStack(app, f"{prefix}-Frontend", config=config,

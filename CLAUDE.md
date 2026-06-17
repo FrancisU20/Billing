@@ -16,7 +16,7 @@ El sistema administra:
 - `clients`: compradores/clientes dentro de cada tenant.
 - `auth`: login Cognito SRP expuesto por Lambda.
 - `workers`: onboarding, emails, migraciones y outbox async.
-- `subscriptions`: pagos dLocal Go SmartFields por ciclo de plan (MoR de la suscripcion SaaS).
+- `subscriptions`: pagos dLocal Go SmartFields por ciclo de plan de la suscripcion SaaS.
 
 No existe todavia un Lambda `invoices`. Cuando se implemente, debe respetar las reglas SRI
 y no mezclar "Consumidor Final" con `clients` (ver `context/CLIENTS.md`).
@@ -38,7 +38,7 @@ endpoint de renovacion autenticado; pagina de billing en frontend (Fase 3 de
 
 Proximo hito de producto: **invoices/documents** — emision SRI, secuenciales,
 XAdES-BES, almacenamiento legal y batch jobs. Ver `context/INVOICES.md`. En paralelo,
-**subscriptions** Fase 4: renovacion automatica por link en email. Ver
+**subscriptions** Fase 4: checkout de renovacion por link en email. Ver
 `context/SUBSCRIPTIONS.md`.
 
 ## Memorias Base
@@ -79,7 +79,7 @@ corresponda. Estado actual por capa/dominio:
 | `context/ONBOARDING.md` | Queue dedicada Enterprise automatica es alcance futuro |
 | `context/CERTIFICATES.md` | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras |
 | `context/INVOICES.md` | Dominio pendiente; deuda anticipada de IVA/SRI/reintentos |
-| `context/SUBSCRIPTIONS.md` | Sin renovacion automatica por email (Fase 4); sin webhooks dLocal; sin 3DS; scan en worker |
+| `context/SUBSCRIPTIONS.md` | Sin checkout de renovacion por email (Fase 4); sin webhooks dLocal; sin 3DS; scan en worker |
 
 ## Stack
 

@@ -3,7 +3,7 @@
 Estado: **implementado Fase 3** — dLocal Go SmartFields (create + confirm + status),
 wiring onboarding con pago obligatorio, endpoint de renovacion, worker diario de
 vencimiento y pagina de billing en frontend.
-Pendiente: renovacion automatica por email (Fase 4 — checkout via link en email) y
+Pendiente: checkout de renovacion por email (Fase 4 — link de pago en email) y
 webhooks dLocal.
 
 ## Lee Tambien Antes De Empezar
@@ -89,7 +89,8 @@ subscriptions/
       payment.py         Payment (order_id, tenant_id, plan_id, checkout_token, plan_cycle, ...)
   infra/
     dlocal_client.py     DLocalClient(IDLocalClient): Bearer {api_key}:{secret_key};
-                         create payment envia allow_transparent=true para SmartFields
+                         create payment envia allow_transparent=true para SmartFields;
+                         usa headers HTTP explicitos para evitar bloqueos WAF de dLocal
     payment_repository.py  DynamoDB (PK = "PAYMENT#{order_id}")
     plan_catalog.py      Lectura local de planes sin importar lambdas.plans.*
   use_cases/
@@ -122,6 +123,8 @@ backend/lambdas/workers/subscription_renewal_notifier/
 ## Componentes Externos
 
 - Lambda: `backend/lambdas/subscriptions/`
+- Red: Lambda fuera de VPC; salida a internet administrada por AWS Lambda. No usar NAT
+  dedicado para este flujo salvo que dLocal exija allowlist de IP fija.
 - DynamoDB: tabla `payments` (PK=`id` = `"PAYMENT#{order_id}"`, GSI `tenant-payments-index`)
 - Secrets Manager: `codelabs-billing-{env}/dlocalgo-credentials`
   JSON con `{"api_key": "...", "secret_key": "..."}` — creado manualmente por entorno
@@ -302,7 +305,7 @@ Escanea tenants activos con `plan_cycle_ends_at <= now + 7 dias`.
 
 ## Deuda Tecnica
 
-- Renovacion automatica por email (Fase 4): el worker notifica pero el pago aun es manual.
+- Checkout de renovacion por email (Fase 4): el worker notifica pero no genera link de pago.
 - Sin webhooks dLocal: no detectamos cambios de estado asincronos desde dLocal.
 - Sin manejo de 3DS: si dLocal requiere autenticacion 3DS, el confirm retorna `redirect_url`
   pero el frontend no lo gestiona aun. A implementar cuando sea necesario.

@@ -45,6 +45,13 @@ class DLocalClientTests(unittest.TestCase):
         self.assertEqual(result.payment_id, "DP-123")
         self.assertEqual(result.checkout_token, "mct_123")
         self.assertTrue(body["allow_transparent"])
+        self.assertEqual(
+            captured["request"].get_header("Authorization"),
+            "Bearer api-key:secret-key",
+        )
+        self.assertEqual(captured["request"].get_header("Accept"), "application/json")
+        self.assertEqual(captured["request"].get_header("Content-type"), "application/json")
+        self.assertEqual(captured["request"].get_header("User-agent"), "CodeLabsBillingCloud/1.0")
         self.assertNotIn("payment_method_id", body)
         self.assertNotIn("payment_method_flow", body)
 

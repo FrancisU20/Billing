@@ -13,6 +13,8 @@ from shared.logger import get_logger
 
 _log = get_logger(__name__)
 
+_USER_AGENT = "CodeLabsBillingCloud/1.0"
+
 
 class DLocalClient(IDLocalClient):
     def __init__(self, base_url: str, api_key: str, secret_key: str) -> None:
@@ -26,7 +28,9 @@ class DLocalClient(IDLocalClient):
             data=data,
             headers={
                 "Authorization": f"Bearer {self._auth}",
+                "Accept": "application/json",
                 "Content-Type": "application/json",
+                "User-Agent": _USER_AGENT,
             },
             method=method,
         )

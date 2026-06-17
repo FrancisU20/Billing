@@ -152,7 +152,8 @@ y las paginas legales:
 
 Nota: el export web (`expo export --platform web`) es CSR puro — el HTML inicial no contiene el
 contenido de estas paginas ni de `PlansSection`. Si un crawler que no ejecuta JS necesita ver ese
-contenido (ej. verificacion de Paddle), evaluar SSG/prerender para `(public)` como tarea aparte.
+contenido (ej. verificacion de una pasarela de pagos), evaluar SSG/prerender para `(public)` como
+tarea aparte.
 
 ## Routing (Expo Router)
 
