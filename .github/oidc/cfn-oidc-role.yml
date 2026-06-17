@@ -29,7 +29,7 @@ Parameters:
     Default: FrancisU20
   GitHubRepo:
     Type: String
-    Default: CodeLabsBillingCloud
+    Default: Billing
 
 Resources:
 
