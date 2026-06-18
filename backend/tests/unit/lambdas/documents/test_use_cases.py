@@ -25,6 +25,7 @@ from lambdas.documents.use_cases.emit_document import EmitDocumentUseCase
 from lambdas.documents.use_cases.get_document import GetDocumentUseCase
 from lambdas.documents.use_cases.get_ride_url import GetRideUrlUseCase
 from lambdas.documents.use_cases.list_documents import ListDocumentsUseCase
+from shared.errors import ValidationError
 from tests.unit.support import configure_unit_environment
 
 configure_unit_environment()
@@ -270,6 +271,36 @@ class EmitDocumentUseCaseTests(unittest.TestCase):
         self.assertEqual(doc.lines[0].unit_price, Decimal("30.00"))
         self.assertEqual(doc.iva_5, Decimal("3.00"))
         self.assertEqual(doc.total, Decimal("63.00"))
+
+    def test_rejects_line_with_zero_unit_price(self) -> None:
+        lines = [
+            LineData(
+                code="P-0",
+                description="Producto sin precio",
+                quantity=Decimal("1"),
+                unit_price=Decimal("0.00"),
+                discount=Decimal("0.00"),
+                iva_rate="15",
+            )
+        ]
+
+        with self.assertRaises(ValidationError):
+            self._run(lines=lines)
+
+    def test_rejects_discount_above_line_gross(self) -> None:
+        lines = [
+            LineData(
+                code="P-1",
+                description="Producto con descuento inválido",
+                quantity=Decimal("1"),
+                unit_price=Decimal("10.00"),
+                discount=Decimal("10.01"),
+                iva_rate="15",
+            )
+        ]
+
+        with self.assertRaises(ValidationError):
+            self._run(lines=lines)
 
 
 # ── GetDocumentUseCase ────────────────────────────────────────────────────────

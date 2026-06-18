@@ -57,6 +57,14 @@ def _compute_totals(
         discount = raw.discount
         iva_rate_str = raw.iva_rate
 
+        if qty <= 0 or unit_price <= 0:
+            raise ValidationError("Cada línea debe tener cantidad y precio mayor a cero.")
+        if discount < 0:
+            raise ValidationError("El descuento no puede ser negativo.")
+        gross = (qty * unit_price).quantize(Decimal("0.01"))
+        if discount > gross:
+            raise ValidationError("El descuento no puede superar el subtotal bruto de la línea.")
+
         line_subtotal = (qty * unit_price - discount).quantize(Decimal("0.01"))
 
         if iva_rate_str == "15":

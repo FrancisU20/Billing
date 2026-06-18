@@ -1,6 +1,6 @@
 # Products — Dominio
 
-Estado: **Sprint 1 en implementacion**.
+Estado: **Sprint 1 implementado**.
 
 Ultima actualizacion: 2026-06-18.
 
@@ -102,9 +102,12 @@ Rutas tenant:
 Integracion en facturador:
 
 - Selector/buscador de productos por linea.
-- Accion de creacion rapida desde la pantalla de emision.
+- Accion de creacion rapida desde la pantalla de emision, oculta detras de "Añadir"
+  para no sobrecargar la busqueda.
 - Al seleccionar producto, se autollenan codigo, descripcion, precio unitario e IVA.
-- El usuario puede editar cantidad/descuento antes de emitir.
+- El usuario puede editar cantidad/descuento antes de emitir. El descuento usa un
+  input reutilizable que permite ingresar valor exacto o porcentaje, pero el payload
+  fiscal conserva el descuento como valor absoluto.
 
 ## Deuda Tecnica
 

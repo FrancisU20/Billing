@@ -1,6 +1,7 @@
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Controller, useWatch, type Control, type FieldErrors } from 'react-hook-form'
+import { DiscountInput } from '@/components/ui/DiscountInput'
 import { FormField } from '@/components/ui/FormField'
 import { ListItemAction } from '@/components/ui/ListItemPrimitives'
 import { useTheme } from '@/lib/theme-context'
@@ -32,6 +33,7 @@ export function DocumentLineItem({
   const lineErrors = errors.lines?.[index]
   const line = useWatch({ control, name: `lines.${index}` })
   const totals = computeLineTotals(line ? [line] : [])
+  const discountBase = line ? toNumber(line.quantity) * toNumber(line.unit_price) : 0
 
   return (
     <View
@@ -149,11 +151,11 @@ export function DocumentLineItem({
             control={control}
             name={`lines.${index}.discount`}
             render={({ field: { onChange, onBlur, value } }) => (
-              <FormField
+              <DiscountInput
                 label="Descuento"
+                baseAmount={discountBase}
                 placeholder="0.00"
                 keyboardType="decimal-pad"
-                leftIcon="pricetag-outline"
                 error={lineErrors?.discount?.message}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -172,6 +174,11 @@ export function DocumentLineItem({
       </View>
     </View>
   )
+}
+
+function toNumber(value: string | undefined): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 const styles = StyleSheet.create({

@@ -106,6 +106,39 @@ describe('document contract schemas', () => {
     })
   })
 
+  it('normalizes consumidor final when previous buyer state is stale', () => {
+    const values: EmitDocumentFormValues = {
+      establishment_code: '001',
+      emission_point_code: '001',
+      issued_at: '2026-06-18',
+      buyer_mode: 'consumidor_final',
+      client_id: 'client-prev',
+      buyer_id_type: '05',
+      buyer_id: '1710034065',
+      buyer_name: 'Cliente previo',
+      buyer_email: 'prev@example.com',
+      payment_method: '01',
+      lines: [
+        {
+          code: 'P1',
+          description: 'Producto 1',
+          quantity: '1',
+          unit_price: '100.00',
+          discount: '0.00',
+          iva_rate: '15',
+        },
+      ],
+    }
+
+    expect(formValuesToEmitDocumentInput(values)).toMatchObject({
+      client_id: null,
+      buyer_id_type: '07',
+      buyer_id: '9999999999999',
+      buyer_name: 'Consumidor Final',
+      buyer_email: null,
+    })
+  })
+
   it('matches the partial POST /documents (202) response — not the full document', () => {
     // lambdas/documents/handler.py::_emit solo devuelve este subconjunto;
     // el resto se obtiene recién con GET /documents/{id}.
@@ -138,6 +171,56 @@ describe('document contract schemas', () => {
         buyer_name: 'Consumidor Final',
         payment_method: '01',
         lines: [],
+      }),
+    ).toThrow()
+  })
+
+  it('rejects a line with zero unit price', () => {
+    expect(() =>
+      emitDocumentSchema.parse({
+        establishment_code: '001',
+        emission_point_code: '001',
+        doc_type: '01',
+        issued_at: '2026-06-18',
+        buyer_id_type: '07',
+        buyer_id: '9999999999999',
+        buyer_name: 'Consumidor Final',
+        payment_method: '01',
+        lines: [
+          {
+            code: 'P1',
+            description: 'Producto 1',
+            quantity: '1',
+            unit_price: '0.00',
+            discount: '0.00',
+            iva_rate: '15',
+          },
+        ],
+      }),
+    ).toThrow()
+  })
+
+  it('rejects a discount above the line gross amount', () => {
+    expect(() =>
+      emitDocumentSchema.parse({
+        establishment_code: '001',
+        emission_point_code: '001',
+        doc_type: '01',
+        issued_at: '2026-06-18',
+        buyer_id_type: '07',
+        buyer_id: '9999999999999',
+        buyer_name: 'Consumidor Final',
+        payment_method: '01',
+        lines: [
+          {
+            code: 'P1',
+            description: 'Producto 1',
+            quantity: '1',
+            unit_price: '10.00',
+            discount: '10.01',
+            iva_rate: '15',
+          },
+        ],
       }),
     ).toThrow()
   })

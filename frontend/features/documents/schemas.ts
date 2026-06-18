@@ -110,6 +110,34 @@ export const emitDocumentLineSchema = z
       .regex(/^\d+(\.\d{1,2})?$/, 'Descuento inválido'),
     iva_rate: ivaRateSchema,
   })
+  .superRefine((line, ctx) => {
+    const quantity = Number(line.quantity)
+    const unitPrice = Number(line.unit_price)
+    const discount = Number(line.discount)
+    const gross = quantity * unitPrice
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['quantity'],
+        message: 'Debe ser mayor a cero',
+      })
+    }
+    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['unit_price'],
+        message: 'Debe ser mayor a cero',
+      })
+    }
+    if (Number.isFinite(discount) && discount > gross) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['discount'],
+        message: 'No puede superar el subtotal',
+      })
+    }
+  })
   .strict()
 
 export const emitDocumentSchema = z
@@ -150,6 +178,24 @@ export const emitDocumentFormValuesSchema = z
     buyer_email: z.string().trim().email('Email inválido').or(z.literal('')),
     payment_method: paymentMethodSchema,
     lines: z.array(emitDocumentLineSchema).min(1, 'Agrega al menos una línea'),
+  })
+  .superRefine((values, ctx) => {
+    if (values.buyer_mode === 'consumidor_final') {
+      if (values.buyer_id_type !== '07' || values.buyer_id !== '9999999999999') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['buyer_id'],
+          message: 'Consumidor Final debe usar 9999999999999',
+        })
+      }
+    }
+    if (values.buyer_mode === 'cliente' && !values.client_id) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['client_id'],
+        message: 'Selecciona un cliente',
+      })
+    }
   })
   .strict()
 

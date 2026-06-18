@@ -22,6 +22,12 @@ Ultima actualizacion: 2026-06-18.
 
 Emision de documentos electronicos hacia el SRI de Ecuador. Nucleo del negocio.
 
+Regla fiscal critica: si `buyer_id_type == "07"` (Consumidor Final), el sistema fuerza
+`buyer_id = "9999999999999"`, `buyer_name = "Consumidor Final"`, `client_id = null` y
+`buyer_email = null` antes de emitir. Si llegan 13 nueves con otro tipo de identificacion,
+el request se rechaza. Esto evita rechazos SRI tipo "69: ERROR EN LA IDENTIFICACION DEL
+RECEPTOR" por estado viejo del formulario.
+
 **Alcance MVP (Sprint 1-5):** Factura electronica (tipo 01), emision individual,
 multiples establecimientos desde el primer dia.
 

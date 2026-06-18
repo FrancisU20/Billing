@@ -35,16 +35,17 @@ export function defaultEmitDocumentFormValues(
 }
 
 export function formValuesToEmitDocumentInput(values: EmitDocumentFormValues): EmitDocumentInput {
+  const isConsumidorFinal = values.buyer_mode === 'consumidor_final'
   return emitDocumentSchema.parse({
     establishment_code: values.establishment_code,
     emission_point_code: values.emission_point_code,
     doc_type: '01',
     issued_at: values.issued_at,
-    client_id: values.client_id,
-    buyer_id_type: values.buyer_id_type,
-    buyer_id: values.buyer_id.trim(),
-    buyer_name: values.buyer_name.trim(),
-    buyer_email: values.buyer_email.trim() || null,
+    client_id: isConsumidorFinal ? null : values.client_id,
+    buyer_id_type: isConsumidorFinal ? CONSUMIDOR_FINAL_ID_TYPE : values.buyer_id_type,
+    buyer_id: isConsumidorFinal ? CONSUMIDOR_FINAL_ID : values.buyer_id.trim(),
+    buyer_name: isConsumidorFinal ? CONSUMIDOR_FINAL_NAME : values.buyer_name.trim(),
+    buyer_email: isConsumidorFinal ? null : values.buyer_email.trim() || null,
     payment_method: values.payment_method,
     lines: values.lines,
   })

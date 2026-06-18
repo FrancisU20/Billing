@@ -51,10 +51,12 @@ export function EmitDocumentScreen() {
     control,
     handleSubmit,
     setValue,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm<EmitDocumentFormValues>({
     resolver: zodResolver(emitDocumentFormValuesSchema),
     defaultValues: defaultEmitDocumentFormValues('', ''),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
   })
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
   const establishmentCode = useWatch({ control, name: 'establishment_code' })
@@ -99,7 +101,10 @@ export function EmitDocumentScreen() {
       shouldDirty: true,
       shouldValidate: true,
     })
-    setValue(`lines.${pickerLineIndex}.iva_rate`, product.iva_rate, { shouldDirty: true })
+    setValue(`lines.${pickerLineIndex}.iva_rate`, product.iva_rate, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
     setPickerLineIndex(null)
   }
 
@@ -204,7 +209,12 @@ export function EmitDocumentScreen() {
                 key={option.value}
                 label={option.label}
                 selected={paymentMethod === option.value}
-                onPress={() => setValue('payment_method', option.value, { shouldDirty: true })}
+                onPress={() =>
+                  setValue('payment_method', option.value, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
               />
             ))}
           </View>
@@ -221,7 +231,10 @@ export function EmitDocumentScreen() {
               onPickProduct={() => setPickerLineIndex(index)}
               onRemove={() => remove(index)}
               onChangeIvaRate={(rate) =>
-                setValue(`lines.${index}.iva_rate`, rate, { shouldDirty: true })
+                setValue(`lines.${index}.iva_rate`, rate, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
               }
             />
           ))}
@@ -250,6 +263,7 @@ export function EmitDocumentScreen() {
           size="lg"
           fullWidth
           isLoading={submitting}
+          isDisabled={!isValid}
           onPress={handleSubmit(submit)}
         >
           Emitir documento
