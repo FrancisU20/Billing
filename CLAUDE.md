@@ -14,6 +14,7 @@ El sistema administra:
 - `tenants`: empresas que contrataron el SaaS.
 - `plans`: catalogo comercial y limites del SaaS.
 - `clients`: compradores/clientes dentro de cada tenant.
+- `products`: catalogo vendible del tenant (productos, servicios, paquetes, membresias).
 - `auth`: login Cognito SRP expuesto por Lambda.
 - `workers`: onboarding, emails, migraciones y outbox async.
 - `subscriptions`: pagos dLocal Go SmartFields por ciclo de plan de la suscripcion SaaS.
@@ -54,6 +55,11 @@ requerida; endpoint `POST /tenants/{id}/subscription/retry-payment` (tarjeta gua
 **6 bugs de auditoría resueltos** (scan payment_failed, guard PENDING en confirm, webhook
 order_id, mark_applied_to_tenant condition, type hint RetryPaymentUseCase, safe datetime).
 
+Products — Sprint 1: CRUD tenant-scoped de productos/servicios con `product_id` estable,
+SKU editable unico por tenant, tipo vendible, precio/IVA default y stock opcional modelado.
+El facturador puede seleccionar o crear rapidamente un producto; la factura persiste snapshot
+legal de linea para que cambios futuros al catalogo no alteren documentos emitidos.
+
 Invoices/documents — MVP completo (Sprints 1-5): infra CDK (tablas, S3 Object Lock,
 colas sign/poll); Lambda `sequences` (establecimientos + puntos de emision, punto 099
 de pruebas); Lambda `documents` (emision individual, reserva de secuencial, clave de
@@ -90,6 +96,7 @@ Reglas de negocio, flujos y DynamoDB especificos de cada dominio (incluye su sec
 | `context/TENANTS.md` | Entidad Tenant, maquina de estados, RUC lock, plan_status |
 | `context/PLANS.md` | Catalogo de planes, slug lock, endpoints publico vs admin |
 | `context/CLIENTS.md` | Clientes del tenant, tipos de identificacion, lock de identificacion |
+| `context/PRODUCTS.md` | Catalogo vendible, SKU, stock opcional e integracion con facturas |
 | `context/ONBOARDING.md` | Registro self-service con OTP, certificados p12, lead Enterprise |
 | `context/CERTIFICATES.md` | Validacion, almacenamiento y ciclo de vida de certificados digitales p12 |
 | `context/INVOICES.md` | Emision documentos SRI, secuenciales, XAdES-BES, invoice\_processor, S3 WORM, frontend (**MVP completo, Sprints 1-5**) |
@@ -106,6 +113,7 @@ corresponda. Estado actual por capa/dominio:
 | `context/TENANTS.md` | Listado admin con scan para alta cardinalidad/dashboard |
 | `context/PLANS.md` | `list()` con scan completo aceptable solo para catalogo chico |
 | `context/CLIENTS.md` | Busqueda `q` y validacion batch no escalan para cargas masivas |
+| `context/PRODUCTS.md` | Inventario avanzado con movimientos/reservas queda para Sprint 2 |
 | `context/ONBOARDING.md` | Queue dedicada Enterprise automatica es alcance futuro |
 | `context/CERTIFICATES.md` | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras |
 | `context/INVOICES.md` | Literal SOAP de rechazo sin verificar contra SRI real; RIDE sin barcode/logo; clasificacion de errores SRI parcial; colas dedicadas enterprise sin auto-provision; `ClientPickerModal` aun no extraido a `components/ui/`; `invoice_processor` sin concurrencia reservada (cuenta AWS limitada a 10 ejecuciones concurrentes en `sa-east-1`) |

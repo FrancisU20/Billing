@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -17,6 +17,8 @@ import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useTheme } from '@/lib/theme-context'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { useEstablishments } from '@/features/sequences/hooks/useEstablishments'
+import { ProductPickerModal } from '@/features/products/components/ProductPickerModal'
+import type { Product } from '@/features/products/types'
 import { Routes } from '@/constants/routes'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { documentsApi } from '../api'
@@ -35,6 +37,7 @@ export function EmitDocumentScreen() {
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
+  const [pickerLineIndex, setPickerLineIndex] = useState<number | null>(null)
   const user = useAuthStore(selectUser)
   const tenantId = user?.tenantId ?? null
   const {
@@ -80,6 +83,25 @@ export function EmitDocumentScreen() {
   })
 
   const totals = computeLineTotals(lines ?? [])
+
+  function applyProductToLine(product: Product) {
+    if (pickerLineIndex === null) return
+    setValue(`lines.${pickerLineIndex}.product_id`, product.id, { shouldDirty: true })
+    setValue(`lines.${pickerLineIndex}.code`, product.sku, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    setValue(`lines.${pickerLineIndex}.description`, product.description || product.name, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    setValue(`lines.${pickerLineIndex}.unit_price`, product.unit_price, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    setValue(`lines.${pickerLineIndex}.iva_rate`, product.iva_rate, { shouldDirty: true })
+    setPickerLineIndex(null)
+  }
 
   if (loadingEstablishments) {
     return <LoadingSpinner fullScreen label="Cargando establecimientos..." />
@@ -196,6 +218,7 @@ export function EmitDocumentScreen() {
               control={control}
               errors={errors}
               canRemove={fields.length > 1}
+              onPickProduct={() => setPickerLineIndex(index)}
               onRemove={() => remove(index)}
               onChangeIvaRate={(rate) =>
                 setValue(`lines.${index}.iva_rate`, rate, { shouldDirty: true })
@@ -232,6 +255,11 @@ export function EmitDocumentScreen() {
           Emitir documento
         </Button>
       </ScrollView>
+      <ProductPickerModal
+        visible={pickerLineIndex !== null}
+        onClose={() => setPickerLineIndex(null)}
+        onSelect={applyProductToLine}
+      />
     </View>
   )
 }

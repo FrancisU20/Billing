@@ -46,6 +46,12 @@ const tenantNavigation: AppNavigationItem[] = [
     activeWhen: segment(Routes.tenant.clients),
   },
   {
+    label: 'Productos',
+    icon: 'cube-outline',
+    href: Routes.tenant.products as Href,
+    activeWhen: segment(Routes.tenant.products),
+  },
+  {
     label: 'Documentos',
     icon: 'document-text-outline',
     href: Routes.tenant.documents as Href,

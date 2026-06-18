@@ -20,6 +20,7 @@ from lambdas.documents.domain.errors import (
     InvalidIssuedDateError,
     RideNotAvailableError,
 )
+from lambdas.documents.domain.repositories.i_product_catalog import InvoiceProductSnapshot
 from lambdas.documents.use_cases.emit_document import EmitDocumentUseCase
 from lambdas.documents.use_cases.get_document import GetDocumentUseCase
 from lambdas.documents.use_cases.get_ride_url import GetRideUrlUseCase
@@ -75,6 +76,22 @@ class FakeSequencesPort:
         val = self._next
         self._next += 1
         return val
+
+
+class FakeProductCatalog:
+    def __init__(self) -> None:
+        self.snapshots = {
+            "prod-1": InvoiceProductSnapshot(
+                product_id="prod-1",
+                code="SKU-001",
+                description="Servicio desde catálogo",
+                unit_price=Decimal("30.00"),
+                iva_rate="5",
+            )
+        }
+
+    def get_active_snapshot(self, product_id: str) -> InvoiceProductSnapshot:
+        return self.snapshots[product_id]
 
 
 def _make_emit_cmd(**overrides: Any) -> EmitDocumentCommand:
@@ -151,6 +168,13 @@ class EmitDocumentUseCaseTests(unittest.TestCase):
             mock_dt.now.return_value.date.return_value = _TODAY
             return EmitDocumentUseCase(self.repo, self.seq).execute(_make_emit_cmd(**overrides))
 
+    def _run_with_catalog(self, **overrides: Any) -> Document:
+        with patch("lambdas.documents.use_cases.emit_document.datetime") as mock_dt:
+            mock_dt.now.return_value.date.return_value = _TODAY
+            return EmitDocumentUseCase(self.repo, self.seq, FakeProductCatalog()).execute(
+                _make_emit_cmd(**overrides)
+            )
+
     def test_returns_pending_document(self) -> None:
         doc = self._run()
         self.assertEqual(doc.status, DocumentStatus.PENDING)
@@ -224,6 +248,28 @@ class EmitDocumentUseCaseTests(unittest.TestCase):
         doc = self._run(lines=lines)
         self.assertEqual(doc.iva_5, Decimal("5.00"))
         self.assertEqual(doc.total, Decimal("105.00"))
+
+    def test_product_line_uses_catalog_snapshot(self) -> None:
+        lines = [
+            LineData(
+                product_id="prod-1",
+                code="MANUAL",
+                description="Manual",
+                quantity=Decimal("2"),
+                unit_price=Decimal("1.00"),
+                discount=Decimal("0.00"),
+                iva_rate="15",
+            )
+        ]
+
+        doc = self._run_with_catalog(lines=lines)
+
+        self.assertEqual(doc.lines[0].product_id, "prod-1")
+        self.assertEqual(doc.lines[0].code, "SKU-001")
+        self.assertEqual(doc.lines[0].description, "Servicio desde catálogo")
+        self.assertEqual(doc.lines[0].unit_price, Decimal("30.00"))
+        self.assertEqual(doc.iva_5, Decimal("3.00"))
+        self.assertEqual(doc.total, Decimal("63.00"))
 
 
 # ── GetDocumentUseCase ────────────────────────────────────────────────────────

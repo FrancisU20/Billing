@@ -13,6 +13,7 @@ class LineData:
     unit_price: Decimal
     discount: Decimal
     iva_rate: str  # "15" | "5" | "0" | "EXENTO"
+    product_id: str | None = None
 
 
 @dataclass

@@ -36,6 +36,7 @@ from lambdas.documents.domain.entities import DocumentStatus
 from lambdas.documents.domain.errors import DocumentNotFoundError
 from lambdas.documents.infra.documents_repository import DynamoDocumentsRepository
 from lambdas.documents.infra.plan_reader import DynamoPlanReader
+from lambdas.documents.infra.product_catalog import DynamoProductCatalog
 from lambdas.documents.infra.sequences_adapter import DynamoSequencesAdapter
 from lambdas.documents.schemas import EmitDocumentRequest, ListDocumentsQueryParams
 from lambdas.documents.use_cases.emit_document import EmitDocumentUseCase
@@ -55,6 +56,7 @@ _documents_table = get_table("DOCUMENTS_TABLE")
 _sequences_table = get_table("SEQUENCES_TABLE")
 _tenants_table = get_table("TENANTS_TABLE")
 _plans_table = get_table("PLANS_TABLE")
+_products_table = get_table("PRODUCTS_TABLE") if env("PRODUCTS_TABLE", "") else None
 _sign_queue_url = env("SIGN_QUEUE_URL", "")
 _documents_bucket = env("DOCUMENTS_BUCKET", "")
 
@@ -73,6 +75,12 @@ def _get_tenant(tenant_id: str):
 
 def _get_plan(plan_id: str):
     return DynamoPlanReader(_plans_table).get(plan_id)
+
+
+def _product_catalog(tenant_id: str):
+    if _products_table is None:
+        return None
+    return DynamoProductCatalog(tenant_id, _products_table)
 
 
 def _resolve_tenant_id(request: Request) -> str:
@@ -122,6 +130,7 @@ def _emit(request: Request, context) -> dict:
             unit_price=ln.unit_price,
             discount=ln.discount,
             iva_rate=ln.iva_rate,
+            product_id=ln.product_id,
         )
         for ln in body.lines
     ]
@@ -129,7 +138,7 @@ def _emit(request: Request, context) -> dict:
     repo = _repo()
     seq_port = _sequences_port()
 
-    document = EmitDocumentUseCase(repo, seq_port).execute(
+    document = EmitDocumentUseCase(repo, seq_port, _product_catalog(tenant_id)).execute(
         EmitDocumentCommand(
             tenant_id=tenant_id,
             ruc=tenant.ruc,

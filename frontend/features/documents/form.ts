@@ -4,6 +4,7 @@ import type { EmitDocumentFormValues, EmitDocumentInput, EmitDocumentLineInput }
 
 export function defaultEmitDocumentLine(): EmitDocumentLineInput {
   return {
+    product_id: null,
     code: '',
     description: '',
     quantity: '1',

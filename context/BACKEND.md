@@ -14,6 +14,7 @@ backend/
     tenants/     # empresas SaaS globales
     plans/       # catalogo comercial global
     clients/     # clientes por tenant
+    products/    # catalogo vendible por tenant
     subscriptions/ # pagos dLocal Go (suscripcion SaaS del tenant)
     workers/     # outbox_relay, tenant_onboarding, email_notifications, migrations
   shared/        # errores, logging, fechas, db, value objects, audit, secrets, events, certificados

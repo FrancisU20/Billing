@@ -14,6 +14,7 @@ interface DocumentLineItemProps {
   control: Control<EmitDocumentFormValues>
   errors: FieldErrors<EmitDocumentFormValues>
   onChangeIvaRate: (rate: EmitDocumentFormValues['lines'][number]['iva_rate']) => void
+  onPickProduct: () => void
   onRemove: () => void
   canRemove: boolean
 }
@@ -23,6 +24,7 @@ export function DocumentLineItem({
   control,
   errors,
   onChangeIvaRate,
+  onPickProduct,
   onRemove,
   canRemove,
 }: DocumentLineItemProps) {
@@ -39,15 +41,29 @@ export function DocumentLineItem({
       ]}
     >
       <View style={styles.headerRow}>
-        <Text style={[styles.title, { color: semantic.text.primary }]}>Línea {index + 1}</Text>
-        {canRemove ? (
+        <View style={styles.titleBlock}>
+          <Text style={[styles.title, { color: semantic.text.primary }]}>Línea {index + 1}</Text>
+          {line?.product_id ? (
+            <Text style={[styles.productHint, { color: semantic.accent.default }]}>
+              Producto vinculado
+            </Text>
+          ) : null}
+        </View>
+        <View style={styles.headerActions}>
           <ListItemAction
-            icon="trash-outline"
-            label={`Eliminar línea ${index + 1}`}
-            danger
-            onPress={onRemove}
+            icon="cube-outline"
+            label={`Seleccionar producto para línea ${index + 1}`}
+            onPress={onPickProduct}
           />
-        ) : null}
+          {canRemove ? (
+            <ListItemAction
+              icon="trash-outline"
+              label={`Eliminar línea ${index + 1}`}
+              danger
+              onPress={onRemove}
+            />
+          ) : null}
+        </View>
       </View>
 
       <View style={styles.grid}>
@@ -161,7 +177,10 @@ export function DocumentLineItem({
 const styles = StyleSheet.create({
   container: { borderRadius: radius.md, borderWidth: 1, gap: spacing[3], padding: spacing[3] },
   headerRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  headerActions: { flexDirection: 'row', gap: spacing[1] },
+  titleBlock: { gap: spacing[1] - 2 },
   title: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
+  productHint: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
   col: { flex: 1, minWidth: 100 },
   colWide: { flex: 2, minWidth: 200 },

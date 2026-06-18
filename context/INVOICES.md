@@ -14,6 +14,7 @@ Ultima actualizacion: 2026-06-18.
 | `FRONTEND.md` | Estructura, design system, patrones de pantalla |
 | `TENANTS.md` | `sri_environment`, `certificate_secret_arn`, `plan_status`, `accounting_required`, `address` |
 | `CLIENTS.md` | Consumidor Final NO es un Client — regla critica para el XML del SRI |
+| `PRODUCTS.md` | Lineas de factura pueden venir del catalogo, pero se persiste snapshot legal |
 | `PLANS.md` | `document_limit`, `dedicated_queue` — son rate limiters de este dominio |
 | `ONBOARDING.md` | Certificado p12, Secrets Manager, ciclo de vida del certificado |
 

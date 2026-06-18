@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 
 class EmitDocumentLineRequest(BaseModel):
+    product_id: str | None = None
     code: str = Field(..., min_length=1, max_length=25)
     description: str = Field(..., min_length=1, max_length=300)
     quantity: Decimal = Field(..., gt=0)

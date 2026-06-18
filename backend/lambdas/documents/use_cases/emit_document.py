@@ -15,6 +15,7 @@ from lambdas.documents.domain.errors import (
 )
 from lambdas.documents.domain.iva_rates import iva_rate_for
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
+from lambdas.documents.domain.repositories.i_product_catalog import IProductCatalog
 from lambdas.documents.domain.repositories.i_sequences_port import ISequencesPort
 from shared.errors import ValidationError
 
@@ -22,6 +23,7 @@ from shared.errors import ValidationError
 def _compute_totals(
     lines_data: list[LineData],
     issued_at: date,
+    product_catalog: IProductCatalog | None,
 ) -> tuple[list[InvoiceLine], Decimal, Decimal, Decimal, Decimal, Decimal, Decimal]:
     if not lines_data:
         raise ValidationError("El documento debe tener al menos una línea de detalle.")
@@ -35,6 +37,21 @@ def _compute_totals(
     iva_5 = Decimal("0.00")
 
     for raw in lines_data:
+        product_id = raw.product_id
+        if product_id:
+            if product_catalog is None:
+                raise ValidationError("No se pudo validar el producto de la línea.")
+            snapshot = product_catalog.get_active_snapshot(product_id)
+            raw = LineData(
+                product_id=snapshot.product_id,
+                code=snapshot.code,
+                description=snapshot.description,
+                quantity=raw.quantity,
+                unit_price=snapshot.unit_price,
+                discount=raw.discount,
+                iva_rate=snapshot.iva_rate,
+            )
+
         qty = raw.quantity
         unit_price = raw.unit_price
         discount = raw.discount
@@ -62,6 +79,7 @@ def _compute_totals(
                 iva_rate=iva_rate_str,
                 iva_amount=iva_amount,
                 total=(line_subtotal + iva_amount).quantize(Decimal("0.01")),
+                product_id=product_id,
             )
         )
         subtotal += line_subtotal
@@ -88,9 +106,11 @@ class EmitDocumentUseCase:
         self,
         docs_repo: IDocumentsRepository,
         sequences_port: ISequencesPort,
+        product_catalog: IProductCatalog | None = None,
     ) -> None:
         self._docs_repo = docs_repo
         self._sequences_port = sequences_port
+        self._product_catalog = product_catalog
 
     def execute(self, cmd: EmitDocumentCommand) -> Document:
         if not cmd.certificate_secret_arn:
@@ -119,7 +139,7 @@ class EmitDocumentUseCase:
         )
 
         lines, subtotal, total_discount, iva_15, iva_5, iva_0, total = _compute_totals(
-            cmd.lines, cmd.issued_at
+            cmd.lines, cmd.issued_at, self._product_catalog
         )
 
         return Document(

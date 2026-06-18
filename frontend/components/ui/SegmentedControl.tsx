@@ -62,6 +62,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderRadius: radius.md,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing[1],
     padding: spacing[1],
   },

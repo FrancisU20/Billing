@@ -22,6 +22,7 @@ export const sriErrorSchema = z.object({
 })
 
 export const documentLineSchema = z.object({
+  product_id: z.string().nullable().optional(),
   code: z.string().min(1),
   description: z.string().min(1),
   quantity: z.string().min(1),
@@ -92,6 +93,7 @@ export const emitDocumentResultSchema = z.object({
 
 export const emitDocumentLineSchema = z
   .object({
+    product_id: z.string().nullable().optional(),
     code: z.string().trim().min(1, 'Requerido').max(25, 'Máximo 25 caracteres'),
     description: z.string().trim().min(1, 'Requerido').max(300, 'Máximo 300 caracteres'),
     quantity: z

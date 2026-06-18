@@ -241,6 +241,27 @@ class ApiStack(Stack):
         database.audit_table.grant_read_write_data(clients_fn)
         database.idempotency_table.grant_read_write_data(clients_fn)
 
+        # ── Products Lambda ───────────────────────────────────────────────────
+        products_fn = lmb.Function(
+            self, "ProductsFunction",
+            function_name = f"codelabs-billing-{env}-products",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.products.handler.handler",
+            timeout       = Duration.seconds(15),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "PRODUCTS_TABLE":    database.products_table.table_name,
+                "AUDIT_LOG_TABLE":   database.audit_table.table_name,
+                "IDEMPOTENCY_TABLE": database.idempotency_table.table_name,
+            },
+        )
+        database.products_table.grant_read_write_data(products_fn)
+        database.audit_table.grant_read_write_data(products_fn)
+        database.idempotency_table.grant_read_write_data(products_fn)
+
         # ── Sequences Lambda ──────────────────────────────────────────────────
         # Gestiona establecimientos y puntos de emisión SRI.
         # El bootstrap del punto 099 (pruebas) lo llama la certificates Lambda.
@@ -648,6 +669,24 @@ class ApiStack(Stack):
                 authorizer  = jwt_authorizer,
             )
 
+        products_integration = integrations.HttpLambdaIntegration(
+            "ProductsIntegration", products_fn
+        )
+
+        for method, route in [
+            (apigwv2.HttpMethod.POST,   "/products"),
+            (apigwv2.HttpMethod.GET,    "/products"),
+            (apigwv2.HttpMethod.GET,    "/products/{id}"),
+            (apigwv2.HttpMethod.PATCH,  "/products/{id}"),
+            (apigwv2.HttpMethod.DELETE, "/products/{id}"),
+        ]:
+            api.add_routes(
+                path        = route,
+                methods     = [method],
+                integration = products_integration,
+                authorizer  = jwt_authorizer,
+            )
+
         sequences_integration = integrations.HttpLambdaIntegration(
             "SequencesIntegration", sequences_fn
         )
@@ -683,6 +722,7 @@ class ApiStack(Stack):
                 "SEQUENCES_TABLE":   database.sequences_table.table_name,
                 "TENANTS_TABLE":     database.tenants_table.table_name,
                 "PLANS_TABLE":       database.plans_table.table_name,
+                "PRODUCTS_TABLE":    database.products_table.table_name,
                 "SIGN_QUEUE_URL":    queues.invoice_sign_queue.queue_url,
                 "DOCUMENTS_BUCKET":  storage.documents_bucket.bucket_name,
                 "IDEMPOTENCY_TABLE": database.idempotency_table.table_name,
@@ -694,6 +734,7 @@ class ApiStack(Stack):
         database.sequences_table.grant_write_data(documents_fn)
         database.tenants_table.grant_read_data(documents_fn)
         database.plans_table.grant_read_data(documents_fn)
+        database.products_table.grant_read_data(documents_fn)
         database.idempotency_table.grant_read_write_data(documents_fn)
         queues.invoice_sign_queue.grant_send_messages(documents_fn)
         storage.documents_bucket.grant_read(documents_fn)

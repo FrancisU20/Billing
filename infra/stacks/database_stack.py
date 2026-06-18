@@ -143,6 +143,28 @@ class DatabaseStack(Stack):
             projection_type = ddb.ProjectionType.ALL,
         )
 
+        # ── Products ──────────────────────────────────────────────────────────
+        # PK: pk="TENANT#{tenant_id}" | SK: sk="PRODUCT#{uuid}"
+        # GSI sku-index: PK=tenant_id, SK=sku_normalized
+        # Unicidad por tenant: lock transaccional SK="PRODUCT_SKU#{sku_normalized}"
+        self.products_table = ddb.Table(
+            self, "ProductsTable",
+            table_name      = f"codelabs-billing-{env}-products",
+            partition_key   = ddb.Attribute(name="pk", type=ddb.AttributeType.STRING),
+            sort_key        = ddb.Attribute(name="sk", type=ddb.AttributeType.STRING),
+            billing_mode    = ddb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=pitr,
+            ),
+            removal_policy  = removal,
+        )
+        self.products_table.add_global_secondary_index(
+            index_name      = "sku-index",
+            partition_key   = ddb.Attribute(name="tenant_id", type=ddb.AttributeType.STRING),
+            sort_key        = ddb.Attribute(name="sku_normalized", type=ddb.AttributeType.STRING),
+            projection_type = ddb.ProjectionType.ALL,
+        )
+
         # ── Migrations ─────────────────────────────────────────────────────────
         # PK: id (nombre del script, ej. "0001_create_tables")
         # Trackea qué migraciones de datos corrieron
@@ -258,6 +280,10 @@ class DatabaseStack(Stack):
         CfnOutput(self, "ClientsTableName",
                   value=self.clients_table.table_name,
                   export_name=f"CodeLabsBilling-{env}-ClientsTableName")
+
+        CfnOutput(self, "ProductsTableName",
+                  value=self.products_table.table_name,
+                  export_name=f"CodeLabsBilling-{env}-ProductsTableName")
 
         CfnOutput(self, "MigrationsTableName",
                   value=self.migrations_table.table_name,

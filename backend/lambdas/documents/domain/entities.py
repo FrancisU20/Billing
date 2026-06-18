@@ -38,9 +38,11 @@ class InvoiceLine:
     iva_rate: str  # "15" | "5" | "0" | "EXENTO"
     iva_amount: Decimal
     total: Decimal
+    product_id: str | None = None
 
     def to_dict(self) -> dict:
         return {
+            "product_id": self.product_id,
             "code": self.code,
             "description": self.description,
             "quantity": str(self.quantity),
@@ -55,6 +57,7 @@ class InvoiceLine:
     @classmethod
     def from_dict(cls, d: dict) -> InvoiceLine:
         return cls(
+            product_id=d.get("product_id"),
             code=d["code"],
             description=d["description"],
             quantity=Decimal(str(d["quantity"])),
