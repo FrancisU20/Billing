@@ -177,6 +177,63 @@ class DatabaseStack(Stack):
             projection_type= ddb.ProjectionType.ALL,
         )
 
+        # ── Sequences ─────────────────────────────────────────────────────────
+        # PK: "TENANT#{tenant_id}" | SK variable:
+        #   "ESTAB#{code}"           → establecimiento (emission_points embebidos como array)
+        #   "SEQ#{estab}#{punto}"    → contador atómico de secuencial SRI
+        # Sin GSI: accesos siempre por PK (Query SK begins_with o GetItem exacto).
+        # UpdateItem ADD 1 en SEQ#... es la única operación de escritura en contadores.
+        self.sequences_table = ddb.Table(
+            self, "SequencesTable",
+            table_name    = f"codelabs-billing-{env}-sequences",
+            partition_key = ddb.Attribute(name="pk", type=ddb.AttributeType.STRING),
+            sort_key      = ddb.Attribute(name="sk", type=ddb.AttributeType.STRING),
+            billing_mode  = ddb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=pitr,
+            ),
+            removal_policy = removal,
+        )
+
+        # ── Documents ─────────────────────────────────────────────────────────
+        # PK: "TENANT#{tenant_id}" | SK: "DOC#{document_id}"
+        # GSI tenant-docs-index: PK=tenant_id (attr denormalizado), SK=created_at
+        # Uso del GSI: listar documentos de un tenant ordenados por fecha + FilterExpression
+        # por status. El polling de autorización SRI se maneja via SQS delay, no via scan.
+        self.documents_table = ddb.Table(
+            self, "DocumentsTable",
+            table_name    = f"codelabs-billing-{env}-documents",
+            partition_key = ddb.Attribute(name="pk", type=ddb.AttributeType.STRING),
+            sort_key      = ddb.Attribute(name="sk", type=ddb.AttributeType.STRING),
+            billing_mode  = ddb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=pitr,
+            ),
+            removal_policy = removal,
+        )
+        self.documents_table.add_global_secondary_index(
+            index_name      = "tenant-docs-index",
+            partition_key   = ddb.Attribute(name="tenant_id", type=ddb.AttributeType.STRING),
+            sort_key        = ddb.Attribute(name="created_at", type=ddb.AttributeType.STRING),
+            projection_type = ddb.ProjectionType.ALL,
+        )
+
+        # ── Batch Jobs ────────────────────────────────────────────────────────
+        # PK: "TENANT#{tenant_id}" | SK: "JOB#{job_id}"
+        # Tabla creada en Sprint 1 de infra. Lambda batch_jobs se implementa en sprint
+        # posterior al MVP de emision individual (Sprint 2-5).
+        self.batch_jobs_table = ddb.Table(
+            self, "BatchJobsTable",
+            table_name    = f"codelabs-billing-{env}-batch-jobs",
+            partition_key = ddb.Attribute(name="pk", type=ddb.AttributeType.STRING),
+            sort_key      = ddb.Attribute(name="sk", type=ddb.AttributeType.STRING),
+            billing_mode  = ddb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=pitr,
+            ),
+            removal_policy = removal,
+        )
+
         # ── Outputs para scripts operativos y CI/CD ──────────────────────────
         CfnOutput(self, "TenantsTableName",
                   value=self.tenants_table.table_name,
@@ -209,3 +266,15 @@ class DatabaseStack(Stack):
         CfnOutput(self, "PaymentsTableName",
                   value=self.payments_table.table_name,
                   export_name=f"CodeLabsBilling-{env}-PaymentsTableName")
+
+        CfnOutput(self, "SequencesTableName",
+                  value=self.sequences_table.table_name,
+                  export_name=f"CodeLabsBilling-{env}-SequencesTableName")
+
+        CfnOutput(self, "DocumentsTableName",
+                  value=self.documents_table.table_name,
+                  export_name=f"CodeLabsBilling-{env}-DocumentsTableName")
+
+        CfnOutput(self, "BatchJobsTableName",
+                  value=self.batch_jobs_table.table_name,
+                  export_name=f"CodeLabsBilling-{env}-BatchJobsTableName")

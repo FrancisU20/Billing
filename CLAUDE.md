@@ -18,8 +18,11 @@ El sistema administra:
 - `workers`: onboarding, emails, migraciones y outbox async.
 - `subscriptions`: pagos dLocal Go SmartFields por ciclo de plan de la suscripcion SaaS.
 
-No existe todavia un Lambda `invoices`. Cuando se implemente, debe respetar las reglas SRI
-y no mezclar "Consumidor Final" con `clients` (ver `context/CLIENTS.md`).
+El dominio `invoices/documents` esta en implementacion activa (Sprint 1 en curso).
+Arquitectura completa documentada en `context/INVOICES.md`: Lambdas `sequences`,
+`documents` e `invoice_processor`; tablas DynamoDB `sequences`, `documents`, `batch_jobs`;
+S3 con Object Lock; colas SQS separadas sign/poll (compartidas + dedicadas enterprise).
+Regla critica: no mezclar "Consumidor Final" con `clients` (ver `context/CLIENTS.md`).
 
 Cuenta GitHub: `FrancisU20`.
 AWS profile del proyecto: `codelabs`.
@@ -49,8 +52,9 @@ requerida; endpoint `POST /tenants/{id}/subscription/retry-payment` (tarjeta gua
 **6 bugs de auditoría resueltos** (scan payment_failed, guard PENDING en confirm, webhook
 order_id, mark_applied_to_tenant condition, type hint RetryPaymentUseCase, safe datetime).
 
-Proximo hito de producto: **invoices/documents** — emision SRI, secuenciales,
-XAdES-BES, almacenamiento legal y batch jobs. Ver `context/INVOICES.md`.
+Proximo hito de producto: **invoices/documents** — Sprint 1 en curso (infra CDK).
+Sprints definidos: 1=infra, 2=sequences Lambda, 3=documents Lambda, 4=invoice_processor,
+5=frontend. Ver `context/INVOICES.md` para arquitectura completa.
 
 ## Memorias Base
 
@@ -73,7 +77,7 @@ Reglas de negocio, flujos y DynamoDB especificos de cada dominio (incluye su sec
 | `context/CLIENTS.md` | Clientes del tenant, tipos de identificacion, lock de identificacion |
 | `context/ONBOARDING.md` | Registro self-service con OTP, certificados p12, lead Enterprise |
 | `context/CERTIFICATES.md` | Validacion, almacenamiento y ciclo de vida de certificados digitales p12 |
-| `context/INVOICES.md` | Emision de documentos, numeracion SRI, XAdES-BES, batch jobs (**pendiente**) |
+| `context/INVOICES.md` | Emision documentos SRI, secuenciales, XAdES-BES, invoice\_processor, S3 WORM (**Sprint 1 en curso**) |
 | `context/SUBSCRIPTIONS.md` | Suscripcion SaaS via dLocal Go SmartFields, modelo Netflix, webhooks, 3DS, reembolso, resiliencia 4 capas (**completo**) |
 
 ## Mapa De Deuda Tecnica

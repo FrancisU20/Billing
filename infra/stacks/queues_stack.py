@@ -7,6 +7,12 @@ Cada cola tiene su DLQ para mensajes que fallaron todos los reintentos.
 Colas actuales:
   tenant-onboarding    → crea usuario Cognito cuando se registra un tenant
   email-notifications  → envía emails de bienvenida via Brevo (contiene temp_password cifrado)
+  invoice-sign         → firma XAdES-BES + envío SRI (compartida, clientes pequeños)
+  invoice-poll         → polling de autorización SRI (compartida, clientes pequeños)
+
+Colas enterprise dedicadas (invoice-sign-{tenant_id}, invoice-poll-{tenant_id}):
+  Se crean en runtime via POST /tenants/{id}/dedicated-queue/provision (no CDK).
+  batch_size=50 en ESM para agrupar 50 docs del mismo RUC en 1 llamada SOAP.
 """
 from aws_cdk import (
     Stack, Duration, CfnOutput,
@@ -104,6 +110,73 @@ class QueuesStack(Stack):
             comparison_operator = cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
         )
 
+        # ── Invoice Sign (compartida, clientes pequeños) ──────────────────────
+        # Firma XAdES-BES + envío batch al SRI (RecepcionComprobantesOffline).
+        # batch_size=10 en ESM; reserved_concurrency=30 en Lambda (ApiStack).
+        # Separada de invoice-poll: los POLL son >90% del volumen post-primer-día y
+        # saturarían los slots de concurrencia de los SIGN si convivieran.
+        # Visibility timeout = 6 × Lambda timeout (60s) = 360s.
+        invoice_sign_dlq = sqs.Queue(
+            self, "InvoiceSignDlq",
+            queue_name       = f"codelabs-billing-{env}-invoice-sign-dlq",
+            retention_period = Duration.days(14),
+        )
+        self.invoice_sign_queue = sqs.Queue(
+            self, "InvoiceSignQueue",
+            queue_name         = f"codelabs-billing-{env}-invoice-sign",
+            visibility_timeout = Duration.seconds(360),
+            retention_period   = Duration.days(4),
+            dead_letter_queue  = sqs.DeadLetterQueue(
+                max_receive_count = 5,
+                queue             = invoice_sign_dlq,
+            ),
+        )
+
+        # ── Invoice Poll (compartida, clientes pequeños) ──────────────────────
+        # Consultas de autorización al SRI (AutorizacionComprobantesOffline).
+        # AutorizacionComprobantesOffline acepta un solo claveAcceso por llamada —
+        # no hay batching posible para POLL. batch_size=10 en ESM; reserved_concurrency=20.
+        # Visibility timeout = 6 × Lambda timeout (60s) = 360s.
+        invoice_poll_dlq = sqs.Queue(
+            self, "InvoicePollDlq",
+            queue_name       = f"codelabs-billing-{env}-invoice-poll-dlq",
+            retention_period = Duration.days(14),
+        )
+        self.invoice_poll_queue = sqs.Queue(
+            self, "InvoicePollQueue",
+            queue_name         = f"codelabs-billing-{env}-invoice-poll",
+            visibility_timeout = Duration.seconds(360),
+            retention_period   = Duration.days(4),
+            dead_letter_queue  = sqs.DeadLetterQueue(
+                max_receive_count = 5,
+                queue             = invoice_poll_dlq,
+            ),
+        )
+
+        # ── CloudWatch Alarms — Invoice DLQs ─────────────────────────────────
+        cw.Alarm(
+            self, "InvoiceSignDlqAlarm",
+            alarm_name        = f"codelabs-billing-{env}-invoice-sign-dlq-messages",
+            alarm_description = "Mensajes en DLQ invoice-sign: firma o envío SRI falló permanentemente (5 intentos).",
+            metric            = invoice_sign_dlq.metric_approximate_number_of_messages_visible(
+                period=Duration.minutes(1),
+            ),
+            threshold           = 1,
+            evaluation_periods  = 1,
+            comparison_operator = cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        )
+        cw.Alarm(
+            self, "InvoicePollDlqAlarm",
+            alarm_name        = f"codelabs-billing-{env}-invoice-poll-dlq-messages",
+            alarm_description = "Mensajes en DLQ invoice-poll: polling de autorización SRI falló permanentemente (5 intentos).",
+            metric            = invoice_poll_dlq.metric_approximate_number_of_messages_visible(
+                period=Duration.minutes(1),
+            ),
+            threshold           = 1,
+            evaluation_periods  = 1,
+            comparison_operator = cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        )
+
         # ── Outputs ───────────────────────────────────────────────────────────
         CfnOutput(self, "TenantOnboardingQueueUrl",
                   value       = self.tenant_onboarding_queue.queue_url,
@@ -116,3 +189,19 @@ class QueuesStack(Stack):
         CfnOutput(self, "EmailNotificationsQueueUrl",
                   value       = self.email_notifications_queue.queue_url,
                   export_name = f"CodeLabsBilling-{env}-EmailNotificationsQueueUrl")
+
+        CfnOutput(self, "InvoiceSignQueueUrl",
+                  value       = self.invoice_sign_queue.queue_url,
+                  export_name = f"CodeLabsBilling-{env}-InvoiceSignQueueUrl")
+
+        CfnOutput(self, "InvoiceSignQueueArn",
+                  value       = self.invoice_sign_queue.queue_arn,
+                  export_name = f"CodeLabsBilling-{env}-InvoiceSignQueueArn")
+
+        CfnOutput(self, "InvoicePollQueueUrl",
+                  value       = self.invoice_poll_queue.queue_url,
+                  export_name = f"CodeLabsBilling-{env}-InvoicePollQueueUrl")
+
+        CfnOutput(self, "InvoicePollQueueArn",
+                  value       = self.invoice_poll_queue.queue_arn,
+                  export_name = f"CodeLabsBilling-{env}-InvoicePollQueueArn")

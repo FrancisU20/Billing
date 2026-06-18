@@ -11,6 +11,7 @@ Stacks:
   CodeLabsBilling-Dev-Database    → DynamoDB tables
   CodeLabsBilling-Dev-Auth        → Cognito User Pool
   CodeLabsBilling-Dev-Queues      → SQS queues
+  CodeLabsBilling-Dev-Storage     → S3 buckets (documents: Object Lock WORM + lifecycle)
   CodeLabsBilling-Dev-Api         → Lambda functions + HTTP API Gateway
   CodeLabsBilling-Dev-Certificate → ACM cert CloudFront (us-east-1)
   CodeLabsBilling-Dev-Frontend    → S3 + CloudFront + Route53 (sa-east-1)
@@ -32,6 +33,7 @@ from stacks.certificate_stack import CertificateStack
 from stacks.database_stack    import DatabaseStack
 from stacks.frontend_stack    import FrontendStack
 from stacks.queues_stack      import QueuesStack
+from stacks.storage_stack     import StorageStack
 
 
 def load_config(env: str) -> dict:
@@ -51,6 +53,7 @@ prefix   = f"CodeLabsBilling-{env_name.capitalize()}"
 database    = DatabaseStack(app, f"{prefix}-Database", config=config, env=sa_env)
 auth        = AuthStack(app,     f"{prefix}-Auth",     config=config, env=sa_env)
 queues      = QueuesStack(app,   f"{prefix}-Queues",   config=config, env=sa_env)
+storage     = StorageStack(app,  f"{prefix}-Storage",  config=config, env=sa_env)
 api         = ApiStack(app,      f"{prefix}-Api",      config=config, env=sa_env,
                        database=database, auth=auth, queues=queues)
 certificate = CertificateStack(app, f"{prefix}-Certificate", config=config,

@@ -1,276 +1,802 @@
 # Invoices & Documents — Dominio
 
-Estado: **pendiente de implementar**.
+Estado: **arquitectura definida — implementacion en curso**.
+
+Ultima actualizacion: 2026-06-17.
 
 ## Lee Tambien Antes De Empezar
 
-Leer estos archivos en orden antes de escribir codigo en este dominio:
-
 | Archivo | Por que |
 | --- | --- |
-| `CLAUDE.md` | Reglas no negociables (seguridad, git) |
-| `BACKEND.md` | Patrones Lambda, outbox, idempotencia, contratos HTTP |
-| `FRONTEND.md` | Estructura, design system, patrones de pantalla para el modulo de facturacion |
-| `TENANTS.md` | `sri_environment` (pruebas/produccion), `plan_status`, `document_limit` por plan |
+| `CLAUDE.md` | Reglas no negociables (seguridad, git, dinero con Decimal) |
+| `BACKEND.md` | Patrones Lambda, outbox, idempotencia, contratos HTTP, workers SQS |
+| `FRONTEND.md` | Estructura, design system, patrones de pantalla |
+| `TENANTS.md` | `sri_environment`, `certificate_secret_arn`, `plan_status`, `accounting_required`, `address` |
 | `CLIENTS.md` | Consumidor Final NO es un Client — regla critica para el XML del SRI |
-| `PLANS.md` | `document_limit`, `pruebas_monthly_docs_limit`, `dedicated_queue` |
-| `ONBOARDING.md` | Certificado p12, firma XAdES-BES, entornos SRI, Secrets Manager |
+| `PLANS.md` | `document_limit`, `dedicated_queue` — son rate limiters de este dominio |
+| `ONBOARDING.md` | Certificado p12, Secrets Manager, ciclo de vida del certificado |
 
 ## Proposito
 
-Emision de documentos electronicos hacia el SRI de Ecuador: facturas, notas de credito,
-retenciones, guias de remision. Este dominio es el nucleo del negocio.
+Emision de documentos electronicos hacia el SRI de Ecuador. Nucleo del negocio.
 
-Dos modalidades de uso:
-- **Individual (portal/API)**: el tenant emite un documento a la vez.
-- **Masiva (batch)**: el tenant sube un XLSX con N documentos; el sistema los procesa en cola.
+**Alcance MVP (Sprint 1-5):** Factura electronica (tipo 01), emision individual,
+multiples establecimientos desde el primer dia.
 
-## Componentes
+**Fuera de alcance MVP:** Nota de credito (04), retencion (07), batch masivo XLSX.
+Esos se disenan en sprints posteriores pero la arquitectura actual los soporta sin
+migraciones.
 
-Lambdas planificados:
+## Lambdas Y Responsabilidades
 
-| Lambda | Descripcion | Estado |
+| Lambda | Tipo | Responsabilidad |
 | --- | --- | --- |
-| `sequences` | Contadores atomicos de numeracion SRI + establecimientos/puntos de emision | pendiente |
-| `documents` | Emision individual: XML, firma XAdES-BES, envio SRI | pendiente |
-| `batch_jobs` | Carga masiva XLSX: validar, encolar, trackear estado | pendiente |
+| `sequences` | HTTP | CRUD establecimientos + puntos de emision. NO expone contadores internos. |
+| `documents` | HTTP | Emision individual: valida, reserva secuencial, computa access\_key, encola. |
+| `invoice_processor` | SQS worker | Firma XAdES-BES, envio SRI SOAP, polling de autorizacion, genera RIDE, guarda en S3. |
+
+`batch_jobs` es un Lambda futuro (no MVP). La tabla `batch_jobs` se crea en el Sprint 1
+de infra para no hacer migraciones despues, pero el Lambda no se implementa hasta
+que se requiera.
+
+## Arquitectura De Procesamiento
+
+### Por que dos colas separadas para SIGN y POLL
+
+Con una sola cola mixta, los mensajes POLL (que son el 90% del volumen despues del primer
+dia en produccion) compiten por concurrencia con los SIGN. Un pico de POLL saturaria los
+slots de Lambda dejando SIGN en espera. Con colas separadas cada flujo tiene su propio
+`reserved_concurrency` y no se bloquean entre si.
+
+### Por que SQS Standard (no FIFO)
+
+El secuencial de cada documento se asigna **en el request HTTP** antes de encolar. El
+worker recibe el documento ya numerado — no necesita procesar mensajes en orden. SQS
+Standard tiene throughput ilimitado y es mas barato que FIFO ($0.40 vs $0.50/millon).
+
+FIFO con MessageGroupId solo se justificaria si el numero de secuencia dependiera del
+orden de llegada al worker. No es el caso aqui.
+
+### Configuracion de colas y concurrencia
+
+| Cola | Tipo | Tenants | `batch_size` ESM | `reserved_concurrency` Lambda | Razon |
+| --- | --- | --- | --- | --- | --- |
+| `invoice-sign` | Standard compartida | Pequeños | 10 | 30 | Rate limit sobre cola mixta; impide monopolio |
+| `invoice-poll` | Standard compartida | Pequeños | 10 | 20 | Poll es mas liviano que sign |
+| `invoice-sign-{tenant_id}` | Standard dedicada | Enterprise | 50 | 10 por cola | batch\_size=50 habilita 1 llamada SOAP por 50 docs |
+| `invoice-poll-{tenant_id}` | Standard dedicada | Enterprise | 50 | 5 por cola | Poll enterprise con aislamiento total |
+
+Todas las colas tienen DLQ (`max_receive_count=5`) y alarma CloudWatch al primer mensaje
+en DLQ.
+
+### Por que batch\_size=50 en enterprise importa
+
+```
+10,000 docs/dia ÷ 50 batch = 200 llamadas SOAP a SRI/dia
+10,000 docs/dia ÷  1 batch = 10,000 llamadas SOAP/dia
+```
+
+50x menos llamadas SOAP. Menos latencia de red, menos carga en el SRI, menos costo Lambda.
+
+Para clientes pequeños (25 docs/dia), cada SQS batch de 10 mensajes tiene 10 tenants
+distintos = 10 llamadas SOAP con 1 doc c/u. Aceptable: 0.29 docs/segundo no requiere
+batching entre tenants.
+
+### Tiempo de autorizacion enterprise (10,000 docs en burst)
+
+```
+Firma XAdES-BES 50 docs:    7.5s  (150ms/doc a 1GB ARM64)
+Llamada SOAP recepcion SRI: 1.5s
+Total por invocacion:       ~10s
+
+200 invocaciones / 10 concurrent = 20 rondas × 10s = 200s
+Polling (30s delay + 0.5s respuesta SRI): ~35s adicionales
+
+Total PENDING → AUTHORIZED para los 10,000 docs: ~4-5 minutos
+```
+
+Autorizacion el mismo dia garantizada con holgura, incluso si SRI es lento (10s/llamada
+= 7 minutos total).
+
+### Colas enterprise dedicadas — cuando se crean
+
+Las colas dedicadas se crean via endpoint superadmin `POST /tenants/{id}/dedicated-queue/provision`
+(pendiente de implementar, ver `TENANTS.md`). Se registran en `Tenant.dedicated_queue_arn`.
+Hasta que se provisionan, el tenant enterprise usa la cola compartida.
 
 ## Establecimientos Y Puntos De Emision
 
-Sub-recurso del tenant, vive junto a `sequences` (no es una lambda de "direcciones"
-separada — ver decision en `ONBOARDING.md`).
+Sub-recurso del tenant. Vive en la tabla `sequences` (mismo dominio que los contadores).
+
+### Entidades
 
 ```
-Establishment:
-  tenant_id        FK al tenant
-  establecimiento  "001", "002", ... — codigo SRI de 3 digitos
-  address          dirEstablecimiento (obligatorio en XML)
-  puntos_emision   lista de "001", "002", ... por establecimiento
+Establecimiento:
+  code              "001", "002", ...    codigo SRI de 3 digitos
+  name              "Matriz", "Sucursal Norte"
+  address           dirEstablecimiento — obligatorio en el XML SRI
+  is_active         bool
+  emission_points   lista embebida (max ~10 en la practica):
+    [
+      { "code": "001", "label": "Caja 1",  "initial_sequential": 1 },
+      { "code": "099", "label": "Pruebas", "initial_sequential": 1 }  ← auto-creado
+    ]
 ```
 
-- El onboarding NO crea establecimientos "reales" — solo reserva el punto de pruebas
-  (ver siguiente seccion). El tenant configura sus establecimientos/puntos de emision
-  reales desde su dashboard antes de pasar a `sri_environment=produccion`.
-- Endpoints sugeridos: `tenants/{id}/establishments` (mismo patron que `certificates`,
-  dentro de la lambda `tenants` o de `sequences` — decidir al implementar segun donde
-  quede menos acoplamiento).
+Los puntos de emision viven como array en el item del establecimiento, no como items
+separados. Se leen siempre junto al establecimiento, nunca de forma independiente.
 
-## Secuenciales: Pruebas Vs Produccion
+### Punto de pruebas 001-099 — auto-creacion
 
-**Decision**: NO se agrega `ambiente` a la clave de `sequences`. En su lugar, el
-onboarding reserva automaticamente:
+Al completarse la carga del primer certificado p12 (evento `CertificateUploadedEvent`
+procesado por el worker), el sistema auto-crea:
 
 ```
-establecimiento = "001"
-punto_emision   = "099"   # reservado para sri_environment=pruebas
+Establecimiento 001 + punto de emision 099
+SEQ#001#099 con current=0, initial=0
 ```
 
-Todos los documentos emitidos en `pruebas` usan `001-099-*`. Los puntos de emision
-`001`, `002`, ... quedan libres para cuando el tenant configure produccion. Esto evita
-quemar numeracion real durante las pruebas sin tocar el schema de `sequences` definido
-mas abajo (`SK = "SEQ#{establecimiento}#{punto_emision}"`).
+El punto 099 es una convencion de este sistema (no del SRI). Todos los documentos
+emitidos en `sri_environment=testing` usan la serie `001099`. Los puntos 001, 002, ...
+quedan libres para produccion.
 
-## Secuencial Inicial (Migracion Desde Otro Sistema)
+El tenant NO puede crear manualmente un punto 099. El handler debe rechazarlo.
 
-Un tenant que ya facturaba con otro proveedor no puede arrancar su secuencial en 1 — el
-SRI exige continuidad. Al configurar un establecimiento/punto de emision real (no el
-`099` de pruebas), el formulario debe permitir indicar el **proximo secuencial a usar**.
+### Migracion desde otro proveedor
+
+Un tenant que ya facturaba fuera del sistema necesita continuar el secuencial desde donde
+quedo. El formulario de alta de punto de emision acepta `initial_sequential`:
 
 ```
-Establishment.puntos_emision[n]:
-  punto_emision     "001"
-  next_sequential   int  # default 1; editable solo antes del primer documento emitido
+POST /tenants/{id}/establishments/{code}/emission-points
+Body: { "code": "001", "label": "Caja principal", "initial_sequential": 5000 }
 ```
 
-Regla: `next_sequential` solo es editable mientras `sequences` no tenga contador creado
-para esa combinacion (antes del primer `UpdateItem ADD 1`). Una vez emitido el primer
-documento real, el contador es inmutable salvo el mecanismo normal de incremento.
+Esto crea `SEQ#001#001` con `current=4999, initial=4999`. El primer `UpdateItem ADD 1`
+retorna 5000. Correcto.
 
-Servicios AWS:
-
-- **DynamoDB tabla `documents`** — estado de cada documento
-- **DynamoDB tabla `sequences`** — contadores de numeracion
-- **DynamoDB tabla `batch_jobs`** — estado de cada carga masiva
-- **SQS FIFO (compartida)** — cola de procesamiento batch para tenants normales
-- **SQS FIFO (dedicada por tenant)** — para tenants con `plan.dedicated_queue=true`
-- **S3 con Object Lock** — almacenamiento de documentos autorizados (retension 7 anos)
-- **AWS Secrets Manager** — lectura del certificado p12 del tenant (provisto por ONBOARDING)
-
-Frontend (pendiente):
-
-- `frontend/features/documents/` — emision individual
-- `frontend/features/batch-jobs/` — carga masiva XLSX
+Regla de bloqueo: `initial_sequential` solo es editable si `current == initial`
+(ningun documento emitido en esa serie aun). Una vez que `current > initial`, el endpoint
+PATCH devuelve `SEQUENCE_ALREADY_USED`.
 
 ## Numeracion SRI
 
-Formato obligatorio: `{establecimiento}-{punto_emision}-{secuencial}`
+Formato obligatorio en XML: `{estab}-{punto}-{secuencial}`
 Ejemplo: `001-001-000000001`
 
-Reglas criticas:
+### Asignacion en el request HTTP, no en el worker
 
-- El secuencial es un contador atomico DynamoDB: `UpdateItem ADD 1 RETURN NEW`. **Nunca
-  `get` + incrementar + `put` — hay race condition.**
-- Un tenant puede tener multiples combinaciones establecimiento/punto-emision. El contador
-  es unico por combinacion `(tenant_id, establecimiento, punto_emision)`.
-- El numero ya emitido **no se recicla** aunque el documento falle post-emision. El numero
-  se pierde; el SRI no acepta huecos explicados despues.
-- Tabla `sequences`:
-  ```
-  PK = "TENANT#{tenant_id}"
-  SK = "SEQ#{establecimiento}#{punto_emision}"
-  current = N   (contador; se incrementa con UpdateItem ADD 1)
-  ```
+El secuencial se asigna **sincrono, en el handler HTTP**, antes de encolar. El worker
+recibe el documento ya numerado y no tiene que coordinar orden.
+
+```
+HTTP POST /documents:
+  1. Validar request + limites del plan
+  2. DynamoDB UpdateItem ADD 1 en SEQ#estab#punto → obtiene N
+  3. Computar access_key (49 digitos) usando N
+  4. Guardar documento con status=PENDING y access_key en DynamoDB
+  5. Encolar mensaje SIGN a SQS: { document_id, tenant_id }  (sin XML — ver abajo)
+  6. Retornar 202 + { document_id, access_key, sequential: N }
+```
+
+El XML se construye en el worker (no se serializa en SQS ni en DynamoDB). El mensaje
+SQS solo lleva los IDs. El worker hace `GetItem` del documento y construye el XML
+desde los datos persistidos.
+
+### Implementacion del contador atomico
+
+```python
+# sequences/infra/sequences_repository.py
+def reserve_next(self, tenant_id: str, serie: str) -> int:
+    estab, punto = serie[:3], serie[3:]
+    try:
+        resp = self._table.update_item(
+            Key={"pk": f"TENANT#{tenant_id}", "sk": f"SEQ#{estab}#{punto}"},
+            UpdateExpression="ADD #cur :one",
+            ConditionExpression="#cur < :max",
+            ExpressionAttributeNames={"#cur": "current"},
+            ExpressionAttributeValues={":one": 1, ":max": 999_999_999},
+            ReturnValues="UPDATED_NEW",
+        )
+        return int(resp["Attributes"]["current"])
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            raise SequenceExhaustedError(serie) from exc
+        raise
+```
+
+La tabla `sequences` crea el item de contador cuando se da de alta el punto de emision
+(con `current=initial_sequential - 1`, o `current=0` si arranca en 1). El `ADD 1` con
+`ConditionExpression` funciona sin necesitar `attribute_not_exists`.
+
+### Reglas de numeracion
+
+- El numero emitido **no se recicla** aunque el documento falle despues. El numero se
+  pierde; el SRI no penaliza huecos pero tampoco los acepta si son "explicados" post-hoc.
+- Un tenant puede tener N combinaciones establecimiento/punto. El contador es unico por
+  combinacion.
+- El secuencial maximo es 999,999,999 (9 digitos). Al llegar al limite, `SequenceExhaustedError`.
+
+### Limite por plan como rate limiter implicito
+
+Antes de reservar el secuencial, el handler valida que el tenant no haya superado su
+`plan.document_limit` mensual. Si lo supero: 422 `DOCUMENT_LIMIT_REACHED`. Esto previene
+que un cliente de plan pequeño colapse la cola compartida con miles de mensajes.
+
+## DynamoDB Schema
+
+### Tabla `sequences`
+
+PK = `"TENANT#{tenant_id}"`, SK variable segun tipo de item.
+
+```
+# Establecimiento
+SK = "ESTAB#001"
+entity_type      = "ESTABLISHMENT"
+code             = "001"
+name             = "Matriz"
+address          = "Av. Principal 123, Quito"
+is_active        = true
+emission_points  = [
+  { "code": "001", "label": "Caja 1",  "initial_sequential": 1 },
+  { "code": "099", "label": "Pruebas", "initial_sequential": 1 }
+]
+created_at       = ISO8601
+
+# Contador de secuencial
+SK = "SEQ#001#001"
+entity_type      = "INVOICE_SEQUENCE"
+serie            = "001001"
+current          = N      ← contador atomico, solo se escribe con UpdateItem ADD
+initial          = N      ← valor al crear el punto; para detectar primer uso
+```
+
+No hay GSI en esta tabla. Los accesos son siempre por PK = `TENANT#{tenant_id}`:
+- `Query SK begins_with "ESTAB#"` → listar establecimientos
+- `GetItem SK = "SEQ#001#001"` → leer contador (no se usa; solo UpdateItem ADD)
+
+### Tabla `documents`
+
+PK = `"TENANT#{tenant_id}"`, SK = `"DOC#{document_id}"`.
+
+```
+entity_type              = "INVOICE"
+document_id              = UUID
+doc_type                 = "01"                     ← Factura
+status                   = "PENDING" | "PROCESSING" | "AUTHORIZED" | "REJECTED"
+                           | "FAILED" | "FAILED_PERMANENT"
+serie                    = "001001"                  ← establ + punto concatenados
+sequential               = 1                         ← entero, asignado en HTTP
+access_key               = "..."                     ← 49 digitos, computado en HTTP
+
+# Datos del comprador (snapshot en el momento de emision — no FK live)
+client_id                = UUID | null               ← null si Consumidor Final
+buyer_id_type            = "04"|"05"|"06"|"07"|"08" ← tipo identificacion SRI
+buyer_id                 = "9999999999999"           ← "9999999999999" si CF
+buyer_name               = "Consumidor Final" | nombre real
+buyer_email              = str | null
+
+# Fechas
+issued_at                = ISO8601                  ← fecha de emision (en el XML)
+created_at               = ISO8601
+updated_at               = ISO8601
+authorized_at            = ISO8601 | null
+rejected_at              = ISO8601 | null
+
+# SRI
+authorization_number     = str | null               ← numero de autorizacion SRI
+sri_environment          = "testing" | "production"
+xml_s3_key               = "tenants/{id}/docs/{year}/{doc_id}.xml" | null
+ride_s3_key              = "tenants/{id}/docs/{year}/{doc_id}.pdf" | null
+sri_errors               = [{"code": "...", "message": "..."}] | null
+
+# Totales (Decimal como string exacto)
+subtotal                 = "100.00"
+total_discount           = "0.00"
+iva_15                   = "15.00"
+iva_5                    = "0.00"
+iva_0                    = "0.00"
+total                    = "115.00"
+payment_method           = "01"                     ← efectivo por defecto
+
+# Lineas de detalle (embebidas; no items separados)
+lines = [
+  {
+    "code":        str,
+    "description": str,
+    "quantity":    Decimal str,
+    "unit_price":  Decimal str,
+    "discount":    Decimal str,
+    "subtotal":    Decimal str,
+    "iva_rate":    "15" | "5" | "0" | "EXENTO",
+    "iva_amount":  Decimal str,
+    "total":       Decimal str
+  }
+]
+
+# Resiliencia
+retry_count              = 0                        ← incrementa en FAILED; max 5
+deleted                  = false
+```
+
+GSI: `tenant-docs-index`
+- PK = `tenant_id` (atributo denormalizado), SK = `created_at`
+- Proyeccion: ALL
+- Uso: listar documentos de un tenant ordenados por fecha, con `FilterExpression` por status
+
+No se necesita GSI de status global porque el polling de SRI se maneja via SQS delay,
+no via scan de documentos PROCESSING.
+
+### Tabla `batch_jobs`
+
+PK = `"TENANT#{tenant_id}"`, SK = `"JOB#{job_id}"`.
+
+```
+entity_type   = "BATCH_JOB"
+job_id        = UUID
+status        = "PENDING" | "RUNNING" | "COMPLETED" | "PARTIAL_FAILURE" | "FAILED"
+total_rows    = N
+processed     = N
+authorized    = N
+rejected      = N
+failed        = N
+error_file_s3 = "tenants/{id}/batch-errors/{job_id}.json" | null
+created_at    = ISO8601
+updated_at    = ISO8601
+```
+
+Tabla creada en Sprint 1 de infra. Lambda `batch_jobs` se implementa en sprint posterior
+al MVP.
+
+## S3 — Almacenamiento Legal
+
+Bucket: `codelabs-billing-{env}-documents`
+
+```python
+# infra/stacks/storage_stack.py (nuevo stack)
+s3.Bucket(
+    object_lock_enabled=True,
+    object_lock_default_retention=s3.ObjectLockRetention.governance(
+        duration=Duration.days(365 * 7 + 2)   # 7 anios + margen
+    ),
+    lifecycle_rules=[s3.LifecycleRule(
+        transitions=[
+            s3.Transition(storage_class=s3.StorageClass.INFREQUENT_ACCESS,
+                          transition_after=Duration.days(30)),
+            s3.Transition(storage_class=s3.StorageClass.GLACIER_INSTANT_RETRIEVAL,
+                          transition_after=Duration.days(90)),
+        ]
+    )],
+    block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+    removal_policy=RemovalPolicy.RETAIN,
+)
+```
+
+Estructura de prefijos S3:
+
+```
+tenants/{tenant_id}/docs/{year}/{document_id}.xml   ← XML firmado autorizado
+tenants/{tenant_id}/docs/{year}/{document_id}.pdf   ← RIDE PDF
+tenants/{tenant_id}/batch-errors/{job_id}.json      ← errores de batch (futuro)
+```
+
+Reglas:
+- DynamoDB guarda solo el S3 key, no los bytes.
+- El XML y RIDE se escriben con `LegalHold=ON` al momento de guardar. No se pueden
+  sobreescribir ni borrar durante los 7 anios de retension.
+- Solo `AUTHORIZED` genera archivos en S3. Documentos `REJECTED` no van a S3.
+- Descarga del RIDE: pre-signed URL con TTL 15 minutos (endpoint `GET /documents/{id}/ride`).
+
+Estimacion de costo de almacenamiento para un enterprise de 10,000 docs/dia:
+```
+60KB promedio (XML + RIDE) × 10,000 × 365 × 7 = ~1.5 TB en 7 anios
+S3-IA (despues de 30 dias): $0.0125/GB ≈ $8/mes/enterprise
+S3 Glacier (despues de 90 dias): $0.004/GB para archivos maduros
+```
+
+## Lambda invoice\_processor — Diseno Interno
+
+ARM64, 1 GB de memoria, timeout 15 minutos (necesario para batch de 50 docs).
+
+### p12 cacheado a nivel de modulo
+
+```python
+# invoice_processor/signing.py — fuera del handler
+_cert_cache: dict[str, bytes] = {}
+
+def load_certificate(secret_arn: str) -> tuple[Certificate, PrivateKey]:
+    if secret_arn not in _cert_cache:
+        _cert_cache[secret_arn] = get_secret_bytes(secret_arn)
+    return parse_p12(_cert_cache[secret_arn])
+```
+
+Lambda reutiliza el contenedor entre invocaciones. El certificado carga una vez por cold
+start. Cero llamadas a Secrets Manager por documento.
+
+### Routing por tipo de mensaje
+
+```python
+# invoice_processor/handler.py
+def _process_record(record: dict) -> None:
+    body = json.loads(record["body"])
+    if body["type"] == "SIGN":
+        _handle_sign(body)
+    elif body["type"] == "POLL":
+        _handle_poll(body)
+```
+
+### Mensaje SIGN
+
+```json
+{ "type": "SIGN", "document_id": "...", "tenant_id": "..." }
+```
+
+Flujo:
+
+```
+1. GetItem documento de DynamoDB → cargar todos los datos
+2. GetItem tenant de DynamoDB → obtener certificate_secret_arn, sri_environment, address
+3. Construir XML Factura 01 (xml_builder.py)
+4. Cargar p12 del tenant (cacheado)
+5. Firmar XML con XAdES-BES (signing.py)
+6. Acumular hasta batch_size documentos del mismo tenant (ya asegurado por cola dedicada
+   para enterprise; para pequeños se envian de a 1 por RUC distinto)
+7. POST SOAP RecepcionComprobantesOffline — batch de hasta 50 docs del mismo RUC
+8. Parsear respuesta:
+   - RECIBIDA: UpdateItem status=PROCESSING → encolar POLL (DelaySeconds=30)
+   - DEVUELTA:  clasificar errores SRI (permanente vs reintentable)
+               permanente → status=REJECTED, sri_errors
+               reintentable → status=FAILED, retry_count++
+```
+
+### Mensaje POLL
+
+```json
+{ "type": "POLL", "document_id": "...", "access_key": "...",
+  "tenant_id": "...", "attempt": 1 }
+```
+
+Flujo:
+
+```
+1. GET SOAP AutorizacionComprobantesOffline (access_key)
+2. Parsear respuesta:
+   AUTORIZADO   → generar RIDE PDF (ride_builder.py)
+                  → PUT XML firmado en S3 (con LegalHold)
+                  → PUT RIDE en S3 (con LegalHold)
+                  → UpdateItem status=AUTHORIZED + authorization_number + xml_s3_key + ride_s3_key
+                  → outbox event DocumentAuthorizedEvent (email al tenant)
+
+   RECHAZADO    → UpdateItem status=REJECTED + sri_errors
+                  → outbox event DocumentRejectedEvent (email al tenant)
+
+   EN_PROCESO   → if attempt < 5:
+                    delay = min(30 * 2**attempt, 600)   # backoff: 30s, 60s, 120s, 240s, 600s
+                    encolar POLL con attempt+1 y DelaySeconds=delay
+                  else:
+                    UpdateItem status=FAILED_PERMANENT
+                    outbox event DocumentFailedPermanentEvent
+```
+
+### Modulos internos del invoice\_processor
+
+```
+invoice_processor/
+  handler.py       # sqs_handler.py pattern, partial batch failure
+  xml_builder.py   # construye XML Factura 01 segun spec SRI v1.0.0
+  signing.py       # XAdES-BES enveloped con cryptography + lxml; cache p12
+  sri_client.py    # SOAP client: RecepcionComprobantesOffline + AutorizacionComprobantesOffline
+  ride_builder.py  # genera PDF RIDE con reportlab
+  storage.py       # PUT/GET S3 con LegalHold
+```
+
+## Flujo Completo End-To-End
+
+```
+Tenant (API/Frontend)
+  │
+  └► POST /documents
+       │ valida body + limites plan
+       │ reserve_next(tenant_id, serie)  → N  [DynamoDB ADD atómico]
+       │ compute_access_key(...)          → 49 dígitos
+       │ save(Document(status=PENDING))  [DynamoDB Put]
+       │ sqs.send("SIGN", document_id)   [SQS invoice-sign o invoice-sign-{id}]
+       └► 202 { document_id, access_key }
+
+  SQS invoice-sign
+  │
+  └► invoice_processor (SIGN handler)
+       │ fetch Document + Tenant
+       │ build XML (xml_builder)
+       │ sign XML (signing, p12 cacheado)
+       │ SOAP RecepcionComprobantesOffline (batch hasta 50 del mismo RUC)
+       │ if RECIBIDA:
+       │   update status=PROCESSING
+       │   sqs.send("POLL", document_id, attempt=1, delay=30s)
+       └► if DEVUELTA → REJECTED o FAILED
+
+  SQS invoice-poll (con delay 30s)
+  │
+  └► invoice_processor (POLL handler)
+       │ SOAP AutorizacionComprobantesOffline
+       ├► AUTORIZADO:
+       │    generate RIDE PDF
+       │    PUT XML + RIDE → S3 (Object Lock, LegalHold)
+       │    update status=AUTHORIZED + s3_keys
+       │    outbox → DocumentAuthorizedEvent → email
+       ├► RECHAZADO:
+       │    update status=REJECTED + sri_errors
+       │    outbox → DocumentRejectedEvent → email
+       └► EN_PROCESO (PPR):
+            if attempt < 5 → re-enqueue POLL (backoff exponencial)
+            else           → FAILED_PERMANENT + alert
+```
+
+## Estructura De Archivos Backend
+
+```
+backend/lambdas/
+  sequences/
+    handler.py
+    schemas.py
+    domain/
+      entities.py         # Establishment, EmissionPoint, InvoiceSequence
+      commands.py
+      errors.py           # SequenceExhaustedError, SequenceAlreadyUsedError, ...
+      repositories/
+        i_sequences_repository.py
+        i_establishment_repository.py
+    use_cases/
+      create_establishment.py
+      add_emission_point.py
+      edit_emission_point.py     # solo si current == initial
+      list_establishments.py
+      reserve_next_sequential.py # usado internamente por documents Lambda
+    infra/
+      sequences_repository.py
+
+  documents/
+    handler.py
+    schemas.py
+    domain/
+      entities.py         # Document, InvoiceLine, IvaRate
+      commands.py
+      errors.py           # DocumentNotFoundError, CertificateNotUploadedError,
+                          # DocumentLimitReachedError, ...
+      access_key.py       # generate_access_key() → 49 digitos (modulo_11, etc.)
+      iva_rates.py        # tabla de tarifas por fecha de emision
+      repositories/
+        i_documents_repository.py
+        i_sequences_port.py      # port para reservar secuencial (implementado por DynamoSequencesAdapter)
+    use_cases/
+      emit_document.py
+      get_document.py
+      list_documents.py
+      get_ride_url.py
+    infra/
+      documents_repository.py
+      sequences_adapter.py       # implementa i_sequences_port → escribe en tabla sequences
+
+  invoice_processor/
+    handler.py            # sqs_handler.py pattern, partial batch failure
+    xml_builder.py        # XML Factura 01 segun especificacion SRI
+    signing.py            # XAdES-BES enveloped (cryptography + lxml), cache p12
+    sri_client.py         # SOAP client para recepcion y autorizacion
+    ride_builder.py       # PDF RIDE con reportlab
+    storage.py            # S3 put con Object Lock LegalHold
+```
+
+## Firma XAdES-BES
+
+El SRI exige firma electronica XAdES-BES enveloped con el certificado p12 del tenant.
+Libreria: `cryptography` + `lxml`. El p12 ya lo sube el tenant via `certificates` Lambda
+y esta en Secrets Manager (`tenant.certificate_secret_arn`).
+
+URLs del WebService SOAP segun `tenant.sri_environment`:
+
+```
+pruebas:    https://celcer.sri.gob.ec/comprobantes-electronicos-ws/
+produccion: https://cel.sri.gob.ec/comprobantes-electronicos-ws/
+```
+
+Dos operaciones SOAP:
+- `RecepcionComprobantesOffline` — recibe batch de XMLs firmados (max 50, max 500KB)
+- `AutorizacionComprobantesOffline` — consulta estado por `claveAcceso`
+
+Respuesta de recepcion puede ser:
+- `RECIBIDA` — SRI acepto el lote; continuar con polling
+- `DEVUELTA` — error en el lote; los errores vienen en XML con codigos de error SRI
+
+Respuesta de autorizacion puede ser:
+- `AUTORIZADO` — incluye numero de autorizacion de 49 digitos
+- `RECHAZADO` — error de negocio permanente (XML invalido, RUC incorrecto, duplicado)
+- `EN PROCESO (PPR)` — en cola del SRI; reintentar con backoff
+
+Clasificacion de errores del SRI (critica para no reintentar lo que es permanente):
+- **Permanente**: codigos de error de validacion del XML, firma invalida, RUC no registrado,
+  numero de secuencial duplicado. Marcar `REJECTED`, no reintentar.
+- **Reintentable**: timeout HTTP, HTTP 5xx del SRI, respuesta SOAP malformada por congestion.
+  Marcar `FAILED`, retry\_count++, DLQ despues de 5 intentos.
+
+## IVA — Tabla De Tarifas
+
+La tarifa correcta se determina por `issued_at` del documento, no por la fecha del sistema.
+
+```python
+# documents/domain/iva_rates.py
+IVA_RATES = [
+    {"from": date(2024, 4,  1), "to": None,              "pct": Decimal("15")},
+    {"from": date(2024, 1,  1), "to": date(2024, 3, 31), "pct": Decimal("12")},
+]
+
+def iva_rate_for(issued_at: date) -> Decimal:
+    for band in IVA_RATES:
+        if issued_at >= band["from"] and (band["to"] is None or issued_at <= band["to"]):
+            return band["pct"]
+    raise ValueError(f"No IVA rate defined for {issued_at}")
+```
+
+Si el gobierno cambia la tarifa: agregar una entrada al inicio de `IVA_RATES` con el nuevo
+rango. No tocar el resto de la tabla.
+
+## Consumidor Final — Regla Critica
+
+Para facturas a Consumidor Final **NO se crea ni referencia un Client**. El handler
+acepta `client_id=null` con `buyer_id_type="07"` y usa valores fijos:
+
+```
+tipoIdentificacionComprador = "07"
+identificacionComprador     = "9999999999999"
+razonSocialComprador        = "Consumidor Final"
+client_id                   = null
+```
+
+Desde el 1 de enero de 2026 **no se pueden anular facturas a Consumidor Final**. La
+unica via legal es emitir una Nota de Credito (tipo 04, fuera de alcance MVP).
 
 ## Estados Del Documento
 
 ```
 PENDING
-  -> AUTHORIZED    (SRI acepto)
-  -> REJECTED      (SRI rechazo — error de negocio, no reintentable)
-  -> FAILED        (error tecnico reintentable: timeout SRI, firma fallo transitoriamente)
-  -> FAILED_PERMANENT   (reintentado N veces; requiere intervencion manual)
+  ↓ worker SIGN exitoso
+PROCESSING
+  ↓ POLL: SRI acepto
+AUTHORIZED      (terminal exitoso)
+  ↓ POLL: SRI rechazo
+REJECTED        (terminal, error de negocio permanente)
+  ↓ SIGN/POLL: error tecnico reintentable
+FAILED          (retry_count < 5 → se reintenta via DLQ)
+  ↓ retry_count >= 5
+FAILED_PERMANENT  (terminal, requiere intervencion manual)
 ```
 
-Regla: los errores del SRI pueden ser de dos tipos:
-- **Reintentable**: timeout, servicio SRI no disponible (HTTP 5xx o timeout).
-- **Permanente**: XML invalido, RUC incorrecto, numero duplicado, firma invalida.
+Clasificacion de errores:
+- **Reintentable**: timeout SRI, HTTP 5xx SRI, error de red transitorio.
+- **Permanente**: XML invalido, RUC no registrado, secuencial duplicado, firma invalida.
 
-El worker downstream debe clasificar el error antes de reintentar o marcar permanente.
+El worker DEBE clasificar el error antes de decidir reintentar o marcar permanente.
+La clasificacion vive en `sri_client.py` usando los codigos de error del SRI.
 
-## Consumidor Final — Regla Critica
+## API Contract
 
-Para facturas a consumidor final **NO se crea un Client**. Se emite directamente con:
+Todos los endpoints requieren JWT (owner o admin del tenant). `tenant_id` viene del JWT.
 
+### Establishments (dentro de lambda `sequences`)
+
+| Metodo | Ruta | Descripcion |
+| --- | --- | --- |
+| GET | `/tenants/{id}/establishments` | lista establecimientos + puntos de emision |
+| POST | `/tenants/{id}/establishments` | crear establecimiento |
+| POST | `/tenants/{id}/establishments/{code}/emission-points` | agregar punto de emision |
+| PATCH | `/tenants/{id}/establishments/{code}/emission-points/{ep}` | editar (solo si sin uso aun) |
+
+Solo el owner puede crear/editar establecimientos. Los admin/viewer pueden leer.
+El superadmin puede hacer todo.
+
+### Documents
+
+| Metodo | Ruta | Descripcion |
+| --- | --- | --- |
+| POST | `/documents` | emitir documento (202 Accepted) |
+| GET | `/documents` | lista paginada con filtros (status, date\_from, date\_to, serie) |
+| GET | `/documents/{id}` | detalle + estado actual |
+| GET | `/documents/{id}/ride` | pre-signed URL S3 al RIDE (solo si AUTHORIZED) |
+
+### Sequences (consulta interna — no HTTP publico)
+
+Los contadores de secuencial no se exponen via HTTP. Solo el Lambda `documents` los
+usa via `DynamoSequencesAdapter` con acceso directo a la tabla `sequences`.
+
+## Errores De Dominio
+
+```python
+# sequences/domain/errors.py
+SequenceExhaustedError     # contador llego a 999999999
+SequenceAlreadyUsedError   # intento editar initial_sequential despues del primer uso
+EstablishmentNotFoundError
+EmissionPointCode099Reserved # intento crear manualmente el punto 099
+
+# documents/domain/errors.py
+DocumentNotFoundError
+CertificateNotUploadedError  # tenant sin certificado p12 intenta emitir
+DocumentLimitReachedError    # plan.document_limit mensual superado
+InvalidIssuedDateError       # issued_at en el futuro
+SriRejectedError(codes)      # SRI devolvio error de negocio
+SriUnavailableError          # timeout o 5xx SRI (reintentable)
 ```
-tipoIdentificacionComprador = "07"
-identificacionComprador     = "9999999999999"
-client_id                   = null
-```
 
-Si el handler recibe `client_id = null` y el tipo de comprador es consumidor final,
-debe usar estos valores fijos en el XML. No buscar un cliente en DynamoDB.
+## Infra CDK — Componentes Nuevos
 
-Esta es una regla del SRI Ecuador, no una decision de diseno del sistema.
+Stacks a crear o modificar:
 
-## Firma XAdES-BES
-
-El SRI exige firma electronica XAdES-BES con el certificado p12 del tenant.
-
-Flujo de firma:
-
-```
-1. Construir XML del documento segun especificacion SRI
-2. Leer certificado del tenant desde Secrets Manager (ARN en tenant.certificate_secret_arn)
-3. Firmar XML con cryptography + lxml: XAdES-BES enveloped
-4. Enviar XML firmado al WebService SRI segun tenant.sri_environment
-```
-
-La URL del WebService cambia por `sri_environment`:
-- `pruebas`: `https://celcer.sri.gob.ec/...`
-- `produccion`: `https://cel.sri.gob.ec/...`
-
-El certificado es el mismo para ambos entornos. Ver `ONBOARDING.md` para las reglas
-de almacenamiento del p12 en Secrets Manager.
-
-## IVA — Tabla De Tarifas
-
-El IVA en Ecuador ha cambiado. La tabla de tarifas debe considerar rangos de fecha:
-
-| Periodo | Tarifa IVA |
+| Stack | Cambio |
 | --- | --- |
-| Hasta 2024-03-31 | 12% |
-| Desde 2024-04-01 | 15% |
+| `StorageStack` (nuevo) | S3 bucket documents (Object Lock + lifecycle) |
+| `DatabaseStack` (existente) | Tablas `sequences`, `documents`, `batch_jobs` |
+| `QueuesStack` (existente) | Colas `invoice-sign` + `invoice-poll` + sus DLQs + alarmas |
+| `ApiStack` (existente) | Lambdas `sequences`, `documents`, `invoice_processor` + ESMs |
 
-La tarifa correcta se determina por la fecha de emision del documento, no la fecha
-del sistema al momento de procesar. Esta tabla debe mantenerse actualizada en el codigo
-(`documents/domain/iva_rates.py` o similar) y puede cambiar por decreto presidencial.
-
-## Procesamiento Masivo (Batch Jobs)
-
-Flujo:
+## Frontend — Estructura
 
 ```
-1. Tenant sube XLSX via POST /batch-jobs
-2. Handler ejecuta validador XLSX sincrono (4 capas):
-   a. Estructura: columnas obligatorias, tipos de dato
-   b. Reglas de negocio por fila: RUC valido, IVA correcto
-   c. Consistencia entre filas: totales, duplicados internos
-   d. Validacion DB: clients existen, plan tiene capacidad
-3. Si validacion falla: 422 con array de errores { row, col, message }
-4. Si pasa: crear BatchJob (PENDING), encolar en SQS FIFO
-5. Lambda worker procesa chunks de ~100 documentos
-6. Cliente consulta estado: GET /batch-jobs/{id}
+frontend/features/documents/
+  api.ts                 # POST /documents, GET /documents, GET /documents/{id}
+  schemas.ts             # Zod schemas de documento
+  types.ts               # tipos derivados
+  constants.ts           # doc_types, status labels, buyer_id_types, payment_methods
+  hooks/
+    useDocuments.ts
+    useDocument.ts
+    useEmitDocument.ts
+  components/
+    DocumentStatusBadge.tsx
+    DocumentLineItem.tsx
+    IvaRatePicker.tsx
+  screens/
+    DocumentsListScreen.tsx
+    EmitDocumentScreen.tsx
+    DocumentDetailScreen.tsx
+
+frontend/features/sequences/
+  api.ts
+  schemas.ts
+  hooks/
+    useEstablishments.ts
+  screens/
+    EstablishmentsScreen.tsx   # en settings del tenant
 ```
 
-Aislamiento entre tenants en la cola:
-
-- `MessageGroupId = tenant_id` en SQS FIFO.
-- Lambda batch tiene `reserved_concurrency = 5` para no saturar el SRI.
-- Tenants con `plan.dedicated_queue = true` tienen su propia SQS FIFO (ver `ONBOARDING.md`).
-
-BatchJob entity:
+Rutas Expo Router:
 
 ```
-status: PENDING | RUNNING | COMPLETED | PARTIAL_FAILURE | FAILED
-total_rows: N
-processed: N
-authorized: N
-rejected: N
-failed: N
-error_file_url: URL S3 del archivo de errores (si hay)
+(app)/(tenant)/documents/         → DocumentsListScreen
+(app)/(tenant)/documents/emit     → EmitDocumentScreen
+(app)/(tenant)/documents/[id]     → DocumentDetailScreen
+(app)/(tenant)/settings/estab     → EstablishmentsScreen
 ```
-
-## Almacenamiento De Documentos Autorizados
-
-- S3 bucket con **Object Lock** (WORM — Write Once Read Many).
-- Retension legal minima: 7 anos (requerimiento SRI Ecuador).
-- El XML autorizado y el RIDE (PDF) se guardan en S3 con `LegalHold` activo.
-- DynamoDB guarda solo el ARN S3 del XML y RIDE; no los bytes.
-
-## API Contract (Diseño Inicial)
-
-```
-POST /documents              — emitir documento individual
-GET  /documents/{id}         — estado del documento
-GET  /documents              — lista paginada con filtros
-
-POST /batch-jobs             — iniciar carga masiva
-GET  /batch-jobs/{id}        — estado del batch job
-GET  /batch-jobs             — lista de batch jobs del tenant
-
-GET  /sequences              — ver contadores de numeracion del tenant
-```
-
-Todos requieren JWT (owner o admin del tenant). El `tenant_id` viene del JWT.
-
-## Errores De Dominio (Planificados)
-
-- `DocumentNotFoundError`
-- `CertificateNotUploadedError` — tenant intenta emitir sin certificado
-- `SequenceExhaustedError` — el secuencial alcanzo el maximo del SRI (999999999)
-- `SriRejectedError(code, message)` — SRI devolvio error de negocio
-- `SriUnavailableError` — timeout o 5xx del SRI (reintentable)
-- `InvalidDocumentError` — XML no paso validacion pre-envio
-- `BatchJobNotFoundError`
-- `BatchValidationError(errors: list[RowError])` — errores de validacion del XLSX
 
 ## Prerequisitos Para Empezar
 
-Estado de prerequisitos al 2026-06-14:
-
-1. Listo: `ONBOARDING.md` — los tenants pueden subir certificado inicial y reemplazarlo luego
-   con Lambda `certificates`.
-2. Pendiente: `sequences` — los contadores de numeracion deben existir antes de emitir
-   cualquier documento.
-3. Listo: `plans` — campos `pruebas_monthly_docs_limit`, `document_limit`,
-   `dedicated_queue` y `self_service` existen.
-4. Listo: `tenants` — `sri_environment` existe y el tenant nace en `testing`.
+| Prerequisito | Estado |
+| --- | --- |
+| Certificados p12 — tenants pueden subirlos | Listo (`certificates` Lambda) |
+| `plans.document_limit` existe | Listo |
+| `plans.dedicated_queue` existe | Listo |
+| `tenants.sri_environment` existe | Listo (nace en `testing`) |
+| `tenants.address` existe | Listo (`dirMatriz` en XML) |
+| `tenants.accounting_required` existe | Listo (`obligadoContabilidad` en XML) |
+| Tabla `sequences` en DynamoDB | Sprint 1 |
+| Tabla `documents` en DynamoDB | Sprint 1 |
+| S3 bucket con Object Lock | Sprint 1 |
+| Colas SQS invoice-sign + invoice-poll | Sprint 1 |
 
 ## Deuda Tecnica Anticipada
 
-- La tabla de tarifas IVA hardcodeada en codigo debe gestionarse de forma mas robusta
-  si el gobierno cambia la tarifa frecuentemente. Evaluar tabla en DynamoDB con rangos de fecha.
-- El reintento de documentos `FAILED` necesita backoff exponencial y dead-letter queue para
-  no saturar el SRI en caso de incidente.
-- Reconocimiento de errores del SRI: el SRI Ecuador devuelve codigos de error en XML.
-  Necesita un parser de respuestas y clasificacion exhaustiva reintentable vs permanente.
+| Deuda | Impacto |
+| --- | --- |
+| Tabla IVA hardcodeada en codigo | Si el gobierno cambia la tarifa hay que hacer deploy. Evaluar tabla DynamoDB con rangos de fecha cuando el gobierno sea menos predecible. |
+| Clasificacion de errores SRI incompleta | El SRI Ecuador tiene ~50 codigos de error. La clasificacion inicial cubre los mas comunes. Afinar con datos reales de produccion. |
+| Colas enterprise dedicadas sin cleanup automatico | Si un tenant enterprise es dado de baja, su cola y ESM quedan huerfanos. Necesita un proceso de deprovision. |
+| Worker SIGN sin agrupacion de tenants en cola compartida | Para clientes pequenos, cada documento = 1 llamada SOAP al SRI (no hay batching entre distintos RUCs). Aceptable hasta ~50,000 docs/dia en la cola compartida. |
+| Scans de batch\_jobs para listado | Igual que tenants/clients: aceptable para volumen bajo. |
+| Nota de Credito (04) no implementada | Los tenants no podran corregir facturas en el MVP. Alta prioridad para Sprint 6+. |
