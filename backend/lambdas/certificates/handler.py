@@ -12,15 +12,20 @@ from lambdas._base.response import ApiResponse
 from lambdas.certificates.schemas import CertificateUpdateRequest
 from lambdas.certificates.use_cases.get_certificate import GetCertificateUseCase
 from lambdas.certificates.use_cases.update_certificate import UpdateCertificateUseCase
+from lambdas.sequences.infra.sequences_repository import DynamoSequencesRepository
 from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
 from shared.certificates.store import CertificateStore
 from shared.certificates.validator import CertificateValidator
 from shared.config import env
 from shared.db.client import get_table
 from shared.errors import ForbiddenError, NotFoundError, OptimisticLockError
+from shared.logger import get_logger
+
+_log = get_logger(__name__)
 
 _TENANTS_TABLE = get_table("TENANTS_TABLE")
 _AUDIT_TABLE = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
+_SEQUENCES_TABLE = get_table("SEQUENCES_TABLE") if env("SEQUENCES_TABLE", "") else None
 
 # Bounded retries for the rare case where another request updates the same
 # tenant between the certificate validation and the transactional commit.
@@ -44,6 +49,18 @@ def _authorize_tenant(request: Request, tenant_id: str) -> None:
         return
     if request.tenant_id != tenant_id:
         raise ForbiddenError()
+
+
+def _bootstrap_testing_point(tenant_id: str) -> None:
+    """Best-effort: create establishment 001 + emission point 099 for testing."""
+    if _SEQUENCES_TABLE is None:
+        return
+    try:
+        DynamoSequencesRepository(_SEQUENCES_TABLE).bootstrap_testing_point(tenant_id)
+    except Exception:
+        _log.warning(
+            "bootstrap_testing_point failed (non-blocking)", tenant_id=tenant_id, exc_info=True
+        )
 
 
 @lambda_handler
@@ -88,6 +105,7 @@ def _put(request: Request, context) -> dict:
                 idempotency=idempotency,
                 response=response,
             )
+            _bootstrap_testing_point(tenant_id)
             return response
         except OptimisticLockError:
             if attempt == _MAX_COMMIT_ATTEMPTS:
