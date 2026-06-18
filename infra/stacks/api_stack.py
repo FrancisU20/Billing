@@ -712,9 +712,15 @@ class ApiStack(Stack):
         # ── Invoice Processor — SIGN ──────────────────────────────────────────
         # Firma XAdES-BES + envío SRI (RecepcionComprobantesOffline). Mismo código
         # que la función POLL — rutea por `type` en el body del mensaje SQS.
-        # reserved_concurrent_executions distinto por función (no por ESM) según
-        # documenta INVOICES.md: SIGN es menos volumen que POLL post-primer-día,
-        # pero más costoso por invocación (firma + llamada SOAP).
+        # Sin reserved_concurrent_executions: la cuenta AWS de este proyecto tiene
+        # el límite por defecto de Lambda en sa-east-1 (10 ejecuciones concurrentes
+        # TOTALES en la cuenta, no las 1000 estándar — nunca se pidió el aumento).
+        # Cualquier reserva > 0 baja el unreserved pool por debajo del mínimo de 10
+        # y el deploy falla (CREATE_FAILED: "decreases account's
+        # UnreservedConcurrentExecution below its minimum value of [10]").
+        # Dev/staging/prod comparten la misma cuenta (ver infra/config/*.yaml,
+        # account resuelto via CDK_DEFAULT_ACCOUNT), así que aplica a los 3 envs.
+        # Retomar la diferenciación 30/20 si se pide un quota increase a AWS.
         invoice_processor_sign_fn = lmb.Function(
             self, "InvoiceProcessorSignFunction",
             function_name = f"codelabs-billing-{env}-invoice-processor-sign",
@@ -724,7 +730,6 @@ class ApiStack(Stack):
             handler       = "lambdas.invoice_processor.handler.handler",
             timeout       = Duration.minutes(15),
             memory_size   = 1024,
-            reserved_concurrent_executions = 30,
             environment   = {
                 **_common_env,
                 "DOCUMENTS_TABLE": database.documents_table.table_name,
@@ -759,7 +764,6 @@ class ApiStack(Stack):
             handler       = "lambdas.invoice_processor.handler.handler",
             timeout       = Duration.minutes(15),
             memory_size   = 1024,
-            reserved_concurrent_executions = 20,
             environment   = {
                 **_common_env,
                 "DOCUMENTS_TABLE":                database.documents_table.table_name,

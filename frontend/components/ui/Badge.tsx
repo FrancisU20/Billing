@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import { useTheme } from '@/lib/theme-context'
 import { typography, radius, spacing } from '@/constants/tokens'
 
-type BadgeVariant = 'success' | 'warning' | 'error' | 'neutral' | 'primary' | 'accent'
+export type BadgeVariant = 'success' | 'warning' | 'error' | 'neutral' | 'primary' | 'accent'
 
 interface BadgeProps {
   label: string

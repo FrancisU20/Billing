@@ -35,5 +35,9 @@ export const Routes = {
     clientNew: '/(app)/(tenant)/clients/new' as const,
     clientDetail: (id: string) => `/(app)/(tenant)/clients/${id}` as const,
     clientEdit: (id: string) => `/(app)/(tenant)/clients/${id}/edit` as const,
+    documents: '/(app)/(tenant)/documents' as const,
+    documentNew: '/(app)/(tenant)/documents/emit' as const,
+    documentDetail: (id: string) => `/(app)/(tenant)/documents/${id}` as const,
+    establishments: '/(app)/(tenant)/settings/estab' as const,
   },
 } as const

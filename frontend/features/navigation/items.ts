@@ -46,6 +46,18 @@ const tenantNavigation: AppNavigationItem[] = [
     activeWhen: segment(Routes.tenant.clients),
   },
   {
+    label: 'Documentos',
+    icon: 'document-text-outline',
+    href: Routes.tenant.documents as Href,
+    activeWhen: segment(Routes.tenant.documents),
+  },
+  {
+    label: 'Establecimientos',
+    icon: 'storefront-outline',
+    href: Routes.tenant.establishments as Href,
+    activeWhen: segment(Routes.tenant.establishments),
+  },
+  {
     label: 'Facturación',
     icon: 'card-outline',
     href: Routes.tenant.billing as Href,

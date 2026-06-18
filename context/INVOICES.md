@@ -1,7 +1,7 @@
 # Invoices & Documents — Dominio
 
-Estado: **Sprints 1-4 implementados (infra, sequences, documents, invoice_processor).
-Falta Sprint 5 (frontend)**.
+Estado: **MVP completo — Sprints 1-5 implementados** (infra, sequences, documents,
+invoice_processor, frontend).
 
 Ultima actualizacion: 2026-06-18.
 
@@ -400,11 +400,22 @@ S3 Glacier (despues de 90 dias): $0.004/GB para archivos maduros
 ARM64, 1 GB de memoria, timeout 15 minutos (necesario para batch de 50 docs en
 enterprise; el MVP de cola compartida procesa 1 doc por invocacion).
 
-**Desplegado como dos funciones CDK, mismo codigo, distinto
-`reserved_concurrent_executions`** (no se puede variar concurrencia por ESM, solo
-por funcion): `invoice-processor-sign` (30, suscrita a `invoice-sign`) e
-`invoice-processor-poll` (20, suscrita a `invoice-poll`). El mismo `handler.handler`
-rutea por `type` en ambas — ver `infra/stacks/api_stack.py`.
+**Desplegado como dos funciones CDK, mismo codigo**: `invoice-processor-sign`
+(suscrita a `invoice-sign`) e `invoice-processor-poll` (suscrita a `invoice-poll`).
+El mismo `handler.handler` rutea por `type` en ambas — ver `infra/stacks/api_stack.py`.
+
+**Sin `reserved_concurrent_executions`** (diseño original preveia 30/SIGN y 20/POLL
+para diferenciar concurrencia por funcion, ya que no se puede variar por ESM). La
+cuenta AWS de este proyecto tiene el limite de Lambda en `sa-east-1` en el piso por
+defecto (**10 ejecuciones concurrentes TOTALES en la cuenta**, no las 1000
+estandar — nunca se pidio el aumento). Cualquier reserva > 0 baja el unreserved pool
+por debajo del minimo de 10 y CloudFormation falla (`CREATE_FAILED:
+"decreases account's UnreservedConcurrentExecution below its minimum value of
+[10]"`) — paso real en el deploy del Sprint 4 a dev, con rollback automatico limpio.
+dev/staging/prod comparten la misma cuenta AWS (`infra/config/*.yaml`, `account`
+resuelto via `CDK_DEFAULT_ACCOUNT`), asi que aplica a los 3 entornos. Retomar la
+diferenciacion 30/20 si se pide un quota increase a AWS para Lambda concurrent
+executions en `sa-east-1`.
 
 ### p12 cacheado a nivel de modulo
 
@@ -795,35 +806,49 @@ Stacks a crear o modificar:
 | `QueuesStack` (existente) | Colas `invoice-sign` + `invoice-poll` + sus DLQs + alarmas |
 | `ApiStack` (existente) | Lambdas `sequences`, `documents`, `invoice_processor` + ESMs |
 
-## Frontend — Estructura
+## Frontend — Estructura (Sprint 5, implementado)
 
 ```
 frontend/features/documents/
-  api.ts                 # POST /documents, GET /documents, GET /documents/{id}
-  schemas.ts             # Zod schemas de documento
-  types.ts               # tipos derivados
-  constants.ts           # doc_types, status labels, buyer_id_types, payment_methods
+  api.ts                 # GET/POST /documents, GET /documents/{id}, GET /documents/{id}/ride
+  schemas.ts             # Zod: documento, pagina paginada, input de emision, form values
+  types.ts               # tipos derivados + DocumentListFilters
+  constants.ts           # status labels/badge variant, iva rates, buyer_id_types, payment methods
+  form.ts                # defaults, formValuesToEmitDocumentInput, computeLineTotals (preview)
   hooks/
-    useDocuments.ts
-    useDocument.ts
-    useEmitDocument.ts
+    useDocuments.ts        # usePaginatedList
+    useDocument.ts         # useFetch + auto-poll cada 5s mientras PENDING/PROCESSING
   components/
     DocumentStatusBadge.tsx
-    DocumentLineItem.tsx
-    IvaRatePicker.tsx
+    DocumentListItem.tsx
+    DocumentsFilters.tsx
+    DocumentLineItem.tsx    # fila dentro de useFieldArray, con preview de total por linea
+    IvaRatePicker.tsx       # SegmentedControl de 4 tarifas
+    BuyerIdTypePicker.tsx   # grid OptionTile (RUC/Cedula/Pasaporte/Exterior)
+    BuyerSection.tsx        # 3 modos: Consumidor Final / Cliente existente / Manual
+    ClientPickerModal.tsx   # busca clientsApi.list({q}) — reuso directo de features/clients
   screens/
     DocumentsListScreen.tsx
     EmitDocumentScreen.tsx
     DocumentDetailScreen.tsx
 
 frontend/features/sequences/
-  api.ts
+  api.ts                  # /tenants/{tenantId}/establishments...
   schemas.ts
+  types.ts
   hooks/
-    useEstablishments.ts
+    useEstablishments.ts   # useFetch (lista completa, sin paginacion)
+  components/
+    EstablishmentCard.tsx  # card con sus puntos de emision + alta/edicion inline
   screens/
-    EstablishmentsScreen.tsx   # en settings del tenant
+    EstablishmentsScreen.tsx  # pantalla unica: alta de establecimiento + EstablishmentCard*
 ```
+
+Decision tomada en Sprint 5 (no en el diseño original): no hay `useEmitDocument.ts`
+separado — `EmitDocumentScreen` usa `useFormSubmit` inline, igual que
+`NewClientScreen` (patron ya establecido en el repo para creacion). El selector de
+comprador integra busqueda de clientes existentes (`ClientPickerModal`), no solo
+entrada manual — decision de producto tomada explicitamente en este sprint.
 
 Rutas Expo Router:
 
@@ -833,6 +858,9 @@ Rutas Expo Router:
 (app)/(tenant)/documents/[id]     → DocumentDetailScreen
 (app)/(tenant)/settings/estab     → EstablishmentsScreen
 ```
+
+Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregados a
+`tenantNavigation`.
 
 ## Prerequisitos Para Empezar
 
@@ -864,4 +892,7 @@ Rutas Expo Router:
 | Nota de Credito (04) no implementada | Los tenants no podran corregir facturas en el MVP. Alta prioridad para Sprint 6+. |
 | Literal de estado "rechazado" en autorizacion SOAP sin verificar contra SRI real | `sri_client.py` asume que todo lo que no es `AUTORIZADO`/`EN PROCESO` es rechazo; falta confirmar el literal exacto (`NO AUTORIZADO` segun Ficha Tecnica) contra el ambiente de pruebas real del SRI. Ajuste aislado a una funcion si difiere. |
 | RIDE sin codigo de barras real ni logo del tenant | MVP genera PDF con todos los campos obligatorios en texto via reportlab. Agregar barcode Code128/logo es trabajo de UI, no de cumplimiento legal — evaluar si un cliente lo pide. |
+| `ClientPickerModal` no esta en `components/ui/` | Es el primer selector de lista con busqueda del repo; vive en `features/documents/components/` porque solo este feature lo usa. Si otro feature necesita un picker similar, extraer a `components/ui/` (regla de FRONTEND.md: 2+ features lo necesitan). |
+| `EstablishmentsScreen` con forms inline via `useState` plano (no react-hook-form) | Los mini-forms de alta/edicion de punto de emision son simples (2-3 campos) y no justifican el overhead de react-hook-form+zod. Si crecen en complejidad, migrar al patron `*Form.tsx` + Controller. |
 | Emails de documento sin adjuntar PDF | `DocumentAuthorizedEvent` etc. no adjuntan el RIDE (igual que el resto de notificaciones del proyecto, que enlazan en vez de adjuntar). El tenant lo descarga desde `GET /documents/{id}/ride`. |
+| `invoice_processor` SIGN/POLL sin concurrencia reservada diferenciada | Cuenta AWS en `sa-east-1` con limite de Lambda en 10 ejecuciones concurrentes totales (default no aumentado). Pedir quota increase a AWS y reintroducir `reserved_concurrent_executions=30/20` en `api_stack.py` cuando se apruebe. |
