@@ -694,6 +694,19 @@ ahora construyen la declaración a mano en vez de delegar en lxml. Cubierto por
 `test_xsd_compliance.py`, que valida el XML firmado contra el XSD real de Factura
 del SRI (`tests/.../sri_xsd/factura_v1.xsd`) — hubiera detectado ambos bugs en CI.
 
+**Digito de `<ambiente>` (Tabla 4, Ficha Tecnica): `1` = Pruebas, `2` = Produccion**
+— invertido en el codigo original de Sprints 2/4 (`access_key.py::generate_access_key`
+y `xml_builder.py::build_invoice_xml` ambos tenian `"2" if testing else "1"`). Efecto:
+todo documento contra `celcer.sri.gob.ec` (ambiente de pruebas) llevaba tanto el tag
+`<ambiente>` como el digito 23 de la `claveAcceso` marcados como **Produccion** —
+inconsistencia que el SRI rechazaba con el mismo codigo 35 `ARCHIVO NO CUMPLE
+ESTRUCTURA XML` que los dos bugs anteriores (tres bugs distintos, mismo sintoma de
+superficie). Encontrado el 2026-06-18 cruzando el codigo contra la Tabla 4 de la
+Ficha Tecnica oficial provista por el usuario, despues de que los otros dos fixes no
+resolvieran el rechazo. Cubierto por `test_access_key.py::test_testing_environment_uses_digit_1`/
+`test_production_environment_uses_digit_2` y `test_xml_builder.py` (assertions
+sobre `infoTributaria/ambiente`).
+
 Respuesta de recepcion puede ser:
 - `RECIBIDA` — SRI acepto el lote; continuar con polling
 - `DEVUELTA` — error en el lote; los errores vienen en XML con codigos de error SRI

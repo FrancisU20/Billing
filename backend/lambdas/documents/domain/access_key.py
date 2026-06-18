@@ -8,7 +8,7 @@ Structure (49 digits):
   + establ(3)      + punto(3)           + secuencial(9)
   + codigoNumerico(8) + tipoEmision(1)  + digitoVerificador(1)
 
-tipoAmbiente: "1" = producción, "2" = pruebas
+tipoAmbiente: "1" = pruebas, "2" = producción (Tabla 4, Ficha Tecnica SRI)
 tipoEmision:  "1" = emisión normal
 """
 
@@ -37,7 +37,10 @@ def generate_access_key(
     numeric_code: str,
     emission_type: str = "1",
 ) -> str:
-    env_digit = "2" if environment == "testing" else "1"
+    # Tabla 4, Ficha Tecnica SRI: 1=Pruebas, 2=Produccion. Invertido hasta
+    # 2026-06-18 — causaba que celcer.sri.gob.ec (ambiente de pruebas) recibiera
+    # claves de acceso marcadas como "produccion", lo que el SRI rechazaba.
+    env_digit = "1" if environment == "testing" else "2"
     estab = serie[:3]
     punto = serie[3:]
     body = (

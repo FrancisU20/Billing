@@ -43,15 +43,16 @@ class GenerateAccessKeyTests(unittest.TestCase):
         self.assertEqual(len(key), 49)
         self.assertTrue(key.isdigit())
 
-    def test_testing_environment_uses_digit_2(self) -> None:
-        key = self._make_key(environment="testing")
+    def test_testing_environment_uses_digit_1(self) -> None:
+        # Tabla 4, Ficha Tecnica SRI: 1=Pruebas, 2=Produccion.
         # tipoAmbiente is at position 22 (0-indexed): 8+2+13 = 23rd char → index 22
         # ddmmyyyy(8) + doc_type(2) + ruc(13) → pos 23 = index 22
-        self.assertEqual(key[23], "2")
-
-    def test_production_environment_uses_digit_1(self) -> None:
-        key = self._make_key(environment="production")
+        key = self._make_key(environment="testing")
         self.assertEqual(key[23], "1")
+
+    def test_production_environment_uses_digit_2(self) -> None:
+        key = self._make_key(environment="production")
+        self.assertEqual(key[23], "2")
 
     def test_date_format_ddmmyyyy(self) -> None:
         key = self._make_key(issued_at=date(2026, 6, 17))

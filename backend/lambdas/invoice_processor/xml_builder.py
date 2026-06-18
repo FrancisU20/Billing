@@ -36,7 +36,9 @@ def _money(value: Decimal) -> str:
 def build_invoice_xml(document: Document, tenant: Tenant) -> str:
     estab = document.serie[:3]
     punto = document.serie[3:6]
-    ambiente = "2" if document.sri_environment == "testing" else "1"
+    # Tabla 4, Ficha Tecnica SRI: 1=Pruebas, 2=Produccion. Debe coincidir con el
+    # mismo digito en la clave de acceso (domain/access_key.py).
+    ambiente = "1" if document.sri_environment == "testing" else "2"
 
     root = etree.Element("factura", id="comprobante", version=_SCHEMA_VERSION)
 
