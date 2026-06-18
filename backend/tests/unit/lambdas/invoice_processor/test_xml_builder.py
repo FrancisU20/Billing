@@ -31,6 +31,23 @@ class BuildInvoiceXmlTests(unittest.TestCase):
         self.assertEqual(root.findtext("infoTributaria/secuencial"), "000000001")
         self.assertEqual(root.findtext("infoTributaria/ambiente"), "2")  # testing
 
+    def test_includes_mandatory_dir_establecimiento(self) -> None:
+        # Obligatorio en el XSD del SRI; sin esto el SRI rechaza con
+        # "ARCHIVO NO CUMPLE ESTRUCTURA XML" (código 35) — confirmado contra
+        # celcer.sri.gob.ec el 2026-06-18. `sequences` no guarda dirección propia
+        # por establecimiento (deuda), así que se reusa la matriz del tenant.
+        document = make_document()
+        tenant = make_invoice_tenant(address="Av Siempre Viva 123")
+
+        xml = build_invoice_xml(document, tenant)
+        root = etree.fromstring(xml.encode("utf-8"))
+
+        # Debe ir inmediatamente después de fechaEmision (orden del XSD).
+        children = [el.tag for el in root.find("infoFactura")]
+        self.assertEqual(children[0], "fechaEmision")
+        self.assertEqual(children[1], "dirEstablecimiento")
+        self.assertEqual(root.findtext("infoFactura/dirEstablecimiento"), "Av Siempre Viva 123")
+
     def test_production_environment_maps_to_ambiente_1(self) -> None:
         document = make_document(sri_environment="production")
         tenant = make_invoice_tenant()

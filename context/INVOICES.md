@@ -112,17 +112,24 @@ Sub-recurso del tenant. Vive en la tabla `sequences` (mismo dominio que los cont
 ### Entidades
 
 ```
-Establecimiento:
+Establecimiento (implementado en Sprint 2 — sin `address` ni `is_active`,
+a diferencia del diseño original de esta sección):
   code              "001", "002", ...    codigo SRI de 3 digitos
-  name              "Matriz", "Sucursal Norte"
-  address           dirEstablecimiento — obligatorio en el XML SRI
-  is_active         bool
+  label             "Matriz", "Sucursal Norte"
   emission_points   lista embebida (max ~10 en la practica):
     [
       { "code": "001", "label": "Caja 1",  "initial_sequential": 1 },
       { "code": "099", "label": "Pruebas", "initial_sequential": 1 }  ← auto-creado
     ]
 ```
+
+**Deuda real (Sprint 4):** `dirEstablecimiento` es obligatorio en el XSD del SRI
+(`infoFactura`, justo despues de `fechaEmision`) — sin el, el SRI rechaza con
+`ARCHIVO NO CUMPLE ESTRUCTURA XML` (codigo 35), confirmado contra
+`celcer.sri.gob.ec` el 2026-06-18. Como `Establecimiento` no guarda una direccion
+propia, `xml_builder.py` reusa `tenant.address` (la matriz) para todos los
+establecimientos. Si se necesita una direccion real por sucursal, agregar
+`address` a `Establecimiento` (migracion + schema + UI de `EstablishmentCard`).
 
 Los puntos de emision viven como array en el item del establecimiento, no como items
 separados. Se leen siempre junto al establecimiento, nunca de forma independiente.
@@ -909,6 +916,7 @@ Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregado
 | Scans de batch\_jobs para listado | Igual que tenants/clients: aceptable para volumen bajo. |
 | Nota de Credito (04) no implementada | Los tenants no podran corregir facturas en el MVP. Alta prioridad para Sprint 6+. |
 | Literal de estado "rechazado" en autorizacion SOAP sin verificar contra SRI real | `sri_client.py` asume que todo lo que no es `AUTORIZADO`/`EN PROCESO` es rechazo; falta confirmar el literal exacto (`NO AUTORIZADO` segun Ficha Tecnica) contra el ambiente de pruebas real del SRI. Ajuste aislado a una funcion si difiere. |
+| `Establecimiento` sin direccion propia | `dirEstablecimiento` (obligatorio en XSD) reusa `tenant.address` para todos los establecimientos del tenant. Agregar `address` a `Establecimiento` si se necesita una direccion real por sucursal. |
 | RIDE sin codigo de barras real ni logo del tenant | MVP genera PDF con todos los campos obligatorios en texto via reportlab. Agregar barcode Code128/logo es trabajo de UI, no de cumplimiento legal — evaluar si un cliente lo pide. |
 | `ClientPickerModal` no esta en `components/ui/` | Es el primer selector de lista con busqueda del repo; vive en `features/documents/components/` porque solo este feature lo usa. Si otro feature necesita un picker similar, extraer a `components/ui/` (regla de FRONTEND.md: 2+ features lo necesitan). |
 | `EstablishmentsScreen` con forms inline via `useState` plano (no react-hook-form) | Los mini-forms de alta/edicion de punto de emision son simples (2-3 campos) y no justifican el overhead de react-hook-form+zod. Si crecen en complejidad, migrar al patron `*Form.tsx` + Controller. |

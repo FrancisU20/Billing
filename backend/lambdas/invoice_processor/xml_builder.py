@@ -56,6 +56,12 @@ def build_invoice_xml(document: Document, tenant: Tenant) -> str:
 
     info_factura = etree.SubElement(root, "infoFactura")
     _sub(info_factura, "fechaEmision", document.issued_at.strftime("%d/%m/%Y"))
+    # dirEstablecimiento es obligatorio en el XSD del SRI. El dominio `sequences`
+    # (Sprint 2) no guarda una dirección propia por establecimiento — solo
+    # code/label — así que por ahora se reusa la dirección matriz del tenant.
+    # Deuda técnica: agregar `address` a Establishment si se necesita una
+    # dirección real por sucursal.
+    _sub(info_factura, "dirEstablecimiento", tenant.address)
     _sub(info_factura, "obligadoContabilidad", "SI" if tenant.accounting_required else "NO")
     _sub(info_factura, "tipoIdentificacionComprador", document.buyer_id_type)
     _sub(info_factura, "razonSocialComprador", document.buyer_name)
