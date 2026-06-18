@@ -15,6 +15,7 @@ from lambdas.documents.domain.repositories.i_documents_repository import IDocume
 from lambdas.invoice_processor import ride_builder
 from lambdas.invoice_processor.events import (
     DocumentAuthorizedEvent,
+    DocumentBuyerNotificationRequestedEvent,
     DocumentFailedPermanentEvent,
     DocumentRejectedEvent,
 )
@@ -92,6 +93,12 @@ class PollDocumentUseCase:
                     authorization_number=result.authorization_number or "",
                     tenant_email=tenant.email,
                     legal_rep_name=tenant.legal_rep_name,
+                )
+            )
+            self._queue_publisher.publish_event(
+                DocumentBuyerNotificationRequestedEvent(
+                    tenant_id=tenant_id,
+                    document_id=document_id,
                 )
             )
             return

@@ -59,7 +59,8 @@ colas sign/poll); Lambda `sequences` (establecimientos + puntos de emision, punt
 de pruebas); Lambda `documents` (emision individual, reserva de secuencial, clave de
 acceso, encolado SIGN); Lambda `invoice_processor` (firma XAdES-BES RSA-SHA1/SHA1/
 C14N 1.0, SOAP recepcion/autorizacion SRI, RIDE con reportlab, S3 con LegalHold,
-reintentos con backoff, 3 eventos de email nuevos via `email_notifications`);
+reintentos con backoff, 3 eventos de email al tenant via `email_notifications`,
+notificacion al comprador con XML autorizado + RIDE adjuntos);
 frontend (`features/documents` + `features/sequences`): listado/emision/detalle de
 documentos con poll automatico mientras PENDING/PROCESSING, descarga de RIDE, selector
 de comprador con picker de clientes existentes, gestion de establecimientos y puntos

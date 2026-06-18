@@ -5,6 +5,7 @@ import unittest
 from lambdas.documents.domain.entities import DocumentStatus
 from lambdas.invoice_processor.events import (
     DocumentAuthorizedEvent,
+    DocumentBuyerNotificationRequestedEvent,
     DocumentFailedPermanentEvent,
     DocumentRejectedEvent,
 )
@@ -107,8 +108,11 @@ class PollDocumentUseCaseTests(unittest.TestCase):
 
         self.assertEqual(repo.update_calls[0]["new_status"], DocumentStatus.AUTHORIZED)
         self.assertEqual(len(storage.stored), 1)
-        self.assertEqual(len(publisher.events_published), 1)
+        self.assertEqual(len(publisher.events_published), 2)
         self.assertIsInstance(publisher.events_published[0], DocumentAuthorizedEvent)
+        self.assertIsInstance(
+            publisher.events_published[1], DocumentBuyerNotificationRequestedEvent
+        )
 
     def test_en_proceso_reenqueues_with_backoff(self) -> None:
         use_case, repo, storage, publisher = self._build(AutorizacionResult(status="EN_PROCESO"))

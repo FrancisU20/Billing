@@ -32,3 +32,9 @@ class DocumentFailedPermanentEvent(DomainEvent):
     access_key: str = ""
     tenant_email: str = ""
     legal_rep_name: str = ""
+
+
+@dataclass(frozen=True)
+class DocumentBuyerNotificationRequestedEvent(DomainEvent):
+    tenant_id: str = ""
+    document_id: str = ""

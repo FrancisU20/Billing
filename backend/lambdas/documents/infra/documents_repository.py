@@ -22,7 +22,12 @@ from boto3.dynamodb.conditions import Attr, Key
 from botocore.exceptions import ClientError
 
 from lambdas._base.idempotency import IdempotencyContext, completion_transact_item, mark_completed
-from lambdas.documents.domain.entities import Document, DocumentStatus, InvoiceLine
+from lambdas.documents.domain.entities import (
+    BuyerNotificationStatus,
+    Document,
+    DocumentStatus,
+    InvoiceLine,
+)
 from lambdas.documents.domain.errors import DocumentNotFoundError
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from shared.db.paginator import decode_cursor, encode_cursor
@@ -250,6 +255,92 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             _log.error("DynamoDB update_status error", error=str(exc))
             raise DatabaseError() from exc
 
+    def mark_buyer_notification_status(
+        self,
+        tenant_id: str,
+        document_id: str,
+        *,
+        status: BuyerNotificationStatus,
+        notified_at: datetime | None = None,
+        error: str | None = None,
+    ) -> bool:
+        now = datetime.now(UTC).isoformat()
+        names = {
+            "#status": "buyer_notification_status",
+            "#updated_at": "updated_at",
+        }
+        values: dict = {
+            ":status": status.value,
+            ":updated_at": now,
+            ":sent": BuyerNotificationStatus.SENT.value,
+            ":skipped": BuyerNotificationStatus.SKIPPED_NO_EMAIL.value,
+        }
+        set_clauses = ["#status = :status", "#updated_at = :updated_at"]
+
+        if notified_at is not None:
+            names["#notified_at"] = "buyer_notified_at"
+            values[":notified_at"] = notified_at.isoformat()
+            set_clauses.append("#notified_at = :notified_at")
+        if error is not None:
+            names["#error"] = "buyer_notification_error"
+            values[":error"] = error[:500]
+            set_clauses.append("#error = :error")
+
+        try:
+            self._table.update_item(
+                Key={"pk": self._pk(tenant_id), "sk": self._sk(document_id)},
+                UpdateExpression="SET " + ", ".join(set_clauses),
+                ConditionExpression=(
+                    "attribute_not_exists(#status) OR (#status <> :sent AND #status <> :skipped)"
+                ),
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+            )
+            return True
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                _log.info(
+                    "buyer notification status already terminal; no-op",
+                    document_id=document_id,
+                    status=status.value,
+                )
+                return False
+            _log.error("DynamoDB mark_buyer_notification_status error", error=str(exc))
+            raise DatabaseError() from exc
+
+    def begin_buyer_notification(self, tenant_id: str, document_id: str) -> bool:
+        now = datetime.now(UTC).isoformat()
+        names = {
+            "#status": "buyer_notification_status",
+            "#updated_at": "updated_at",
+        }
+        values = {
+            ":sending": BuyerNotificationStatus.SENDING.value,
+            ":updated_at": now,
+            ":pending": BuyerNotificationStatus.PENDING.value,
+            ":failed": BuyerNotificationStatus.FAILED.value,
+        }
+        try:
+            self._table.update_item(
+                Key={"pk": self._pk(tenant_id), "sk": self._sk(document_id)},
+                UpdateExpression="SET #status = :sending, #updated_at = :updated_at",
+                ConditionExpression=(
+                    "attribute_not_exists(#status) OR #status = :pending OR #status = :failed"
+                ),
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+            )
+            return True
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                _log.info(
+                    "buyer notification already claimed or terminal; no-op",
+                    document_id=document_id,
+                )
+                return False
+            _log.error("DynamoDB begin_buyer_notification error", error=str(exc))
+            raise DatabaseError() from exc
+
     # ── serialization ─────────────────────────────────────────────────────────
 
     def _to_item(self, doc: Document) -> dict:
@@ -290,6 +381,13 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             "xml_s3_key": doc.xml_s3_key,
             "ride_s3_key": doc.ride_s3_key,
             "sri_errors": doc.sri_errors,
+            "buyer_notification_status": (
+                doc.buyer_notification_status.value if doc.buyer_notification_status else None
+            ),
+            "buyer_notified_at": doc.buyer_notified_at.isoformat()
+            if doc.buyer_notified_at
+            else None,
+            "buyer_notification_error": doc.buyer_notification_error,
         }
 
     def _from_item(self, item: dict) -> Document:
@@ -327,4 +425,11 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             xml_s3_key=item.get("xml_s3_key"),
             ride_s3_key=item.get("ride_s3_key"),
             sri_errors=item.get("sri_errors"),
+            buyer_notification_status=BuyerNotificationStatus(item["buyer_notification_status"])
+            if item.get("buyer_notification_status")
+            else None,
+            buyer_notified_at=_dt(item["buyer_notified_at"])
+            if item.get("buyer_notified_at")
+            else None,
+            buyer_notification_error=item.get("buyer_notification_error"),
         )

@@ -284,6 +284,11 @@ buyer_id                 = "9999999999999"           ← "9999999999999" si CF
 buyer_name               = "Consumidor Final" | nombre real
 buyer_email              = str | null
 
+# Notificacion al comprador (Sprint 6)
+buyer_notification_status = null | "PENDING" | "SENDING" | "SENT" | "SKIPPED_NO_EMAIL" | "FAILED"
+buyer_notified_at         = ISO8601 | null
+buyer_notification_error  = str | null
+
 # Fechas
 issued_at                = ISO8601                  ← fecha de emision (en el XML)
 created_at               = ISO8601
@@ -505,6 +510,8 @@ Flujo:
                   → PUT RIDE en S3 (con LegalHold)
                   → UpdateItem status=AUTHORIZED + authorization_number + xml_s3_key + ride_s3_key
                   → outbox event DocumentAuthorizedEvent (email al tenant)
+                  → outbox event DocumentBuyerNotificationRequestedEvent
+                    (email al comprador con XML autorizado + RIDE adjuntos)
 
    RECHAZADO    → UpdateItem status=REJECTED + sri_errors
                   → outbox event DocumentRejectedEvent (email al tenant)
@@ -926,6 +933,7 @@ Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregado
 | Lambda `invoice_processor` (SIGN + POLL) | Sprint 4 |
 | `IDocumentsRepository.update_status` (transicion condicional de estado) | Sprint 4 |
 | Eventos de email `DocumentAuthorizedEvent`/`RejectedEvent`/`FailedPermanentEvent` | Sprint 4 |
+| Notificacion al comprador con XML autorizado + RIDE adjuntos | Sprint 6 |
 
 ## Deuda Tecnica Anticipada
 
@@ -942,5 +950,5 @@ Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregado
 | RIDE sin codigo de barras real ni logo del tenant | MVP genera PDF con todos los campos obligatorios en texto via reportlab. Agregar barcode Code128/logo es trabajo de UI, no de cumplimiento legal — evaluar si un cliente lo pide. |
 | `ClientPickerModal` no esta en `components/ui/` | Es el primer selector de lista con busqueda del repo; vive en `features/documents/components/` porque solo este feature lo usa. Si otro feature necesita un picker similar, extraer a `components/ui/` (regla de FRONTEND.md: 2+ features lo necesitan). |
 | `EstablishmentsScreen` con forms inline via `useState` plano (no react-hook-form) | Los mini-forms de alta/edicion de punto de emision son simples (2-3 campos) y no justifican el overhead de react-hook-form+zod. Si crecen en complejidad, migrar al patron `*Form.tsx` + Controller. |
-| Emails de documento sin adjuntar PDF | `DocumentAuthorizedEvent` etc. no adjuntan el RIDE (igual que el resto de notificaciones del proyecto, que enlazan en vez de adjuntar). El tenant lo descarga desde `GET /documents/{id}/ride`. |
+| Emails de documento al tenant sin adjuntar PDF | `DocumentAuthorizedEvent` etc. notifican al emisor sin adjuntos. El tenant descarga el RIDE desde `GET /documents/{id}/ride`. El comprador si recibe XML autorizado + RIDE adjuntos via `DocumentBuyerNotificationRequestedEvent`. |
 | `invoice_processor` SIGN/POLL sin concurrencia reservada diferenciada | Cuenta AWS en `sa-east-1` con limite de Lambda en 10 ejecuciones concurrentes totales (default no aumentado). Pedir quota increase a AWS y reintroducir `reserved_concurrent_executions=30/20` en `api_stack.py` cuando se apruebe. |

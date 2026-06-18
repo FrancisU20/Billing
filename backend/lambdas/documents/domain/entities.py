@@ -19,6 +19,14 @@ class DocumentStatus(str, Enum):
     FAILED_PERMANENT = "FAILED_PERMANENT"
 
 
+class BuyerNotificationStatus(str, Enum):
+    PENDING = "PENDING"
+    SENDING = "SENDING"
+    SENT = "SENT"
+    SKIPPED_NO_EMAIL = "SKIPPED_NO_EMAIL"
+    FAILED = "FAILED"
+
+
 @dataclass
 class InvoiceLine:
     code: str
@@ -100,6 +108,9 @@ class Document:
     xml_s3_key: str | None = None
     ride_s3_key: str | None = None
     sri_errors: list[dict] | None = None
+    buyer_notification_status: BuyerNotificationStatus | None = None
+    buyer_notified_at: datetime | None = None
+    buyer_notification_error: str | None = None
 
     @property
     def sequential_display(self) -> str:
@@ -137,6 +148,13 @@ class Document:
             "xml_s3_key": self.xml_s3_key,
             "ride_s3_key": self.ride_s3_key,
             "sri_errors": self.sri_errors,
+            "buyer_notification_status": (
+                self.buyer_notification_status.value if self.buyer_notification_status else None
+            ),
+            "buyer_notified_at": (
+                self.buyer_notified_at.isoformat() if self.buyer_notified_at else None
+            ),
+            "buyer_notification_error": self.buyer_notification_error,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "created_by": self.created_by,

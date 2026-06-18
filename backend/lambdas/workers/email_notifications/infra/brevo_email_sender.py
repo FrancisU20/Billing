@@ -11,6 +11,7 @@ Note: the HTML email body is in Spanish on purpose — it is user-facing
 content delivered to Ecuadorian customers, not source code.
 """
 
+import base64
 import json
 from html import escape
 
@@ -737,6 +738,75 @@ def _build_document_authorized_html(
 </html>"""
 
 
+def _build_document_buyer_html(buyer_name: str, access_key: str, authorization_number: str) -> str:
+    safe_name = escape(buyer_name or "cliente", quote=True)
+    safe_access_key = escape(access_key, quote=True)
+    safe_auth_number = escape(authorization_number, quote=True)
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:40px 20px">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+          <tr>
+            <td style="background:#1a1a2e;padding:32px 40px">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
+                CodeLabs Billing
+              </h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px">
+              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+                Hola, {safe_name}
+              </h2>
+              <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                Recibiste una factura electrónica autorizada por el SRI.
+                Adjuntamos el XML autorizado y el RIDE PDF.
+              </p>
+
+              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+                          border-radius:4px;padding:20px;margin:0 0 24px">
+                <p style="margin:0 0 6px;color:#1a1a2e;font-size:13px">
+                  <strong>Clave de acceso:</strong> {safe_access_key}
+                </p>
+                <p style="margin:0;color:#1a1a2e;font-size:13px">
+                  <strong>Número de autorización:</strong> {safe_auth_number}
+                </p>
+              </div>
+
+              <p style="margin:0;color:#888;font-size:13px">
+                Conserva estos archivos como respaldo tributario.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f8f9fa;padding:20px 40px;
+                       border-top:1px solid #e9ecef">
+              <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
+                © CodeLabs Billing · Ecuador
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
 def _build_document_rejected_html(
     legal_rep_name: str, access_key: str, sri_errors: list[dict]
 ) -> str:
@@ -1029,6 +1099,38 @@ class BrevoEmailSender(EmailSender):
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": "No pudimos confirmar tu factura con el SRI — CodeLabs Billing",
             "htmlContent": _build_document_failed_permanent_html(legal_rep_name, access_key),
+        }
+        _send(api_key, payload, log_email=email)
+
+    def send_document_to_buyer(
+        self,
+        *,
+        email: str,
+        buyer_name: str,
+        document_id: str,
+        access_key: str,
+        authorization_number: str,
+        xml_content: bytes,
+        xml_filename: str,
+        ride_content: bytes,
+        ride_filename: str,
+    ) -> None:
+        api_key = _get_api_key()
+        payload = {
+            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "to": [{"email": email, "name": buyer_name}],
+            "subject": "Factura electrónica autorizada — XML y RIDE adjuntos",
+            "htmlContent": _build_document_buyer_html(buyer_name, access_key, authorization_number),
+            "attachment": [
+                {
+                    "name": xml_filename,
+                    "content": base64.b64encode(xml_content).decode("ascii"),
+                },
+                {
+                    "name": ride_filename,
+                    "content": base64.b64encode(ride_content).decode("ascii"),
+                },
+            ],
         }
         _send(api_key, payload, log_email=email)
 

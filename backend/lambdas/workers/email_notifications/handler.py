@@ -18,6 +18,7 @@ Recognized events:
     SubscriptionRenewalReminderEvent     — subscription expiry reminder to tenant owner
     SubscriptionExpiredEvent             — subscription expired / account suspended notice
     DocumentAuthorizedEvent              — invoice authorized by the SRI
+    DocumentBuyerNotificationRequestedEvent — authorized XML + RIDE delivery to buyer
     DocumentRejectedEvent                — invoice rejected by the SRI
     DocumentFailedPermanentEvent         — SRI authorization could not be confirmed after retries
 
@@ -25,7 +26,11 @@ Any unknown event is ignored (does not count as a batch failure).
 """
 
 from lambdas._base.sqs_handler import SQSRecord, sqs_handler
+from lambdas.documents.infra.documents_repository import DynamoDocumentsRepository
 from lambdas.workers.email_notifications.infra.brevo_email_sender import BrevoEmailSender
+from lambdas.workers.email_notifications.infra.s3_document_attachment_reader import (
+    S3DocumentAttachmentReader,
+)
 from lambdas.workers.email_notifications.use_cases.send_document_authorized import (
     SendDocumentAuthorizedUseCase,
 )
@@ -34,6 +39,9 @@ from lambdas.workers.email_notifications.use_cases.send_document_failed_permanen
 )
 from lambdas.workers.email_notifications.use_cases.send_document_rejected import (
     SendDocumentRejectedUseCase,
+)
+from lambdas.workers.email_notifications.use_cases.send_document_to_buyer import (
+    SendDocumentToBuyerUseCase,
 )
 from lambdas.workers.email_notifications.use_cases.send_enterprise_lead_notification import (
     SendEnterpriseLeadNotificationUseCase,
@@ -51,6 +59,7 @@ from lambdas.workers.email_notifications.use_cases.send_welcome_email import (
     SendWelcomeEmailUseCase,
 )
 from shared.config import env
+from shared.db.client import get_table
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
@@ -58,6 +67,25 @@ _log = get_logger(__name__)
 # ── Cold start ────────────────────────────────────────────────────────────────
 _email_sender = BrevoEmailSender()
 _SUPERADMIN_EMAIL = env("SUPERADMIN_EMAIL", "")
+_DOCUMENTS_BUCKET = env("DOCUMENTS_BUCKET", "")
+_documents_repo: DynamoDocumentsRepository | None = None
+_attachment_reader: S3DocumentAttachmentReader | None = None
+
+
+def _get_documents_repo() -> DynamoDocumentsRepository:
+    global _documents_repo
+    if _documents_repo is None:
+        _documents_repo = DynamoDocumentsRepository(get_table("DOCUMENTS_TABLE"))
+    return _documents_repo
+
+
+def _get_attachment_reader() -> S3DocumentAttachmentReader:
+    global _attachment_reader
+    if _attachment_reader is None:
+        if not _DOCUMENTS_BUCKET:
+            raise RuntimeError("DOCUMENTS_BUCKET is required for buyer document notifications")
+        _attachment_reader = S3DocumentAttachmentReader(_DOCUMENTS_BUCKET)
+    return _attachment_reader
 
 
 @sqs_handler
@@ -117,6 +145,17 @@ def handler(record: SQSRecord, context) -> None:
             document_id=data.get("document_id", ""),
             access_key=data.get("access_key", ""),
             authorization_number=data.get("authorization_number", ""),
+        )
+        return
+
+    if event_type == "DocumentBuyerNotificationRequestedEvent":
+        SendDocumentToBuyerUseCase(
+            _get_documents_repo(),
+            _get_attachment_reader(),
+            _email_sender,
+        ).execute(
+            tenant_id=data.get("tenant_id", ""),
+            document_id=data.get("document_id", ""),
         )
         return
 

@@ -3,6 +3,23 @@ from __future__ import annotations
 """Application ports for email_notifications."""
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class DocumentAttachments:
+    xml_content: bytes
+    xml_filename: str
+    ride_content: bytes
+    ride_filename: str
+
+
+class DocumentAttachmentReader(ABC):
+    @abstractmethod
+    def get_authorized_document(
+        self, *, xml_s3_key: str, ride_s3_key: str, document_id: str
+    ) -> DocumentAttachments:
+        """Load the authorized XML and RIDE PDF for buyer delivery."""
 
 
 class EmailSender(ABC):
@@ -109,6 +126,22 @@ class EmailSender(ABC):
         access_key: str,
     ) -> None:
         """Notify the tenant that authorization could not be confirmed after retries."""
+
+    @abstractmethod
+    def send_document_to_buyer(
+        self,
+        *,
+        email: str,
+        buyer_name: str,
+        document_id: str,
+        access_key: str,
+        authorization_number: str,
+        xml_content: bytes,
+        xml_filename: str,
+        ride_content: bytes,
+        ride_filename: str,
+    ) -> None:
+        """Send the authorized XML and RIDE PDF to the invoice buyer."""
 
     @abstractmethod
     def send_orphan_payment_alert(

@@ -26,6 +26,7 @@ class FakeEmailSender(EmailSender):
         self.renewal_reminders_sent: list[dict] = []
         self.subscription_expired_sent: list[dict] = []
         self.document_authorized_sent: list[dict] = []
+        self.document_buyer_sent: list[dict] = []
         self.document_rejected_sent: list[dict] = []
         self.document_failed_permanent_sent: list[dict] = []
         self._should_fail = should_fail
@@ -202,6 +203,35 @@ class FakeEmailSender(EmailSender):
                 "legal_rep_name": legal_rep_name,
                 "document_id": document_id,
                 "access_key": access_key,
+            }
+        )
+
+    def send_document_to_buyer(
+        self,
+        *,
+        email: str,
+        buyer_name: str,
+        document_id: str,
+        access_key: str,
+        authorization_number: str,
+        xml_content: bytes,
+        xml_filename: str,
+        ride_content: bytes,
+        ride_filename: str,
+    ) -> None:
+        if self._should_fail:
+            raise RuntimeError("Brevo unavailable")
+        self.document_buyer_sent.append(
+            {
+                "email": email,
+                "buyer_name": buyer_name,
+                "document_id": document_id,
+                "access_key": access_key,
+                "authorization_number": authorization_number,
+                "xml_content": xml_content,
+                "xml_filename": xml_filename,
+                "ride_content": ride_content,
+                "ride_filename": ride_filename,
             }
         )
 
@@ -395,6 +425,60 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         self.assertEqual(len(sender.document_authorized_sent), 1)
         self.assertEqual(sender.document_authorized_sent[0]["document_id"], "d1")
 
+    def test_processes_document_buyer_notification_event(self) -> None:
+        from lambdas.documents.domain.entities import DocumentStatus
+        from lambdas.workers.email_notifications.ports import DocumentAttachments
+        from tests.unit.lambdas.invoice_processor.fixtures import make_document
+
+        class FakeDocumentsRepository:
+            def __init__(self) -> None:
+                self.document = make_document(
+                    document_id="d1",
+                    tenant_id="t1",
+                    status=DocumentStatus.AUTHORIZED,
+                    buyer_email="buyer@example.com",
+                    buyer_name="Cliente Demo",
+                    authorization_number="123",
+                    xml_s3_key="x.xml",
+                    ride_s3_key="r.pdf",
+                )
+
+            def get(self, tenant_id, document_id):
+                return self.document
+
+            def begin_buyer_notification(self, tenant_id, document_id):
+                return True
+
+            def mark_buyer_notification_status(self, tenant_id, document_id, **kwargs):
+                return True
+
+        class FakeAttachmentReader:
+            def get_authorized_document(self, **kwargs):
+                return DocumentAttachments(
+                    xml_content=b"<factura/>",
+                    xml_filename="d1.xml",
+                    ride_content=b"%PDF",
+                    ride_filename="d1.pdf",
+                )
+
+        mod = self._load_handler_module()
+        sender = FakeEmailSender()
+        mod._email_sender = sender
+        mod._documents_repo = FakeDocumentsRepository()
+        mod._attachment_reader = FakeAttachmentReader()
+
+        result = mod.handler(
+            self._make_sqs_event(
+                {"tenant_id": "t1", "document_id": "d1"},
+                event_type="DocumentBuyerNotificationRequestedEvent",
+            ),
+            LambdaContext(),
+        )
+
+        self.assertEqual(result, {"batchItemFailures": []})
+        self.assertEqual(len(sender.document_buyer_sent), 1)
+        self.assertEqual(sender.document_buyer_sent[0]["email"], "buyer@example.com")
+
     def test_processes_document_rejected_event_and_sends_email(self) -> None:
         mod = self._load_handler_module()
         sender = FakeEmailSender()
@@ -513,6 +597,21 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
 
             def send_document_failed_permanent(
                 self, *, email, legal_rep_name, document_id, access_key
+            ):
+                raise NotImplementedError
+
+            def send_document_to_buyer(
+                self,
+                *,
+                email,
+                buyer_name,
+                document_id,
+                access_key,
+                authorization_number,
+                xml_content,
+                xml_filename,
+                ride_content,
+                ride_filename,
             ):
                 raise NotImplementedError
 

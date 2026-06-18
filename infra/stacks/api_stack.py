@@ -346,6 +346,8 @@ class ApiStack(Stack):
                 "BREVO_SENDER_EMAIL": "noreply@codelabsecuador.com",
                 "BREVO_SENDER_NAME":  "CodeLabs Billing",
                 "SUPERADMIN_EMAIL":   config.get("superadmin_email", ""),
+                "DOCUMENTS_TABLE":     database.documents_table.table_name,
+                "DOCUMENTS_BUCKET":    storage.documents_bucket.bucket_name,
             },
         )
         email_notifications_fn.add_event_source(
@@ -356,6 +358,8 @@ class ApiStack(Stack):
             )
         )
         queues.email_notifications_key.grant_encrypt_decrypt(email_notifications_fn)
+        database.documents_table.grant_read_write_data(email_notifications_fn)
+        storage.documents_bucket.grant_read(email_notifications_fn)
         email_notifications_fn.add_to_role_policy(iam.PolicyStatement(
             actions   = ["secretsmanager:GetSecretValue"],
             resources = [

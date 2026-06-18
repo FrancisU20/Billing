@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 from lambdas._base.idempotency import IdempotencyContext
-from lambdas.documents.domain.entities import Document, DocumentStatus
+from lambdas.documents.domain.entities import BuyerNotificationStatus, Document, DocumentStatus
 
 
 class IDocumentsRepository(ABC):
@@ -62,4 +62,28 @@ class IDocumentsRepository(ABC):
         Returns False (no-op, no exception) when it doesn't — this happens when
         SQS redelivers a SIGN/POLL message that was already processed, and the
         caller must treat it as a successful no-op, not a failure.
+        """
+
+    @abstractmethod
+    def mark_buyer_notification_status(
+        self,
+        tenant_id: str,
+        document_id: str,
+        *,
+        status: BuyerNotificationStatus,
+        notified_at: datetime | None = None,
+        error: str | None = None,
+    ) -> bool:
+        """Mark buyer email delivery state.
+
+        Returns False when the document already has a terminal buyer notification status.
+        This makes repeated SQS deliveries idempotent and prevents duplicated buyer emails.
+        """
+
+    @abstractmethod
+    def begin_buyer_notification(self, tenant_id: str, document_id: str) -> bool:
+        """Acquire the buyer notification send lock.
+
+        Returns False if another worker already sent, skipped, or is currently sending it.
+        A previous FAILED state is retryable.
         """
