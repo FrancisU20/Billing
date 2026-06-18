@@ -274,6 +274,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             ":updated_at": now,
             ":sent": BuyerNotificationStatus.SENT.value,
             ":skipped": BuyerNotificationStatus.SKIPPED_NO_EMAIL.value,
+            ":null_type": "NULL",
         }
         set_clauses = ["#status = :status", "#updated_at = :updated_at"]
 
@@ -291,7 +292,8 @@ class DynamoDocumentsRepository(IDocumentsRepository):
                 Key={"pk": self._pk(tenant_id), "sk": self._sk(document_id)},
                 UpdateExpression="SET " + ", ".join(set_clauses),
                 ConditionExpression=(
-                    "attribute_not_exists(#status) OR (#status <> :sent AND #status <> :skipped)"
+                    "attribute_not_exists(#status) OR attribute_type(#status, :null_type) "
+                    "OR (#status <> :sent AND #status <> :skipped)"
                 ),
                 ExpressionAttributeNames=names,
                 ExpressionAttributeValues=values,
@@ -319,13 +321,15 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             ":updated_at": now,
             ":pending": BuyerNotificationStatus.PENDING.value,
             ":failed": BuyerNotificationStatus.FAILED.value,
+            ":null_type": "NULL",
         }
         try:
             self._table.update_item(
                 Key={"pk": self._pk(tenant_id), "sk": self._sk(document_id)},
                 UpdateExpression="SET #status = :sending, #updated_at = :updated_at",
                 ConditionExpression=(
-                    "attribute_not_exists(#status) OR #status = :pending OR #status = :failed"
+                    "attribute_not_exists(#status) OR attribute_type(#status, :null_type) "
+                    "OR #status = :pending OR #status = :failed"
                 ),
                 ExpressionAttributeNames=names,
                 ExpressionAttributeValues=values,
