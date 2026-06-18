@@ -721,6 +721,11 @@ class ApiStack(Stack):
         # Dev/staging/prod comparten la misma cuenta (ver infra/config/*.yaml,
         # account resuelto via CDK_DEFAULT_ACCOUNT), así que aplica a los 3 envs.
         # Retomar la diferenciación 30/20 si se pide un quota increase a AWS.
+        # Timeout 120s: una sola llamada SOAP (urllib3 read timeout=60s en
+        # sri_client.py) + firma XAdES-BES (rápida, sin red) deja margen amplio
+        # sobre el caso real (~10s, ver "Tiempo de autorizacion enterprise" en
+        # INVOICES.md). Debe ser <= visibility_timeout de la cola SQS (QueuesStack)
+        # o el EventSourceMapping falla al crearse.
         invoice_processor_sign_fn = lmb.Function(
             self, "InvoiceProcessorSignFunction",
             function_name = f"codelabs-billing-{env}-invoice-processor-sign",
@@ -728,7 +733,7 @@ class ApiStack(Stack):
             architecture  = lmb.Architecture.ARM_64,
             code          = _code,
             handler       = "lambdas.invoice_processor.handler.handler",
-            timeout       = Duration.minutes(15),
+            timeout       = Duration.seconds(120),
             memory_size   = 1024,
             environment   = {
                 **_common_env,
@@ -755,6 +760,7 @@ class ApiStack(Stack):
         # ── Invoice Processor — POLL ───────────────────────────────────────────
         # Polling de autorización SRI (AutorizacionComprobantesOffline). Genera el
         # RIDE y guarda XML+RIDE en S3 (LegalHold=ON) cuando el SRI autoriza.
+        # Timeout 120s — mismo razonamiento que la función SIGN (ver arriba).
         invoice_processor_poll_fn = lmb.Function(
             self, "InvoiceProcessorPollFunction",
             function_name = f"codelabs-billing-{env}-invoice-processor-poll",
@@ -762,7 +768,7 @@ class ApiStack(Stack):
             architecture  = lmb.Architecture.ARM_64,
             code          = _code,
             handler       = "lambdas.invoice_processor.handler.handler",
-            timeout       = Duration.minutes(15),
+            timeout       = Duration.seconds(120),
             memory_size   = 1024,
             environment   = {
                 **_common_env,

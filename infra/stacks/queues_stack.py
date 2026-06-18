@@ -112,10 +112,13 @@ class QueuesStack(Stack):
 
         # ── Invoice Sign (compartida, clientes pequeños) ──────────────────────
         # Firma XAdES-BES + envío batch al SRI (RecepcionComprobantesOffline).
-        # batch_size=10 en ESM; reserved_concurrency=30 en Lambda (ApiStack).
+        # batch_size=10 en ESM. Sin reserved_concurrency: la cuenta AWS de este
+        # proyecto tiene el límite de Lambda en sa-east-1 en 10 ejecuciones
+        # concurrentes totales (ver ApiStack — InvoiceProcessor*Function).
         # Separada de invoice-poll: los POLL son >90% del volumen post-primer-día y
         # saturarían los slots de concurrencia de los SIGN si convivieran.
-        # Visibility timeout = 6 × Lambda timeout (60s) = 360s.
+        # Visibility timeout = 6 × Lambda timeout (120s) = 720s. Debe ser >= el
+        # timeout de la función o AWS rechaza el EventSourceMapping.
         invoice_sign_dlq = sqs.Queue(
             self, "InvoiceSignDlq",
             queue_name       = f"codelabs-billing-{env}-invoice-sign-dlq",
@@ -124,7 +127,7 @@ class QueuesStack(Stack):
         self.invoice_sign_queue = sqs.Queue(
             self, "InvoiceSignQueue",
             queue_name         = f"codelabs-billing-{env}-invoice-sign",
-            visibility_timeout = Duration.seconds(360),
+            visibility_timeout = Duration.seconds(720),
             retention_period   = Duration.days(4),
             dead_letter_queue  = sqs.DeadLetterQueue(
                 max_receive_count = 5,
@@ -135,8 +138,9 @@ class QueuesStack(Stack):
         # ── Invoice Poll (compartida, clientes pequeños) ──────────────────────
         # Consultas de autorización al SRI (AutorizacionComprobantesOffline).
         # AutorizacionComprobantesOffline acepta un solo claveAcceso por llamada —
-        # no hay batching posible para POLL. batch_size=10 en ESM; reserved_concurrency=20.
-        # Visibility timeout = 6 × Lambda timeout (60s) = 360s.
+        # no hay batching posible para POLL. batch_size=10 en ESM.
+        # Visibility timeout = 6 × Lambda timeout (120s) = 720s. Debe ser >= el
+        # timeout de la función o AWS rechaza el EventSourceMapping.
         invoice_poll_dlq = sqs.Queue(
             self, "InvoicePollDlq",
             queue_name       = f"codelabs-billing-{env}-invoice-poll-dlq",
@@ -145,7 +149,7 @@ class QueuesStack(Stack):
         self.invoice_poll_queue = sqs.Queue(
             self, "InvoicePollQueue",
             queue_name         = f"codelabs-billing-{env}-invoice-poll",
-            visibility_timeout = Duration.seconds(360),
+            visibility_timeout = Duration.seconds(720),
             retention_period   = Duration.days(4),
             dead_letter_queue  = sqs.DeadLetterQueue(
                 max_receive_count = 5,

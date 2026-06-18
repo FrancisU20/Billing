@@ -397,8 +397,16 @@ S3 Glacier (despues de 90 dias): $0.004/GB para archivos maduros
 
 ## Lambda invoice\_processor — Diseno Interno (Sprint 4, implementado)
 
-ARM64, 1 GB de memoria, timeout 15 minutos (necesario para batch de 50 docs en
-enterprise; el MVP de cola compartida procesa 1 doc por invocacion).
+ARM64, 1 GB de memoria, timeout 120s. La estimacion de "Tiempo de autorizacion
+enterprise" (mas abajo) muestra que incluso el caso mas pesado (firma+SOAP de un
+batch de 50 docs) toma ~10s por invocacion — 120s deja margen amplio incluyendo el
+read timeout de 60s configurado en `sri_client.py` ante un SRI lento. El timeout de
+la funcion debe ser `<=` el `visibility_timeout` de su cola SQS (`QueuesStack`) o
+AWS rechaza el `EventSourceMapping` al crearlo — paso real en el deploy del Sprint 5
+(`Queue visibility timeout: 360 seconds is less than Function timeout: 900 seconds`),
+cuando el timeout original (15 min, sobreestimado) no calzaba con la cola heredada
+de Sprint 1 (360s). Las colas `invoice-sign`/`invoice-poll` ahora usan 720s
+(6× este timeout, mismo patron que el resto de colas del proyecto).
 
 **Desplegado como dos funciones CDK, mismo codigo**: `invoice-processor-sign`
 (suscrita a `invoice-sign`) e `invoice-processor-poll` (suscrita a `invoice-poll`).
