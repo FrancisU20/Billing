@@ -685,7 +685,9 @@ class ApiStack(Stack):
             },
         )
         database.documents_table.grant_read_write_data(documents_fn)
-        database.sequences_table.grant_read_data(documents_fn)
+        # write-only: reserve_next() solo hace UpdateItem (ADD atómico) sobre el
+        # contador SEQ#estab#punto — nunca lee la tabla sequences directamente.
+        database.sequences_table.grant_write_data(documents_fn)
         database.tenants_table.grant_read_data(documents_fn)
         database.plans_table.grant_read_data(documents_fn)
         database.idempotency_table.grant_read_write_data(documents_fn)

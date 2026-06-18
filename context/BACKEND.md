@@ -314,3 +314,8 @@ seguir el patron mas cercano.
 - 2026-06-14: `DynamoTenantRepository.commit_admin_events()` ahora incluye
   `ConditionCheck` transaccional de existencia/version/deleted antes de encolar eventos
   administrativos sin mutar la entidad.
+- 2026-06-18: bug real detectado en `dev` (500 al emitir documento, `AccessDeniedException`
+  en `dynamodb:UpdateItem`): el grant IAM de `documents_fn` sobre la tabla `sequences`
+  (Sprint 3) era `grant_read_data`, pero `reserve_next()` hace `UpdateItem` (ADD atómico).
+  Corregido a `grant_write_data` en `infra/stacks/api_stack.py` (es write-only: nunca lee
+  la tabla `sequences` directamente).
