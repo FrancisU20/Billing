@@ -60,6 +60,18 @@ class ApiResponse:
         )
 
     @staticmethod
+    def accepted(data: Any, request_id: str) -> dict:
+        return _build(
+            202,
+            {
+                "success": True,
+                "data": data,
+                "error": None,
+                "meta": {"request_id": request_id, "timestamp": _ts()},
+            },
+        )
+
+    @staticmethod
     def no_content(request_id: str) -> dict:
         return _build(
             204,

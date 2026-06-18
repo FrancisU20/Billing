@@ -114,6 +114,7 @@ class ApiStack(Stack):
         database,           # DatabaseStack — tablas DynamoDB
         auth,               # AuthStack — Cognito User Pool + Web Client
         queues,             # QueuesStack — SQS queues
+        storage,            # StorageStack — S3 buckets (documents)
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -657,6 +658,54 @@ class ApiStack(Stack):
                 path        = route,
                 methods     = [method],
                 integration = sequences_integration,
+                authorizer  = jwt_authorizer,
+            )
+
+        # ── Documents Lambda ──────────────────────────────────────────────────
+        # Emision individual de documentos electronicos SRI. Reserva secuencial,
+        # computa clave de acceso y encola en SQS para firma XAdES-BES.
+        documents_fn = lmb.Function(
+            self, "DocumentsFunction",
+            function_name = f"codelabs-billing-{env}-documents",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.documents.handler.handler",
+            timeout       = Duration.seconds(15),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "DOCUMENTS_TABLE":   database.documents_table.table_name,
+                "SEQUENCES_TABLE":   database.sequences_table.table_name,
+                "TENANTS_TABLE":     database.tenants_table.table_name,
+                "PLANS_TABLE":       database.plans_table.table_name,
+                "SIGN_QUEUE_URL":    queues.invoice_sign_queue.queue_url,
+                "DOCUMENTS_BUCKET":  storage.documents_bucket.bucket_name,
+                "IDEMPOTENCY_TABLE": database.idempotency_table.table_name,
+            },
+        )
+        database.documents_table.grant_read_write_data(documents_fn)
+        database.sequences_table.grant_read_data(documents_fn)
+        database.tenants_table.grant_read_data(documents_fn)
+        database.plans_table.grant_read_data(documents_fn)
+        database.idempotency_table.grant_read_write_data(documents_fn)
+        queues.invoice_sign_queue.grant_send_messages(documents_fn)
+        storage.documents_bucket.grant_read(documents_fn)
+
+        documents_integration = integrations.HttpLambdaIntegration(
+            "DocumentsIntegration", documents_fn
+        )
+
+        for method, route in [
+            (apigwv2.HttpMethod.POST, "/documents"),
+            (apigwv2.HttpMethod.GET,  "/documents"),
+            (apigwv2.HttpMethod.GET,  "/documents/{id}"),
+            (apigwv2.HttpMethod.GET,  "/documents/{id}/ride"),
+        ]:
+            api.add_routes(
+                path        = route,
+                methods     = [method],
+                integration = documents_integration,
                 authorizer  = jwt_authorizer,
             )
 

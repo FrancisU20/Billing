@@ -55,7 +55,7 @@ auth        = AuthStack(app,     f"{prefix}-Auth",     config=config, env=sa_env
 queues      = QueuesStack(app,   f"{prefix}-Queues",   config=config, env=sa_env)
 storage     = StorageStack(app,  f"{prefix}-Storage",  config=config, env=sa_env)
 api         = ApiStack(app,      f"{prefix}-Api",      config=config, env=sa_env,
-                       database=database, auth=auth, queues=queues)
+                       database=database, auth=auth, queues=queues, storage=storage)
 certificate = CertificateStack(app, f"{prefix}-Certificate", config=config,
                                env=us_env, cross_region_references=True)
 frontend    = FrontendStack(app, f"{prefix}-Frontend", config=config,
