@@ -112,4 +112,7 @@ def build_invoice_xml(document: Document, tenant: Tenant) -> str:
         info_adicional = etree.SubElement(root, "infoAdicional")
         _sub(info_adicional, "campoAdicional", document.buyer_email).set("nombre", "email")
 
-    return etree.tostring(root, xml_declaration=True, encoding="UTF-8").decode("utf-8")
+    # lxml's xml_declaration=True emite comillas simples (version='1.0'), que el
+    # parser del SRI rechaza en la practica aunque sean validas por spec XML.
+    # Se fuerza comillas dobles a mano.
+    return '<?xml version="1.0" encoding="UTF-8"?>' + etree.tostring(root, encoding="unicode")

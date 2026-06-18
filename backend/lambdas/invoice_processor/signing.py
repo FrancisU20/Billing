@@ -134,4 +134,7 @@ def sign_xades_bes(xml_str: str, private_key: RSAPrivateKey, certificate: Certif
     qualifying_properties.append(signed_properties)
 
     root.append(signature)
-    return etree.tostring(root, xml_declaration=True, encoding="UTF-8").decode("utf-8")
+    # lxml's xml_declaration=True emite comillas simples (version='1.0'), que el
+    # parser del SRI rechaza en la practica aunque sean validas por spec XML.
+    # Se fuerza comillas dobles a mano — este es el XML final que se envia al SRI.
+    return '<?xml version="1.0" encoding="UTF-8"?>' + etree.tostring(root, encoding="unicode")

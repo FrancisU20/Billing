@@ -685,6 +685,15 @@ prueba end-to-end. `sri_client.py` también detecta `soap:Fault` explícitamente
 (antes se interpretaba silenciosamente como estado de negocio vacío) y lo trata como
 error reintentable.
 
+**Declaración XML debe usar comillas dobles** (`<?xml version="1.0" encoding="UTF-8"?>`)
+— `lxml` con `xml_declaration=True` emite comillas simples (`version='1.0'`), válidas
+por spec XML pero rechazadas en la práctica por el parser del SRI (causaba el mismo
+código de error 35 `ARCHIVO NO CUMPLE ESTRUCTURA XML` que `dirEstablecimiento`
+faltante — dos bugs distintos con el mismo síntoma). `xml_builder.py` y `signing.py`
+ahora construyen la declaración a mano en vez de delegar en lxml. Cubierto por
+`test_xsd_compliance.py`, que valida el XML firmado contra el XSD real de Factura
+del SRI (`tests/.../sri_xsd/factura_v1.xsd`) — hubiera detectado ambos bugs en CI.
+
 Respuesta de recepcion puede ser:
 - `RECIBIDA` — SRI acepto el lote; continuar con polling
 - `DEVUELTA` — error en el lote; los errores vienen en XML con codigos de error SRI
