@@ -17,12 +17,24 @@ Recognized events:
     EnterpriseLeadCreatedEvent           — internal notification to the sales team
     SubscriptionRenewalReminderEvent     — subscription expiry reminder to tenant owner
     SubscriptionExpiredEvent             — subscription expired / account suspended notice
+    DocumentAuthorizedEvent              — invoice authorized by the SRI
+    DocumentRejectedEvent                — invoice rejected by the SRI
+    DocumentFailedPermanentEvent         — SRI authorization could not be confirmed after retries
 
 Any unknown event is ignored (does not count as a batch failure).
 """
 
 from lambdas._base.sqs_handler import SQSRecord, sqs_handler
 from lambdas.workers.email_notifications.infra.brevo_email_sender import BrevoEmailSender
+from lambdas.workers.email_notifications.use_cases.send_document_authorized import (
+    SendDocumentAuthorizedUseCase,
+)
+from lambdas.workers.email_notifications.use_cases.send_document_failed_permanent import (
+    SendDocumentFailedPermanentUseCase,
+)
+from lambdas.workers.email_notifications.use_cases.send_document_rejected import (
+    SendDocumentRejectedUseCase,
+)
 from lambdas.workers.email_notifications.use_cases.send_enterprise_lead_notification import (
     SendEnterpriseLeadNotificationUseCase,
 )
@@ -95,6 +107,35 @@ def handler(record: SQSRecord, context) -> None:
             email=data.get("email", ""),
             legal_rep_name=data.get("legal_rep_name", ""),
             trade_name=data.get("trade_name", ""),
+        )
+        return
+
+    if event_type == "DocumentAuthorizedEvent":
+        SendDocumentAuthorizedUseCase(_email_sender).execute(
+            email=data.get("tenant_email", ""),
+            legal_rep_name=data.get("legal_rep_name", ""),
+            document_id=data.get("document_id", ""),
+            access_key=data.get("access_key", ""),
+            authorization_number=data.get("authorization_number", ""),
+        )
+        return
+
+    if event_type == "DocumentRejectedEvent":
+        SendDocumentRejectedUseCase(_email_sender).execute(
+            email=data.get("tenant_email", ""),
+            legal_rep_name=data.get("legal_rep_name", ""),
+            document_id=data.get("document_id", ""),
+            access_key=data.get("access_key", ""),
+            sri_errors=data.get("sri_errors") or [],
+        )
+        return
+
+    if event_type == "DocumentFailedPermanentEvent":
+        SendDocumentFailedPermanentUseCase(_email_sender).execute(
+            email=data.get("tenant_email", ""),
+            legal_rep_name=data.get("legal_rep_name", ""),
+            document_id=data.get("document_id", ""),
+            access_key=data.get("access_key", ""),
         )
         return
 

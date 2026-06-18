@@ -76,6 +76,41 @@ class EmailSender(ABC):
         """Notify the tenant that their automatic recurring payment failed."""
 
     @abstractmethod
+    def send_document_authorized(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        document_id: str,
+        access_key: str,
+        authorization_number: str,
+    ) -> None:
+        """Notify the tenant that a document was authorized by the SRI."""
+
+    @abstractmethod
+    def send_document_rejected(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        document_id: str,
+        access_key: str,
+        sri_errors: list[dict],
+    ) -> None:
+        """Notify the tenant that a document was rejected by the SRI."""
+
+    @abstractmethod
+    def send_document_failed_permanent(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        document_id: str,
+        access_key: str,
+    ) -> None:
+        """Notify the tenant that authorization could not be confirmed after retries."""
+
+    @abstractmethod
     def send_orphan_payment_alert(
         self,
         *,

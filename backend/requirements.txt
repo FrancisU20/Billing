@@ -4,11 +4,15 @@
 annotated-types==0.7.0
 boto3==1.43.24
 botocore==1.43.24
+charset-normalizer==3.4.7
 cryptography==48.0.1
 jmespath==1.1.0
+lxml==6.1.1
+pillow==12.2.0
 pydantic==2.13.4
 # pydantic_core es dependencia transitiva de pydantic — versión gestionada por pip
 python-dateutil==2.9.0.post0
+reportlab==4.5.1
 s3transfer==0.18.0
 six==1.17.0
 typing-inspection==0.4.2

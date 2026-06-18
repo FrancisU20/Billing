@@ -51,6 +51,17 @@ class FakeEmailSender(EmailSender):
     def send_payment_failed(self, *, email, legal_rep_name, trade_name, renewal_url):
         raise NotImplementedError
 
+    def send_document_authorized(
+        self, *, email, legal_rep_name, document_id, access_key, authorization_number
+    ):
+        raise NotImplementedError
+
+    def send_document_rejected(self, *, email, legal_rep_name, document_id, access_key, sri_errors):
+        raise NotImplementedError
+
+    def send_document_failed_permanent(self, *, email, legal_rep_name, document_id, access_key):
+        raise NotImplementedError
+
     def send_orphan_payment_alert(
         self, *, superadmin_email, order_id, payer_email, plan_id, amount, currency, confirmed_at
     ):

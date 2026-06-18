@@ -709,6 +709,82 @@ class ApiStack(Stack):
                 authorizer  = jwt_authorizer,
             )
 
+        # ── Invoice Processor — SIGN ──────────────────────────────────────────
+        # Firma XAdES-BES + envío SRI (RecepcionComprobantesOffline). Mismo código
+        # que la función POLL — rutea por `type` en el body del mensaje SQS.
+        # reserved_concurrent_executions distinto por función (no por ESM) según
+        # documenta INVOICES.md: SIGN es menos volumen que POLL post-primer-día,
+        # pero más costoso por invocación (firma + llamada SOAP).
+        invoice_processor_sign_fn = lmb.Function(
+            self, "InvoiceProcessorSignFunction",
+            function_name = f"codelabs-billing-{env}-invoice-processor-sign",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.invoice_processor.handler.handler",
+            timeout       = Duration.minutes(15),
+            memory_size   = 1024,
+            reserved_concurrent_executions = 30,
+            environment   = {
+                **_common_env,
+                "DOCUMENTS_TABLE": database.documents_table.table_name,
+                "TENANTS_TABLE":   database.tenants_table.table_name,
+                "POLL_QUEUE_URL":  queues.invoice_poll_queue.queue_url,
+            },
+        )
+        database.documents_table.grant_read_write_data(invoice_processor_sign_fn)
+        database.tenants_table.grant_read_data(invoice_processor_sign_fn)
+        queues.invoice_poll_queue.grant_send_messages(invoice_processor_sign_fn)
+        invoice_processor_sign_fn.add_to_role_policy(iam.PolicyStatement(
+            actions   = ["secretsmanager:GetSecretValue"],
+            resources = [
+                f"arn:aws:secretsmanager:{region}:*:secret:/codelabs-billing/{env}/tenant/*"
+            ],
+        ))
+        invoice_processor_sign_fn.add_event_source(event_sources.SqsEventSource(
+            queues.invoice_sign_queue,
+            batch_size                 = 10,
+            report_batch_item_failures = True,
+        ))
+
+        # ── Invoice Processor — POLL ───────────────────────────────────────────
+        # Polling de autorización SRI (AutorizacionComprobantesOffline). Genera el
+        # RIDE y guarda XML+RIDE en S3 (LegalHold=ON) cuando el SRI autoriza.
+        invoice_processor_poll_fn = lmb.Function(
+            self, "InvoiceProcessorPollFunction",
+            function_name = f"codelabs-billing-{env}-invoice-processor-poll",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.invoice_processor.handler.handler",
+            timeout       = Duration.minutes(15),
+            memory_size   = 1024,
+            reserved_concurrent_executions = 20,
+            environment   = {
+                **_common_env,
+                "DOCUMENTS_TABLE":                database.documents_table.table_name,
+                "TENANTS_TABLE":                   database.tenants_table.table_name,
+                "DOCUMENTS_BUCKET":                storage.documents_bucket.bucket_name,
+                "POLL_QUEUE_URL":                  queues.invoice_poll_queue.queue_url,
+                "EMAIL_NOTIFICATIONS_QUEUE_URL":   queues.email_notifications_queue.queue_url,
+            },
+        )
+        database.documents_table.grant_read_write_data(invoice_processor_poll_fn)
+        database.tenants_table.grant_read_data(invoice_processor_poll_fn)
+        storage.documents_bucket.grant_put(invoice_processor_poll_fn)
+        invoice_processor_poll_fn.add_to_role_policy(iam.PolicyStatement(
+            actions   = ["s3:PutObjectLegalHold"],
+            resources = [f"{storage.documents_bucket.bucket_arn}/*"],
+        ))
+        queues.invoice_poll_queue.grant_send_messages(invoice_processor_poll_fn)
+        queues.email_notifications_queue.grant_send_messages(invoice_processor_poll_fn)
+        queues.email_notifications_key.grant_encrypt_decrypt(invoice_processor_poll_fn)
+        invoice_processor_poll_fn.add_event_source(event_sources.SqsEventSource(
+            queues.invoice_poll_queue,
+            batch_size                 = 10,
+            report_batch_item_failures = True,
+        ))
+
         # ── Auth Lambda ───────────────────────────────────────────────────────
         auth_fn = lmb.Function(
             self, "AuthFunction",

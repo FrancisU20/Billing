@@ -185,6 +185,71 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             _log.error("DynamoDB save document error", error=str(exc))
             raise DatabaseError() from exc
 
+    def update_status(
+        self,
+        tenant_id: str,
+        document_id: str,
+        *,
+        expected_status: DocumentStatus,
+        new_status: DocumentStatus,
+        increment_retry: bool = False,
+        authorization_number: str | None = None,
+        authorized_at: datetime | None = None,
+        rejected_at: datetime | None = None,
+        xml_s3_key: str | None = None,
+        ride_s3_key: str | None = None,
+        sri_errors: list[dict] | None = None,
+    ) -> bool:
+        now = datetime.now(UTC).isoformat()
+        names = {"#status": "status", "#updated_at": "updated_at"}
+        values: dict = {
+            ":new_status": new_status.value,
+            ":expected_status": expected_status.value,
+            ":updated_at": now,
+        }
+        set_clauses = ["#status = :new_status", "#updated_at = :updated_at"]
+
+        optional_fields = {
+            "authorization_number": authorization_number,
+            "authorized_at": authorized_at.isoformat() if authorized_at else None,
+            "rejected_at": rejected_at.isoformat() if rejected_at else None,
+            "xml_s3_key": xml_s3_key,
+            "ride_s3_key": ride_s3_key,
+            "sri_errors": sri_errors,
+        }
+        for field_name, field_value in optional_fields.items():
+            if field_value is None:
+                continue
+            placeholder = f":{field_name}"
+            names[f"#{field_name}"] = field_name
+            values[placeholder] = field_value
+            set_clauses.append(f"#{field_name} = {placeholder}")
+
+        update_expression = "SET " + ", ".join(set_clauses)
+        if increment_retry:
+            update_expression += " ADD retry_count :one"
+            values[":one"] = 1
+
+        try:
+            self._table.update_item(
+                Key={"pk": self._pk(tenant_id), "sk": self._sk(document_id)},
+                UpdateExpression=update_expression,
+                ConditionExpression="#status = :expected_status",
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+            )
+            return True
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                _log.warning(
+                    "update_status no-op: document status already changed",
+                    document_id=document_id,
+                    expected_status=expected_status.value,
+                )
+                return False
+            _log.error("DynamoDB update_status error", error=str(exc))
+            raise DatabaseError() from exc
+
     # ── serialization ─────────────────────────────────────────────────────────
 
     def _to_item(self, doc: Document) -> dict:

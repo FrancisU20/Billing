@@ -3,7 +3,7 @@
 Indice y reglas no negociables. Patrones de construccion y reglas de negocio viven en
 `context/` (ver tablas abajo) — leerlos segun la tarea.
 
-Ultima actualizacion: 2026-06-17.
+Ultima actualizacion: 2026-06-18.
 
 ## Objetivo Del Producto
 
@@ -18,10 +18,11 @@ El sistema administra:
 - `workers`: onboarding, emails, migraciones y outbox async.
 - `subscriptions`: pagos dLocal Go SmartFields por ciclo de plan de la suscripcion SaaS.
 
-El dominio `invoices/documents` esta en implementacion activa (Sprint 1 en curso).
-Arquitectura completa documentada en `context/INVOICES.md`: Lambdas `sequences`,
-`documents` e `invoice_processor`; tablas DynamoDB `sequences`, `documents`, `batch_jobs`;
-S3 con Object Lock; colas SQS separadas sign/poll (compartidas + dedicadas enterprise).
+El dominio `invoices/documents` esta en implementacion activa (Sprints 1-4 listos,
+falta Sprint 5 frontend). Arquitectura completa documentada en `context/INVOICES.md`:
+Lambdas `sequences`, `documents` e `invoice_processor`; tablas DynamoDB `sequences`,
+`documents`, `batch_jobs`; S3 con Object Lock; colas SQS separadas sign/poll
+(compartidas + dedicadas enterprise pendiente de auto-provision).
 Regla critica: no mezclar "Consumidor Final" con `clients` (ver `context/CLIENTS.md`).
 
 Cuenta GitHub: `FrancisU20`.
@@ -52,9 +53,16 @@ requerida; endpoint `POST /tenants/{id}/subscription/retry-payment` (tarjeta gua
 **6 bugs de auditoría resueltos** (scan payment_failed, guard PENDING en confirm, webhook
 order_id, mark_applied_to_tenant condition, type hint RetryPaymentUseCase, safe datetime).
 
-Proximo hito de producto: **invoices/documents** — Sprint 1 en curso (infra CDK).
-Sprints definidos: 1=infra, 2=sequences Lambda, 3=documents Lambda, 4=invoice_processor,
-5=frontend. Ver `context/INVOICES.md` para arquitectura completa.
+Invoices/documents Sprints 1-4: infra CDK (tablas, S3 Object Lock, colas sign/poll);
+Lambda `sequences` (establecimientos + puntos de emision, punto 099 de pruebas);
+Lambda `documents` (emision individual, reserva de secuencial, clave de acceso,
+encolado SIGN); Lambda `invoice_processor` (firma XAdES-BES RSA-SHA1/SHA1/C14N 1.0,
+SOAP recepcion/autorizacion SRI, RIDE con reportlab, S3 con LegalHold, reintentos con
+backoff, 3 eventos de email nuevos via `email_notifications`).
+
+Proximo hito de producto: **invoices/documents** — Sprint 5 (frontend: pantallas de
+emision, listado y detalle de documentos; establecimientos en settings).
+Ver `context/INVOICES.md` para arquitectura completa.
 
 ## Memorias Base
 
@@ -77,7 +85,7 @@ Reglas de negocio, flujos y DynamoDB especificos de cada dominio (incluye su sec
 | `context/CLIENTS.md` | Clientes del tenant, tipos de identificacion, lock de identificacion |
 | `context/ONBOARDING.md` | Registro self-service con OTP, certificados p12, lead Enterprise |
 | `context/CERTIFICATES.md` | Validacion, almacenamiento y ciclo de vida de certificados digitales p12 |
-| `context/INVOICES.md` | Emision documentos SRI, secuenciales, XAdES-BES, invoice\_processor, S3 WORM (**Sprint 1 en curso**) |
+| `context/INVOICES.md` | Emision documentos SRI, secuenciales, XAdES-BES, invoice\_processor, S3 WORM (**Sprints 1-4 listos, falta Sprint 5 frontend**) |
 | `context/SUBSCRIPTIONS.md` | Suscripcion SaaS via dLocal Go SmartFields, modelo Netflix, webhooks, 3DS, reembolso, resiliencia 4 capas (**completo**) |
 
 ## Mapa De Deuda Tecnica
@@ -93,7 +101,7 @@ corresponda. Estado actual por capa/dominio:
 | `context/CLIENTS.md` | Busqueda `q` y validacion batch no escalan para cargas masivas |
 | `context/ONBOARDING.md` | Queue dedicada Enterprise automatica es alcance futuro |
 | `context/CERTIFICATES.md` | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras |
-| `context/INVOICES.md` | Dominio pendiente; deuda anticipada de IVA/SRI/reintentos |
+| `context/INVOICES.md` | Literal SOAP de rechazo sin verificar contra SRI real; RIDE sin barcode/logo; clasificacion de errores SRI parcial; colas dedicadas enterprise sin auto-provision |
 | `context/SUBSCRIPTIONS.md` | Scans en workers (aceptable hasta ~10 K); webhook sin DLQ; orders PENDING (3DS) sin limpieza automatica |
 
 ## Stack

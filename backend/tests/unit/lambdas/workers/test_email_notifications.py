@@ -25,6 +25,9 @@ class FakeEmailSender(EmailSender):
         self.certificate_expiry_alerts_sent: list[dict] = []
         self.renewal_reminders_sent: list[dict] = []
         self.subscription_expired_sent: list[dict] = []
+        self.document_authorized_sent: list[dict] = []
+        self.document_rejected_sent: list[dict] = []
+        self.document_failed_permanent_sent: list[dict] = []
         self._should_fail = should_fail
 
     def send_onboarding_otp(
@@ -140,6 +143,67 @@ class FakeEmailSender(EmailSender):
         renewal_url: str,
     ) -> None:
         raise NotImplementedError
+
+    def send_document_authorized(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        document_id: str,
+        access_key: str,
+        authorization_number: str,
+    ) -> None:
+        if self._should_fail:
+            raise RuntimeError("Brevo unavailable")
+        self.document_authorized_sent.append(
+            {
+                "email": email,
+                "legal_rep_name": legal_rep_name,
+                "document_id": document_id,
+                "access_key": access_key,
+                "authorization_number": authorization_number,
+            }
+        )
+
+    def send_document_rejected(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        document_id: str,
+        access_key: str,
+        sri_errors: list[dict],
+    ) -> None:
+        if self._should_fail:
+            raise RuntimeError("Brevo unavailable")
+        self.document_rejected_sent.append(
+            {
+                "email": email,
+                "legal_rep_name": legal_rep_name,
+                "document_id": document_id,
+                "access_key": access_key,
+                "sri_errors": sri_errors,
+            }
+        )
+
+    def send_document_failed_permanent(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        document_id: str,
+        access_key: str,
+    ) -> None:
+        if self._should_fail:
+            raise RuntimeError("Brevo unavailable")
+        self.document_failed_permanent_sent.append(
+            {
+                "email": email,
+                "legal_rep_name": legal_rep_name,
+                "document_id": document_id,
+                "access_key": access_key,
+            }
+        )
 
     def send_orphan_payment_alert(
         self,
@@ -307,6 +371,76 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         self.assertEqual(result, {"batchItemFailures": []})
         self.assertEqual(sender.sent, [])
 
+    def test_processes_document_authorized_event_and_sends_email(self) -> None:
+        mod = self._load_handler_module()
+        sender = FakeEmailSender()
+        mod._email_sender = sender
+
+        result = mod.handler(
+            self._make_sqs_event(
+                {
+                    "tenant_id": "t1",
+                    "document_id": "d1",
+                    "access_key": "1" * 49,
+                    "authorization_number": "1" * 49,
+                    "tenant_email": "owner@empresa.com",
+                    "legal_rep_name": "Juan Pérez",
+                },
+                event_type="DocumentAuthorizedEvent",
+            ),
+            LambdaContext(),
+        )
+
+        self.assertEqual(result, {"batchItemFailures": []})
+        self.assertEqual(len(sender.document_authorized_sent), 1)
+        self.assertEqual(sender.document_authorized_sent[0]["document_id"], "d1")
+
+    def test_processes_document_rejected_event_and_sends_email(self) -> None:
+        mod = self._load_handler_module()
+        sender = FakeEmailSender()
+        mod._email_sender = sender
+
+        result = mod.handler(
+            self._make_sqs_event(
+                {
+                    "tenant_id": "t1",
+                    "document_id": "d1",
+                    "access_key": "1" * 49,
+                    "tenant_email": "owner@empresa.com",
+                    "legal_rep_name": "Juan Pérez",
+                    "sri_errors": [{"code": "43", "message": "FIRMA INVALIDA"}],
+                },
+                event_type="DocumentRejectedEvent",
+            ),
+            LambdaContext(),
+        )
+
+        self.assertEqual(result, {"batchItemFailures": []})
+        self.assertEqual(len(sender.document_rejected_sent), 1)
+        self.assertEqual(sender.document_rejected_sent[0]["sri_errors"][0]["code"], "43")
+
+    def test_processes_document_failed_permanent_event_and_sends_email(self) -> None:
+        mod = self._load_handler_module()
+        sender = FakeEmailSender()
+        mod._email_sender = sender
+
+        result = mod.handler(
+            self._make_sqs_event(
+                {
+                    "tenant_id": "t1",
+                    "document_id": "d1",
+                    "access_key": "1" * 49,
+                    "tenant_email": "owner@empresa.com",
+                    "legal_rep_name": "Juan Pérez",
+                },
+                event_type="DocumentFailedPermanentEvent",
+            ),
+            LambdaContext(),
+        )
+
+        self.assertEqual(result, {"batchItemFailures": []})
+        self.assertEqual(len(sender.document_failed_permanent_sent), 1)
+
     def test_brevo_failure_marks_record_as_batch_failure(self) -> None:
         mod = self._load_handler_module()
         sender = FakeEmailSender(should_fail=True)
@@ -365,6 +499,21 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                 raise NotImplementedError
 
             def send_payment_failed(self, *, email, legal_rep_name, trade_name, renewal_url):
+                raise NotImplementedError
+
+            def send_document_authorized(
+                self, *, email, legal_rep_name, document_id, access_key, authorization_number
+            ):
+                raise NotImplementedError
+
+            def send_document_rejected(
+                self, *, email, legal_rep_name, document_id, access_key, sri_errors
+            ):
+                raise NotImplementedError
+
+            def send_document_failed_permanent(
+                self, *, email, legal_rep_name, document_id, access_key
+            ):
                 raise NotImplementedError
 
             def send_orphan_payment_alert(

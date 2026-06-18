@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from lambdas._base.idempotency import IdempotencyContext
-from lambdas.documents.domain.entities import Document
+from lambdas.documents.domain.entities import Document, DocumentStatus
 
 
 class IDocumentsRepository(ABC):
@@ -38,3 +39,27 @@ class IDocumentsRepository(ABC):
         response: dict | None = None,
     ) -> None:
         """Persist a new document atomically with the idempotency completion."""
+
+    @abstractmethod
+    def update_status(
+        self,
+        tenant_id: str,
+        document_id: str,
+        *,
+        expected_status: DocumentStatus,
+        new_status: DocumentStatus,
+        increment_retry: bool = False,
+        authorization_number: str | None = None,
+        authorized_at: datetime | None = None,
+        rejected_at: datetime | None = None,
+        xml_s3_key: str | None = None,
+        ride_s3_key: str | None = None,
+        sri_errors: list[dict] | None = None,
+    ) -> bool:
+        """Conditional status transition used by invoice_processor.
+
+        Only applies if the document's current status equals `expected_status`.
+        Returns False (no-op, no exception) when it doesn't — this happens when
+        SQS redelivers a SIGN/POLL message that was already processed, and the
+        caller must treat it as a successful no-op, not a failure.
+        """

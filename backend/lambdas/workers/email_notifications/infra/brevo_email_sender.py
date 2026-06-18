@@ -667,6 +667,198 @@ def _build_orphan_payment_alert_html(
 </html>"""
 
 
+def _build_document_authorized_html(
+    legal_rep_name: str, document_id: str, access_key: str, authorization_number: str
+) -> str:
+    safe_name = escape(legal_rep_name, quote=True)
+    safe_access_key = escape(access_key, quote=True)
+    safe_auth_number = escape(authorization_number, quote=True)
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:40px 20px">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+          <tr>
+            <td style="background:#1a1a2e;padding:32px 40px">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
+                CodeLabs Billing
+              </h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px">
+              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+                Hola, {safe_name}
+              </h2>
+              <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                Tu factura electrónica fue <strong>autorizada</strong> por el SRI.
+              </p>
+
+              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+                          border-radius:4px;padding:20px;margin:0 0 24px">
+                <p style="margin:0 0 6px;color:#1a1a2e;font-size:13px">
+                  <strong>Clave de acceso:</strong> {safe_access_key}
+                </p>
+                <p style="margin:0;color:#1a1a2e;font-size:13px">
+                  <strong>Número de autorización:</strong> {safe_auth_number}
+                </p>
+              </div>
+
+              <p style="margin:0;color:#888;font-size:13px">
+                Descarga el RIDE desde tu panel de CodeLabs Billing.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f8f9fa;padding:20px 40px;
+                       border-top:1px solid #e9ecef">
+              <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
+                © CodeLabs Billing · Ecuador
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
+def _build_document_rejected_html(
+    legal_rep_name: str, access_key: str, sri_errors: list[dict]
+) -> str:
+    safe_name = escape(legal_rep_name, quote=True)
+    safe_access_key = escape(access_key, quote=True)
+    errors_html = "".join(
+        f'<p style="margin:0 0 6px;color:#1a1a2e;font-size:13px">'
+        f"<strong>{escape(str(e.get('code', '')), quote=True)}:</strong> "
+        f"{escape(str(e.get('message', '')), quote=True)}</p>"
+        for e in sri_errors
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:40px 20px">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+          <tr>
+            <td style="background:#b91c1c;padding:32px 40px">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
+                CodeLabs Billing
+              </h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px">
+              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+                Hola, {safe_name}
+              </h2>
+              <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                El SRI <strong>rechazó</strong> la factura con clave de acceso
+                {safe_access_key}. Corrige los datos y vuelve a emitirla.
+              </p>
+
+              <div style="background:#fff1f2;border-left:4px solid #b91c1c;
+                          border-radius:4px;padding:20px;margin:0 0 24px">
+                {errors_html}
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f8f9fa;padding:20px 40px;
+                       border-top:1px solid #e9ecef">
+              <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
+                © CodeLabs Billing · Ecuador
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
+def _build_document_failed_permanent_html(legal_rep_name: str, access_key: str) -> str:
+    safe_name = escape(legal_rep_name, quote=True)
+    safe_access_key = escape(access_key, quote=True)
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:40px 20px">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+          <tr>
+            <td style="background:#b91c1c;padding:32px 40px">
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
+                CodeLabs Billing
+              </h1>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:40px">
+              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+                Hola, {safe_name}
+              </h2>
+              <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                No pudimos confirmar la autorización del SRI para la factura con
+                clave de acceso <strong>{safe_access_key}</strong> tras varios
+                intentos. Nuestro equipo revisará el caso — contáctanos si es urgente.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f8f9fa;padding:20px 40px;
+                       border-top:1px solid #e9ecef">
+              <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
+                © CodeLabs Billing · Ecuador
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
 class BrevoEmailSender(EmailSender):
     def send_onboarding_otp(
         self,
@@ -782,6 +974,61 @@ class BrevoEmailSender(EmailSender):
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": "Pago fallido — acción requerida para mantener tu cuenta activa",
             "htmlContent": _build_payment_failed_html(legal_rep_name, trade_name, renewal_url),
+        }
+        _send(api_key, payload, log_email=email)
+
+    def send_document_authorized(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        document_id: str,
+        access_key: str,
+        authorization_number: str,
+    ) -> None:
+        api_key = _get_api_key()
+        payload = {
+            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "to": [{"email": email, "name": legal_rep_name}],
+            "subject": "Tu factura fue autorizada por el SRI — CodeLabs Billing",
+            "htmlContent": _build_document_authorized_html(
+                legal_rep_name, document_id, access_key, authorization_number
+            ),
+        }
+        _send(api_key, payload, log_email=email)
+
+    def send_document_rejected(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        document_id: str,
+        access_key: str,
+        sri_errors: list[dict],
+    ) -> None:
+        api_key = _get_api_key()
+        payload = {
+            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "to": [{"email": email, "name": legal_rep_name}],
+            "subject": "El SRI rechazó tu factura — CodeLabs Billing",
+            "htmlContent": _build_document_rejected_html(legal_rep_name, access_key, sri_errors),
+        }
+        _send(api_key, payload, log_email=email)
+
+    def send_document_failed_permanent(
+        self,
+        *,
+        email: str,
+        legal_rep_name: str,
+        document_id: str,
+        access_key: str,
+    ) -> None:
+        api_key = _get_api_key()
+        payload = {
+            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "to": [{"email": email, "name": legal_rep_name}],
+            "subject": "No pudimos confirmar tu factura con el SRI — CodeLabs Billing",
+            "htmlContent": _build_document_failed_permanent_html(legal_rep_name, access_key),
         }
         _send(api_key, payload, log_email=email)
 
