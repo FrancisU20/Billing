@@ -34,6 +34,28 @@ def _next_delay_seconds(attempt: int) -> int:
     return min(_BASE_BACKOFF_SECONDS * 2**attempt, _MAX_BACKOFF_SECONDS)
 
 
+def _parse_authorized_at(value: str | None) -> datetime:
+    if not value:
+        return datetime.now(UTC)
+
+    raw = value.strip()
+    for fmt in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(raw, fmt).replace(tzinfo=UTC)
+        except ValueError:
+            pass
+
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        _log.warning("SRI authorized_at could not be parsed; using worker timestamp", value=value)
+        return datetime.now(UTC)
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
 class PollDocumentUseCase:
     def __init__(
         self,
@@ -65,6 +87,9 @@ class PollDocumentUseCase:
         )
 
         if result.status == "AUTORIZADO":
+            authorized_at = _parse_authorized_at(result.authorized_at)
+            document.authorization_number = result.authorization_number
+            document.authorized_at = authorized_at
             ride_pdf = ride_builder.build_ride_pdf(document, tenant)
             xml_s3_key, ride_s3_key = self._storage.put_authorized_document(
                 tenant_id=tenant_id,
@@ -81,10 +106,11 @@ class PollDocumentUseCase:
                 expected_status=DocumentStatus.PROCESSING,
                 new_status=DocumentStatus.AUTHORIZED,
                 authorization_number=result.authorization_number,
-                authorized_at=datetime.now(UTC),
+                authorized_at=authorized_at,
                 xml_s3_key=xml_s3_key,
                 ride_s3_key=ride_s3_key,
             )
+            issuer_name = tenant.legal_name or tenant.trade_name
             self._queue_publisher.publish_event(
                 DocumentAuthorizedEvent(
                     tenant_id=tenant_id,
@@ -93,12 +119,24 @@ class PollDocumentUseCase:
                     authorization_number=result.authorization_number or "",
                     tenant_email=tenant.email,
                     legal_rep_name=tenant.legal_rep_name,
+                    issuer_name=issuer_name,
+                    issuer_ruc=tenant.ruc,
+                    buyer_name=document.buyer_name,
+                    buyer_id=document.buyer_id,
+                    buyer_email=document.buyer_email or "",
+                    sequential_display=document.sequential_display,
+                    issued_at=document.issued_at.isoformat(),
+                    authorized_at=authorized_at.isoformat(),
+                    total=str(document.total),
+                    currency="USD",
                 )
             )
             self._queue_publisher.publish_event(
                 DocumentBuyerNotificationRequestedEvent(
                     tenant_id=tenant_id,
                     document_id=document_id,
+                    issuer_name=issuer_name,
+                    issuer_ruc=tenant.ruc,
                 )
             )
             return

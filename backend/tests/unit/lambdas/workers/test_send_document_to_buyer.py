@@ -79,13 +79,18 @@ class SendDocumentToBuyerUseCaseTests(unittest.TestCase):
         sender = FakeEmailSender()
 
         SendDocumentToBuyerUseCase(repo, reader, sender).execute(
-            tenant_id="tenant-1", document_id="doc-1"
+            tenant_id="tenant-1",
+            document_id="doc-1",
+            issuer_name="Empresa Demo S.A.",
+            issuer_ruc="1792146739001",
         )
 
         self.assertEqual(len(repo.begin_calls), 1)
         self.assertEqual(len(reader.calls), 1)
         self.assertEqual(len(sender.calls), 1)
         self.assertEqual(sender.calls[0]["email"], "buyer@example.com")
+        self.assertEqual(sender.calls[0]["issuer_name"], "Empresa Demo S.A.")
+        self.assertEqual(sender.calls[0]["issuer_ruc"], "1792146739001")
         self.assertEqual(sender.calls[0]["xml_content"], b"<factura/>")
         self.assertEqual(sender.calls[0]["ride_content"], b"%PDF")
         self.assertEqual(repo.status_calls[-1]["status"], BuyerNotificationStatus.SENT)

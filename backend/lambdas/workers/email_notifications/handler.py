@@ -145,6 +145,16 @@ def handler(record: SQSRecord, context) -> None:
             document_id=data.get("document_id", ""),
             access_key=data.get("access_key", ""),
             authorization_number=data.get("authorization_number", ""),
+            issuer_name=data.get("issuer_name", ""),
+            issuer_ruc=data.get("issuer_ruc", ""),
+            buyer_name=data.get("buyer_name", ""),
+            buyer_id=data.get("buyer_id", ""),
+            buyer_email=data.get("buyer_email", ""),
+            sequential_display=data.get("sequential_display", ""),
+            issued_at=data.get("issued_at", ""),
+            authorized_at=data.get("authorized_at", ""),
+            total=data.get("total", ""),
+            currency=data.get("currency", "USD"),
         )
         return
 
@@ -156,6 +166,8 @@ def handler(record: SQSRecord, context) -> None:
         ).execute(
             tenant_id=data.get("tenant_id", ""),
             document_id=data.get("document_id", ""),
+            issuer_name=data.get("issuer_name", ""),
+            issuer_ruc=data.get("issuer_ruc", ""),
         )
         return
 

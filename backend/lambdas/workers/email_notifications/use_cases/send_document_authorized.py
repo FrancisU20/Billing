@@ -21,6 +21,16 @@ class SendDocumentAuthorizedUseCase:
         document_id: str,
         access_key: str,
         authorization_number: str,
+        issuer_name: str = "",
+        issuer_ruc: str = "",
+        buyer_name: str = "",
+        buyer_id: str = "",
+        buyer_email: str = "",
+        sequential_display: str = "",
+        issued_at: str = "",
+        authorized_at: str = "",
+        total: str = "",
+        currency: str = "USD",
     ) -> None:
         if not email:
             raise ValidationError("email is required to send the document authorized notice")
@@ -32,6 +42,16 @@ class SendDocumentAuthorizedUseCase:
                 document_id=document_id,
                 access_key=access_key,
                 authorization_number=authorization_number,
+                issuer_name=issuer_name,
+                issuer_ruc=issuer_ruc,
+                buyer_name=buyer_name,
+                buyer_id=buyer_id,
+                buyer_email=buyer_email,
+                sequential_display=sequential_display,
+                issued_at=issued_at,
+                authorized_at=authorized_at,
+                total=total,
+                currency=currency,
             )
             _log.info("document authorized email sent", email=email, document_id=document_id)
         except Exception as exc:

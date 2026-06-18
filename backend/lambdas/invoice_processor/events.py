@@ -13,6 +13,16 @@ class DocumentAuthorizedEvent(DomainEvent):
     authorization_number: str = ""
     tenant_email: str = ""
     legal_rep_name: str = ""
+    issuer_name: str = ""
+    issuer_ruc: str = ""
+    buyer_name: str = ""
+    buyer_id: str = ""
+    buyer_email: str = ""
+    sequential_display: str = ""
+    issued_at: str = ""
+    authorized_at: str = ""
+    total: str = ""
+    currency: str = "USD"
 
 
 @dataclass(frozen=True)
@@ -38,3 +48,5 @@ class DocumentFailedPermanentEvent(DomainEvent):
 class DocumentBuyerNotificationRequestedEvent(DomainEvent):
     tenant_id: str = ""
     document_id: str = ""
+    issuer_name: str = ""
+    issuer_ruc: str = ""

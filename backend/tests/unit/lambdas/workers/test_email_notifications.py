@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import unittest
+from datetime import datetime
 
 from lambdas.workers.email_notifications.ports import EmailSender
 from lambdas.workers.email_notifications.use_cases.send_welcome_email import (
@@ -153,6 +154,16 @@ class FakeEmailSender(EmailSender):
         document_id: str,
         access_key: str,
         authorization_number: str,
+        issuer_name: str,
+        issuer_ruc: str,
+        buyer_name: str,
+        buyer_id: str,
+        buyer_email: str,
+        sequential_display: str,
+        issued_at: str,
+        authorized_at: str,
+        total: str,
+        currency: str,
     ) -> None:
         if self._should_fail:
             raise RuntimeError("Brevo unavailable")
@@ -163,6 +174,16 @@ class FakeEmailSender(EmailSender):
                 "document_id": document_id,
                 "access_key": access_key,
                 "authorization_number": authorization_number,
+                "issuer_name": issuer_name,
+                "issuer_ruc": issuer_ruc,
+                "buyer_name": buyer_name,
+                "buyer_id": buyer_id,
+                "buyer_email": buyer_email,
+                "sequential_display": sequential_display,
+                "issued_at": issued_at,
+                "authorized_at": authorized_at,
+                "total": total,
+                "currency": currency,
             }
         )
 
@@ -214,6 +235,13 @@ class FakeEmailSender(EmailSender):
         document_id: str,
         access_key: str,
         authorization_number: str,
+        issuer_name: str,
+        issuer_ruc: str,
+        buyer_id: str,
+        issued_at: str,
+        authorized_at: str,
+        total: str,
+        currency: str,
         xml_content: bytes,
         xml_filename: str,
         ride_content: bytes,
@@ -228,6 +256,13 @@ class FakeEmailSender(EmailSender):
                 "document_id": document_id,
                 "access_key": access_key,
                 "authorization_number": authorization_number,
+                "issuer_name": issuer_name,
+                "issuer_ruc": issuer_ruc,
+                "buyer_id": buyer_id,
+                "issued_at": issued_at,
+                "authorized_at": authorized_at,
+                "total": total,
+                "currency": currency,
                 "xml_content": xml_content,
                 "xml_filename": xml_filename,
                 "ride_content": ride_content,
@@ -415,6 +450,16 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                     "authorization_number": "1" * 49,
                     "tenant_email": "owner@empresa.com",
                     "legal_rep_name": "Juan Pérez",
+                    "issuer_name": "Empresa Demo S.A.",
+                    "issuer_ruc": "1792146739001",
+                    "buyer_name": "Cliente Demo",
+                    "buyer_id": "1712345678",
+                    "buyer_email": "buyer@example.com",
+                    "sequential_display": "001-001-000000001",
+                    "issued_at": "2026-06-18",
+                    "authorized_at": "2026-06-18T22:00:00+00:00",
+                    "total": "10.00",
+                    "currency": "USD",
                 },
                 event_type="DocumentAuthorizedEvent",
             ),
@@ -423,7 +468,12 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
 
         self.assertEqual(result, {"batchItemFailures": []})
         self.assertEqual(len(sender.document_authorized_sent), 1)
-        self.assertEqual(sender.document_authorized_sent[0]["document_id"], "d1")
+        sent = sender.document_authorized_sent[0]
+        self.assertEqual(sent["document_id"], "d1")
+        self.assertEqual(sent["issuer_name"], "Empresa Demo S.A.")
+        self.assertEqual(sent["buyer_id"], "1712345678")
+        self.assertEqual(sent["sequential_display"], "001-001-000000001")
+        self.assertEqual(sent["total"], "10.00")
 
     def test_processes_document_buyer_notification_event(self) -> None:
         from lambdas.documents.domain.entities import DocumentStatus
@@ -438,7 +488,9 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                     status=DocumentStatus.AUTHORIZED,
                     buyer_email="buyer@example.com",
                     buyer_name="Cliente Demo",
+                    buyer_id="1712345678",
                     authorization_number="123",
+                    authorized_at=datetime.fromisoformat("2026-06-18T22:00:00+00:00"),
                     xml_s3_key="x.xml",
                     ride_s3_key="r.pdf",
                 )
@@ -469,7 +521,12 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
 
         result = mod.handler(
             self._make_sqs_event(
-                {"tenant_id": "t1", "document_id": "d1"},
+                {
+                    "tenant_id": "t1",
+                    "document_id": "d1",
+                    "issuer_name": "Empresa Demo S.A.",
+                    "issuer_ruc": "1792146739001",
+                },
                 event_type="DocumentBuyerNotificationRequestedEvent",
             ),
             LambdaContext(),
@@ -477,7 +534,12 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
 
         self.assertEqual(result, {"batchItemFailures": []})
         self.assertEqual(len(sender.document_buyer_sent), 1)
-        self.assertEqual(sender.document_buyer_sent[0]["email"], "buyer@example.com")
+        sent = sender.document_buyer_sent[0]
+        self.assertEqual(sent["email"], "buyer@example.com")
+        self.assertEqual(sent["issuer_name"], "Empresa Demo S.A.")
+        self.assertEqual(sent["issuer_ruc"], "1792146739001")
+        self.assertEqual(sent["buyer_id"], "1712345678")
+        self.assertEqual(sent["authorized_at"], "2026-06-18T22:00:00+00:00")
 
     def test_processes_document_rejected_event_and_sends_email(self) -> None:
         mod = self._load_handler_module()
@@ -586,7 +648,23 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                 raise NotImplementedError
 
             def send_document_authorized(
-                self, *, email, legal_rep_name, document_id, access_key, authorization_number
+                self,
+                *,
+                email,
+                legal_rep_name,
+                document_id,
+                access_key,
+                authorization_number,
+                issuer_name,
+                issuer_ruc,
+                buyer_name,
+                buyer_id,
+                buyer_email,
+                sequential_display,
+                issued_at,
+                authorized_at,
+                total,
+                currency,
             ):
                 raise NotImplementedError
 
@@ -608,6 +686,13 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                 document_id,
                 access_key,
                 authorization_number,
+                issuer_name,
+                issuer_ruc,
+                buyer_id,
+                issued_at,
+                authorized_at,
+                total,
+                currency,
                 xml_content,
                 xml_filename,
                 ride_content,

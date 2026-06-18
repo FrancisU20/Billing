@@ -13,6 +13,7 @@ content delivered to Ecuadorian customers, not source code.
 
 import base64
 import json
+from datetime import date, datetime
 from html import escape
 
 import urllib3
@@ -210,6 +211,29 @@ def _send(api_key: str, payload: dict, *, log_email: str) -> None:
         raise ExternalServiceError(f"Brevo responded {response.status}")
 
     _log.info("Brevo: email sent", email=log_email, status=response.status)
+
+
+def _format_date(value: str) -> str:
+    if not value:
+        return "No disponible"
+    try:
+        normalized = value.replace("Z", "+00:00")
+        if "T" in normalized:
+            return datetime.fromisoformat(normalized).date().strftime("%d-%m-%Y")
+        return date.fromisoformat(normalized).strftime("%d-%m-%Y")
+    except ValueError:
+        return value
+
+
+def _summary_row(label: str, value: str) -> str:
+    safe_label = escape(label, quote=True)
+    safe_value = escape(value or "No disponible", quote=True)
+    return f"""
+                <tr>
+                  <td style="padding:8px 0;color:#6b7280;font-size:13px">{safe_label}</td>
+                  <td align="right" style="padding:8px 0;color:#111827;font-size:13px;
+                             font-weight:700">{safe_value}</td>
+                </tr>"""
 
 
 def _build_enterprise_lead_html(trade_name: str, ruc: str, email: str, plan_id: str) -> str:
@@ -669,11 +693,34 @@ def _build_orphan_payment_alert_html(
 
 
 def _build_document_authorized_html(
-    legal_rep_name: str, document_id: str, access_key: str, authorization_number: str
+    legal_rep_name: str,
+    document_id: str,
+    access_key: str,
+    authorization_number: str,
+    issuer_name: str,
+    issuer_ruc: str,
+    buyer_name: str,
+    buyer_id: str,
+    buyer_email: str,
+    sequential_display: str,
+    issued_at: str,
+    authorized_at: str,
+    total: str,
+    currency: str,
 ) -> str:
     safe_name = escape(legal_rep_name, quote=True)
+    safe_document_id = escape(document_id, quote=True)
     safe_access_key = escape(access_key, quote=True)
     safe_auth_number = escape(authorization_number, quote=True)
+    safe_issuer = escape(issuer_name or "Emisor", quote=True)
+    safe_issuer_ruc = escape(issuer_ruc, quote=True)
+    safe_buyer = escape(buyer_name or "Comprador", quote=True)
+    safe_buyer_id = escape(buyer_id, quote=True)
+    safe_buyer_email = escape(buyer_email or "No registrado", quote=True)
+    display_sequential = sequential_display or document_id
+    display_issued_at = _format_date(issued_at)
+    display_authorized_at = _format_date(authorized_at)
+    display_total = f"{total or '0.00'} {currency or 'USD'}"
 
     return f"""<!DOCTYPE html>
 <html lang="es">
@@ -693,6 +740,9 @@ def _build_document_authorized_html(
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
                 CodeLabs Billing
               </h1>
+              <p style="margin:8px 0 0;color:#d1d5db;font-size:13px">
+                Documento tributario electrónico autorizado
+              </p>
             </td>
           </tr>
 
@@ -703,20 +753,64 @@ def _build_document_authorized_html(
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
                 Tu factura electrónica fue <strong>autorizada</strong> por el SRI.
+                Este es el resumen del documento emitido.
               </p>
 
-              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
-                          border-radius:4px;padding:20px;margin:0 0 24px">
-                <p style="margin:0 0 6px;color:#1a1a2e;font-size:13px">
-                  <strong>Clave de acceso:</strong> {safe_access_key}
-                </p>
-                <p style="margin:0;color:#1a1a2e;font-size:13px">
-                  <strong>Número de autorización:</strong> {safe_auth_number}
+              <div style="background:#ecfdf5;border-left:4px solid #059669;
+                          border-radius:4px;padding:18px;margin:0 0 24px">
+                <p style="margin:0;color:#065f46;font-size:13px;font-weight:700">
+                  Factura autorizada
                 </p>
               </div>
 
-              <p style="margin:0;color:#888;font-size:13px">
-                Descarga el RIDE desde tu panel de CodeLabs Billing.
+              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+                          border-radius:4px;padding:20px;margin:0 0 24px">
+                <p style="margin:0 0 10px;color:#1a1a2e;font-size:14px;font-weight:700">
+                  Resumen
+                </p>
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  {_summary_row("Tipo", "Factura")}
+                  {_summary_row("Secuencial", display_sequential)}
+                  {_summary_row("Fecha de emisión", display_issued_at)}
+                  {_summary_row("Fecha de autorización", display_authorized_at)}
+                  {_summary_row("Total", display_total)}
+                </table>
+              </div>
+
+              <div style="margin:0 0 24px">
+                <p style="margin:0 0 8px;color:#1a1a2e;font-size:14px;font-weight:700">
+                  Emisor
+                </p>
+                <p style="margin:0;color:#444;font-size:13px;line-height:1.6">
+                  {safe_issuer} ({safe_issuer_ruc})
+                </p>
+              </div>
+
+              <div style="margin:0 0 24px">
+                <p style="margin:0 0 8px;color:#1a1a2e;font-size:14px;font-weight:700">
+                  Comprador
+                </p>
+                <p style="margin:0;color:#444;font-size:13px;line-height:1.6">
+                  {safe_buyer} ({safe_buyer_id})<br>
+                  {safe_buyer_email}
+                </p>
+              </div>
+
+              <div style="background:#f9fafb;border:1px solid #e5e7eb;
+                          border-radius:4px;padding:16px;margin:0 0 24px">
+                <p style="margin:0 0 8px;color:#374151;font-size:12px">
+                  <strong>Clave de acceso:</strong> {safe_access_key}
+                </p>
+                <p style="margin:0 0 8px;color:#374151;font-size:12px">
+                  <strong>Número de autorización:</strong> {safe_auth_number}
+                </p>
+                <p style="margin:0;color:#374151;font-size:12px">
+                  <strong>ID interno:</strong> {safe_document_id}
+                </p>
+              </div>
+
+              <p style="margin:0;color:#888;font-size:13px;line-height:1.6">
+                Puedes descargar el RIDE desde tu panel de CodeLabs Billing.
               </p>
             </td>
           </tr>
@@ -738,10 +832,24 @@ def _build_document_authorized_html(
 </html>"""
 
 
-def _build_document_buyer_html(buyer_name: str, access_key: str, authorization_number: str) -> str:
+def _build_document_buyer_html(
+    buyer_name: str,
+    buyer_id: str,
+    access_key: str,
+    authorization_number: str,
+    issuer_name: str,
+    issuer_ruc: str,
+    issued_at: str,
+    authorized_at: str,
+    total: str,
+    currency: str,
+) -> str:
     safe_name = escape(buyer_name or "cliente", quote=True)
-    safe_access_key = escape(access_key, quote=True)
-    safe_auth_number = escape(authorization_number, quote=True)
+    safe_buyer_id = escape(buyer_id, quote=True)
+    safe_issuer = escape(issuer_name or "Emisor", quote=True)
+    display_issued_at = _format_date(issued_at)
+    display_authorized_at = _format_date(authorized_at)
+    display_total = f"{total or '0.00'} {currency or 'USD'}"
 
     return f"""<!DOCTYPE html>
 <html lang="es">
@@ -761,31 +869,54 @@ def _build_document_buyer_html(buyer_name: str, access_key: str, authorization_n
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
                 CodeLabs Billing
               </h1>
+              <p style="margin:8px 0 0;color:#d1d5db;font-size:13px">
+                Notification Mailer
+              </p>
             </td>
           </tr>
 
           <tr>
             <td style="padding:40px">
               <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
-                Hola, {safe_name}
+                Estimado(a): {safe_name} ({safe_buyer_id})
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
-                Recibiste una factura electrónica autorizada por el SRI.
-                Adjuntamos el XML autorizado y el RIDE PDF.
+                Adjunto encontrará el Documento Tributario Electrónico autorizado por el SRI.
               </p>
 
               <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
                           border-radius:4px;padding:20px;margin:0 0 24px">
-                <p style="margin:0 0 6px;color:#1a1a2e;font-size:13px">
-                  <strong>Clave de acceso:</strong> {safe_access_key}
+                <p style="margin:0 0 10px;color:#1a1a2e;font-size:14px;font-weight:700">
+                  Documento tributario electrónico
                 </p>
-                <p style="margin:0;color:#1a1a2e;font-size:13px">
-                  <strong>Número de autorización:</strong> {safe_auth_number}
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  {_summary_row("Emitido por", f"{issuer_name or 'Emisor'} ({issuer_ruc})")}
+                  {_summary_row("Tipo", "Factura")}
+                  {_summary_row("Identificador", access_key)}
+                  {_summary_row("Fecha de emisión", display_issued_at)}
+                  {_summary_row("Fecha de autorización", display_authorized_at)}
+                  {_summary_row("Número de autorización", authorization_number)}
+                  {_summary_row("Total", display_total)}
+                </table>
+              </div>
+
+              <p style="margin:0 0 18px;color:#444;line-height:1.6">
+                Para nosotros es un placer servirle.
+              </p>
+
+              <div style="background:#f9fafb;border:1px solid #e5e7eb;
+                          border-radius:4px;padding:16px;margin:0 0 24px">
+                <p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6">
+                  <strong>Nota:</strong> Este correo electrónico ha sido enviado
+                  automáticamente. Por favor no responda a esta dirección. Si requiere
+                  cualquier aclaración o información adicional sobre la factura electrónica
+                  debe comunicarse directamente con {safe_issuer}.
                 </p>
               </div>
 
-              <p style="margin:0;color:#888;font-size:13px">
-                Conserva estos archivos como respaldo tributario.
+              <p style="margin:0;color:#888;font-size:13px;line-height:1.6">
+                Se adjuntan el XML autorizado y el RIDE PDF. Consérvelos como respaldo
+                tributario.
               </p>
             </td>
           </tr>
@@ -1055,6 +1186,16 @@ class BrevoEmailSender(EmailSender):
         document_id: str,
         access_key: str,
         authorization_number: str,
+        issuer_name: str,
+        issuer_ruc: str,
+        buyer_name: str,
+        buyer_id: str,
+        buyer_email: str,
+        sequential_display: str,
+        issued_at: str,
+        authorized_at: str,
+        total: str,
+        currency: str,
     ) -> None:
         api_key = _get_api_key()
         payload = {
@@ -1062,7 +1203,20 @@ class BrevoEmailSender(EmailSender):
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": "Tu factura fue autorizada por el SRI — CodeLabs Billing",
             "htmlContent": _build_document_authorized_html(
-                legal_rep_name, document_id, access_key, authorization_number
+                legal_rep_name,
+                document_id,
+                access_key,
+                authorization_number,
+                issuer_name,
+                issuer_ruc,
+                buyer_name,
+                buyer_id,
+                buyer_email,
+                sequential_display,
+                issued_at,
+                authorized_at,
+                total,
+                currency,
             ),
         }
         _send(api_key, payload, log_email=email)
@@ -1110,6 +1264,13 @@ class BrevoEmailSender(EmailSender):
         document_id: str,
         access_key: str,
         authorization_number: str,
+        issuer_name: str,
+        issuer_ruc: str,
+        buyer_id: str,
+        issued_at: str,
+        authorized_at: str,
+        total: str,
+        currency: str,
         xml_content: bytes,
         xml_filename: str,
         ride_content: bytes,
@@ -1120,7 +1281,18 @@ class BrevoEmailSender(EmailSender):
             "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
             "to": [{"email": email, "name": buyer_name}],
             "subject": "Factura electrónica autorizada — XML y RIDE adjuntos",
-            "htmlContent": _build_document_buyer_html(buyer_name, access_key, authorization_number),
+            "htmlContent": _build_document_buyer_html(
+                buyer_name,
+                buyer_id,
+                access_key,
+                authorization_number,
+                issuer_name,
+                issuer_ruc,
+                issued_at,
+                authorized_at,
+                total,
+                currency,
+            ),
             "attachment": [
                 {
                     "name": xml_filename,

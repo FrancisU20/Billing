@@ -24,7 +24,14 @@ class SendDocumentToBuyerUseCase:
         self._attachment_reader = attachment_reader
         self._email_sender = email_sender
 
-    def execute(self, *, tenant_id: str, document_id: str) -> None:
+    def execute(
+        self,
+        *,
+        tenant_id: str,
+        document_id: str,
+        issuer_name: str = "",
+        issuer_ruc: str = "",
+    ) -> None:
         document = self._documents_repo.get(tenant_id, document_id)
         if document.status != DocumentStatus.AUTHORIZED:
             _log.warning(
@@ -70,6 +77,13 @@ class SendDocumentToBuyerUseCase:
                 document_id=document_id,
                 access_key=document.access_key,
                 authorization_number=document.authorization_number or "",
+                issuer_name=issuer_name,
+                issuer_ruc=issuer_ruc,
+                buyer_id=document.buyer_id,
+                issued_at=document.issued_at.isoformat(),
+                authorized_at=document.authorized_at.isoformat() if document.authorized_at else "",
+                total=str(document.total),
+                currency="USD",
                 xml_content=attachments.xml_content,
                 xml_filename=attachments.xml_filename,
                 ride_content=attachments.ride_content,

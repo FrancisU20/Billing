@@ -110,9 +110,20 @@ class PollDocumentUseCaseTests(unittest.TestCase):
         self.assertEqual(len(storage.stored), 1)
         self.assertEqual(len(publisher.events_published), 2)
         self.assertIsInstance(publisher.events_published[0], DocumentAuthorizedEvent)
+        authorized_event = publisher.events_published[0]
+        self.assertEqual(authorized_event.issuer_name, "CodeLabs Test S.A.")
+        self.assertEqual(authorized_event.issuer_ruc, "1792146739001")
+        self.assertEqual(authorized_event.buyer_name, "Consumidor Final")
+        self.assertEqual(authorized_event.buyer_id, "9999999999999")
+        self.assertEqual(authorized_event.sequential_display, "001-001-000000001")
+        self.assertEqual(authorized_event.total, "23.00")
+        self.assertEqual(authorized_event.authorized_at, "2026-06-17T10:00:00+00:00")
         self.assertIsInstance(
             publisher.events_published[1], DocumentBuyerNotificationRequestedEvent
         )
+        buyer_event = publisher.events_published[1]
+        self.assertEqual(buyer_event.issuer_name, "CodeLabs Test S.A.")
+        self.assertEqual(buyer_event.issuer_ruc, "1792146739001")
 
     def test_en_proceso_reenqueues_with_backoff(self) -> None:
         use_case, repo, storage, publisher = self._build(AutorizacionResult(status="EN_PROCESO"))
