@@ -668,6 +668,16 @@ runtime):
 - `AutorizacionComprobantesOffline` (`autorizacionComprobante`) — consulta estado por
   `claveAccesoComprobante`
 
+**Header `SOAPAction` debe ir vacío (`""`)** — confirmado a mano contra
+`celcer.sri.gob.ec` (curl directo, 2026-06-18). El servicio rutea por el nombre de
+la operación en el body, no por `SOAPAction`; cualquier valor no vacío (incluido
+`"{url}#{operacion}"`, lo que tenía el código original de Sprint 4) responde HTTP 500
+con `soap:Fault` *"The given SOAPAction ... does not match an operation"* — este fue
+el bug real que dejaba todos los documentos atascados en `PENDING` en la primera
+prueba end-to-end. `sri_client.py` también detecta `soap:Fault` explícitamente ahora
+(antes se interpretaba silenciosamente como estado de negocio vacío) y lo trata como
+error reintentable.
+
 Respuesta de recepcion puede ser:
 - `RECIBIDA` — SRI acepto el lote; continuar con polling
 - `DEVUELTA` — error en el lote; los errores vienen en XML con codigos de error SRI

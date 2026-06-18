@@ -82,7 +82,12 @@ class SriSoapClient(ISriClient):
                 body=envelope.encode("utf-8"),
                 headers={
                     "Content-Type": "text/xml; charset=utf-8",
-                    "SOAPAction": f'"{url}#{operation}"',
+                    # El servicio del SRI rutea por el nombre de la operación en el
+                    # body, no por SOAPAction — cualquier valor no vacío (incluido
+                    # "{url}#{operation}") responde 500 con el fault "The given
+                    # SOAPAction ... does not match an operation." Confirmado a mano
+                    # contra celcer.sri.gob.ec (ambiente de pruebas).
+                    "SOAPAction": '""',
                 },
             )
         except urllib3.exceptions.HTTPError as exc:
@@ -90,7 +95,12 @@ class SriSoapClient(ISriClient):
             raise ExternalServiceError("el SRI no respondió") from exc
 
         if response.status >= 500:
-            _log.error("SRI SOAP 5xx response", operation=operation, status=response.status)
+            _log.error(
+                "SRI SOAP 5xx response",
+                operation=operation,
+                status=response.status,
+                body=response.data.decode("utf-8", errors="replace")[:2000],
+            )
             raise ExternalServiceError("el SRI respondió con error de servidor")
 
         return response.data
@@ -137,4 +147,12 @@ class SriSoapClient(ISriClient):
         soap_body = envelope.find("soapenv:Body", _NS)
         if soap_body is None or len(soap_body) == 0:
             raise ExternalServiceError("respuesta del SRI vacía")
-        return soap_body[0]
+        content = soap_body[0]
+        # Un soap:Fault (ej. error interno del SRI, documento aún no indexado en
+        # AutorizacionComprobantesOffline) no es un estado de negocio — sin esto,
+        # el resto del parser lo confundiría silenciosamente con un estado vacío.
+        if content.tag.endswith("Fault"):
+            faultstring = content.findtext("faultstring") or "fault sin detalle"
+            _log.error("SRI SOAP fault", faultstring=faultstring)
+            raise ExternalServiceError(f"el SRI devolvió un fault: {faultstring}")
+        return content
