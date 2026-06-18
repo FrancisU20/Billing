@@ -1,5 +1,11 @@
 import { api } from '@/lib/api/client'
-import { documentSchema, documentsPageSchema, emitDocumentSchema, rideUrlSchema } from './schemas'
+import {
+  documentSchema,
+  documentsPageSchema,
+  emitDocumentResultSchema,
+  emitDocumentSchema,
+  rideUrlSchema,
+} from './schemas'
 import { DOCUMENTS_PAGE_SIZE } from './constants'
 import type { DocumentListFilters, EmitDocumentInput } from './types'
 
@@ -21,7 +27,9 @@ export const documentsApi = {
   getById: (id: string) => api.get(`/documents/${encodeURIComponent(id)}`, documentSchema),
 
   emit: (body: EmitDocumentInput, idempotencyKey: string) =>
-    api.post('/documents', emitDocumentSchema.parse(body), documentSchema, { idempotencyKey }),
+    api.post('/documents', emitDocumentSchema.parse(body), emitDocumentResultSchema, {
+      idempotencyKey,
+    }),
 
   getRideUrl: (id: string) => api.get(`/documents/${encodeURIComponent(id)}/ride`, rideUrlSchema),
 }

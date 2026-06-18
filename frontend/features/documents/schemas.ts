@@ -79,6 +79,17 @@ export const rideUrlSchema = z.object({
   url: z.string().min(1),
 })
 
+// POST /documents responde 202 con un subconjunto del documento — no el
+// documento completo (ver lambdas/documents/handler.py::_emit). El resto de
+// los campos se obtienen recién al hacer GET /documents/{id}.
+export const emitDocumentResultSchema = z.object({
+  document_id: z.string().min(1),
+  access_key: z.string().min(1),
+  sequential: z.coerce.number(),
+  sequential_display: z.string().min(1),
+  status: documentStatusSchema,
+})
+
 export const emitDocumentLineSchema = z
   .object({
     code: z.string().trim().min(1, 'Requerido').max(25, 'Máximo 25 caracteres'),
@@ -148,6 +159,7 @@ export type SriErrorDetail = z.infer<typeof sriErrorSchema>
 export type DocumentLine = z.infer<typeof documentLineSchema>
 export type Document = z.infer<typeof documentSchema>
 export type DocumentsPage = z.infer<typeof documentsPageSchema>
+export type EmitDocumentResult = z.infer<typeof emitDocumentResultSchema>
 export type EmitDocumentLineInput = z.infer<typeof emitDocumentLineSchema>
 export type EmitDocumentInput = z.infer<typeof emitDocumentSchema>
 export type BuyerMode = z.infer<typeof buyerModeSchema>

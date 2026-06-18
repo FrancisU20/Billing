@@ -10,6 +10,7 @@ export type {
   EmitDocumentFormValues,
   EmitDocumentInput,
   EmitDocumentLineInput,
+  EmitDocumentResult,
   IvaRate,
   PaymentMethod,
   SriErrorDetail,

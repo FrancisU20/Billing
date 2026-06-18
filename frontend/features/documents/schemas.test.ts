@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { documentSchema, documentsPageSchema, emitDocumentSchema } from './schemas'
+import {
+  documentSchema,
+  documentsPageSchema,
+  emitDocumentResultSchema,
+  emitDocumentSchema,
+} from './schemas'
 import { formValuesToEmitDocumentInput } from './form'
 import type { EmitDocumentFormValues } from './schemas'
 
@@ -98,6 +103,26 @@ describe('document contract schemas', () => {
       buyer_email: null,
       payment_method: '01',
       lines: values.lines,
+    })
+  })
+
+  it('matches the partial POST /documents (202) response — not the full document', () => {
+    // lambdas/documents/handler.py::_emit solo devuelve este subconjunto;
+    // el resto se obtiene recién con GET /documents/{id}.
+    expect(
+      emitDocumentResultSchema.parse({
+        document_id: 'doc-1',
+        access_key: '1'.repeat(49),
+        sequential: 1,
+        sequential_display: '001-001-000000001',
+        status: 'PENDING',
+      }),
+    ).toEqual({
+      document_id: 'doc-1',
+      access_key: '1'.repeat(49),
+      sequential: 1,
+      sequential_display: '001-001-000000001',
+      status: 'PENDING',
     })
   })
 
