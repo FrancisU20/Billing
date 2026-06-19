@@ -857,6 +857,16 @@ Seccion "Avanzado" en `EmitDocumentScreen`: toggle "Anular techo de descuento" +
 `FormField` de motivo (obligatorio si el toggle esta activo), mapeado a
 `override_discount_ceiling`/`override_reason` en el payload.
 
+### RIDE (Sprint 2e, implementado)
+
+`ride_builder.py` agrega columna "Subtotal" (precio neto de la linea, post-descuento,
+pre-IVA — `line.subtotal`) y la celda "Desc." ahora combina monto absoluto + porcentaje
+(`"$5.00 (25.00%)"`, helper `_discount_cell`), calculado en el momento desde
+`discount`/`quantity`/`unit_price` ya persistidos — **no** agrega ningun campo nuevo al
+XML/XSD del SRI, es puramente de confianza ante el comprador. "P. Unit." se relabeleo a
+"P. Unit. orig." para dejar explicito que es el precio antes de aplicar el descuento de
+esa linea. Sin discount, la celda muestra "—".
+
 ## Consumidor Final — Regla Critica
 
 Para facturas a Consumidor Final **NO se crea ni referencia un Client**. El handler
@@ -1049,4 +1059,3 @@ Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregado
 | `EstablishmentsScreen` con forms inline via `useState` plano (no react-hook-form) | Los mini-forms de alta/edicion de punto de emision son simples (2-3 campos) y no justifican el overhead de react-hook-form+zod. Si crecen en complejidad, migrar al patron `*Form.tsx` + Controller. |
 | Emails de documento al tenant sin adjuntar PDF | `DocumentAuthorizedEvent` etc. notifican al emisor sin adjuntos. El tenant descarga el RIDE desde `GET /documents/{id}/ride`. El comprador si recibe XML autorizado + RIDE adjuntos via `DocumentBuyerNotificationRequestedEvent`. |
 | `invoice_processor` SIGN/POLL sin concurrencia reservada diferenciada | Cuenta AWS en `sa-east-1` con limite de Lambda en 10 ejecuciones concurrentes totales (default no aumentado). Pedir quota increase a AWS y reintroducir `reserved_concurrent_executions=30/20` en `api_stack.py` cuando se apruebe. |
-| RIDE sin precio original/% de descuento por linea (Sprint 2e, opcional) | El RIDE muestra solo el precio ya descontado, igual que el XML. No es requisito fiscal del SRI, solo confianza ante el comprador — evaluar si un cliente lo pide (ver `context/PRODUCTS.md`). |

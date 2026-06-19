@@ -9,6 +9,7 @@ dependencia transitiva de reportlab, no por elección propia).
 """
 
 import io
+from decimal import Decimal
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -22,6 +23,22 @@ from shared.dates import format_date_ecuador, format_datetime_ecuador
 
 _styles = getSampleStyleSheet()
 _small = ParagraphStyle("small", parent=_styles["Normal"], fontSize=8, leading=10)
+
+
+def _discount_cell(line) -> str:
+    """'$5.00 (20.00%)' sobre el precio original, o '—' sin descuento.
+
+    Solo de confianza/transparencia ante el comprador (Sprint 2e) — el % no es
+    un campo del XML/XSD del SRI, se deriva de `discount`/`unit_price` ya
+    persistidos, no agrega ningún dato nuevo a lo fiscal.
+    """
+    if line.discount == 0:
+        return "—"
+    gross = line.quantity * line.unit_price
+    if gross <= 0:
+        return f"${line.discount:.2f}"
+    pct = (line.discount / gross * 100).quantize(Decimal("0.01"))
+    return f"${line.discount:.2f} ({pct}%)"
 
 
 def build_ride_pdf(document: Document, tenant: Tenant) -> bytes:
@@ -76,7 +93,9 @@ def build_ride_pdf(document: Document, tenant: Tenant) -> bytes:
     )
     elements.append(Spacer(1, 0.5 * cm))
 
-    detail_rows = [["Cód.", "Descripción", "Cant.", "P. Unit.", "Desc.", "IVA", "Total"]]
+    detail_rows = [
+        ["Cód.", "Descripción", "Cant.", "P. Unit. orig.", "Desc.", "Subtotal", "IVA", "Total"]
+    ]
     for line in document.lines:
         detail_rows.append(
             [
@@ -84,12 +103,18 @@ def build_ride_pdf(document: Document, tenant: Tenant) -> bytes:
                 line.description,
                 str(line.quantity),
                 str(line.unit_price),
-                str(line.discount),
+                _discount_cell(line),
+                str(line.subtotal),
                 f"{line.iva_rate}%" if line.iva_rate != "EXENTO" else "EXENTO",
                 str(line.total),
             ]
         )
-    detail_table = Table(detail_rows, repeatRows=1, hAlign="LEFT")
+    detail_table = Table(
+        detail_rows,
+        repeatRows=1,
+        hAlign="LEFT",
+        colWidths=[1.6 * cm, 5.0 * cm, 1.2 * cm, 2.1 * cm, 2.4 * cm, 2.1 * cm, 1.4 * cm, 2.1 * cm],
+    )
     detail_table.setStyle(
         TableStyle(
             [

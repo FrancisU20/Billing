@@ -1,8 +1,9 @@
 # Products — Dominio
 
-Estado: **Sprint 1 implementado. Sprint 2a (descuento % por producto), Sprint 2b
-(campana de descuento global) y Sprint 2c+2d (techo de descuento validado en backend +
-resolucion en facturador + override auditado) implementados.**
+Estado: **Sprint 1 implementado. Sprint 2 completo: 2a (descuento % por producto), 2b
+(campana de descuento global), 2c+2d (techo de descuento validado en backend +
+resolucion en facturador + override auditado) y 2e (RIDE con % de descuento y precio
+final por linea) implementados.**
 
 Ultima actualizacion: 2026-06-19.
 
@@ -145,9 +146,6 @@ Integracion en facturador:
 
 ## Deuda Tecnica
 
-- Sprint 2e (opcional, no implementado): RIDE muestra precio original + % aplicado +
-  precio final por linea, para reforzar confianza ante el comprador. No bloqueante para
-  el alcance fiscal. Ver `context/INVOICES.md`.
 - Movimientos de inventario (`IN`, `OUT`, `ADJUSTMENT`, `REVERSAL`) y descuento atomico de
   stock al emitir documento autorizado o al confirmar emision, segun decision contable.
 - Paquetes/membresias con composicion de items internos.
