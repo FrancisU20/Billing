@@ -89,6 +89,8 @@ describe('document contract schemas', () => {
           iva_rate: '15',
         },
       ],
+      override_discount_ceiling: false,
+      override_reason: '',
     }
 
     expect(formValuesToEmitDocumentInput(values)).toEqual({
@@ -103,6 +105,8 @@ describe('document contract schemas', () => {
       buyer_email: null,
       payment_method: '01',
       lines: values.lines,
+      override_discount_ceiling: false,
+      override_reason: null,
     })
   })
 
@@ -128,6 +132,8 @@ describe('document contract schemas', () => {
           iva_rate: '15',
         },
       ],
+      override_discount_ceiling: false,
+      override_reason: '',
     }
 
     expect(formValuesToEmitDocumentInput(values)).toMatchObject({

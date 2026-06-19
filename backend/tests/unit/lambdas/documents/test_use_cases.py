@@ -20,6 +20,9 @@ from lambdas.documents.domain.errors import (
     InvalidIssuedDateError,
     RideNotAvailableError,
 )
+from lambdas.documents.domain.repositories.i_discount_campaign_port import (
+    DiscountCampaignSnapshot,
+)
 from lambdas.documents.domain.repositories.i_product_catalog import InvoiceProductSnapshot
 from lambdas.documents.use_cases.emit_document import EmitDocumentUseCase
 from lambdas.documents.use_cases.get_document import GetDocumentUseCase
@@ -88,11 +91,27 @@ class FakeProductCatalog:
                 description="Servicio desde catálogo",
                 unit_price=Decimal("30.00"),
                 iva_rate="5",
-            )
+            ),
+            "prod-2": InvoiceProductSnapshot(
+                product_id="prod-2",
+                code="SKU-002",
+                description="Producto con descuento propio",
+                unit_price=Decimal("30.00"),
+                iva_rate="15",
+                discount_percentage=Decimal("60.00"),
+            ),
         }
 
     def get_active_snapshot(self, product_id: str) -> InvoiceProductSnapshot:
         return self.snapshots[product_id]
+
+
+class FakeDiscountCampaignPort:
+    def __init__(self, *, active: bool = False, percentage: Decimal = Decimal("0")) -> None:
+        self._snapshot = DiscountCampaignSnapshot(active=active, percentage=percentage)
+
+    def get_active_campaign(self) -> DiscountCampaignSnapshot:
+        return self._snapshot
 
 
 def _make_emit_cmd(**overrides: Any) -> EmitDocumentCommand:
@@ -171,6 +190,12 @@ class EmitDocumentUseCaseTests(unittest.TestCase):
     def _run_with_catalog(self, **overrides: Any) -> Document:
         with patch("lambdas.documents.use_cases.emit_document.today_ecuador", return_value=_TODAY):
             return EmitDocumentUseCase(self.repo, self.seq, FakeProductCatalog()).execute(
+                _make_emit_cmd(**overrides)
+            )
+
+    def _run_with(self, *, catalog=None, campaign=None, **overrides: Any) -> Document:
+        with patch("lambdas.documents.use_cases.emit_document.today_ecuador", return_value=_TODAY):
+            return EmitDocumentUseCase(self.repo, self.seq, catalog, campaign).execute(
                 _make_emit_cmd(**overrides)
             )
 
@@ -299,6 +324,142 @@ class EmitDocumentUseCaseTests(unittest.TestCase):
 
         with self.assertRaises(ValidationError):
             self._run(lines=lines)
+
+    # ── Discount ceiling (catalog % + campaign %, "el mayor gana") ───────────
+
+    def test_rejects_manual_line_discount_with_no_campaign_or_product_discount(self) -> None:
+        lines = [
+            LineData(
+                code="P-1",
+                description="Línea manual",
+                quantity=Decimal("1"),
+                unit_price=Decimal("10.00"),
+                discount=Decimal("1.00"),
+                iva_rate="15",
+            )
+        ]
+
+        with self.assertRaises(ValidationError):
+            self._run_with(lines=lines)
+
+    def test_allows_discount_up_to_product_discount_percentage(self) -> None:
+        lines = [
+            LineData(
+                product_id="prod-2",
+                code="MANUAL",
+                description="Manual",
+                quantity=Decimal("1"),
+                unit_price=Decimal("1.00"),
+                discount=Decimal("18.00"),  # 60% of the 30.00 catalog price
+                iva_rate="15",
+            )
+        ]
+
+        doc = self._run_with(catalog=FakeProductCatalog(), lines=lines)
+
+        self.assertEqual(doc.lines[0].discount, Decimal("18.00"))
+
+    def test_rejects_discount_above_product_discount_percentage(self) -> None:
+        lines = [
+            LineData(
+                product_id="prod-2",
+                code="MANUAL",
+                description="Manual",
+                quantity=Decimal("1"),
+                unit_price=Decimal("1.00"),
+                discount=Decimal("18.01"),  # just above 60% of 30.00
+                iva_rate="15",
+            )
+        ]
+
+        with self.assertRaises(ValidationError):
+            self._run_with(catalog=FakeProductCatalog(), lines=lines)
+
+    def test_allows_discount_up_to_active_campaign_percentage_on_manual_line(self) -> None:
+        lines = [
+            LineData(
+                code="P-1",
+                description="Línea manual",
+                quantity=Decimal("1"),
+                unit_price=Decimal("100.00"),
+                discount=Decimal("50.00"),
+                iva_rate="15",
+            )
+        ]
+
+        doc = self._run_with(
+            campaign=FakeDiscountCampaignPort(active=True, percentage=Decimal("50")),
+            lines=lines,
+        )
+
+        self.assertEqual(doc.lines[0].discount, Decimal("50.00"))
+
+    def test_ceiling_uses_max_of_product_and_campaign_not_their_sum(self) -> None:
+        lines = [
+            LineData(
+                product_id="prod-2",  # 60% product discount
+                code="MANUAL",
+                description="Manual",
+                quantity=Decimal("1"),
+                unit_price=Decimal("1.00"),
+                discount=Decimal("20.00"),  # above 60% (18.00), would fit if summed with 30%
+                iva_rate="15",
+            )
+        ]
+
+        with self.assertRaises(ValidationError):
+            self._run_with(
+                catalog=FakeProductCatalog(),
+                campaign=FakeDiscountCampaignPort(active=True, percentage=Decimal("30")),
+                lines=lines,
+            )
+
+    def test_inactive_campaign_does_not_raise_ceiling(self) -> None:
+        lines = [
+            LineData(
+                code="P-1",
+                description="Línea manual",
+                quantity=Decimal("1"),
+                unit_price=Decimal("100.00"),
+                discount=Decimal("0.00"),
+                iva_rate="15",
+            )
+        ]
+
+        doc = self._run_with(
+            campaign=FakeDiscountCampaignPort(active=False, percentage=Decimal("50")),
+            lines=lines,
+        )
+
+        self.assertEqual(doc.lines[0].discount, Decimal("0.00"))
+
+    def test_override_bypasses_discount_ceiling(self) -> None:
+        lines = [
+            LineData(
+                code="P-1",
+                description="Descuento comercial puntual",
+                quantity=Decimal("1"),
+                unit_price=Decimal("10.00"),
+                discount=Decimal("5.00"),
+                iva_rate="15",
+            )
+        ]
+
+        doc = self._run_with(
+            lines=lines,
+            override_discount_ceiling=True,
+            override_reason="Gesto comercial autorizado por el gerente",
+        )
+
+        self.assertEqual(doc.lines[0].discount, Decimal("5.00"))
+
+    def test_override_without_reason_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            self._run_with(override_discount_ceiling=True, override_reason="")
+
+    def test_override_without_reason_at_all_raises(self) -> None:
+        with self.assertRaises(ValidationError):
+            self._run_with(override_discount_ceiling=True, override_reason=None)
 
 
 # ── GetDocumentUseCase ────────────────────────────────────────────────────────

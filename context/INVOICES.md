@@ -770,6 +770,93 @@ def iva_rate_for(issued_at: date) -> Decimal:
 Si el gobierno cambia la tarifa: agregar una entrada al inicio de `IVA_RATES` con el nuevo
 rango. No tocar el resto de la tabla.
 
+## Techo De Descuento Por Linea (Sprint 2c+2d Products, implementado)
+
+Contexto completo de negocio en `context/PRODUCTS.md` (descuento % por producto, Sprint
+2a, y campana global de descuento, Sprint 2b). Esta seccion documenta donde vive la
+**validacion**, que es codigo de `documents`, no de `products`.
+
+### La regla
+
+Para **toda linea** del documento (con o sin `product_id`), el descuento absoluto que
+llega en el request no puede superar:
+
+```text
+techo_pct = max(producto.discount_percentage, campana.percentage si campana.active)
+techo_monto = (cantidad * precio_unitario) * techo_pct / 100
+```
+
+`max`, no suma — si el producto tiene 60% propio y la campana global esta en 50%, el
+techo es 60%, no 110%. Cubierto por
+`test_ceiling_uses_max_of_product_and_campaign_not_their_sum` en
+`tests/unit/lambdas/documents/test_use_cases.py`.
+
+Aplica a lineas manuales (sin `product_id`) tambien — si no hay producto ligado, el unico
+input del techo es la campana; sin campana activa y sin producto, el techo es 0% (ver
+"Por que aplica a lineas manuales" abajo).
+
+### Por que vive en `documents`, no en `products`
+
+`EmitDocumentUseCase._compute_totals` ya era la unica fuente de verdad de
+`unit_price`/`iva_rate` para lineas con `product_id` — el snapshot del producto
+**siempre** gana sobre lo que mande el cliente, incluso hoy. El techo de descuento sigue
+el mismo principio: se agrego `discount_percentage` a `InvoiceProductSnapshot`
+(`documents/domain/repositories/i_product_catalog.py`) y un puerto nuevo,
+`IDiscountCampaignPort` (`documents/domain/repositories/i_discount_campaign_port.py`),
+con su adapter cross-lambda `DynamoDiscountCampaignCatalog`
+(`documents/infra/discount_campaign_catalog.py`) que importa directamente
+`lambdas.products.infra.discount_campaign_repository` — mismo patron que ya usaba
+`DynamoProductCatalog` para leer la tabla de `products` desde la Lambda `documents`.
+
+### Por que aplica a lineas manuales (no solo a las de catalogo)
+
+Decision explicita: si el techo solo protegiera lineas con `product_id`, alcanzaria con
+omitir `product_id` para evadirlo — el caso de uso real que motivo el techo (no sumar
+60%+50%) involucra siempre un producto del catalogo, pero dejar las lineas manuales sin
+limite habria sido una grieta de seguridad/negocio abierta a proposito. La consecuencia
+inevitable: con campana inactiva y sin producto, una linea manual con `discount > 0` es
+rechazada por defecto. Por eso el override (siguiente seccion) se implemento **en el
+mismo cambio**, no en un sprint separado — lanzar el techo sin el override hubiera roto
+el descuento ad-hoc manual que ya funcionaba para todos los tenants, incluso los que
+nunca tocaron este feature.
+
+### Override auditado
+
+`EmitDocumentCommand`/`EmitDocumentRequest` aceptan `override_discount_ceiling: bool` +
+`override_reason: str | None`. Si `override_discount_ceiling=True`, `override_reason`
+es obligatorio (no vacio) — validado en el schema Pydantic **y** en
+`EmitDocumentUseCase.execute` (defensa en profundidad, por si algun caller futuro
+construye el comando sin pasar por el schema HTTP). Cuando el override se usa, nunca se
+salta `discount <= gross` (piso fiscal, no negociable bajo ninguna circunstancia) — solo
+se salta el techo `max(producto%, campana%)`.
+
+No hay validacion de rol adicional para el override: emitir documentos ya esta
+restringido a `owner|admin|superadmin` a nivel de endpoint (`_emit` en
+`documents/handler.py`), asi que cualquier caller capaz de invocar el override ya tiene
+el rol necesario. Lo que aporta el override es **trazabilidad explicita**, no una
+barrera de permisos nueva: `DynamoDocumentsRepository.save()` escribe un `audit_item`
+(`shared/audit/writer.py`) transaccionalmente junto al documento cuando
+`override_reason` viene seteado — `entity_type="DOCUMENT"`,
+`action="DISCOUNT_CEILING_OVERRIDE"`, `changed_by=user_id`,
+`after={"reason", "access_key"}`. `documents` no usaba auditoria antes de este cambio;
+se sumo solo para esta accion puntual, no para toda mutacion de `Document`.
+
+### Frontend
+
+`EmitDocumentScreen` consulta la campana activa (`useDiscountCampaign`, mismo hook de
+`context/PRODUCTS.md`) y, **solo al seleccionar un producto del catalogo** vía
+`ProductPickerModal`, pre-llena el campo de descuento de esa linea con
+`resolveSuggestedDiscount()` (`features/documents/form.ts`) — replica en TS de la regla
+de arriba, usado solo para UX, el backend es quien valida de verdad. Decision de alcance:
+no hay pre-llenado reactivo para lineas manuales (evita sobreescribir un valor que el
+usuario ya esta editando); en su lugar se muestra un aviso ("Campaña activa: hasta X% de
+descuento por línea") en la seccion de lineas cuando la campana esta activa, para que el
+usuario sepa el techo disponible y lo escriba el mismo.
+
+Seccion "Avanzado" en `EmitDocumentScreen`: toggle "Anular techo de descuento" +
+`FormField` de motivo (obligatorio si el toggle esta activo), mapeado a
+`override_discount_ceiling`/`override_reason` en el payload.
+
 ## Consumidor Final — Regla Critica
 
 Para facturas a Consumidor Final **NO se crea ni referencia un Client**. El handler
@@ -962,3 +1049,4 @@ Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregado
 | `EstablishmentsScreen` con forms inline via `useState` plano (no react-hook-form) | Los mini-forms de alta/edicion de punto de emision son simples (2-3 campos) y no justifican el overhead de react-hook-form+zod. Si crecen en complejidad, migrar al patron `*Form.tsx` + Controller. |
 | Emails de documento al tenant sin adjuntar PDF | `DocumentAuthorizedEvent` etc. notifican al emisor sin adjuntos. El tenant descarga el RIDE desde `GET /documents/{id}/ride`. El comprador si recibe XML autorizado + RIDE adjuntos via `DocumentBuyerNotificationRequestedEvent`. |
 | `invoice_processor` SIGN/POLL sin concurrencia reservada diferenciada | Cuenta AWS en `sa-east-1` con limite de Lambda en 10 ejecuciones concurrentes totales (default no aumentado). Pedir quota increase a AWS y reintroducir `reserved_concurrent_executions=30/20` en `api_stack.py` cuando se apruebe. |
+| RIDE sin precio original/% de descuento por linea (Sprint 2e, opcional) | El RIDE muestra solo el precio ya descontado, igual que el XML. No es requisito fiscal del SRI, solo confianza ante el comprador — evaluar si un cliente lo pide (ver `context/PRODUCTS.md`). |

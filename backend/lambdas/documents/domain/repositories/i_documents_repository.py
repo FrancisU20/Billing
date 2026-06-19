@@ -37,8 +37,14 @@ class IDocumentsRepository(ABC):
         *,
         idempotency: IdempotencyContext | None = None,
         response: dict | None = None,
+        override_reason: str | None = None,
+        user_id: str | None = None,
     ) -> None:
-        """Persist a new document atomically with the idempotency completion."""
+        """Persist a new document atomically with the idempotency completion.
+
+        When `override_reason` is set (the discount ceiling was overridden), an
+        audit record is written transactionally alongside the document.
+        """
 
     @abstractmethod
     def update_status(

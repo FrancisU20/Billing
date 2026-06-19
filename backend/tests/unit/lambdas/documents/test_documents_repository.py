@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import unittest
+from datetime import date
+from decimal import Decimal
 
 from botocore.exceptions import ClientError
 
-from lambdas.documents.domain.entities import DocumentStatus
+from lambdas.documents.domain.entities import Document, DocumentStatus
 from lambdas.documents.infra.documents_repository import DynamoDocumentsRepository
 from shared.errors import DatabaseError
 
@@ -21,6 +23,99 @@ class FakeDocumentsTable:
         if self.error_code:
             raise ClientError({"Error": {"Code": self.error_code, "Message": "boom"}}, "UpdateItem")
         return {}
+
+
+class _FakeDynamoClient:
+    def __init__(self) -> None:
+        self.transact_write_calls: list[dict] = []
+
+    def transact_write_items(self, **kwargs) -> dict:
+        self.transact_write_calls.append(kwargs)
+        return {}
+
+
+class _FakeMeta:
+    def __init__(self, client: _FakeDynamoClient) -> None:
+        self.client = client
+
+
+class FakeTransactTable:
+    table_name = "unit-documents"
+
+    def __init__(self) -> None:
+        self.client = _FakeDynamoClient()
+        self.meta = _FakeMeta(self.client)
+
+
+class FakeAuditTable:
+    table_name = "unit-audit"
+
+
+def _make_document(**overrides) -> Document:
+    defaults: dict = {
+        "document_id": "doc-1",
+        "tenant_id": "tenant-1",
+        "doc_type": "01",
+        "status": DocumentStatus.PENDING,
+        "serie": "001001",
+        "sequential": 1,
+        "access_key": "1" * 49,
+        "client_id": None,
+        "buyer_id_type": "07",
+        "buyer_id": "9999999999999",
+        "buyer_name": "Consumidor Final",
+        "buyer_email": None,
+        "issued_at": date(2026, 6, 18),
+        "sri_environment": "testing",
+        "subtotal": Decimal("10.00"),
+        "total_discount": Decimal("0.00"),
+        "iva_15": Decimal("1.50"),
+        "iva_5": Decimal("0.00"),
+        "iva_0": Decimal("0.00"),
+        "total": Decimal("11.50"),
+        "payment_method": "01",
+        "lines": [],
+    }
+    defaults.update(overrides)
+    return Document(**defaults)
+
+
+class DynamoDocumentsRepositorySaveTests(unittest.TestCase):
+    def test_save_does_not_write_audit_without_override_reason(self) -> None:
+        table = FakeTransactTable()
+        repo = DynamoDocumentsRepository(table, FakeAuditTable())
+
+        repo.save(_make_document())
+
+        transact_items = table.client.transact_write_calls[0]["TransactItems"]
+        self.assertEqual(len(transact_items), 1)
+
+    def test_save_writes_audit_when_override_reason_is_set(self) -> None:
+        table = FakeTransactTable()
+        repo = DynamoDocumentsRepository(table, FakeAuditTable())
+
+        repo.save(
+            _make_document(),
+            override_reason="Gesto comercial autorizado",
+            user_id="user-1",
+        )
+
+        transact_items = table.client.transact_write_calls[0]["TransactItems"]
+        self.assertEqual(len(transact_items), 2)
+        audit_put = transact_items[1]["Put"]
+        self.assertEqual(audit_put["TableName"], "unit-audit")
+        self.assertEqual(audit_put["Item"]["action"], "DISCOUNT_CEILING_OVERRIDE")
+        self.assertEqual(audit_put["Item"]["changed_by"], "user-1")
+        self.assertEqual(audit_put["Item"]["after"]["reason"], "Gesto comercial autorizado")
+
+    def test_save_skips_audit_without_audit_table(self) -> None:
+        table = FakeTransactTable()
+        repo = DynamoDocumentsRepository(table)
+
+        repo.save(_make_document(), override_reason="Motivo", user_id="user-1")
+
+        transact_items = table.client.transact_write_calls[0]["TransactItems"]
+        self.assertEqual(len(transact_items), 1)
 
 
 class DynamoDocumentsRepositoryUpdateStatusTests(unittest.TestCase):

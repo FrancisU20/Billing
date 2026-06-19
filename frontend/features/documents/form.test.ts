@@ -4,6 +4,7 @@ import {
   defaultEmitDocumentFormValues,
   ecuadorIssuedAtDate,
   ecuadorIssuedAtDisplay,
+  resolveSuggestedDiscount,
 } from './form'
 import type { EmitDocumentLineInput } from './schemas'
 
@@ -121,6 +122,45 @@ describe('defaultEmitDocumentFormValues', () => {
     expect(values.buyer_name).toBe('Consumidor Final')
     expect(values.client_id).toBeNull()
     expect(values.lines).toHaveLength(1)
+    expect(values.override_discount_ceiling).toBe(false)
+    expect(values.override_reason).toBe('')
+  })
+})
+
+describe('resolveSuggestedDiscount', () => {
+  it('returns 0 when there is no product discount and no active campaign', () => {
+    expect(resolveSuggestedDiscount('1', '30.00', null, null)).toBe('0.00')
+  })
+
+  it('suggests the product discount percentage applied to the line gross', () => {
+    expect(resolveSuggestedDiscount('1', '30.00', '60.00', null)).toBe('18.00')
+  })
+
+  it('suggests the campaign percentage when active and no product discount', () => {
+    expect(
+      resolveSuggestedDiscount('1', '100.00', null, { active: true, percentage: '50.00' }),
+    ).toBe('50.00')
+  })
+
+  it('ignores the campaign percentage when inactive', () => {
+    expect(
+      resolveSuggestedDiscount('1', '100.00', null, { active: false, percentage: '50.00' }),
+    ).toBe('0.00')
+  })
+
+  it('uses the higher of product % and campaign %, never their sum', () => {
+    expect(
+      resolveSuggestedDiscount('1', '30.00', '60.00', { active: true, percentage: '30.00' }),
+    ).toBe('18.00')
+  })
+
+  it('scales with quantity', () => {
+    expect(resolveSuggestedDiscount('2', '30.00', '60.00', null)).toBe('36.00')
+  })
+
+  it('returns 0 for an invalid or zero gross amount', () => {
+    expect(resolveSuggestedDiscount('0', '30.00', '60.00', null)).toBe('0.00')
+    expect(resolveSuggestedDiscount('', '', '60.00', null)).toBe('0.00')
   })
 })
 

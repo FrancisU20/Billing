@@ -159,6 +159,17 @@ export const emitDocumentSchema = z
     buyer_email: z.string().trim().email('Email inválido').or(z.literal('')).nullable().optional(),
     payment_method: paymentMethodSchema,
     lines: z.array(emitDocumentLineSchema).min(1, 'Agrega al menos una línea'),
+    override_discount_ceiling: z.boolean(),
+    override_reason: z.string().trim().max(300, 'Máximo 300 caracteres').nullable(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.override_discount_ceiling && !values.override_reason?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['override_reason'],
+        message: 'Indica el motivo para anular el techo de descuento',
+      })
+    }
   })
   .strict()
 
@@ -178,6 +189,8 @@ export const emitDocumentFormValuesSchema = z
     buyer_email: z.string().trim().email('Email inválido').or(z.literal('')),
     payment_method: paymentMethodSchema,
     lines: z.array(emitDocumentLineSchema).min(1, 'Agrega al menos una línea'),
+    override_discount_ceiling: z.boolean(),
+    override_reason: z.string().trim().max(300, 'Máximo 300 caracteres'),
   })
   .superRefine((values, ctx) => {
     if (values.buyer_mode === 'consumidor_final') {
@@ -194,6 +207,13 @@ export const emitDocumentFormValuesSchema = z
         code: 'custom',
         path: ['client_id'],
         message: 'Selecciona un cliente',
+      })
+    }
+    if (values.override_discount_ceiling && !values.override_reason.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['override_reason'],
+        message: 'Indica el motivo para anular el techo de descuento',
       })
     }
   })

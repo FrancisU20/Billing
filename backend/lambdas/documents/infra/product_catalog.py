@@ -23,4 +23,5 @@ class DynamoProductCatalog:
             description=snapshot["description"],
             unit_price=product.unit_price,
             iva_rate=snapshot["iva_rate"],
+            discount_percentage=product.discount_percentage,
         )

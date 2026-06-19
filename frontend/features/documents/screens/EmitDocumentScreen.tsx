@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { useFieldArray, useForm, useWatch } from 'react-hook-form'
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
@@ -9,7 +9,9 @@ import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { FormField } from '@/components/ui/FormField'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
@@ -17,6 +19,7 @@ import { useTheme } from '@/lib/theme-context'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { useEstablishments } from '@/features/sequences/hooks/useEstablishments'
 import { ProductPickerModal } from '@/features/products/components/ProductPickerModal'
+import { useDiscountCampaign } from '@/features/products/hooks/useDiscountCampaign'
 import type { Product } from '@/features/products/types'
 import { Routes } from '@/constants/routes'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
@@ -30,6 +33,7 @@ import {
   defaultEmitDocumentLine,
   ecuadorIssuedAtDisplay,
   formValuesToEmitDocumentInput,
+  resolveSuggestedDiscount,
 } from '../form'
 import { emitDocumentFormValuesSchema, type EmitDocumentFormValues } from '../schemas'
 
@@ -47,11 +51,13 @@ export function EmitDocumentScreen() {
     error: establishmentsError,
     refresh: refreshEstablishments,
   } = useEstablishments(tenantId)
+  const { campaign } = useDiscountCampaign()
 
   const {
     control,
     handleSubmit,
     setValue,
+    getValues,
     formState: { errors, isValid },
   } = useForm<EmitDocumentFormValues>({
     resolver: zodResolver(emitDocumentFormValuesSchema),
@@ -65,6 +71,7 @@ export function EmitDocumentScreen() {
   const issuedAt = useWatch({ control, name: 'issued_at' })
   const paymentMethod = useWatch({ control, name: 'payment_method' })
   const lines = useWatch({ control, name: 'lines' })
+  const overrideDiscountCeiling = useWatch({ control, name: 'override_discount_ceiling' })
 
   useEffect(() => {
     if (establishments.length === 0 || establishmentCode) return
@@ -107,6 +114,17 @@ export function EmitDocumentScreen() {
       shouldDirty: true,
       shouldValidate: true,
     })
+    const quantity = getValues(`lines.${pickerLineIndex}.quantity`)
+    setValue(
+      `lines.${pickerLineIndex}.discount`,
+      resolveSuggestedDiscount(
+        quantity,
+        product.unit_price,
+        product.discount_percentage,
+        campaign ? { active: campaign.active, percentage: campaign.percentage } : null,
+      ),
+      { shouldDirty: true, shouldValidate: true },
+    )
     setPickerLineIndex(null)
   }
 
@@ -213,6 +231,11 @@ export function EmitDocumentScreen() {
         </FormSection>
 
         <FormSection title="Líneas de detalle" icon="list-outline">
+          {campaign?.active ? (
+            <Text style={[styles.campaignHint, { color: semantic.accent.default }]}>
+              Campaña activa: hasta {Number(campaign.percentage)}% de descuento por línea.
+            </Text>
+          ) : null}
           {fields.map((field, index) => (
             <DocumentLineItem
               key={field.id}
@@ -233,6 +256,42 @@ export function EmitDocumentScreen() {
           <Button variant="outline" size="md" onPress={() => append(defaultEmitDocumentLine())}>
             Agregar línea
           </Button>
+        </FormSection>
+
+        <FormSection title="Avanzado" icon="construct-outline">
+          <SegmentedControl
+            value={overrideDiscountCeiling ? 'yes' : 'no'}
+            options={[
+              { label: 'Techo de descuento normal', value: 'no' },
+              { label: 'Anular techo de descuento', value: 'yes' },
+            ]}
+            onChange={(next) =>
+              setValue('override_discount_ceiling', next === 'yes', { shouldValidate: true })
+            }
+          />
+          {overrideDiscountCeiling ? (
+            <Controller
+              control={control}
+              name="override_reason"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <FormField
+                  label="Motivo del descuento excepcional"
+                  placeholder="Ej. gesto comercial autorizado por el gerente"
+                  leftIcon="alert-circle-outline"
+                  error={errors.override_reason?.message}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  value={value}
+                  required
+                />
+              )}
+            />
+          ) : (
+            <Text style={[styles.note, { color: semantic.text.tertiary }]}>
+              Por defecto, ningún descuento puede superar el máximo del catálogo o la campaña
+              activa. Esta opción queda registrada con tu usuario y motivo.
+            </Text>
+          )}
         </FormSection>
 
         <View
@@ -409,6 +468,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   sectionBody: { gap: spacing[3] },
+  campaignHint: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
+  note: { fontSize: typography.size.xs, lineHeight: typography.size.xs * 1.5 },
   pillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   pill: {
     alignItems: 'center',

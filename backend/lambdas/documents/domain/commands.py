@@ -34,6 +34,8 @@ class EmitDocumentCommand:
     payment_method: str
     lines: list[LineData]
     created_by: str
+    override_discount_ceiling: bool = False
+    override_reason: str | None = None
 
 
 @dataclass

@@ -40,6 +40,8 @@ export function defaultEmitDocumentFormValues(
     buyer_email: '',
     payment_method: '01',
     lines: [defaultEmitDocumentLine()],
+    override_discount_ceiling: false,
+    override_reason: '',
   }
 }
 
@@ -57,7 +59,34 @@ export function formValuesToEmitDocumentInput(values: EmitDocumentFormValues): E
     buyer_email: isConsumidorFinal ? null : values.buyer_email.trim() || null,
     payment_method: values.payment_method,
     lines: values.lines,
+    override_discount_ceiling: values.override_discount_ceiling,
+    override_reason: values.override_discount_ceiling ? values.override_reason.trim() : null,
   })
+}
+
+/**
+ * Descuento sugerido para una línea al seleccionar un producto del catálogo —
+ * replica `max(producto.discount_percentage, campaña.percentage si activa)`
+ * (backend: `_compute_totals`). Es solo una sugerencia de UX para pre-llenar
+ * el campo; el techo real se valida en el backend con el snapshot vivo del
+ * producto y la campaña, no con este cálculo del cliente.
+ */
+export function resolveSuggestedDiscount(
+  quantity: string,
+  unitPrice: string,
+  productDiscountPercentage: string | null,
+  campaign: { active: boolean; percentage: string } | null,
+): string {
+  const qty = toNumber(quantity)
+  const price = toNumber(unitPrice)
+  const gross = qty * price
+  if (gross <= 0) return '0.00'
+
+  const productPct = productDiscountPercentage ? toNumber(productDiscountPercentage) : 0
+  const campaignPct = campaign?.active ? toNumber(campaign.percentage) : 0
+  const ceilingPct = Math.max(productPct, campaignPct)
+
+  return round2(gross * (ceilingPct / 100)).toFixed(2)
 }
 
 export interface LineTotalsPreview {

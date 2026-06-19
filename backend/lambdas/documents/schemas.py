@@ -42,6 +42,14 @@ class EmitDocumentRequest(BaseModel):
     buyer_email: str | None = None
     payment_method: Literal["01", "15", "16", "17", "18", "19", "20", "21"] = "01"
     lines: list[EmitDocumentLineRequest] = Field(..., min_length=1)
+    override_discount_ceiling: bool = False
+    override_reason: str | None = Field(default=None, max_length=300)
+
+    @model_validator(mode="after")
+    def validate_override(self) -> EmitDocumentRequest:
+        if self.override_discount_ceiling and not (self.override_reason or "").strip():
+            raise ValueError("Debes indicar el motivo para anular el techo de descuento.")
+        return self
 
     @model_validator(mode="after")
     def normalize_buyer(self) -> EmitDocumentRequest:

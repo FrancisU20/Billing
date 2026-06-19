@@ -12,6 +12,7 @@ class InvoiceProductSnapshot:
     description: str
     unit_price: Decimal
     iva_rate: str
+    discount_percentage: Decimal | None = None
 
 
 class IProductCatalog(ABC):

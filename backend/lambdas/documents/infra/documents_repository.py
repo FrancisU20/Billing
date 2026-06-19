@@ -30,6 +30,7 @@ from lambdas.documents.domain.entities import (
 )
 from lambdas.documents.domain.errors import DocumentNotFoundError
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
+from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.dates import current_ecuador_month_utc_bounds, now_utc
 from shared.db.paginator import decode_cursor, encode_cursor
 from shared.errors import DatabaseError
@@ -46,8 +47,9 @@ def _dt(value: str) -> datetime:
 
 
 class DynamoDocumentsRepository(IDocumentsRepository):
-    def __init__(self, table) -> None:
+    def __init__(self, table, audit_table=None) -> None:
         self._table = table
+        self._audit_table = audit_table
 
     # ── keys ──────────────────────────────────────────────────────────────────
 
@@ -156,6 +158,8 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         *,
         idempotency: IdempotencyContext | None = None,
         response: dict | None = None,
+        override_reason: str | None = None,
+        user_id: str | None = None,
     ) -> None:
         item = self._to_item(document)
         transact_items: list[dict] = [
@@ -172,6 +176,22 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             if response is None:
                 raise ValueError("response is required when idempotency context is provided")
             transact_items.append(completion_transact_item(idempotency, response))
+
+        if override_reason and self._audit_table:
+            transact_items.append(
+                audit_put_transact_item(
+                    self._audit_table.table_name,
+                    audit_item(
+                        pk=f"AUDIT#{document.tenant_id}",
+                        entity_type="DOCUMENT",
+                        entity_id=document.document_id,
+                        action="DISCOUNT_CEILING_OVERRIDE",
+                        changed_by=user_id or "",
+                        before=None,
+                        after={"reason": override_reason, "access_key": document.access_key},
+                    ),
+                )
+            )
 
         try:
             self._table.meta.client.transact_write_items(TransactItems=transact_items)

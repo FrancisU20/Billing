@@ -34,6 +34,7 @@ from lambdas.documents.domain.commands import (
 )
 from lambdas.documents.domain.entities import DocumentStatus
 from lambdas.documents.domain.errors import DocumentNotFoundError
+from lambdas.documents.infra.discount_campaign_catalog import DynamoDiscountCampaignCatalog
 from lambdas.documents.infra.documents_repository import DynamoDocumentsRepository
 from lambdas.documents.infra.plan_reader import DynamoPlanReader
 from lambdas.documents.infra.product_catalog import DynamoProductCatalog
@@ -57,12 +58,13 @@ _sequences_table = get_table("SEQUENCES_TABLE")
 _tenants_table = get_table("TENANTS_TABLE")
 _plans_table = get_table("PLANS_TABLE")
 _products_table = get_table("PRODUCTS_TABLE") if env("PRODUCTS_TABLE", "") else None
+_audit_table = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
 _sign_queue_url = env("SIGN_QUEUE_URL", "")
 _documents_bucket = env("DOCUMENTS_BUCKET", "")
 
 
 def _repo() -> DynamoDocumentsRepository:
-    return DynamoDocumentsRepository(_documents_table)
+    return DynamoDocumentsRepository(_documents_table, _audit_table)
 
 
 def _sequences_port() -> DynamoSequencesAdapter:
@@ -81,6 +83,12 @@ def _product_catalog(tenant_id: str):
     if _products_table is None:
         return None
     return DynamoProductCatalog(tenant_id, _products_table)
+
+
+def _discount_campaign_port(tenant_id: str):
+    if _products_table is None:
+        return None
+    return DynamoDiscountCampaignCatalog(tenant_id, _products_table)
 
 
 def _resolve_tenant_id(request: Request) -> str:
@@ -138,7 +146,12 @@ def _emit(request: Request, context) -> dict:
     repo = _repo()
     seq_port = _sequences_port()
 
-    document = EmitDocumentUseCase(repo, seq_port, _product_catalog(tenant_id)).execute(
+    document = EmitDocumentUseCase(
+        repo,
+        seq_port,
+        _product_catalog(tenant_id),
+        _discount_campaign_port(tenant_id),
+    ).execute(
         EmitDocumentCommand(
             tenant_id=tenant_id,
             ruc=tenant.ruc,
@@ -156,6 +169,8 @@ def _emit(request: Request, context) -> dict:
             payment_method=body.payment_method,
             lines=lines,
             created_by=request.user_id,
+            override_discount_ceiling=body.override_discount_ceiling,
+            override_reason=body.override_reason,
         )
     )
 
@@ -174,6 +189,8 @@ def _emit(request: Request, context) -> dict:
         document,
         idempotency=require_current_context(),
         response=response,
+        override_reason=body.override_reason if body.override_discount_ceiling else None,
+        user_id=request.user_id,
     )
 
     try:

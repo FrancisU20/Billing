@@ -67,6 +67,29 @@ class EmitDocumentRequestSchemaTests(unittest.TestCase):
                 )
             )
 
+    def test_override_requires_reason(self) -> None:
+        with self.assertRaises(ValidationError):
+            EmitDocumentRequest.model_validate(
+                _emit_body(override_discount_ceiling=True, override_reason=None)
+            )
+
+    def test_override_rejects_blank_reason(self) -> None:
+        with self.assertRaises(ValidationError):
+            EmitDocumentRequest.model_validate(
+                _emit_body(override_discount_ceiling=True, override_reason="   ")
+            )
+
+    def test_override_accepts_a_reason(self) -> None:
+        req = EmitDocumentRequest.model_validate(
+            _emit_body(
+                override_discount_ceiling=True,
+                override_reason="Gesto comercial autorizado",
+            )
+        )
+
+        self.assertTrue(req.override_discount_ceiling)
+        self.assertEqual(req.override_reason, "Gesto comercial autorizado")
+
 
 if __name__ == "__main__":
     unittest.main()
