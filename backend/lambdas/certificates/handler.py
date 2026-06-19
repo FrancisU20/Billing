@@ -17,6 +17,7 @@ from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
 from shared.certificates.store import CertificateStore
 from shared.certificates.validator import CertificateValidator
 from shared.config import env
+from shared.dates import isoformat_ecuador
 from shared.db.client import get_table
 from shared.errors import ForbiddenError, NotFoundError, OptimisticLockError
 from shared.logger import get_logger
@@ -123,11 +124,9 @@ _CERTIFICATE_PATTERN = re.compile(r"^/tenants/[^/]+/certificate$")
 def _certificate_response(tenant) -> dict:
     return {
         "cert_subject_ruc": tenant.cert_subject_ruc,
-        "cert_expires_at": tenant.cert_expires_at.isoformat() if tenant.cert_expires_at else None,
+        "cert_expires_at": isoformat_ecuador(tenant.cert_expires_at),
         "cert_issuer": tenant.cert_issuer,
-        "cert_uploaded_at": tenant.cert_uploaded_at.isoformat()
-        if tenant.cert_uploaded_at
-        else None,
+        "cert_uploaded_at": isoformat_ecuador(tenant.cert_uploaded_at),
     }
 
 

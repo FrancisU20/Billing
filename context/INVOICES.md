@@ -28,6 +28,9 @@ Regla fiscal critica: si `buyer_id_type == "07"` (Consumidor Final), el sistema 
 el request se rechaza. Esto evita rechazos SRI tipo "69: ERROR EN LA IDENTIFICACION DEL
 RECEPTOR" por estado viejo del formulario.
 
+Frontend: la fecha de emision se calcula con zona horaria `America/Guayaquil`, se muestra
+bloqueada junto a la hora local y solo viaja al backend/SRI la fecha `YYYY-MM-DD`.
+
 **Alcance MVP (Sprint 1-5):** Factura electronica (tipo 01), emision individual,
 multiples establecimientos desde el primer dia.
 

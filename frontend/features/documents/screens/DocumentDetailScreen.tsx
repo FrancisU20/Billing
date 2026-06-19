@@ -8,7 +8,7 @@ import { DetailField, DetailSection } from '@/components/ui/DetailSection'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
-import { formatDate } from '@/lib/utils/format'
+import { formatDate, formatDateTime } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { documentsApi } from '../api'
@@ -121,6 +121,12 @@ export function DocumentDetailScreen() {
                   label="N° de autorización"
                   value={document.authorization_number}
                   mono
+                />
+              ) : null}
+              {document.authorized_at ? (
+                <DetailField
+                  label="Fecha de autorización"
+                  value={formatDateTime(document.authorized_at)}
                 />
               ) : null}
             </DetailSection>

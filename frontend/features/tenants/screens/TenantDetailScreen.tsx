@@ -14,7 +14,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
-import { formatDate, formatRuc, initials } from '@/lib/utils/format'
+import { formatDateTime, formatRuc, initials } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
@@ -154,8 +154,8 @@ export function TenantDetailScreen() {
                   <DetailField label="Email" value={tenant.email} />
                   <DetailField label="Teléfono" value={tenant.phone} />
                   <DetailField label="Dirección" value={tenant.address} />
-                  <DetailField label="Creado" value={formatDate(tenant.created_at)} />
-                  <DetailField label="Actualizado" value={formatDate(tenant.updated_at)} />
+                  <DetailField label="Creado" value={formatDateTime(tenant.created_at)} />
+                  <DetailField label="Actualizado" value={formatDateTime(tenant.updated_at)} />
                 </DetailSection>
 
                 <CertificateSection tenantId={tenant.id} canManage />
@@ -244,7 +244,9 @@ function OwnerAccessSection({
       <DetailField label="Email owner" value={tenant.email} />
       <DetailField
         label="Onboarding completado"
-        value={tenant.onboarding_completed_at ? formatDate(tenant.onboarding_completed_at) : '-'}
+        value={
+          tenant.onboarding_completed_at ? formatDateTime(tenant.onboarding_completed_at) : '-'
+        }
       />
       <Button variant="outline" size="md" fullWidth isDisabled={actionPending} onPress={onRetry}>
         Reintentar acceso inicial

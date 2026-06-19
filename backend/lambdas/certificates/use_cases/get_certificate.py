@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
+from shared.dates import isoformat_ecuador
 
 
 class GetCertificateUseCase:
@@ -12,11 +13,7 @@ class GetCertificateUseCase:
         return {
             "tenant_id": tenant.id,
             "cert_subject_ruc": tenant.cert_subject_ruc,
-            "cert_expires_at": tenant.cert_expires_at.isoformat()
-            if tenant.cert_expires_at
-            else None,
+            "cert_expires_at": isoformat_ecuador(tenant.cert_expires_at),
             "cert_issuer": tenant.cert_issuer,
-            "cert_uploaded_at": tenant.cert_uploaded_at.isoformat()
-            if tenant.cert_uploaded_at
-            else None,
+            "cert_uploaded_at": isoformat_ecuador(tenant.cert_uploaded_at),
         }

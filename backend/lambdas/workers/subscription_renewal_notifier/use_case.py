@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import urllib.error
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from lambdas.subscriptions.domain.entities.payment import Payment
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import IDLocalClient
@@ -12,6 +12,7 @@ from lambdas.subscriptions.domain.repositories.i_plan_catalog import IPlanCatalo
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.workers.email_notifications.ports import EmailSender
 from shared.billing import gross_price
+from shared.dates import isoformat_ecuador, now_utc
 from shared.errors import OptimisticLockError
 from shared.logger import get_logger
 
@@ -118,7 +119,7 @@ class NotifySubscriptionRenewalUseCase:
                 email=tenant.email,
                 legal_rep_name=tenant.legal_rep_name,
                 trade_name=tenant.trade_name,
-                plan_cycle_ends_at=ends_at.isoformat(),
+                plan_cycle_ends_at=isoformat_ecuador(ends_at) or "",
                 days_remaining=days_remaining,
                 renewal_url=self._renewal_url,
             )
@@ -185,7 +186,7 @@ class NotifySubscriptionRenewalUseCase:
             )
 
         if charge_status == "PAID":
-            now = datetime.now(UTC)
+            now = now_utc()
             payment = Payment(
                 order_id=payment_id or "",
                 tenant_id=tenant.id,

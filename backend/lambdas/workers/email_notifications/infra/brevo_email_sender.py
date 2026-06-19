@@ -13,13 +13,13 @@ content delivered to Ecuadorian customers, not source code.
 
 import base64
 import json
-from datetime import date, datetime
 from html import escape
 
 import urllib3
 
 from lambdas.workers.email_notifications.ports import EmailSender
 from shared.config import env
+from shared.dates import format_date_ecuador, format_datetime_ecuador
 from shared.errors import ExternalServiceError
 from shared.logger import get_logger
 from shared.secrets.client import get_secret
@@ -117,7 +117,7 @@ def _build_html(legal_rep_name: str, email: str, temp_password: str) -> str:
 def _build_onboarding_otp_html(legal_rep_name: str, otp: str, expires_at: str) -> str:
     safe_name = escape(legal_rep_name, quote=True)
     safe_otp = escape(otp, quote=True)
-    safe_expires_at = escape(expires_at, quote=True)
+    safe_expires_at = escape(_format_datetime(expires_at), quote=True)
 
     return f"""<!DOCTYPE html>
 <html lang="es">
@@ -214,15 +214,11 @@ def _send(api_key: str, payload: dict, *, log_email: str) -> None:
 
 
 def _format_date(value: str) -> str:
-    if not value:
-        return "No disponible"
-    try:
-        normalized = value.replace("Z", "+00:00")
-        if "T" in normalized:
-            return datetime.fromisoformat(normalized).date().strftime("%d-%m-%Y")
-        return date.fromisoformat(normalized).strftime("%d-%m-%Y")
-    except ValueError:
-        return value
+    return format_date_ecuador(value)
+
+
+def _format_datetime(value: str) -> str:
+    return format_datetime_ecuador(value)
 
 
 def _summary_row(label: str, value: str) -> str:
@@ -615,7 +611,7 @@ def _build_orphan_payment_alert_html(
     safe_plan_id = escape(plan_id, quote=True)
     safe_amount = escape(amount, quote=True)
     safe_currency = escape(currency, quote=True)
-    safe_confirmed_at = escape(confirmed_at, quote=True)
+    safe_confirmed_at = escape(_format_datetime(confirmed_at), quote=True)
 
     return f"""<!DOCTYPE html>
 <html lang="es">
@@ -719,7 +715,7 @@ def _build_document_authorized_html(
     safe_buyer_email = escape(buyer_email or "No registrado", quote=True)
     display_sequential = sequential_display or document_id
     display_issued_at = _format_date(issued_at)
-    display_authorized_at = _format_date(authorized_at)
+    display_authorized_at = _format_datetime(authorized_at)
     display_total = f"{total or '0.00'} {currency or 'USD'}"
 
     return f"""<!DOCTYPE html>
@@ -848,7 +844,7 @@ def _build_document_buyer_html(
     safe_buyer_id = escape(buyer_id, quote=True)
     safe_issuer = escape(issuer_name or "Emisor", quote=True)
     display_issued_at = _format_date(issued_at)
-    display_authorized_at = _format_date(authorized_at)
+    display_authorized_at = _format_datetime(authorized_at)
     display_total = f"{total or '0.00'} {currency or 'USD'}"
 
     return f"""<!DOCTYPE html>

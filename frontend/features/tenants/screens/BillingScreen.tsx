@@ -8,6 +8,7 @@ import { radius, shadow, spacing, typography } from '@/constants/tokens'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useTheme } from '@/lib/theme-context'
+import { formatDate } from '@/lib/utils/format'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { retryWithBackoff } from '@/lib/utils/retry'
 import { subscriptionsApi } from '@/features/subscriptions/api'
@@ -20,13 +21,9 @@ import { useTenant } from '../hooks/useTenant'
 import { usePlan } from '../hooks/usePlan'
 import type { CreatePaymentResult } from '@/features/subscriptions/schemas'
 
-function formatDate(iso: string | null | undefined): string {
+function formatOptionalDate(iso: string | null | undefined): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('es-EC', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  return formatDate(iso)
 }
 
 export function BillingScreen() {
@@ -269,7 +266,7 @@ export function BillingScreen() {
           <View style={styles.infoRow}>
             <Text style={[styles.label, { color: semantic.text.secondary }]}>Ciclo termina el</Text>
             <Text style={[styles.value, { color: semantic.text.primary }]}>
-              {formatDate(cycleEndsAt)}
+              {formatOptionalDate(cycleEndsAt)}
             </Text>
           </View>
         </View>

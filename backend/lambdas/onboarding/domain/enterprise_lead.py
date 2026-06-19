@@ -13,6 +13,7 @@ manually (out of scope for this phase — see context/ONBOARDING.md).
 from dataclasses import dataclass
 
 from lambdas.onboarding.domain.commands import ConfirmOnboardingOtpCommand
+from shared.dates import isoformat_ecuador
 from shared.domain.base_entity import GlobalEntity
 from shared.domain.value_objects.email import Email
 from shared.domain.value_objects.ruc import RUC
@@ -60,6 +61,6 @@ class EnterpriseLead(GlobalEntity):
             "address": self.address,
             "accounting_required": self.accounting_required,
             "plan_id": self.plan_id,
-            "created_at": self.created_at.isoformat(),
+            "created_at": isoformat_ecuador(self.created_at),
             "created_by": self.created_by,
         }

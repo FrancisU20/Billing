@@ -117,7 +117,7 @@ class PollDocumentUseCaseTests(unittest.TestCase):
         self.assertEqual(authorized_event.buyer_id, "9999999999999")
         self.assertEqual(authorized_event.sequential_display, "001-001-000000001")
         self.assertEqual(authorized_event.total, "23.00")
-        self.assertEqual(authorized_event.authorized_at, "2026-06-17T10:00:00+00:00")
+        self.assertEqual(authorized_event.authorized_at, "2026-06-17T05:00:00-05:00")
         self.assertIsInstance(
             publisher.events_published[1], DocumentBuyerNotificationRequestedEvent
         )

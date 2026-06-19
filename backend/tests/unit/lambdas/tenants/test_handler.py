@@ -156,8 +156,8 @@ class TenantsHandlerTests(unittest.TestCase):
         self.assertEqual(call["status"], "active")
         self.assertEqual(call["sri_environment"], "testing")
         self.assertEqual(call["plan_status"], "active")
-        self.assertEqual(call["created_from"], "2026-06-01T00:00:00+00:00")
-        self.assertEqual(call["created_to"], "2026-06-08T23:59:59.999999+00:00")
+        self.assertEqual(call["created_from"], "2026-06-01T05:00:00+00:00")
+        self.assertEqual(call["created_to"], "2026-06-09T04:59:59.999999+00:00")
 
     def test_list_rejects_invalid_plan_status(self) -> None:
         event = api_event(method="GET", path="/tenants", query={"plan_status": "paused"})

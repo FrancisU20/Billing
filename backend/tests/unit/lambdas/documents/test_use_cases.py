@@ -165,13 +165,11 @@ class EmitDocumentUseCaseTests(unittest.TestCase):
         self.seq = FakeSequencesPort(next_value=5)
 
     def _run(self, **overrides: Any) -> Document:
-        with patch("lambdas.documents.use_cases.emit_document.datetime") as mock_dt:
-            mock_dt.now.return_value.date.return_value = _TODAY
+        with patch("lambdas.documents.use_cases.emit_document.today_ecuador", return_value=_TODAY):
             return EmitDocumentUseCase(self.repo, self.seq).execute(_make_emit_cmd(**overrides))
 
     def _run_with_catalog(self, **overrides: Any) -> Document:
-        with patch("lambdas.documents.use_cases.emit_document.datetime") as mock_dt:
-            mock_dt.now.return_value.date.return_value = _TODAY
+        with patch("lambdas.documents.use_cases.emit_document.today_ecuador", return_value=_TODAY):
             return EmitDocumentUseCase(self.repo, self.seq, FakeProductCatalog()).execute(
                 _make_emit_cmd(**overrides)
             )

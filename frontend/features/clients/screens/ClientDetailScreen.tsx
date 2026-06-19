@@ -12,7 +12,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
-import { formatDate, initials } from '@/lib/utils/format'
+import { formatDateTime, initials } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
@@ -116,8 +116,8 @@ export function ClientDetailScreen() {
                     mono
                   />
                   <Field label="Tipo de persona" value={CLIENT_PERSON_LABELS[client.person_type]} />
-                  <Field label="Creado" value={formatDate(client.created_at)} />
-                  <Field label="Actualizado" value={formatDate(client.updated_at)} />
+                  <Field label="Creado" value={formatDateTime(client.created_at)} />
+                  <Field label="Actualizado" value={formatDateTime(client.updated_at)} />
                 </DetailSection>
 
                 <DetailSection title="Contacto" icon="mail-outline">

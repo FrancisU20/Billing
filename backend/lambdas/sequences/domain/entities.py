@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
+
+from shared.dates import isoformat_ecuador, now_utc
 
 
 def _now() -> datetime:
-    return datetime.now(UTC)
+    return now_utc()
 
 
 @dataclass
@@ -84,8 +86,8 @@ class Establishment:
             "tenant_id": self.tenant_id,
             "emission_points": [ep.to_dict() for ep in self.emission_points],
             "version": self.version,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "created_at": isoformat_ecuador(self.created_at),
+            "updated_at": isoformat_ecuador(self.updated_at),
             "created_by": self.created_by,
             "updated_by": self.updated_by,
         }

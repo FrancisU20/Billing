@@ -14,7 +14,7 @@ import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
-import { formatCurrency, formatDate } from '@/lib/utils/format'
+import { formatCurrency, formatDateTime } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
@@ -160,8 +160,8 @@ export function PlanDetailScreen() {
                 </DetailSection>
 
                 <DetailSection title="Metadata" icon="time-outline">
-                  <DetailField label="Creado" value={formatDate(plan.created_at)} />
-                  <DetailField label="Actualizado" value={formatDate(plan.updated_at)} />
+                  <DetailField label="Creado" value={formatDateTime(plan.created_at)} />
+                  <DetailField label="Actualizado" value={formatDateTime(plan.updated_at)} />
                   <DetailField label="ID" value={plan.id} mono />
                 </DetailSection>
               </>

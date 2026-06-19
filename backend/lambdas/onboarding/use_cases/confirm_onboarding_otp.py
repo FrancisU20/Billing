@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
 
 from lambdas.onboarding.domain.commands import ConfirmOnboardingOtpCommand
 from lambdas.onboarding.domain.enterprise_lead import EnterpriseLead
@@ -21,6 +20,7 @@ from lambdas.tenants.domain.tenant import Tenant
 from shared.certificates.errors import CertificateInvalidError
 from shared.certificates.store import CertificateStore
 from shared.certificates.validator import CertificateValidator
+from shared.dates import now_utc
 from shared.domain.events.domain_event import DomainEvent
 
 
@@ -119,7 +119,7 @@ class ConfirmOnboardingOtpUseCase:
         tenant.attach_certificate(
             metadata,
             secret_arn=secret_arn,
-            uploaded_at=datetime.now(UTC),
+            uploaded_at=now_utc(),
             updated_by="onboarding",
             complete_onboarding=True,
             touch_entity=False,

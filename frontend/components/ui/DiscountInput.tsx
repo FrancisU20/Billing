@@ -17,7 +17,8 @@ interface DiscountInputProps extends Omit<TextInputProps, 'value' | 'onChangeTex
 }
 
 function parseNumber(value: string): number {
-  const parsed = Number(value.replace(',', '.'))
+  const normalized = value.replace(',', '.').replace(/[^0-9.]/g, '')
+  const parsed = Number(normalized)
   return Number.isFinite(parsed) ? parsed : 0
 }
 
@@ -26,8 +27,7 @@ function formatMoney(value: number): string {
 }
 
 function formatPercent(value: number): string {
-  const rounded = Math.max(0, Math.round(value * 100) / 100)
-  return Number.isInteger(rounded) ? String(rounded) : String(rounded)
+  return Math.max(0, Math.round(value * 100) / 100).toFixed(2)
 }
 
 export function DiscountInput({
@@ -47,7 +47,7 @@ export function DiscountInput({
     return formatPercent((parseNumber(value) / baseAmount) * 100)
   }, [baseAmount, value])
 
-  const visibleValue = mode === 'amount' ? value : percentValue
+  const visibleValue = mode === 'amount' ? value : `${percentValue}%`
 
   function changeMode(next: DiscountMode) {
     if (next === mode) return

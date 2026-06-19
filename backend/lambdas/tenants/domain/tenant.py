@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
 
@@ -10,6 +10,7 @@ from lambdas.tenants.domain.enums import PlanStatus, SriEnvironment, TenantStatu
 from lambdas.tenants.domain.errors import InvalidSriEnvironmentError
 from shared.certificates.expiry import CERTIFICATE_EXPIRY_ALERT_THRESHOLDS_DAYS
 from shared.certificates.metadata import CertificateMetadata
+from shared.dates import isoformat_ecuador, now_utc
 from shared.domain.base_entity import GlobalEntity
 from shared.domain.value_objects.email import Email
 from shared.domain.value_objects.ruc import RUC
@@ -231,39 +232,23 @@ class Tenant(GlobalEntity):
             "sri_environment": self.sri_environment.value,
             "status": self.status.value,
             "plan_id": self.plan_id,
-            "plan_status": self.effective_plan_status(datetime.now(UTC)).value,
-            "plan_cycle_ends_at": (
-                self.plan_cycle_ends_at.isoformat() if self.plan_cycle_ends_at else None
-            ),
+            "plan_status": self.effective_plan_status(now_utc()).value,
+            "plan_cycle_ends_at": isoformat_ecuador(self.plan_cycle_ends_at),
             "cert_subject_ruc": self.cert_subject_ruc,
-            "cert_expires_at": self.cert_expires_at.isoformat() if self.cert_expires_at else None,
+            "cert_expires_at": isoformat_ecuador(self.cert_expires_at),
             "cert_issuer": self.cert_issuer,
-            "cert_uploaded_at": (
-                self.cert_uploaded_at.isoformat() if self.cert_uploaded_at else None
-            ),
-            "cert_expiry_alert_60_sent_at": (
-                self.cert_expiry_alert_60_sent_at.isoformat()
-                if self.cert_expiry_alert_60_sent_at
-                else None
-            ),
-            "cert_expiry_alert_30_sent_at": (
-                self.cert_expiry_alert_30_sent_at.isoformat()
-                if self.cert_expiry_alert_30_sent_at
-                else None
-            ),
-            "onboarding_completed_at": (
-                self.onboarding_completed_at.isoformat() if self.onboarding_completed_at else None
-            ),
+            "cert_uploaded_at": isoformat_ecuador(self.cert_uploaded_at),
+            "cert_expiry_alert_60_sent_at": isoformat_ecuador(self.cert_expiry_alert_60_sent_at),
+            "cert_expiry_alert_30_sent_at": isoformat_ecuador(self.cert_expiry_alert_30_sent_at),
+            "onboarding_completed_at": isoformat_ecuador(self.onboarding_completed_at),
             "dlocal_payer_id": self.dlocal_payer_id,
             "subscription_status": self.subscription_status,
-            "subscription_renewal_reminder_sent_at": (
-                self.subscription_renewal_reminder_sent_at.isoformat()
-                if self.subscription_renewal_reminder_sent_at
-                else None
+            "subscription_renewal_reminder_sent_at": isoformat_ecuador(
+                self.subscription_renewal_reminder_sent_at
             ),
             "pending_order_id": self.pending_order_id,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "created_at": isoformat_ecuador(self.created_at),
+            "updated_at": isoformat_ecuador(self.updated_at),
             "created_by": self.created_by,
             "version": self.version,
         }

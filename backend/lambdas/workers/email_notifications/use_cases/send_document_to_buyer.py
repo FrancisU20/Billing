@@ -2,11 +2,10 @@ from __future__ import annotations
 
 """Use case: send authorized XML + RIDE to the invoice buyer."""
 
-from datetime import UTC, datetime
-
 from lambdas.documents.domain.entities import BuyerNotificationStatus, DocumentStatus
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from lambdas.workers.email_notifications.ports import DocumentAttachmentReader, EmailSender
+from shared.dates import isoformat_ecuador, now_utc
 from shared.errors import InternalError
 from shared.logger import get_logger
 
@@ -81,7 +80,7 @@ class SendDocumentToBuyerUseCase:
                 issuer_ruc=issuer_ruc,
                 buyer_id=document.buyer_id,
                 issued_at=document.issued_at.isoformat(),
-                authorized_at=document.authorized_at.isoformat() if document.authorized_at else "",
+                authorized_at=isoformat_ecuador(document.authorized_at) or "",
                 total=str(document.total),
                 currency="USD",
                 xml_content=attachments.xml_content,
@@ -93,7 +92,7 @@ class SendDocumentToBuyerUseCase:
                 tenant_id,
                 document_id,
                 status=BuyerNotificationStatus.SENT,
-                notified_at=datetime.now(UTC),
+                notified_at=now_utc(),
             )
             _log.info(
                 "buyer document email sent",

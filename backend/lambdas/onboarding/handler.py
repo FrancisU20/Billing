@@ -23,6 +23,7 @@ from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
 from shared.certificates.store import CertificateStore
 from shared.certificates.validator import CertificateValidator
 from shared.config import env
+from shared.dates import isoformat_ecuador
 from shared.db.client import get_table
 from shared.errors import NotFoundError
 
@@ -90,7 +91,7 @@ def _request_otp(request: Request, context) -> dict:
     response = ApiResponse.created(
         {
             "verification_id": result.verification.id,
-            "expires_at": result.verification.expires_at.isoformat(),
+            "expires_at": isoformat_ecuador(result.verification.expires_at),
             "self_service": result.verification.self_service,
         },
         request.request_id,

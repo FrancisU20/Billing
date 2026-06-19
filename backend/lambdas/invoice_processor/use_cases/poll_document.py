@@ -21,6 +21,7 @@ from lambdas.invoice_processor.events import (
 )
 from lambdas.invoice_processor.ports import IDocumentStorage, IQueuePublisher, ISriClient
 from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
+from shared.dates import ECUADOR_TZ, isoformat_ecuador, now_utc
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
@@ -36,12 +37,12 @@ def _next_delay_seconds(attempt: int) -> int:
 
 def _parse_authorized_at(value: str | None) -> datetime:
     if not value:
-        return datetime.now(UTC)
+        return now_utc()
 
     raw = value.strip()
     for fmt in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
         try:
-            return datetime.strptime(raw, fmt).replace(tzinfo=UTC)
+            return datetime.strptime(raw, fmt).replace(tzinfo=ECUADOR_TZ).astimezone(UTC)
         except ValueError:
             pass
 
@@ -49,10 +50,10 @@ def _parse_authorized_at(value: str | None) -> datetime:
         parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
         _log.warning("SRI authorized_at could not be parsed; using worker timestamp", value=value)
-        return datetime.now(UTC)
+        return now_utc()
 
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=UTC)
+        return parsed.replace(tzinfo=ECUADOR_TZ).astimezone(UTC)
     return parsed.astimezone(UTC)
 
 
@@ -126,7 +127,7 @@ class PollDocumentUseCase:
                     buyer_email=document.buyer_email or "",
                     sequential_display=document.sequential_display,
                     issued_at=document.issued_at.isoformat(),
-                    authorized_at=authorized_at.isoformat(),
+                    authorized_at=isoformat_ecuador(authorized_at) or "",
                     total=str(document.total),
                     currency="USD",
                 )
@@ -175,7 +176,7 @@ class PollDocumentUseCase:
             document_id,
             expected_status=DocumentStatus.PROCESSING,
             new_status=DocumentStatus.REJECTED,
-            rejected_at=datetime.now(UTC),
+            rejected_at=now_utc(),
             sri_errors=sri_errors,
         )
         self._queue_publisher.publish_event(

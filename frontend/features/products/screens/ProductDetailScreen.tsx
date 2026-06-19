@@ -9,6 +9,7 @@ import { DetailField, DetailSection } from '@/components/ui/DetailSection'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useTheme } from '@/lib/theme-context'
+import { formatDateTime } from '@/lib/utils/format'
 import { Routes } from '@/constants/routes'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { productKindLabel } from '../constants'
@@ -73,6 +74,11 @@ export function ProductDetailScreen() {
             <DetailField label="Control de stock" value={product.stock_enabled ? 'Sí' : 'No'} />
             <DetailField label="Stock actual" value={product.stock_quantity ?? 'No aplica'} />
             <DetailField label="Umbral bajo" value={product.low_stock_threshold ?? 'No aplica'} />
+          </DetailSection>
+
+          <DetailSection title="Metadata" icon="time-outline">
+            <DetailField label="Creado" value={formatDateTime(product.created_at)} />
+            <DetailField label="Actualizado" value={formatDateTime(product.updated_at)} />
           </DetailSection>
         </ScrollView>
       )}

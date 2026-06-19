@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
+import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
@@ -9,7 +9,6 @@ import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { FormField } from '@/components/ui/FormField'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
@@ -29,6 +28,7 @@ import {
   computeLineTotals,
   defaultEmitDocumentFormValues,
   defaultEmitDocumentLine,
+  ecuadorIssuedAtDisplay,
   formValuesToEmitDocumentInput,
 } from '../form'
 import { emitDocumentFormValuesSchema, type EmitDocumentFormValues } from '../schemas'
@@ -38,6 +38,7 @@ export function EmitDocumentScreen() {
   const toast = useToast()
   const { semantic } = useTheme()
   const [pickerLineIndex, setPickerLineIndex] = useState<number | null>(null)
+  const [issuedAtDisplay] = useState(() => ecuadorIssuedAtDisplay())
   const user = useAuthStore(selectUser)
   const tenantId = user?.tenantId ?? null
   const {
@@ -61,6 +62,7 @@ export function EmitDocumentScreen() {
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
   const establishmentCode = useWatch({ control, name: 'establishment_code' })
   const emissionPointCode = useWatch({ control, name: 'emission_point_code' })
+  const issuedAt = useWatch({ control, name: 'issued_at' })
   const paymentMethod = useWatch({ control, name: 'payment_method' })
   const lines = useWatch({ control, name: 'lines' })
 
@@ -180,22 +182,12 @@ export function EmitDocumentScreen() {
         </FormSection>
 
         <FormSection title="Fecha de emisión" icon="calendar-outline">
-          <Controller
-            control={control}
-            name="issued_at"
-            render={({ field: { onChange, onBlur, value } }) => (
-              <FormField
-                label="Fecha"
-                placeholder="2026-06-18"
-                leftIcon="calendar-outline"
-                error={errors.issued_at?.message}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                value={value}
-                required
-              />
-            )}
-          />
+          <LockedIssuedAt value={issuedAtDisplay} sriDate={issuedAt} />
+          {errors.issued_at?.message ? (
+            <Text style={[styles.fieldError, { color: semantic.status.error }]}>
+              {errors.issued_at.message}
+            </Text>
+          ) : null}
         </FormSection>
 
         <FormSection title="Comprador" icon="person-outline">
@@ -274,6 +266,32 @@ export function EmitDocumentScreen() {
         onClose={() => setPickerLineIndex(null)}
         onSelect={applyProductToLine}
       />
+    </View>
+  )
+}
+
+function LockedIssuedAt({ value, sriDate }: { value: string; sriDate: string }) {
+  const { semantic } = useTheme()
+  return (
+    <View
+      style={[
+        styles.lockedDate,
+        { backgroundColor: semantic.bg.primary, borderColor: semantic.border.default },
+      ]}
+    >
+      <View style={styles.lockedDateIcon}>
+        <Ionicons name="calendar-outline" size={18} color={semantic.accent.default} />
+      </View>
+      <View style={styles.lockedDateText}>
+        <Text style={[styles.lockedDateLabel, { color: semantic.text.secondary }]}>
+          Fecha y hora Ecuador
+        </Text>
+        <Text style={[styles.lockedDateValue, { color: semantic.text.primary }]}>{value}</Text>
+        <Text style={[styles.lockedDateMeta, { color: semantic.text.tertiary }]}>
+          Fecha SRI: {sriDate}
+        </Text>
+      </View>
+      <Ionicons name="lock-closed-outline" size={18} color={semantic.text.tertiary} />
     </View>
   )
 }
@@ -402,6 +420,27 @@ const styles = StyleSheet.create({
   },
   pillText: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
   totalsCard: { borderRadius: radius.md, borderWidth: 1, gap: spacing[2], padding: spacing[4] },
+  lockedDate: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing[3],
+    minHeight: 66,
+    padding: spacing[3],
+  },
+  lockedDateIcon: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    height: sizes.icon,
+    justifyContent: 'center',
+    width: sizes.icon,
+  },
+  lockedDateText: { flex: 1, gap: spacing[1] - 2 },
+  lockedDateLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
+  lockedDateValue: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
+  lockedDateMeta: { fontFamily: typography.fontFamily.mono, fontSize: typography.size.xs },
+  fieldError: { fontSize: typography.size.xs },
   totalRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   totalLabel: { fontSize: typography.size.sm },
   totalLabelEmphasis: { fontSize: typography.size.md, fontWeight: typography.weight.bold },

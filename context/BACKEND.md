@@ -93,6 +93,19 @@ Reglas:
 | `domain/value_objects` | RUC, email, identificacion Ecuador |
 | `domain/events` | DomainEvent, outbox, publisher |
 
+### Fechas Y Timestamps
+
+Regla de proyecto:
+
+- Instantes tecnicos persistidos, TTLs, locks, caches, firmas externas y claves de ordenamiento
+  se guardan como UTC/epoch para mantener comparaciones estables en DynamoDB y AWS.
+- Fechas civiles/de negocio y todo timestamp que sale por API/correo/RIDE se presenta en
+  `America/Guayaquil`.
+- Usar `shared/dates.py` (`now_utc`, `now_ecuador`, `today_ecuador`,
+  `isoformat_ecuador`, `parse_date_boundary`) en vez de crear conversiones locales.
+- `created_from/to` con `YYYY-MM-DD` representa el dia civil Ecuador y se convierte a limites
+  UTC antes de filtrar contra `created_at`.
+
 ## Contrato HTTP
 
 Exito:

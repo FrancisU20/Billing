@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.workers.email_notifications.ports import EmailSender
 from shared.certificates.expiry import CERTIFICATE_EXPIRY_ALERT_THRESHOLDS_DAYS, SECONDS_PER_DAY
+from shared.dates import isoformat_ecuador
 from shared.errors import OptimisticLockError
 from shared.logger import get_logger
 
@@ -57,7 +58,7 @@ class NotifyCertificateExpiryUseCase:
                     legal_rep_name=tenant.legal_rep_name,
                     trade_name=tenant.trade_name,
                     ruc=tenant.ruc,
-                    cert_expires_at=tenant.cert_expires_at.isoformat(),
+                    cert_expires_at=isoformat_ecuador(tenant.cert_expires_at) or "",
                     days_remaining=days_remaining,
                 )
                 tenant.mark_certificate_expiry_alert_sent(

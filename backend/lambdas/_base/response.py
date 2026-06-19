@@ -16,14 +16,14 @@ The frontend depends on this contract.
 """
 
 import json
-from datetime import UTC, datetime
 from typing import Any
 
+from shared.dates import now_ecuador
 from shared.errors import AppError
 
 
 def _ts() -> str:
-    return datetime.now(UTC).isoformat()
+    return now_ecuador().isoformat()
 
 
 def _build(status_code: int, body: dict) -> dict:

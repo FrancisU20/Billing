@@ -1,6 +1,15 @@
 import { emitDocumentSchema } from './schemas'
 import { CONSUMIDOR_FINAL_ID, CONSUMIDOR_FINAL_ID_TYPE, CONSUMIDOR_FINAL_NAME } from './constants'
+import { ecuadorDateTimeDisplay, ecuadorTodayISO } from '@/lib/utils/ecuador-time'
 import type { EmitDocumentFormValues, EmitDocumentInput, EmitDocumentLineInput } from './types'
+
+export function ecuadorIssuedAtDate(now?: Date): string {
+  return ecuadorTodayISO(now)
+}
+
+export function ecuadorIssuedAtDisplay(now?: Date): string {
+  return ecuadorDateTimeDisplay(now)
+}
 
 export function defaultEmitDocumentLine(): EmitDocumentLineInput {
   return {
@@ -18,7 +27,7 @@ export function defaultEmitDocumentFormValues(
   establishmentCode: string,
   emissionPointCode: string,
 ): EmitDocumentFormValues {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = ecuadorIssuedAtDate()
   return {
     establishment_code: establishmentCode,
     emission_point_code: emissionPointCode,

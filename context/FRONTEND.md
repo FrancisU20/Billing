@@ -133,6 +133,19 @@ si es especifico de un dominio, va en `features/{area}/components/`.
 | `components/NavigationMenu.tsx`, `AccountMenu.tsx`, `MenuSurface.tsx`, `UserAvatar.tsx` | piezas internas de `AppNavBar`                                                                                                                                                                                     |
 | `items.ts`                                                                              | items del menu de navegacion                                                                                                                                                                                       |
 
+## Fechas Y Hora Ecuador
+
+Toda fecha visible usa hora civil Ecuador (`America/Guayaquil`):
+
+- Usar `lib/utils/ecuador-time.ts` para obtener fecha/hora actual Ecuador.
+- Usar `formatDate` / `formatDateTime` de `lib/utils/format.ts` para renderizar fechas.
+- No usar `toISOString().slice(0, 10)` para fechas de negocio: devuelve dia UTC y puede
+  adelantar/atrasar la fecha local.
+- No parsear `YYYY-MM-DD` con `new Date(value)` para mostrarlo; es una fecha civil, no un
+  instante UTC.
+- Epochs internos (`Date.now()` para idempotencia, JWT, toasts) pueden seguir como instantes
+  tecnicos.
+
 ## Marketing Y Paginas Legales
 
 `features/marketing/` contiene el landing publico (`LandingScreen` +

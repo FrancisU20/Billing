@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { computeLineTotals, defaultEmitDocumentFormValues } from './form'
+import {
+  computeLineTotals,
+  defaultEmitDocumentFormValues,
+  ecuadorIssuedAtDate,
+  ecuadorIssuedAtDisplay,
+} from './form'
 import type { EmitDocumentLineInput } from './schemas'
 
 describe('computeLineTotals', () => {
@@ -116,5 +121,14 @@ describe('defaultEmitDocumentFormValues', () => {
     expect(values.buyer_name).toBe('Consumidor Final')
     expect(values.client_id).toBeNull()
     expect(values.lines).toHaveLength(1)
+  })
+})
+
+describe('Ecuador issued_at helpers', () => {
+  it('uses America/Guayaquil date instead of UTC date', () => {
+    const now = new Date('2026-06-19T00:04:00.000Z')
+
+    expect(ecuadorIssuedAtDate(now)).toBe('2026-06-18')
+    expect(ecuadorIssuedAtDisplay(now)).toBe('18/06/2026 19:04')
   })
 })

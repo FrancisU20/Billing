@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Literal
+
+from shared.dates import isoformat_ecuador, now_utc
 
 PaymentStatus = Literal["CREATED", "PENDING", "PAID", "REJECTED", "CANCELLED", "FAILED", "REFUNDED"]
 
@@ -17,7 +19,7 @@ class Payment:
     status: PaymentStatus
     plan_cycle: str = "month"
     checkout_token: str | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    created_at: datetime = field(default_factory=now_utc)
     confirmed_at: datetime | None = None
     payer_id: str | None = None
     payer_email: str | None = None
@@ -25,7 +27,7 @@ class Payment:
 
     def confirm(self, payer_id: str | None, payer_email: str | None) -> None:
         self.status = "PAID"
-        self.confirmed_at = datetime.now(UTC)
+        self.confirmed_at = now_utc()
         self.payer_id = payer_id
         self.payer_email = payer_email
 
@@ -49,8 +51,8 @@ class Payment:
             "amount": self.amount,
             "currency": self.currency,
             "status": self.status,
-            "created_at": self.created_at.isoformat(),
-            "confirmed_at": self.confirmed_at.isoformat() if self.confirmed_at else None,
+            "created_at": isoformat_ecuador(self.created_at),
+            "confirmed_at": isoformat_ecuador(self.confirmed_at),
             "payer_id": self.payer_id,
             "payer_email": self.payer_email,
         }

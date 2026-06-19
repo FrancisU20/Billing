@@ -7,6 +7,7 @@ from lambdas.clients.domain.commands import CreateClientCommand, UpdateClientCom
 from lambdas.clients.domain.enums import ClientStatus, IdentificationType, PersonType
 from lambdas.clients.domain.value_objects.address import Address
 from lambdas.clients.domain.value_objects.cedula import Cedula
+from shared.dates import isoformat_ecuador
 from shared.domain.base_entity import TenantScopedEntity
 from shared.domain.value_objects.email import Email
 from shared.domain.value_objects.ruc import RUC
@@ -102,8 +103,8 @@ class Client(TenantScopedEntity):
             "phones": self.phones,
             "addresses": [a.to_dict() for a in self.addresses],
             "status": self.status.value,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "created_at": isoformat_ecuador(self.created_at),
+            "updated_at": isoformat_ecuador(self.updated_at),
             "created_by": self.created_by,
             "updated_by": self.updated_by,
             "version": self.version,

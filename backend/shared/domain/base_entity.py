@@ -15,12 +15,14 @@ Rule: every repository that uses BaseRepository must receive a TenantScopedEntit
 """
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import uuid4
+
+from shared.dates import now_utc
 
 
 def _now() -> datetime:
-    return datetime.now(UTC)
+    return now_utc()
 
 
 def _uuid() -> str:

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.tenants.domain.tenant import Tenant
 from shared.certificates.metadata import CertificateMetadata
 from shared.certificates.store import CertificateStore
 from shared.certificates.validator import CertificateValidator
+from shared.dates import now_utc
 
 
 @dataclass(frozen=True)
@@ -48,7 +49,7 @@ class UpdateCertificateUseCase:
             certificate_b64=certificate_b64,
             password=cert_password,
         )
-        uploaded_at = datetime.now(UTC)
+        uploaded_at = now_utc()
         tenant.attach_certificate(
             metadata,
             secret_arn=secret_arn,

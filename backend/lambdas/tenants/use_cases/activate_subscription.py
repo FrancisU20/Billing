@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
 
 from lambdas.tenants.domain.errors import (
     SubscriptionAlreadyActiveError,
@@ -12,6 +11,7 @@ from lambdas.tenants.domain.errors import (
 )
 from lambdas.tenants.domain.repositories.i_payment_reader import IPaymentReader
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
+from shared.dates import isoformat_ecuador, now_utc
 
 _PAID_STATUSES = frozenset({"PAID", "AUTHORIZED"})
 
@@ -56,7 +56,7 @@ class ActivateSubscriptionUseCase:
         # reconciler worker retry without needing the browser session.
         self._tenant_repo.set_pending_order_id(tenant_id, order_id)
 
-        now = datetime.now(UTC)
+        now = now_utc()
         tenant.activate_subscription(
             payer_id=payment.payer_id,
             plan_cycle=payment.plan_cycle,
@@ -68,7 +68,7 @@ class ActivateSubscriptionUseCase:
 
         result = ActivateSubscriptionResult(
             tenant_id=tenant.id,
-            plan_cycle_ends_at=tenant.plan_cycle_ends_at.isoformat(),
+            plan_cycle_ends_at=isoformat_ecuador(tenant.plan_cycle_ends_at) or "",
             subscription_status=tenant.subscription_status or "active",
         )
         return tenant, result, payment_transact

@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from lambdas.products.domain.commands import CreateProductCommand, UpdateProductCommand
 from lambdas.products.domain.enums import ProductKind, ProductStatus
+from shared.dates import isoformat_ecuador
 from shared.domain.base_entity import TenantScopedEntity
 from shared.errors import ValidationError
 
@@ -112,8 +113,8 @@ class Product(TenantScopedEntity):
                 str(self.low_stock_threshold) if self.low_stock_threshold is not None else None
             ),
             "status": self.status.value,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "created_at": isoformat_ecuador(self.created_at),
+            "updated_at": isoformat_ecuador(self.updated_at),
             "created_by": self.created_by,
             "updated_by": self.updated_by,
             "version": self.version,

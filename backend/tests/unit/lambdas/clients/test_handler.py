@@ -119,8 +119,8 @@ class ClientsHandlerTests(unittest.TestCase):
 
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(repo.list_calls[0]["identification_type"], "ruc")
-        self.assertEqual(repo.list_calls[0]["created_from"], "2026-06-01T00:00:00+00:00")
-        self.assertEqual(repo.list_calls[0]["created_to"], "2026-06-08T23:59:59.999999+00:00")
+        self.assertEqual(repo.list_calls[0]["created_from"], "2026-06-01T05:00:00+00:00")
+        self.assertEqual(repo.list_calls[0]["created_to"], "2026-06-09T04:59:59.999999+00:00")
 
     def test_list_rejects_invalid_identification_type(self) -> None:
         event = api_event(

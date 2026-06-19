@@ -18,6 +18,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 from lambdas.documents.domain.entities import Document
 from lambdas.tenants.domain.tenant import Tenant
+from shared.dates import format_date_ecuador, format_datetime_ecuador
 
 _styles = getSampleStyleSheet()
 _small = ParagraphStyle("small", parent=_styles["Normal"], fontSize=8, leading=10)
@@ -50,7 +51,7 @@ def build_ride_pdf(document: Document, tenant: Tenant) -> bytes:
 
     elements.append(Paragraph(f"FACTURA No. {document.sequential_display}", _styles["Heading3"]))
     elements.append(
-        Paragraph(f"Fecha de emisión: {document.issued_at.isoformat()}", _styles["Normal"])
+        Paragraph(f"Fecha de emisión: {format_date_ecuador(document.issued_at)}", _styles["Normal"])
     )
     elements.append(Paragraph(f"Clave de acceso: {document.access_key}", _small))
     if document.authorization_number:
@@ -59,7 +60,10 @@ def build_ride_pdf(document: Document, tenant: Tenant) -> bytes:
         )
     if document.authorized_at:
         elements.append(
-            Paragraph(f"Fecha de autorización: {document.authorized_at.isoformat()}", _small)
+            Paragraph(
+                f"Fecha de autorización: {format_datetime_ecuador(document.authorized_at)}",
+                _small,
+            )
         )
     elements.append(Spacer(1, 0.5 * cm))
 

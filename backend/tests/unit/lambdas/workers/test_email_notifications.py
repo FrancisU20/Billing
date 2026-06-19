@@ -539,7 +539,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         self.assertEqual(sent["issuer_name"], "Empresa Demo S.A.")
         self.assertEqual(sent["issuer_ruc"], "1792146739001")
         self.assertEqual(sent["buyer_id"], "1712345678")
-        self.assertEqual(sent["authorized_at"], "2026-06-18T22:00:00+00:00")
+        self.assertEqual(sent["authorized_at"], "2026-06-18T17:00:00-05:00")
 
     def test_processes_document_rejected_event_and_sends_email(self) -> None:
         mod = self._load_handler_module()

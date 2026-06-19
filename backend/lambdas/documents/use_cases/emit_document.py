@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import secrets
-from datetime import UTC, date, datetime
+from datetime import date
 from decimal import Decimal
 from uuid import uuid4
 
@@ -17,6 +17,7 @@ from lambdas.documents.domain.iva_rates import iva_rate_for
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from lambdas.documents.domain.repositories.i_product_catalog import IProductCatalog
 from lambdas.documents.domain.repositories.i_sequences_port import ISequencesPort
+from shared.dates import today_ecuador
 from shared.errors import ValidationError
 
 
@@ -124,8 +125,7 @@ class EmitDocumentUseCase:
         if not cmd.certificate_secret_arn:
             raise CertificateNotUploadedError()
 
-        today = datetime.now(UTC).date()
-        if cmd.issued_at > today:
+        if cmd.issued_at > today_ecuador():
             raise InvalidIssuedDateError()
 
         if cmd.monthly_limit != -1:

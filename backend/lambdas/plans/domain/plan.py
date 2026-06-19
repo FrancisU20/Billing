@@ -13,15 +13,16 @@ limit_cycle: "month" | "year"  (free plan uses "year": 20 docs/year).
 """
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
 from lambdas.plans.domain.commands import CreatePlanCommand, UpdatePlanCommand
+from shared.dates import isoformat_ecuador, now_utc
 
 
 def _now() -> datetime:
-    return datetime.now(UTC)
+    return now_utc()
 
 
 def _uuid() -> str:
@@ -154,7 +155,7 @@ class Plan:
             "active": self.active,
             "order": self.order,
             "version": self.version,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "created_at": isoformat_ecuador(self.created_at),
+            "updated_at": isoformat_ecuador(self.updated_at),
             "created_by": self.created_by,
         }

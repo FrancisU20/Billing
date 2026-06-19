@@ -11,7 +11,7 @@ import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useCertificateFilePicker } from '@/lib/hooks/useCertificateFilePicker'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useTheme } from '@/lib/theme-context'
-import { formatDate, formatRuc } from '@/lib/utils/format'
+import { formatDate, formatDateTime, formatRuc } from '@/lib/utils/format'
 import { spacing, typography } from '@/constants/tokens'
 import { tenantsApi } from '../api'
 import {
@@ -120,7 +120,9 @@ export function CertificateSection({ tenantId, canManage }: CertificateSectionPr
           />
           <DetailField
             label="Subido el"
-            value={certificate.cert_uploaded_at ? formatDate(certificate.cert_uploaded_at) : '-'}
+            value={
+              certificate.cert_uploaded_at ? formatDateTime(certificate.cert_uploaded_at) : '-'
+            }
           />
         </>
       ) : (

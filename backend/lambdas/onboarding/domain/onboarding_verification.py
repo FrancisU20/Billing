@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 from lambdas.onboarding.domain.errors import (
@@ -11,6 +11,7 @@ from lambdas.onboarding.domain.errors import (
     OnboardingOtpExpiredError,
     OnboardingOtpInvalidError,
 )
+from shared.dates import now_utc
 
 OTP_TTL_MINUTES = 10
 OTP_MAX_ATTEMPTS = 5
@@ -19,7 +20,7 @@ _HASH_ITERATIONS = 100_000
 
 
 def _now() -> datetime:
-    return datetime.now(UTC)
+    return now_utc()
 
 
 def generate_otp() -> str:

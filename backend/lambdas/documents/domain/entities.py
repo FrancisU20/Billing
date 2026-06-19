@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 
+from shared.dates import isoformat_ecuador, now_utc
+
 
 def _now() -> datetime:
-    return datetime.now(UTC)
+    return now_utc()
 
 
 class DocumentStatus(str, Enum):
@@ -146,19 +148,17 @@ class Document:
             "lines": [ln.to_dict() for ln in self.lines],
             "retry_count": self.retry_count,
             "authorization_number": self.authorization_number,
-            "authorized_at": self.authorized_at.isoformat() if self.authorized_at else None,
-            "rejected_at": self.rejected_at.isoformat() if self.rejected_at else None,
+            "authorized_at": isoformat_ecuador(self.authorized_at),
+            "rejected_at": isoformat_ecuador(self.rejected_at),
             "xml_s3_key": self.xml_s3_key,
             "ride_s3_key": self.ride_s3_key,
             "sri_errors": self.sri_errors,
             "buyer_notification_status": (
                 self.buyer_notification_status.value if self.buyer_notification_status else None
             ),
-            "buyer_notified_at": (
-                self.buyer_notified_at.isoformat() if self.buyer_notified_at else None
-            ),
+            "buyer_notified_at": (isoformat_ecuador(self.buyer_notified_at)),
             "buyer_notification_error": self.buyer_notification_error,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "created_at": isoformat_ecuador(self.created_at),
+            "updated_at": isoformat_ecuador(self.updated_at),
             "created_by": self.created_by,
         }

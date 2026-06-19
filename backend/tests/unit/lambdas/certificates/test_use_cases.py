@@ -8,6 +8,7 @@ from lambdas.certificates.use_cases.get_certificate import GetCertificateUseCase
 from lambdas.certificates.use_cases.update_certificate import UpdateCertificateUseCase
 from shared.certificates.errors import CertificateRucMismatchError
 from shared.certificates.metadata import CertificateMetadata
+from shared.dates import isoformat_ecuador
 from tests.unit.support import VALID_RUC, FakeTenantRepository, make_tenant
 
 SECRET_ARN = "arn:aws:secretsmanager:sa-east-1:123:secret:/tenant/certificate"
@@ -73,9 +74,9 @@ class GetCertificateUseCaseTests(unittest.TestCase):
         data = GetCertificateUseCase(repo).execute(tenant.id)
 
         self.assertEqual(data["cert_subject_ruc"], VALID_RUC)
-        self.assertEqual(data["cert_expires_at"], expires_at.isoformat())
+        self.assertEqual(data["cert_expires_at"], isoformat_ecuador(expires_at))
         self.assertEqual(data["cert_issuer"], "Security Data")
-        self.assertEqual(data["cert_uploaded_at"], uploaded_at.isoformat())
+        self.assertEqual(data["cert_uploaded_at"], isoformat_ecuador(uploaded_at))
 
     def test_does_not_expose_secret_arn(self) -> None:
         repo = FakeTenantRepository()

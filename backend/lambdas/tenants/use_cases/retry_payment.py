@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import urllib.error
 from dataclasses import dataclass
-from datetime import UTC, datetime
 
 from lambdas.subscriptions.domain.entities.payment import Payment
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import IDLocalClient
@@ -16,6 +15,7 @@ from lambdas.tenants.domain.errors import (
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.tenants.domain.tenant import Tenant
 from shared.billing import gross_price
+from shared.dates import isoformat_ecuador, now_utc
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
@@ -75,7 +75,7 @@ class RetryPaymentUseCase:
             )
             raise SavedCardRejectedError()
 
-        now = datetime.now(UTC)
+        now = now_utc()
         payment = Payment(
             order_id=charge.payment_id,
             tenant_id=tenant_id,
@@ -107,9 +107,7 @@ class RetryPaymentUseCase:
             tenant,
             RetryPaymentResult(
                 tenant_id=tenant_id,
-                plan_cycle_ends_at=tenant.plan_cycle_ends_at.isoformat()
-                if tenant.plan_cycle_ends_at
-                else "",
+                plan_cycle_ends_at=isoformat_ecuador(tenant.plan_cycle_ends_at) or "",
                 subscription_status=tenant.subscription_status or "active",
             ),
             payment_transact,

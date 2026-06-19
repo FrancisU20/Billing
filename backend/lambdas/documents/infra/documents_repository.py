@@ -30,6 +30,7 @@ from lambdas.documents.domain.entities import (
 )
 from lambdas.documents.domain.errors import DocumentNotFoundError
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
+from shared.dates import current_ecuador_month_utc_bounds, now_utc
 from shared.db.paginator import decode_cursor, encode_cursor
 from shared.errors import DatabaseError
 from shared.logger import get_logger
@@ -119,8 +120,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         return [self._from_item(i) for i in items], next_cursor
 
     def count_this_month(self, tenant_id: str, sri_environment: str) -> int:
-        now = datetime.now(UTC)
-        year_month = f"{now.year}-{now.month:02d}"
+        start_utc, end_utc = current_ecuador_month_utc_bounds()
         total = 0
         last_key = None
         try:
@@ -128,7 +128,8 @@ class DynamoDocumentsRepository(IDocumentsRepository):
                 kwargs: dict = {
                     "IndexName": _GSI,
                     "KeyConditionExpression": (
-                        Key("tenant_id").eq(tenant_id) & Key("created_at").begins_with(year_month)
+                        Key("tenant_id").eq(tenant_id)
+                        & Key("created_at").between(start_utc, end_utc)
                     ),
                     "FilterExpression": (
                         Attr("sri_environment").eq(sri_environment) & Attr("deleted").ne(True)
@@ -205,7 +206,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         ride_s3_key: str | None = None,
         sri_errors: list[dict] | None = None,
     ) -> bool:
-        now = datetime.now(UTC).isoformat()
+        now = now_utc().isoformat()
         names = {"#status": "status", "#updated_at": "updated_at"}
         values: dict = {
             ":new_status": new_status.value,
@@ -264,7 +265,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         notified_at: datetime | None = None,
         error: str | None = None,
     ) -> bool:
-        now = datetime.now(UTC).isoformat()
+        now = now_utc().isoformat()
         names = {
             "#status": "buyer_notification_status",
             "#updated_at": "updated_at",
@@ -311,7 +312,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             raise DatabaseError() from exc
 
     def begin_buyer_notification(self, tenant_id: str, document_id: str) -> bool:
-        now = datetime.now(UTC).isoformat()
+        now = now_utc().isoformat()
         names = {
             "#status": "buyer_notification_status",
             "#updated_at": "updated_at",
