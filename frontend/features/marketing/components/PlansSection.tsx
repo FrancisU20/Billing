@@ -115,5 +115,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: '100%',
   },
-  cardWrap: { alignSelf: 'stretch', borderRadius: radius['2xl'] },
+  cardWrap: { alignSelf: 'stretch', borderRadius: radius.md },
 })

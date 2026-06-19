@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { padding: spacing[5], gap: spacing[5], paddingBottom: spacing[12] },
   card: {
-    borderRadius: radius['2xl'],
+    borderRadius: radius.md,
     borderWidth: 1,
     padding: spacing[5],
     gap: spacing[4],

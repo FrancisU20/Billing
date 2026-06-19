@@ -60,7 +60,7 @@ const staticStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[3],
-    borderRadius: radius.xl,
+    borderRadius: radius.md,
     borderWidth: 1,
     padding: spacing[4],
   },

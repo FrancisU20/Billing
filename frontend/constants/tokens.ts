@@ -7,17 +7,17 @@ export type ShadowStyle = ViewStyle & { boxShadow: string }
 
 export const colors = {
   primary: {
-    50: '#EEF2FF',
-    100: '#E0E7FF',
-    200: '#C7D2FE',
-    300: '#A5B4FC',
-    400: '#818CF8',
-    500: '#6366F1',
-    600: '#4F46E5',
-    700: '#4338CA',
-    800: '#3730A3',
-    900: '#312E81',
-    950: '#1E1B4B',
+    50: '#EFF6FF',
+    100: '#DBEAFE',
+    200: '#BFDBFE',
+    300: '#93C5FD',
+    400: '#60A5FA',
+    500: '#2563EB',
+    600: '#1D4ED8',
+    700: '#1E40AF',
+    800: '#1E3A8A',
+    900: '#172554',
+    950: '#0B1220',
   },
   cyan: {
     50: '#ECFEFF',
@@ -71,20 +71,20 @@ export const colors = {
     600: '#DC2626',
     700: '#B91C1C',
   },
-  nav: '#09090B',
+  nav: '#0B1220',
 } as const
 
 export const lightSemantic = {
   bg: {
     primary: colors.neutral[0],
-    secondary: colors.neutral[50],
-    tertiary: colors.neutral[100],
+    secondary: '#F8FAFC',
+    tertiary: '#EEF2F7',
     elevated: colors.neutral[0],
-    muted: '#F8FAFC',
+    muted: '#F1F5F9',
     inverse: colors.neutral[950],
     nav: colors.nav,
     card: colors.neutral[0],
-    page: '#F5F5F7',
+    page: '#F6F8FB',
   },
   text: {
     primary: colors.neutral[950],
@@ -130,21 +130,21 @@ export const lightSemantic = {
 
 export const darkSemantic = {
   bg: {
-    primary: '#0A0A0B',
-    secondary: '#111113',
-    tertiary: '#1C1C1F',
-    elevated: '#18181B',
-    muted: '#101114',
+    primary: '#0B0F17',
+    secondary: '#111827',
+    tertiary: '#1F2937',
+    elevated: '#111827',
+    muted: '#0F172A',
     inverse: colors.neutral[0],
-    nav: '#000000',
-    card: '#18181B',
-    page: '#000000',
+    nav: '#020617',
+    card: '#111827',
+    page: '#070B12',
   },
   text: {
     primary: colors.neutral[50],
     secondary: colors.neutral[400],
-    tertiary: colors.neutral[600],
-    disabled: colors.neutral[700],
+    tertiary: colors.neutral[500],
+    disabled: colors.neutral[600],
     inverse: colors.neutral[950],
     link: colors.primary[400],
     onDark: colors.neutral[0],
@@ -291,10 +291,10 @@ export const typography = {
 } as const
 
 export const shadow: Record<'sm' | 'md' | 'lg' | 'xl', ShadowStyle> = {
-  sm: { boxShadow: '0 1px 2px rgba(9,9,11,0.05)' },
-  md: { boxShadow: '0 4px 8px rgba(9,9,11,0.08)' },
-  lg: { boxShadow: '0 8px 16px rgba(9,9,11,0.12)' },
-  xl: { boxShadow: '0 16px 40px rgba(9,9,11,0.14)' },
+  sm: { boxShadow: '0 1px 2px rgba(15,23,42,0.05)' },
+  md: { boxShadow: '0 8px 18px rgba(15,23,42,0.07)' },
+  lg: { boxShadow: '0 14px 32px rgba(15,23,42,0.10)' },
+  xl: { boxShadow: '0 20px 48px rgba(15,23,42,0.12)' },
 }
 
 // Colores para superficies siempre oscuras (nav, cards highlighted, dark inputs)
@@ -335,7 +335,7 @@ export const animation = {
 export const brand = {
   gradient: {
     light: { from: colors.primary[500], to: colors.primary[800] },
-    dark: { from: '#1E1B3A', to: '#0D0B1E' },
+    dark: { from: '#0F2147', to: '#06111F' },
   },
   mark: {
     light: colors.neutral[0],

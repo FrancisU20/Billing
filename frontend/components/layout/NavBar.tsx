@@ -31,7 +31,7 @@ export function NavBar({ title, subtitle, canGoBack, leftContent, rightContent }
     <View
       style={[
         styles.container,
-        { backgroundColor: semantic.bg.page, borderBottomColor: semantic.border.default },
+        { backgroundColor: semantic.bg.primary, borderBottomColor: semantic.border.default },
       ]}
     >
       <View style={styles.content}>
@@ -80,12 +80,12 @@ const styles = StyleSheet.create({
   container: { borderBottomWidth: 1, paddingHorizontal: spacing[5], paddingVertical: spacing[3] },
   content: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   heading: { flex: 1, minWidth: 0, gap: spacing[1] },
-  title: { fontSize: typography.size.md, fontWeight: typography.weight.semibold },
+  title: { fontSize: typography.size.md, fontWeight: typography.weight.bold, letterSpacing: 0 },
   subtitle: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
   iconBtn: {
     width: 40,
     height: 40,
-    borderRadius: radius.full,
+    borderRadius: radius.md,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',

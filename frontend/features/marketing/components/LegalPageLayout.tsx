@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
     color: overlay.text.primary,
     fontSize: typography.size['3xl'],
     fontWeight: typography.weight.bold,
-    letterSpacing: -0.5,
+    letterSpacing: 0,
     lineHeight: typography.size['3xl'] * typography.lineHeight.tight,
   },
   heroSubtitle: {

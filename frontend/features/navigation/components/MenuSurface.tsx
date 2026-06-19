@@ -33,7 +33,7 @@ export function MenuSurface({ visible, onClose, side, children }: MenuSurfacePro
           style={[
             styles.menuPanel,
             side === 'left' ? styles.leftPanel : styles.rightPanel,
-            { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
+            { backgroundColor: semantic.bg.primary, borderColor: semantic.border.default },
           ]}
         >
           {children}
@@ -80,7 +80,7 @@ export function MenuItem({
       style={({ pressed }) => [
         styles.menuItem,
         {
-          backgroundColor: active || pressed ? semantic.accent.subtle : semantic.bg.elevated,
+          backgroundColor: active || pressed ? semantic.accent.subtle : semantic.bg.primary,
           opacity: disabled ? 0.55 : 1,
         },
       ]}
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     top: spacing[20],
     minWidth: 240,
     borderWidth: 1,
-    borderRadius: radius.xl,
+    borderRadius: radius.md,
     padding: spacing[3],
   },
   leftPanel: { left: spacing[5] },

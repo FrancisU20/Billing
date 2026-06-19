@@ -86,7 +86,7 @@ const staticStyles = StyleSheet.create({
   title: {
     fontSize: typography.size['4xl'],
     fontWeight: typography.weight.bold,
-    letterSpacing: -1,
+    letterSpacing: 0,
     lineHeight: typography.size['4xl'] * 1.1,
   },
   subtitle: { fontSize: typography.size.base, lineHeight: typography.size.base * 1.6 },

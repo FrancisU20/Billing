@@ -230,7 +230,8 @@ Workers actuales (disparados por outbox/SQS):
 
 - `tenant_onboarding`: crea/sincroniza usuario Cognito.
 - `email_notifications`: envia emails Brevo (bienvenida, OTP, lead enterprise, alerta
-  de caducidad de certificado).
+  de caducidad de certificado, avisos de suscripcion, estados de documentos SRI y
+  entrega al comprador con XML autorizado + RIDE adjuntos).
 - `outbox_relay`: publica eventos outbox a SQS.
 - `migrations`: ejecuta migraciones de datos.
 
@@ -245,6 +246,12 @@ sensibles en texto plano (ej. `OnboardingOtpRequestedEvent.otp`) deben registrar
 `_SHORT_TTL_EVENT_TYPES` con un TTL acotado (1 hora) para minimizar la ventana de
 exposicion en DynamoDB una vez publicados a SQS. Agregar ahi cualquier evento nuevo que
 transporte secretos/PII sensible de corta vida.
+
+Los eventos de documentos al comprador (`DocumentBuyerNotificationRequestedEvent`) no
+incluyen adjuntos ni datos tributarios completos en el payload. El worker rehidrata el
+documento desde DynamoDB, lee XML/RIDE desde S3 y usa locks idempotentes
+(`begin_buyer_notification` + `mark_buyer_notification_status`) para evitar duplicar
+correos ante reintentos SQS.
 
 ### Workers programados (EventBridge)
 

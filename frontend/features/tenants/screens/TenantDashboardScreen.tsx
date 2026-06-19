@@ -271,12 +271,12 @@ const staticStyles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { padding: spacing[5], gap: spacing[5], paddingBottom: spacing[12] },
   hero: {
-    borderRadius: radius['2xl'],
+    borderRadius: radius.md,
     borderWidth: 1,
     padding: spacing[5],
     gap: spacing[6],
     overflow: 'hidden',
-    ...shadow.lg,
+    ...shadow.md,
   },
   heroAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
@@ -325,7 +325,7 @@ const staticStyles = StyleSheet.create({
   metricIcon: {
     width: 44,
     height: 44,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -342,7 +342,7 @@ const staticStyles = StyleSheet.create({
   insightIcon: {
     width: 44,
     height: 44,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -365,7 +365,7 @@ const staticStyles = StyleSheet.create({
   moduleIcon: {
     width: 40,
     height: 40,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },

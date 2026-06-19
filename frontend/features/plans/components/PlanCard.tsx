@@ -146,7 +146,7 @@ export function PlanCard({ plan, highlighted = false, onSelect }: PlanCardProps)
 
 const staticStyles = StyleSheet.create({
   container: {
-    borderRadius: radius['2xl'],
+    borderRadius: radius.md,
     borderWidth: 1,
     flex: 1,
     padding: spacing[5],
@@ -193,7 +193,7 @@ const staticStyles = StyleSheet.create({
     fontSize: typography.size['4xl'],
     fontWeight: typography.weight.bold,
     lineHeight: typography.size['4xl'] * typography.lineHeight.tight,
-    letterSpacing: -1,
+    letterSpacing: 0,
   },
   cycle: { fontSize: typography.size.sm },
   billingHint: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },

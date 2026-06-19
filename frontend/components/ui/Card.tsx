@@ -34,7 +34,7 @@ export function Card({
       style={[
         staticStyles.base,
         { backgroundColor: variantBg[variant], borderColor: semantic.border.default },
-        elevated && shadow.lg,
+        elevated && shadow.md,
         padded && staticStyles.padded,
         style,
       ]}
@@ -45,6 +45,6 @@ export function Card({
 }
 
 const staticStyles = StyleSheet.create({
-  base: { borderRadius: radius.xl, borderWidth: 1 },
+  base: { borderRadius: radius.md, borderWidth: 1 },
   padded: { padding: spacing[5] },
 })

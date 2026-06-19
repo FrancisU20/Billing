@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
   card: {
-    borderRadius: radius.xl,
+    borderRadius: radius.md,
     borderWidth: 1,
     flexBasis: 260,
     flexGrow: 1,

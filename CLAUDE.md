@@ -3,7 +3,7 @@
 Indice y reglas no negociables. Patrones de construccion y reglas de negocio viven en
 `context/` (ver tablas abajo) — leerlos segun la tarea.
 
-Ultima actualizacion: 2026-06-18.
+Ultima actualizacion: 2026-06-19.
 
 ## Objetivo Del Producto
 
@@ -19,12 +19,13 @@ El sistema administra:
 - `workers`: onboarding, emails, migraciones y outbox async.
 - `subscriptions`: pagos dLocal Go SmartFields por ciclo de plan de la suscripcion SaaS.
 
-El dominio `invoices/documents` tiene su **MVP completo** (Sprints 1-5). Arquitectura
+El dominio `invoices/documents` tiene su **MVP completo** (Sprints 1-6). Arquitectura
 completa documentada en `context/INVOICES.md`: Lambdas `sequences`, `documents` e
 `invoice_processor`; tablas DynamoDB `sequences`, `documents`, `batch_jobs`; S3 con
 Object Lock; colas SQS separadas sign/poll (compartidas + dedicadas enterprise
 pendiente de auto-provision); frontend de emision/listado/detalle de documentos y
-gestion de establecimientos.
+gestion de establecimientos; emails al emisor y entrega idempotente al comprador con
+XML autorizado + RIDE adjuntos.
 Regla critica: no mezclar "Consumidor Final" con `clients` (ver `context/CLIENTS.md`).
 
 Cuenta GitHub: `FrancisU20`.
@@ -68,22 +69,23 @@ override auditado (`override_discount_ceiling`+`override_reason`, sin rol adicio
 porque emitir ya es `owner|admin|superadmin`). 2e RIDE muestra `$desc (%)` + columna
 Subtotal por linea.
 
-Invoices/documents — MVP completo (Sprints 1-5): infra CDK (tablas, S3 Object Lock,
+Invoices/documents — MVP completo (Sprints 1-6): infra CDK (tablas, S3 Object Lock,
 colas sign/poll); Lambda `sequences` (establecimientos + puntos de emision, punto 099
 de pruebas); Lambda `documents` (emision individual, reserva de secuencial, clave de
 acceso, encolado SIGN); Lambda `invoice_processor` (firma XAdES-BES RSA-SHA1/SHA1/
 C14N 1.0, SOAP recepcion/autorizacion SRI, RIDE con reportlab, S3 con LegalHold,
 reintentos con backoff, 3 eventos de email al tenant via `email_notifications`,
-notificacion al comprador con XML autorizado + RIDE adjuntos);
+notificacion idempotente al comprador con XML autorizado + RIDE adjuntos);
 frontend (`features/documents` + `features/sequences`): listado/emision/detalle de
 documentos con poll automatico mientras PENDING/PROCESSING, descarga de RIDE, selector
 de comprador con picker de clientes existentes, gestion de establecimientos y puntos
-de emision en `/settings/estab`.
+de emision en `/settings/estab`. Fixes reales contra SRI testing confirmados:
+`SOAPAction=""`, `dirEstablecimiento` obligatorio, declaracion XML con comillas dobles
+y digito de ambiente `1=pruebas`/`2=produccion` tanto en XML como en clave de acceso.
 
-Proximo hito de producto: a definir (MVP de `invoices/documents` cerrado). Candidatos
-ya señalados como deuda/fuera de alcance: Nota de Credito (04), auto-provision de
-colas dedicadas enterprise, batch masivo. Ver `context/INVOICES.md` para arquitectura
-completa.
+Proximo hito de producto: lavado visual de la app y luego Nota de Credito (04), salvo
+que se priorice auto-provision de colas dedicadas enterprise o batch masivo. Ver
+`context/INVOICES.md` para arquitectura completa.
 
 ## Memorias Base
 
@@ -107,7 +109,7 @@ Reglas de negocio, flujos y DynamoDB especificos de cada dominio (incluye su sec
 | `context/PRODUCTS.md` | Catalogo vendible, SKU, stock opcional e integracion con facturas |
 | `context/ONBOARDING.md` | Registro self-service con OTP, certificados p12, lead Enterprise |
 | `context/CERTIFICATES.md` | Validacion, almacenamiento y ciclo de vida de certificados digitales p12 |
-| `context/INVOICES.md` | Emision documentos SRI, secuenciales, XAdES-BES, invoice\_processor, S3 WORM, frontend (**MVP completo, Sprints 1-5**) |
+| `context/INVOICES.md` | Emision documentos SRI, secuenciales, XAdES-BES, invoice\_processor, S3 WORM, frontend y emails al comprador (**MVP completo, Sprints 1-6**) |
 | `context/SUBSCRIPTIONS.md` | Suscripcion SaaS via dLocal Go SmartFields, modelo Netflix, webhooks, 3DS, reembolso, resiliencia 4 capas (**completo**) |
 
 ## Mapa De Deuda Tecnica

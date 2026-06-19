@@ -45,6 +45,12 @@ Features actuales: `auth`, `marketing`, `onboarding`, `tenants`, `plans`, `clien
 Todo el theming vive en `constants/tokens.ts` + `lib/theme-context.tsx`. **Nunca**
 hardcodear colores, spacing, radius o tipografia en un componente.
 
+Direccion visual vigente (refresh 2026-06-19): app SaaS operacional, limpia y densa.
+Priorizar superficies blancas/ink, bordes sutiles, radios moderados (cards de 8px por
+defecto), acentos azul/cyan/teal balanceados y jerarquia tipografica compacta. Evitar
+gradientes decorativos, cards anidadas, fondos monocromaticos morados y sombras pesadas
+en pantallas de trabajo.
+
 ### Tokens (`constants/tokens.ts`)
 
 | Token                            | Uso                                                                                                                                                            |

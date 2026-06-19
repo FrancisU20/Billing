@@ -1,9 +1,9 @@
 # Invoices & Documents — Dominio
 
-Estado: **MVP completo — Sprints 1-5 implementados** (infra, sequences, documents,
-invoice_processor, frontend).
+Estado: **MVP completo — Sprints 1-6 implementados** (infra, sequences, documents,
+invoice_processor, frontend y notificacion al comprador con XML/RIDE).
 
-Ultima actualizacion: 2026-06-18.
+Ultima actualizacion: 2026-06-19.
 
 ## Lee Tambien Antes De Empezar
 
@@ -31,8 +31,9 @@ RECEPTOR" por estado viejo del formulario.
 Frontend: la fecha de emision se calcula con zona horaria `America/Guayaquil`, se muestra
 bloqueada junto a la hora local y solo viaja al backend/SRI la fecha `YYYY-MM-DD`.
 
-**Alcance MVP (Sprint 1-5):** Factura electronica (tipo 01), emision individual,
-multiples establecimientos desde el primer dia.
+**Alcance MVP (Sprint 1-6):** Factura electronica (tipo 01), emision individual,
+multiples establecimientos desde el primer dia, RIDE descargable y entrega automatica
+al comprador con XML autorizado + RIDE adjuntos cuando existe `buyer_email`.
 
 **Fuera de alcance MVP:** Nota de credito (04), retencion (07), batch masivo XLSX.
 Esos se disenan en sprints posteriores pero la arquitectura actual los soporta sin
@@ -294,7 +295,7 @@ buyer_id                 = "9999999999999"           ← "9999999999999" si CF
 buyer_name               = "Consumidor Final" | nombre real
 buyer_email              = str | null
 
-# Notificacion al comprador (Sprint 6)
+# Notificacion al comprador (Sprint 6 implementado)
 buyer_notification_status = null | "PENDING" | "SENDING" | "SENT" | "SKIPPED_NO_EMAIL" | "FAILED"
 buyer_notified_at         = ISO8601 | null
 buyer_notification_error  = str | null
@@ -519,9 +520,10 @@ Flujo:
                   → PUT XML firmado en S3 (con LegalHold)
                   → PUT RIDE en S3 (con LegalHold)
                   → UpdateItem status=AUTHORIZED + authorization_number + xml_s3_key + ride_s3_key
-                  → outbox event DocumentAuthorizedEvent (email al tenant)
+                  → outbox event DocumentAuthorizedEvent (email al emisor)
                   → outbox event DocumentBuyerNotificationRequestedEvent
-                    (email al comprador con XML autorizado + RIDE adjuntos)
+                    (worker rehidrata el documento, lee XML/RIDE desde S3 y envia
+                     email al comprador con adjuntos; idempotente por estado)
 
    RECHAZADO    → UpdateItem status=REJECTED + sri_errors
                   → outbox event DocumentRejectedEvent (email al tenant)
@@ -540,7 +542,7 @@ Flujo:
 invoice_processor/
   handler.py              # sqs_handler.py pattern, rutea SIGN/POLL, DI de cold start
   ports.py                 # ABCs: ISriClient, IDocumentStorage, IQueuePublisher
-  events.py                 # DocumentAuthorizedEvent / RejectedEvent / FailedPermanentEvent
+  events.py                 # DocumentAuthorizedEvent / BuyerNotificationRequested / Rejected / FailedPermanent
   xml_builder.py            # puro: construye XML Factura 01 segun spec SRI v1.1.0
   signing.py                 # XAdES-BES enveloped (cryptography + lxml), RSA-SHA1/SHA1/C14N 1.0
   sri_client.py               # SOAP client (urllib3): RecepcionComprobantesOffline + AutorizacionComprobantesOffline
@@ -592,7 +594,8 @@ Tenant (API/Frontend)
        │    generate RIDE PDF
        │    PUT XML + RIDE → S3 (Object Lock, LegalHold)
        │    update status=AUTHORIZED + s3_keys
-       │    outbox → DocumentAuthorizedEvent → email
+       │    outbox → DocumentAuthorizedEvent → email al emisor
+       │    outbox → DocumentBuyerNotificationRequestedEvent → email al comprador
        ├► RECHAZADO:
        │    update status=REJECTED + sri_errors
        │    outbox → DocumentRejectedEvent → email
@@ -649,7 +652,7 @@ backend/lambdas/
   invoice_processor/
     handler.py             # sqs_handler.py pattern, partial batch failure
     ports.py               # ISriClient, IDocumentStorage, IQueuePublisher
-    events.py              # eventos de email (Authorized/Rejected/FailedPermanent)
+    events.py              # eventos de email (Authorized/BuyerNotification/Rejected/FailedPermanent)
     xml_builder.py         # XML Factura 01 segun especificacion SRI
     signing.py             # XAdES-BES enveloped (cryptography + lxml), RSA-SHA1
     sri_client.py          # SOAP client para recepcion y autorizacion
@@ -1057,5 +1060,5 @@ Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregado
 | RIDE sin codigo de barras real ni logo del tenant | MVP genera PDF con todos los campos obligatorios en texto via reportlab. Agregar barcode Code128/logo es trabajo de UI, no de cumplimiento legal — evaluar si un cliente lo pide. |
 | `ClientPickerModal` no esta en `components/ui/` | Es el primer selector de lista con busqueda del repo; vive en `features/documents/components/` porque solo este feature lo usa. Si otro feature necesita un picker similar, extraer a `components/ui/` (regla de FRONTEND.md: 2+ features lo necesitan). |
 | `EstablishmentsScreen` con forms inline via `useState` plano (no react-hook-form) | Los mini-forms de alta/edicion de punto de emision son simples (2-3 campos) y no justifican el overhead de react-hook-form+zod. Si crecen en complejidad, migrar al patron `*Form.tsx` + Controller. |
-| Emails de documento al tenant sin adjuntar PDF | `DocumentAuthorizedEvent` etc. notifican al emisor sin adjuntos. El tenant descarga el RIDE desde `GET /documents/{id}/ride`. El comprador si recibe XML autorizado + RIDE adjuntos via `DocumentBuyerNotificationRequestedEvent`. |
+| Emails de documento al emisor sin adjuntar PDF | `DocumentAuthorizedEvent` etc. notifican al emisor sin adjuntos. El emisor descarga el RIDE desde `GET /documents/{id}/ride`. El comprador si recibe XML autorizado + RIDE adjuntos via `DocumentBuyerNotificationRequestedEvent`. |
 | `invoice_processor` SIGN/POLL sin concurrencia reservada diferenciada | Cuenta AWS en `sa-east-1` con limite de Lambda en 10 ejecuciones concurrentes totales (default no aumentado). Pedir quota increase a AWS y reintroducir `reserved_concurrent_executions=30/20` en `api_stack.py` cuando se apruebe. |
