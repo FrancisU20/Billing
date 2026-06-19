@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createProductSchema, productFormSchema, productSchema } from './schemas'
+import {
+  createProductSchema,
+  discountCampaignSchema,
+  productFormSchema,
+  productSchema,
+  updateDiscountCampaignSchema,
+} from './schemas'
 import { formValuesToCreateProductInput, defaultProductFormValues } from './form'
 
 const product = {
@@ -99,6 +105,45 @@ describe('product contract schemas', () => {
         discount_percentage: 'not-a-number',
         stock_enabled: false,
       }),
+    ).toThrow()
+  })
+})
+
+describe('discount campaign contract schemas', () => {
+  it('accepts the backend campaign shape', () => {
+    expect(
+      discountCampaignSchema.parse({
+        active: true,
+        percentage: '50.00',
+        updated_at: '2026-06-19T00:00:00+00:00',
+        updated_by: 'user-1',
+        version: '3',
+      }),
+    ).toEqual({
+      active: true,
+      percentage: '50.00',
+      updated_at: '2026-06-19T00:00:00+00:00',
+      updated_by: 'user-1',
+      version: 3,
+    })
+  })
+
+  it('builds a valid update payload', () => {
+    expect(updateDiscountCampaignSchema.parse({ active: true, percentage: '50' })).toEqual({
+      active: true,
+      percentage: '50',
+    })
+  })
+
+  it('rejects a campaign percentage over 100', () => {
+    expect(() =>
+      updateDiscountCampaignSchema.parse({ active: true, percentage: '100.5' }),
+    ).toThrow()
+  })
+
+  it('rejects a non-numeric campaign percentage', () => {
+    expect(() =>
+      updateDiscountCampaignSchema.parse({ active: true, percentage: 'fifty' }),
     ).toThrow()
   })
 })

@@ -4,11 +4,13 @@ from __future__ import annotations
 Products Lambda — tenant product/service catalog.
 
 Routes:
-    POST   /products       create product   (owner | admin)
-    GET    /products       list products    (owner | admin | viewer)
-    GET    /products/{id}  get by ID        (owner | admin | viewer)
-    PATCH  /products/{id}  update           (owner | admin)
-    DELETE /products/{id}  soft delete      (owner | admin)
+    POST   /products                    create product   (owner | admin)
+    GET    /products                    list products     (owner | admin | viewer)
+    GET    /products/{id}                get by ID         (owner | admin | viewer)
+    PATCH  /products/{id}                update             (owner | admin)
+    DELETE /products/{id}                soft delete       (owner | admin)
+    GET    /products/discount-campaign   get campaign       (owner | admin | viewer)
+    PUT    /products/discount-campaign   upsert campaign    (owner | admin)
 """
 
 import re
@@ -20,12 +22,21 @@ from lambdas._base.permissions import require_role
 from lambdas._base.response import ApiResponse
 from lambdas.products.domain.commands import CreateProductCommand, UpdateProductCommand
 from lambdas.products.domain.enums import ProductKind, ProductStatus
+from lambdas.products.infra.discount_campaign_repository import (
+    DynamoDiscountCampaignRepository,
+)
 from lambdas.products.infra.product_repository import DynamoProductRepository
-from lambdas.products.schemas import CreateProductRequest, UpdateProductRequest
+from lambdas.products.schemas import (
+    CreateProductRequest,
+    UpdateDiscountCampaignRequest,
+    UpdateProductRequest,
+)
 from lambdas.products.use_cases.create_product import CreateProductUseCase
 from lambdas.products.use_cases.delete_product import DeleteProductUseCase
+from lambdas.products.use_cases.get_discount_campaign import GetDiscountCampaignUseCase
 from lambdas.products.use_cases.get_product import GetProductUseCase
 from lambdas.products.use_cases.list_products import ListProductsQuery, ListProductsUseCase
+from lambdas.products.use_cases.update_discount_campaign import UpdateDiscountCampaignUseCase
 from lambdas.products.use_cases.update_product import UpdateProductUseCase
 from shared.config import env
 from shared.db.client import get_table
@@ -40,6 +51,12 @@ def _repo(request: Request) -> DynamoProductRepository:
     if not request.tenant_id:
         raise MissingTenantContextError()
     return DynamoProductRepository(request.tenant_id, _TABLE, _AUDIT_TABLE)
+
+
+def _campaign_repo(request: Request) -> DynamoDiscountCampaignRepository:
+    if not request.tenant_id:
+        raise MissingTenantContextError()
+    return DynamoDiscountCampaignRepository(request.tenant_id, _TABLE, _AUDIT_TABLE)
 
 
 def _parse_list_query(params: dict) -> ListProductsQuery:
@@ -182,7 +199,37 @@ def _delete(request: Request, context) -> dict:
     return response
 
 
+@lambda_handler
+@require_role("owner", "admin", "viewer")
+def _get_discount_campaign(request: Request, context) -> dict:
+    campaign = GetDiscountCampaignUseCase(_campaign_repo(request)).execute()
+    return ApiResponse.ok(campaign.to_dict(), request.request_id)
+
+
+@lambda_handler
+@require_role("owner", "admin")
+@idempotent
+def _update_discount_campaign(request: Request, context) -> dict:
+    body = parse(UpdateDiscountCampaignRequest, request.body)
+    repo = _campaign_repo(request)
+    campaign = UpdateDiscountCampaignUseCase(repo).execute(
+        active=body.active,
+        percentage=body.percentage,
+        updated_by=request.user_id,
+    )
+    response = ApiResponse.ok(campaign.to_dict(), request.request_id)
+    repo.save(
+        campaign=campaign,
+        user_id=request.user_id,
+        action="UPSERT",
+        idempotency=require_current_context(),
+        response=response,
+    )
+    return response
+
+
 _ID_PATTERN = re.compile(r"^/products/[^/]+$")
+_DISCOUNT_CAMPAIGN_PATH = "/products/discount-campaign"
 
 
 def handler(event: dict, context) -> dict:
@@ -195,6 +242,12 @@ def handler(event: dict, context) -> dict:
             return _create(event, context)
         if method == "GET":
             return _list(event, context)
+
+    if path == _DISCOUNT_CAMPAIGN_PATH:
+        if method == "GET":
+            return _get_discount_campaign(event, context)
+        if method == "PUT":
+            return _update_discount_campaign(event, context)
 
     if _ID_PATTERN.match(path):
         if method == "GET":

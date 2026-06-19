@@ -1,8 +1,9 @@
 # Products — Dominio
 
-Estado: **Sprint 1 implementado. Sprint 2a (descuento % por producto) implementado.**
+Estado: **Sprint 1 implementado. Sprint 2a (descuento % por producto) y Sprint 2b
+(campana de descuento global por tenant) implementados.**
 
-Ultima actualizacion: 2026-06-18.
+Ultima actualizacion: 2026-06-19.
 
 ## Lee Tambien Antes De Empezar
 
@@ -35,9 +36,13 @@ representar servicios, paquetes, membresias u otros items facturables.
 - `discount_percentage` (0-100, opcional, `Decimal` con 2 decimales) es el descuento
   comercial del producto. **No** se persiste en `to_invoice_snapshot()` — se lee en vivo
   al emitir (igual que `unit_price`/`iva_rate`), nunca se "congela" en facturas pasadas.
-  Sprint 2a (este sprint) solo agrega el campo + CRUD; la resolucion automatica en el
-  facturador y la validacion de techo server-side quedan para Sprint 2c (ver
-  `## Deuda Tecnica`).
+  Sprint 2a solo agrego el campo + CRUD; la resolucion automatica en el facturador y la
+  validacion de techo server-side quedan para Sprint 2c (ver `## Deuda Tecnica`).
+- Campana de descuento global (Sprint 2b): singleton por tenant (`active: bool` +
+  `percentage: Decimal`, sin fechas de inicio/fin). La administra el propio tenant
+  (`owner|admin`), no el superadmin — vive en la Lambda `products`, no en `Tenant`
+  (`Tenant` es solo superadmin, ver `AUTH.md`). Por ahora es **solo configuracion**: no
+  se aplica automaticamente al emitir (eso es Sprint 2c).
 
 ## DynamoDB
 
@@ -50,6 +55,10 @@ SK = "PRODUCT#{product_id}"
 Lock SKU:
 PK = "TENANT#{tenant_id}"
 SK = "PRODUCT_SKU#{sku_normalized}"
+
+Campana de descuento (singleton, un item por tenant):
+PK = "TENANT#{tenant_id}"
+SK = "DISCOUNT_CAMPAIGN#default"
 ```
 
 GSI `sku-index`:
@@ -74,14 +83,23 @@ GET    /products
 GET    /products/{id}
 PATCH  /products/{id}
 DELETE /products/{id}
+GET    /products/discount-campaign
+PUT    /products/discount-campaign
 ```
 
 Roles:
 
-- `owner | admin`: crear, actualizar, eliminar.
-- `owner | admin | viewer`: listar y consultar.
+- `owner | admin`: crear, actualizar, eliminar producto; activar/configurar campana.
+- `owner | admin | viewer`: listar y consultar producto; ver campana.
 
-Mutaciones usan `X-Idempotency-Key`.
+Mutaciones usan `X-Idempotency-Key`. `PUT /products/discount-campaign` es un upsert
+(no hay distincion create/update — el primer `PUT` crea el singleton, los siguientes lo
+actualizan con locking optimista por `version`).
+
+`/products/discount-campaign` se resuelve **antes** que `/products/{id}` en el router del
+handler (sin eso, `{id}` capturaria literalmente "discount-campaign" como si fuera un
+`product_id`). Mismo cuidado aplica al registrar la ruta exacta en API Gateway
+(`infra/stacks/api_stack.py`) antes/junto a la ruta parametrizada.
 
 ## Contrato Fiscal Con Invoices
 
@@ -103,7 +121,13 @@ Rutas tenant:
 /products/new
 /products/{id}
 /products/{id}/edit
+/settings/discount-campaign
 ```
+
+`DiscountCampaignScreen` (`/settings/discount-campaign`): toggle activa/inactiva +
+porcentaje, mismo patron de pantalla "singleton de ajustes" que `EstablishmentsScreen`.
+Item propio en la navegacion tenant ("Descuento global"), no anidado bajo `/products`
+porque conceptualmente es un ajuste del tenant, no un producto del catalogo.
 
 Integracion en facturador:
 
@@ -117,11 +141,6 @@ Integracion en facturador:
 
 ## Deuda Tecnica
 
-- Sprint 2b: campana de descuento global por tenant (`GET/PUT /products/discount-campaign`,
-  singleton `PK=TENANT#{id}` `SK=DISCOUNT_CAMPAIGN` con `active: bool` + `percentage:
-  Decimal`, roles `owner|admin`, sin fechas de inicio/fin en este alcance). Vive en la
-  Lambda `products` (no Lambda nueva) porque el dueño del tenant administra su propia
-  campana — `Tenant` es solo superadmin (`AUTH.md`), no es el lugar correcto.
 - Sprint 2c: en `EmitDocumentScreen`, pre-llenar el `DiscountInput` de cada linea con
   `max(producto.discount_percentage, campana.percentage si activa)`. **Backend**: extender
   `InvoiceProductSnapshot` (`i_product_catalog.py`) con `discount_percentage`, nuevo puerto

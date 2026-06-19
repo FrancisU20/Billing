@@ -33,3 +33,8 @@ class UpdateProductRequest(BaseModel):
     stock_quantity: Decimal | None = Field(default=None, ge=0)
     low_stock_threshold: Decimal | None = Field(default=None, ge=0)
     status: Literal["ACTIVE", "INACTIVE"] | None = None
+
+
+class UpdateDiscountCampaignRequest(BaseModel):
+    active: bool
+    percentage: Decimal = Field(..., ge=0, le=100)

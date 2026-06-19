@@ -64,6 +64,12 @@ const tenantNavigation: AppNavigationItem[] = [
     activeWhen: segment(Routes.tenant.establishments),
   },
   {
+    label: 'Descuento global',
+    icon: 'pricetag-outline',
+    href: Routes.tenant.discountCampaign as Href,
+    activeWhen: segment(Routes.tenant.discountCampaign),
+  },
+  {
     label: 'Facturación',
     icon: 'card-outline',
     href: Routes.tenant.billing as Href,

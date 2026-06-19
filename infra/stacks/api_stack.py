@@ -676,6 +676,8 @@ class ApiStack(Stack):
         for method, route in [
             (apigwv2.HttpMethod.POST,   "/products"),
             (apigwv2.HttpMethod.GET,    "/products"),
+            (apigwv2.HttpMethod.GET,    "/products/discount-campaign"),
+            (apigwv2.HttpMethod.PUT,    "/products/discount-campaign"),
             (apigwv2.HttpMethod.GET,    "/products/{id}"),
             (apigwv2.HttpMethod.PATCH,  "/products/{id}"),
             (apigwv2.HttpMethod.DELETE, "/products/{id}"),

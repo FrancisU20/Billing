@@ -1,11 +1,13 @@
 export type {
   CreateProductInput,
+  DiscountCampaign,
   Product,
   ProductFormValues,
   ProductIvaRate,
   ProductKind,
   ProductsPage,
   ProductStatus,
+  UpdateDiscountCampaignInput,
   UpdateProductInput,
 } from './schemas'
 import type { ProductKind, ProductStatus } from './schemas'

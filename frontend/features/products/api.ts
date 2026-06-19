@@ -2,12 +2,19 @@ import { z } from 'zod'
 import { api } from '@/lib/api/client'
 import {
   createProductSchema,
+  discountCampaignSchema,
   productSchema,
   productsPageSchema,
+  updateDiscountCampaignSchema,
   updateProductSchema,
 } from './schemas'
 import { PRODUCTS_PAGE_SIZE } from './constants'
-import type { CreateProductInput, ProductListFilters, UpdateProductInput } from './types'
+import type {
+  CreateProductInput,
+  ProductListFilters,
+  UpdateDiscountCampaignInput,
+  UpdateProductInput,
+} from './types'
 
 function productsPath(filters: ProductListFilters = {}, nextToken?: string): string {
   const params = new URLSearchParams()
@@ -41,4 +48,14 @@ export const productsApi = {
 
   delete: (id: string, idempotencyKey: string) =>
     api.delete(`/products/${encodeURIComponent(id)}`, z.undefined(), { idempotencyKey }),
+
+  getDiscountCampaign: () => api.get('/products/discount-campaign', discountCampaignSchema),
+
+  updateDiscountCampaign: (body: UpdateDiscountCampaignInput, idempotencyKey: string) =>
+    api.put(
+      '/products/discount-campaign',
+      updateDiscountCampaignSchema.parse(body),
+      discountCampaignSchema,
+      { idempotencyKey },
+    ),
 }

@@ -59,8 +59,10 @@ Products — Sprint 1: CRUD tenant-scoped de productos/servicios con `product_id
 SKU editable unico por tenant, tipo vendible, precio/IVA default y stock opcional modelado.
 El facturador puede seleccionar o crear rapidamente un producto; la factura persiste snapshot
 legal de linea para que cambios futuros al catalogo no alteren documentos emitidos.
-Sprint 2a: `discount_percentage` (0-100%, opcional) por producto, expuesto en CRUD; **aun
-sin** resolucion automatica en el facturador ni campana global (Sprint 2b-2d, ver
+Sprint 2a: `discount_percentage` (0-100%, opcional) por producto, expuesto en CRUD.
+Sprint 2b: campana de descuento global por tenant (`GET/PUT /products/discount-campaign`,
+singleton `active`+`percentage`, solo `owner|admin` la configura). **Aun sin** resolucion
+automatica en el facturador ni techo validado en backend (Sprint 2c-2e, ver
 `context/PRODUCTS.md`).
 
 Invoices/documents — MVP completo (Sprints 1-5): infra CDK (tablas, S3 Object Lock,
@@ -116,7 +118,7 @@ corresponda. Estado actual por capa/dominio:
 | `context/TENANTS.md` | Listado admin con scan para alta cardinalidad/dashboard |
 | `context/PLANS.md` | `list()` con scan completo aceptable solo para catalogo chico |
 | `context/CLIENTS.md` | Busqueda `q` y validacion batch no escalan para cargas masivas |
-| `context/PRODUCTS.md` | Descuento % campana/techo back todavia no implementado (Sprint 2b-2e); inventario avanzado con movimientos/reservas queda para sprint futuro |
+| `context/PRODUCTS.md` | Resolucion automatica en facturador + techo de descuento validado en backend todavia no implementado (Sprint 2c-2e); inventario avanzado con movimientos/reservas queda para sprint futuro |
 | `context/ONBOARDING.md` | Queue dedicada Enterprise automatica es alcance futuro |
 | `context/CERTIFICATES.md` | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras |
 | `context/INVOICES.md` | Literal SOAP de rechazo sin verificar contra SRI real; RIDE sin barcode/logo; clasificacion de errores SRI parcial; colas dedicadas enterprise sin auto-provision; `ClientPickerModal` aun no extraido a `components/ui/`; `invoice_processor` sin concurrencia reservada (cuenta AWS limitada a 10 ejecuciones concurrentes en `sa-east-1`) |

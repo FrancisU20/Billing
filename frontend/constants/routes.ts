@@ -39,6 +39,7 @@ export const Routes = {
     productNew: '/(app)/(tenant)/products/new' as const,
     productDetail: (id: string) => `/(app)/(tenant)/products/${id}` as const,
     productEdit: (id: string) => `/(app)/(tenant)/products/${id}/edit` as const,
+    discountCampaign: '/(app)/(tenant)/settings/discount-campaign' as const,
     documents: '/(app)/(tenant)/documents' as const,
     documentNew: '/(app)/(tenant)/documents/emit' as const,
     documentDetail: (id: string) => `/(app)/(tenant)/documents/${id}` as const,

@@ -102,6 +102,23 @@ export const updateProductSchema = productPayloadBaseSchema
   .extend({ status: productStatusSchema })
   .partial()
 
+export const discountCampaignSchema = z.object({
+  active: z.boolean(),
+  percentage: z.string().min(1),
+  updated_at: z.string().min(1),
+  updated_by: z.string(),
+  version: z.coerce.number(),
+})
+
+export const updateDiscountCampaignSchema = z.object({
+  active: z.boolean(),
+  percentage: z
+    .string()
+    .trim()
+    .regex(/^\d+(\.\d{1,2})?$/, 'Porcentaje inválido')
+    .refine((value) => Number(value) <= 100, 'El porcentaje no puede superar 100%'),
+})
+
 export type ProductKind = z.infer<typeof productKindSchema>
 export type ProductStatus = z.infer<typeof productStatusSchema>
 export type ProductIvaRate = z.infer<typeof productIvaRateSchema>
@@ -110,3 +127,5 @@ export type ProductsPage = z.infer<typeof productsPageSchema>
 export type ProductFormValues = z.infer<typeof productFormSchema>
 export type CreateProductInput = z.infer<typeof createProductSchema>
 export type UpdateProductInput = z.infer<typeof updateProductSchema>
+export type DiscountCampaign = z.infer<typeof discountCampaignSchema>
+export type UpdateDiscountCampaignInput = z.infer<typeof updateDiscountCampaignSchema>
