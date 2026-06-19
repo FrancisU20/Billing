@@ -162,6 +162,24 @@ export function ProductForm({ mode, product, onSubmit, isLoading, apiError }: Pr
             )}
           />
         </View>
+        <View style={styles.col}>
+          <Controller
+            control={control}
+            name="discount_percentage"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <FormField
+                label="Descuento (%)"
+                placeholder="0.00"
+                keyboardType="decimal-pad"
+                leftIcon="pricetag-outline"
+                error={errors.discount_percentage?.message}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                value={value}
+              />
+            )}
+          />
+        </View>
       </View>
 
       <FormBlock title="Stock">

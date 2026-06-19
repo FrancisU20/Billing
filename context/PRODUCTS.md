@@ -1,6 +1,6 @@
 # Products — Dominio
 
-Estado: **Sprint 1 implementado**.
+Estado: **Sprint 1 implementado. Sprint 2a (descuento % por producto) implementado.**
 
 Ultima actualizacion: 2026-06-18.
 
@@ -32,6 +32,12 @@ representar servicios, paquetes, membresias u otros items facturables.
   de stock quedan para Sprint 2.
 - Soft delete: eliminar producto lo oculta y libera el lock de SKU. Facturas historicas
   conservan snapshot.
+- `discount_percentage` (0-100, opcional, `Decimal` con 2 decimales) es el descuento
+  comercial del producto. **No** se persiste en `to_invoice_snapshot()` — se lee en vivo
+  al emitir (igual que `unit_price`/`iva_rate`), nunca se "congela" en facturas pasadas.
+  Sprint 2a (este sprint) solo agrega el campo + CRUD; la resolucion automatica en el
+  facturador y la validacion de techo server-side quedan para Sprint 2c (ver
+  `## Deuda Tecnica`).
 
 ## DynamoDB
 
@@ -111,9 +117,32 @@ Integracion en facturador:
 
 ## Deuda Tecnica
 
-- Sprint 2: movimientos de inventario (`IN`, `OUT`, `ADJUSTMENT`, `REVERSAL`) y descuento
-  atomico de stock al emitir documento autorizado o al confirmar emision, segun decision
-  contable.
-- Sprint 2: paquetes/membresias con composicion de items internos.
-- Sprint 2: historial de precios por producto si se requiere auditoria comercial fuera
-  del snapshot legal de factura.
+- Sprint 2b: campana de descuento global por tenant (`GET/PUT /products/discount-campaign`,
+  singleton `PK=TENANT#{id}` `SK=DISCOUNT_CAMPAIGN` con `active: bool` + `percentage:
+  Decimal`, roles `owner|admin`, sin fechas de inicio/fin en este alcance). Vive en la
+  Lambda `products` (no Lambda nueva) porque el dueño del tenant administra su propia
+  campana — `Tenant` es solo superadmin (`AUTH.md`), no es el lugar correcto.
+- Sprint 2c: en `EmitDocumentScreen`, pre-llenar el `DiscountInput` de cada linea con
+  `max(producto.discount_percentage, campana.percentage si activa)`. **Backend**: extender
+  `InvoiceProductSnapshot` (`i_product_catalog.py`) con `discount_percentage`, nuevo puerto
+  `IDiscountCampaignPort.get_active(tenant_id)` inyectado en `EmitDocumentUseCase`, y en
+  `_compute_totals` validar `discount <= gross * max(snapshot.discount_percentage,
+  campaign.percentage si activa) / 100` para **toda linea** (con o sin `product_id`) — esto
+  cierra el riesgo de que una API enterprise futura evada el techo combinando descuentos o
+  evitando mandar `product_id`. Decision tomada: el backend es la fuente de verdad del techo,
+  no el frontend (mismo principio que ya aplica a `unit_price`/`iva_rate`: el snapshot del
+  producto siempre gana sobre lo que mande el cliente).
+- Sprint 2d: override auditado del techo (`override_discount_ceiling: bool` +
+  `override_reason: str` obligatorio si es `True`) para descuentos ad-hoc legitimos que no
+  estan ligados a la campana. Solo `owner|admin` puede activarlo (403 si lo intenta un rol
+  inferior). Se audita via `shared/audit/writer.py` (mismo mecanismo que ya usan
+  `clients`/`products`/`plans`/`tenants`, `documents` no lo usa hoy — se suma solo para
+  este caso, no para toda mutacion de `Document`). Nunca se salta `discount <= gross`
+  (piso fiscal no negociable, ni con override).
+- Sprint 2e (opcional): RIDE muestra precio original + % aplicado + precio final por
+  linea, para reforzar confianza ante el comprador. No bloqueante para el alcance fiscal.
+- Movimientos de inventario (`IN`, `OUT`, `ADJUSTMENT`, `REVERSAL`) y descuento atomico de
+  stock al emitir documento autorizado o al confirmar emision, segun decision contable.
+- Paquetes/membresias con composicion de items internos.
+- Historial de precios por producto si se requiere auditoria comercial fuera del
+  snapshot legal de factura.

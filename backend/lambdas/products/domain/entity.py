@@ -25,6 +25,7 @@ class Product(TenantScopedEntity):
     unit: str = "unit"
     unit_price: Decimal = Decimal("0.00")
     iva_rate: str = "15"
+    discount_percentage: Decimal | None = None
     stock_enabled: bool = False
     stock_quantity: Decimal | None = None
     low_stock_threshold: Decimal | None = None
@@ -44,6 +45,7 @@ class Product(TenantScopedEntity):
             unit=_unit(cmd.unit),
             unit_price=_money(cmd.unit_price),
             iva_rate=_iva_rate(cmd.iva_rate),
+            discount_percentage=_discount_percentage(cmd.discount_percentage),
             stock_enabled=stock_enabled,
             stock_quantity=_stock_quantity(cmd.stock_quantity, stock_enabled),
             low_stock_threshold=_optional_non_negative(cmd.low_stock_threshold),
@@ -68,6 +70,8 @@ class Product(TenantScopedEntity):
             self.unit_price = _money(cmd.unit_price)
         if cmd.iva_rate is not None:
             self.iva_rate = _iva_rate(cmd.iva_rate)
+        if cmd.discount_percentage is not None:
+            self.discount_percentage = _discount_percentage(cmd.discount_percentage)
         if cmd.stock_enabled is not None:
             self.stock_enabled = bool(cmd.stock_enabled)
             if not self.stock_enabled:
@@ -107,6 +111,9 @@ class Product(TenantScopedEntity):
             "unit": self.unit,
             "unit_price": str(self.unit_price),
             "iva_rate": self.iva_rate,
+            "discount_percentage": (
+                str(self.discount_percentage) if self.discount_percentage is not None else None
+            ),
             "stock_enabled": self.stock_enabled,
             "stock_quantity": str(self.stock_quantity) if self.stock_quantity is not None else None,
             "low_stock_threshold": (
@@ -178,6 +185,15 @@ def _stock_quantity(value: Decimal | None, stock_enabled: bool) -> Decimal | Non
     if quantity < 0:
         raise ValidationError("El stock no puede ser negativo")
     return quantity
+
+
+def _discount_percentage(value: Decimal | None) -> Decimal | None:
+    if value is None:
+        return None
+    percentage = Decimal(str(value)).quantize(Decimal("0.01"))
+    if percentage < 0 or percentage > 100:
+        raise ValidationError("El descuento debe estar entre 0 y 100%")
+    return percentage
 
 
 def _optional_non_negative(value: Decimal | None) -> Decimal | None:

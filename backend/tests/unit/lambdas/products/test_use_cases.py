@@ -88,6 +88,47 @@ class ProductUseCaseTests(unittest.TestCase):
         self.assertEqual(updated.kind.value, "PRODUCT")
         self.assertEqual(updated.stock_quantity, Decimal("5.00"))
 
+    def test_create_accepts_discount_percentage(self) -> None:
+        repo = FakeProductRepository()
+        product = CreateProductUseCase(repo).execute(
+            _create_cmd(discount_percentage=Decimal("15.5"))
+        )
+
+        self.assertEqual(product.discount_percentage, Decimal("15.50"))
+
+    def test_create_defaults_discount_percentage_to_none(self) -> None:
+        repo = FakeProductRepository()
+        product = CreateProductUseCase(repo).execute(_create_cmd())
+
+        self.assertIsNone(product.discount_percentage)
+
+    def test_create_rejects_discount_percentage_above_100(self) -> None:
+        with self.assertRaises(ValidationError):
+            CreateProductUseCase(FakeProductRepository()).execute(
+                _create_cmd(discount_percentage=Decimal("100.01"))
+            )
+
+    def test_create_rejects_negative_discount_percentage(self) -> None:
+        with self.assertRaises(ValidationError):
+            CreateProductUseCase(FakeProductRepository()).execute(
+                _create_cmd(discount_percentage=Decimal("-1"))
+            )
+
+    def test_update_changes_discount_percentage(self) -> None:
+        repo = FakeProductRepository()
+        product = CreateProductUseCase(repo).execute(_create_cmd())
+        repo.products[product.id] = product
+
+        updated = UpdateProductUseCase(repo).execute(
+            UpdateProductCommand(
+                product_id=product.id,
+                updated_by="user-2",
+                discount_percentage=Decimal("60"),
+            )
+        )
+
+        self.assertEqual(updated.discount_percentage, Decimal("60.00"))
+
     def test_delete_soft_deletes(self) -> None:
         repo = FakeProductRepository()
         product = CreateProductUseCase(repo).execute(_create_cmd())

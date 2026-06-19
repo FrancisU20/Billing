@@ -14,6 +14,7 @@ class CreateProductRequest(BaseModel):
     unit: str = Field(default="unit", min_length=1, max_length=25)
     unit_price: Decimal = Field(..., ge=0)
     iva_rate: Literal["15", "5", "0", "EXENTO"] = "15"
+    discount_percentage: Decimal | None = Field(default=None, ge=0, le=100)
     stock_enabled: bool = False
     stock_quantity: Decimal | None = Field(default=None, ge=0)
     low_stock_threshold: Decimal | None = Field(default=None, ge=0)
@@ -27,6 +28,7 @@ class UpdateProductRequest(BaseModel):
     unit: str | None = Field(default=None, min_length=1, max_length=25)
     unit_price: Decimal | None = Field(default=None, ge=0)
     iva_rate: Literal["15", "5", "0", "EXENTO"] | None = None
+    discount_percentage: Decimal | None = Field(default=None, ge=0, le=100)
     stock_enabled: bool | None = None
     stock_quantity: Decimal | None = Field(default=None, ge=0)
     low_stock_threshold: Decimal | None = Field(default=None, ge=0)

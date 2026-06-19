@@ -67,6 +67,14 @@ export function ProductDetailScreen() {
               label="Precio unitario"
               value={`$${Number(product.unit_price).toFixed(2)}`}
             />
+            <DetailField
+              label="Descuento"
+              value={
+                product.discount_percentage
+                  ? `${Number(product.discount_percentage)}%`
+                  : 'Sin descuento'
+              }
+            />
             <DetailField label="Unidad" value={product.unit} />
           </DetailSection>
 

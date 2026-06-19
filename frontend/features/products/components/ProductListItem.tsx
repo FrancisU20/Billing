@@ -46,6 +46,7 @@ export function ProductListItem({ product, onView, onEdit, onDelete }: ProductLi
           </Text>
           <Text style={[styles.meta, { color: semantic.text.secondary }]} numberOfLines={1}>
             {stockText} · IVA {product.iva_rate} · ${Number(product.unit_price).toFixed(2)}
+            {product.discount_percentage ? ` · -${Number(product.discount_percentage)}%` : ''}
           </Text>
         </View>
       </View>

@@ -14,6 +14,7 @@ export const productSchema = z.object({
   unit: z.string().min(1),
   unit_price: z.string().min(1),
   iva_rate: productIvaRateSchema,
+  discount_percentage: z.string().nullable(),
   stock_enabled: z.boolean(),
   stock_quantity: z.string().nullable(),
   low_stock_threshold: z.string().nullable(),
@@ -43,6 +44,12 @@ export const productFormSchema = z
       .trim()
       .regex(/^\d+(\.\d{1,2})?$/, 'Precio inválido'),
     iva_rate: productIvaRateSchema,
+    discount_percentage: z
+      .string()
+      .trim()
+      .regex(/^\d+(\.\d{1,2})?$/, 'Descuento inválido')
+      .refine((value) => Number(value) <= 100, 'El descuento no puede superar 100%')
+      .or(z.literal('')),
     stock_enabled: z.boolean(),
     stock_quantity: z
       .string()
@@ -69,6 +76,12 @@ const productPayloadBaseSchema = z.object({
     .trim()
     .regex(/^\d+(\.\d{1,2})?$/),
   iva_rate: productIvaRateSchema,
+  discount_percentage: z
+    .string()
+    .trim()
+    .regex(/^\d+(\.\d{1,2})?$/)
+    .nullable()
+    .optional(),
   stock_enabled: z.boolean(),
   stock_quantity: z
     .string()

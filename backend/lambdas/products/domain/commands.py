@@ -15,6 +15,7 @@ class CreateProductCommand:
     description: str = ""
     kind: str = "PRODUCT"
     unit: str = "unit"
+    discount_percentage: Decimal | None = None
     stock_enabled: bool = False
     stock_quantity: Decimal | None = None
     low_stock_threshold: Decimal | None = None
@@ -31,6 +32,7 @@ class UpdateProductCommand:
     unit: str | None = None
     unit_price: Decimal | None = None
     iva_rate: str | None = None
+    discount_percentage: Decimal | None = None
     stock_enabled: bool | None = None
     stock_quantity: Decimal | None = None
     low_stock_threshold: Decimal | None = None
