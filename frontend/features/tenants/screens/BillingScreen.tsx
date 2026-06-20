@@ -274,7 +274,35 @@ export function BillingScreen() {
           </View>
         </View>
 
-        {!success && tenant && (
+        {!success && tenant && isActive && (
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
+            ]}
+          >
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconWrap, { backgroundColor: semantic.status.successBg }]}>
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={22}
+                  color={semantic.status.success}
+                />
+              </View>
+              <View style={styles.cardTitle}>
+                <Text style={[styles.title, { color: semantic.text.primary }]}>
+                  Tu suscripción está al día
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.hint, { color: semantic.text.secondary }]}>
+              El cobro se renueva automáticamente con tu tarjeta guardada antes de que el ciclo
+              termine. No necesitas pagar por adelantado.
+            </Text>
+          </View>
+        )}
+
+        {!success && tenant && !isActive && (
           <View
             style={[
               styles.card,

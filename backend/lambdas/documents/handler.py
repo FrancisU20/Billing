@@ -50,7 +50,7 @@ from lambdas.tenants.domain.enums import SriEnvironment
 from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
 from shared.config import env
 from shared.db.client import get_table
-from shared.errors import ForbiddenError
+from shared.errors import ForbiddenError, ValidationError
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
@@ -232,11 +232,30 @@ def _list(request: Request, context) -> dict:
     )
 
 
+def _resolve_monthly_limit(tenant_id: str) -> int | None:
+    """None when the tenant's plan can't be resolved (eg. deactivated by superadmin
+    after the tenant subscribed) — the summary still returns counts, just without the
+    limit comparison, instead of failing the whole dashboard block."""
+    try:
+        tenant = _get_tenant(tenant_id)
+        plan_info = _get_plan(tenant.plan_id)
+    except ValidationError:
+        _log.warning("could not resolve plan for documents summary limit", tenant_id=tenant_id)
+        return None
+
+    return (
+        plan_info.pruebas_monthly_docs_limit
+        if tenant.sri_environment == SriEnvironment.TESTING
+        else plan_info.document_limit
+    )
+
+
 @lambda_handler
 @require_role("owner", "admin", "viewer", "superadmin")
 def _summary(request: Request, context) -> dict:
     tenant_id = _resolve_tenant_id(request)
-    summary = GetDocumentsSummaryUseCase(_repo()).execute(tenant_id)
+    monthly_limit = _resolve_monthly_limit(tenant_id)
+    summary = GetDocumentsSummaryUseCase(_repo()).execute(tenant_id, monthly_limit)
     return ApiResponse.ok(summary.to_dict(), request.request_id)
 
 

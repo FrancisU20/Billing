@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Badge } from '@/components/ui/Badge'
 import { ListItemAction, ListItemMeta } from '@/components/ui/ListItemPrimitives'
+import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu'
 import { useTheme } from '@/lib/theme-context'
 import { formatDate } from '@/lib/utils/format'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
@@ -18,6 +19,17 @@ interface PlanListItemProps {
 
 export function PlanListItem({ plan, onView, onEdit, onToggle }: PlanListItemProps) {
   const { semantic } = useTheme()
+
+  const rowActions: RowAction[] = [
+    { key: 'edit', icon: 'create-outline', label: 'Editar plan', onPress: onEdit },
+    {
+      key: 'toggle',
+      icon: plan.active ? 'pause-circle-outline' : 'play-circle-outline',
+      label: plan.active ? 'Desactivar plan' : 'Activar plan',
+      danger: plan.active,
+      onPress: onToggle,
+    },
+  ]
 
   return (
     <Pressable
@@ -62,13 +74,7 @@ export function PlanListItem({ plan, onView, onEdit, onToggle }: PlanListItemPro
 
       <View style={styles.actions}>
         <ListItemAction icon="eye-outline" label="Ver plan" onPress={onView} />
-        <ListItemAction icon="create-outline" label="Editar plan" onPress={onEdit} />
-        <ListItemAction
-          icon={plan.active ? 'pause-circle-outline' : 'play-circle-outline'}
-          label={plan.active ? 'Desactivar plan' : 'Activar plan'}
-          danger={plan.active}
-          onPress={onToggle}
-        />
+        <RowActionsMenu actions={rowActions} triggerLabel="Más acciones de plan" />
       </View>
     </Pressable>
   )

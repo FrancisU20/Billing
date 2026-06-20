@@ -88,6 +88,8 @@ export const documentsSummarySchema = z.object({
   pending_count: z.coerce.number(),
   processing_count: z.coerce.number(),
   authorized_total: z.string().min(1),
+  document_limit: z.coerce.number().nullable(),
+  is_unlimited: z.boolean(),
 })
 
 export const rideUrlSchema = z.object({

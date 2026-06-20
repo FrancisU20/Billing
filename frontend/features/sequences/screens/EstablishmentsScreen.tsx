@@ -14,6 +14,7 @@ import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useTheme } from '@/lib/theme-context'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { Routes } from '@/constants/routes'
+import { canWrite } from '@/constants/roles'
 import { radius, spacing } from '@/constants/tokens'
 import { sequencesApi } from '../api'
 import { EstablishmentCard } from '../components/EstablishmentCard'
@@ -26,6 +27,7 @@ export function EstablishmentsScreen() {
   const { semantic } = useTheme()
   const user = useAuthStore(selectUser)
   const tenantId = user?.tenantId ?? null
+  const canManage = canWrite(user?.role ?? null)
   const { establishments, loading, error, refresh } = useEstablishments(tenantId)
 
   const [newOpen, setNewOpen] = useState(false)
@@ -79,55 +81,58 @@ export function EstablishmentsScreen() {
               key={establishment.code}
               tenantId={tenantId as string}
               establishment={establishment}
+              canManage={canManage}
               onChanged={refresh}
             />
           ))
         )}
 
-        <View
-          style={[
-            styles.newCard,
-            { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-          ]}
-        >
-          {newOpen ? (
-            <>
-              <FormField
-                label="Código"
-                placeholder="002"
-                value={newCode}
-                onChangeText={setNewCode}
-                keyboardType="number-pad"
-                leftIcon="pricetag-outline"
-              />
-              <FormField
-                label="Etiqueta"
-                placeholder="Sucursal Norte"
-                value={newLabel}
-                onChangeText={setNewLabel}
-                leftIcon="bookmark-outline"
-              />
-              {createError ? <ApiErrorBanner error={createError} /> : null}
-              <View style={styles.newCardActions}>
-                <Button variant="ghost" size="md" onPress={() => setNewOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button
-                  variant="primary"
-                  size="md"
-                  isLoading={creating}
-                  onPress={() => submitCreate()}
-                >
-                  Crear establecimiento
-                </Button>
-              </View>
-            </>
-          ) : (
-            <Button variant="outline" size="md" fullWidth onPress={() => setNewOpen(true)}>
-              Nuevo establecimiento
-            </Button>
-          )}
-        </View>
+        {canManage ? (
+          <View
+            style={[
+              styles.newCard,
+              { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
+            ]}
+          >
+            {newOpen ? (
+              <>
+                <FormField
+                  label="Código"
+                  placeholder="002"
+                  value={newCode}
+                  onChangeText={setNewCode}
+                  keyboardType="number-pad"
+                  leftIcon="pricetag-outline"
+                />
+                <FormField
+                  label="Etiqueta"
+                  placeholder="Sucursal Norte"
+                  value={newLabel}
+                  onChangeText={setNewLabel}
+                  leftIcon="bookmark-outline"
+                />
+                {createError ? <ApiErrorBanner error={createError} /> : null}
+                <View style={styles.newCardActions}>
+                  <Button variant="ghost" size="md" onPress={() => setNewOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="md"
+                    isLoading={creating}
+                    onPress={() => submitCreate()}
+                  >
+                    Crear establecimiento
+                  </Button>
+                </View>
+              </>
+            ) : (
+              <Button variant="outline" size="md" fullWidth onPress={() => setNewOpen(true)}>
+                Nuevo establecimiento
+              </Button>
+            )}
+          </View>
+        ) : null}
       </ScrollView>
     </View>
   )

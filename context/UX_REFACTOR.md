@@ -121,9 +121,13 @@ Backend:
   - `clients`/`products`: `BaseRepository._count_raw()` — Query tenant-scoped + `Select=COUNT`,
     sin transferir items. `total=None` cuando `q`/`identification`/`sku` estan activos (se
     resuelven en Python, no en DynamoDB).
-  - `documents`: mismo patron de `Select=COUNT` sobre el GSI `tenant-docs-index`
-    (generalizacion de `count_this_month()`). Siempre exacto: ningun filtro de documents es
-    de texto libre.
+  - `documents`: `Select=COUNT` sobre el GSI `tenant-docs-index` (generalizacion de
+    `count_this_month()`) cuando no hay `q`; cuando `q` esta activo, `count()` camina las
+    paginas y cuenta coincidencias de `_matches_search()` igual que `list()` — sigue siendo
+    exacto (a diferencia de clients/products/tenants, `total` nunca se omite aqui), solo
+    mas costoso porque ya no puede usar `Select=COUNT`. `q` busca por serie, secuencial,
+    comprador o clave de acceso (ver `INVOICES.md`); `serie` exacto sigue aceptado por
+    compatibilidad pero el frontend ya solo envia `q`.
   - `tenants` (superadmin): Scan + `Select=COUNT`, igual costo que `list()` ya documentado
     como aceptable para catalogo B2B chico. `total=None` cuando `q`/`ruc`/`plan_status` estan
     activos (`plan_status` se computa en memoria, nunca se persiste).
@@ -188,14 +192,27 @@ Alcance:
   - [x] productos — mismo gap que clientes
   - [x] planes — ya tenia `setStatus` + `ConfirmDialog` (Sprint previo a este roadmap)
   - [x] tenants — ya tenia `changeStatus` con confirmaciones en `TenantDetailScreen`
-  - [ ] campanas/descuentos — no auditado todavia
-  - [ ] documentos — no aplica accion de estado (solo lectura del resultado SRI)
+  - [x] campanas/descuentos — auditado: `DiscountCampaignScreen` y
+        `EstablishmentsScreen`/`EstablishmentCard` mostraban controles de edicion a
+        cualquier rol (incluyendo `viewer`), pese a que el backend ya exigia
+        `owner|admin` (`PUT /products/discount-campaign`, mutaciones de
+        `lambdas/sequences/handler.py`). Corregido: `DiscountCampaignScreen` muestra
+        `DetailSection` de solo lectura para `viewer` en vez del formulario;
+        `EstablishmentsScreen`/`EstablishmentCard` ocultan "Nuevo establecimiento",
+        "Punto de emisión" y "Editar punto" cuando `!canWrite(role)`.
+  - [x] documentos — confirmado que no aplica accion de estado (solo lectura del
+        resultado SRI); no requiere cambios.
 - Crear acciones rapidas reutilizables (clientes y productos, via PATCH existente con
   `status` parcial — no hizo falta endpoint nuevo):
   - [x] accion "Activar" en `ClientListItem`/`ProductListItem` cuando el item esta
         inactivo (reemplaza "Eliminar" en ese estado; activo conserva "Eliminar" como
         unico camino a inactivo, sin duplicar botones)
-  - [ ] menu de acciones por fila (hoy son botones planos en `ListItemAction`, no menu)
+  - [x] menu de acciones por fila: `components/ui/RowActionsMenu.tsx` (action sheet
+        generico, reemplaza 2-3 `ListItemAction` planos por un solo boton "⋮" + hoja de
+        acciones). Migrado a `ClientListItem`, `ProductListItem`, `PlanListItem` — los
+        3 listados con 2+ acciones mutables por fila. `TenantListItem`/`DocumentListItem`
+        no se tocaron: tienen como maximo 1 accion mutable (o ninguna), un menu ahi seria
+        un paso extra sin beneficio.
   - [x] confirmacion para activar (`ConfirmDialog`, mismo patron que plans/tenants)
   - [x] feedback inmediato + refresh del listado (`useFormSubmit` + `refresh()`)
 - Agregar permisos visibles (clientes y productos):
@@ -210,7 +227,8 @@ Criterio de aceptacion:
 - [x] Si backend soporta `active/inactive`, la UI permite cambiarlo desde listado
       con confirmacion cuando corresponda (clientes, productos, planes, tenants).
 - [x] El cambio de estado se refleja sin recargar manualmente.
-- [x] No hay acciones visibles que el rol actual no pueda ejecutar (clientes, productos).
+- [x] No hay acciones visibles que el rol actual no pueda ejecutar (clientes, productos,
+      campana de descuento, establecimientos/puntos de emision).
 
 ### Sprint 2 — Busqueda Y Filtros Minimalistas
 
@@ -230,7 +248,8 @@ Frontend:
   - `ClientsFilters`
   - `TenantsFilters`
   - `PlansFilters`
-  - `DocumentsFilters` para serie
+  - `DocumentsFilters` (busqueda general `q`: serie, secuencial, comprador o clave de
+    acceso — reemplazo de la busqueda exacta por `serie` que tenia al migrar este sprint)
   - `ProductPickerModal`
   - `ClientPickerModal`
 - [x] Crear `FilterBar` compartido (`components/ui/FilterBar.tsx`):
@@ -255,6 +274,9 @@ Backend:
 - Revisar `q` por dominio:
   - `clients` y `products` pueden seguir con v1 in-memory por ahora, pero documentar el
     limite operativo.
+  - `documents` agrego `q` (serie/secuencial/comprador/clave de acceso) sobre el GSI
+    `tenant-docs-index` con el mismo patron in-memory (`_matches_search()`); mismo limite
+    operativo que clients/products, documentado en `INVOICES.md`.
   - Si un dominio requiere busqueda real a escala, planificar GSI/Search index especifico,
     no scans masivos.
 
@@ -322,7 +344,12 @@ Frontend:
   - [x] cedula (`lib/utils/ruc.ts` + schema client)
   - [x] dinero decimal (`lib/utils/form-validators.ts`)
   - [x] porcentaje (`lib/utils/form-validators.ts`)
-  - [ ] secuencial/serie SRI
+  - [x] secuencial/serie SRI — ya existia, solo estaba sin marcar: `code` de
+        establecimiento/punto de emision valida `^\d{3}$` (`features/sequences/schemas.ts`,
+        `createEstablishmentSchema`/`addEmissionPointSchema`) y `initial_sequential` valida
+        entero 1-999999999, ambos con test en `schemas.test.ts`. No se centralizo en
+        `lib/utils/form-validators.ts` porque es de un solo dominio (`sequences`); seguiria
+        la regla de FRONTEND.md de no compartir algo que solo usa 1 feature.
 - Configurar formularios para `mode: "onChange"` o equivalente, con mensajes por campo:
   - [x] `ClientForm`
   - [x] `TenantForm`
@@ -397,8 +424,17 @@ Alcance:
   - [x] tests frontend para `resolveSuggestedDiscount`, `resolveDiscountPolicy` y
         `shouldAutoApplySuggestedDiscount`
         (`form.test.ts`)
-  - [ ] tests de render/cambio de lineas a nivel componente (`EmitDocumentScreen`) — no
-        existen todavia, solo tests de las funciones puras
+  - [ ] **tests de render/cambio de lineas a nivel componente (`EmitDocumentScreen`) —
+        bloqueado por infraestructura, no por falta de tiempo.** El proyecto no tiene
+        testing de componentes en ningun lado (solo hooks/funciones puras): `vitest` no
+        puede ni parsear `react-native` directamente (sintaxis Flow en
+        `node_modules/react-native/index.js`). Investigado: alias a `react-native-web`
+        (ya es dependencia, sin Flow) resuelve ESE error puntual, pero `react-native-web`
+        necesita `@vitejs/plugin-react` (no instalado) para JSX/runtime, y probablemente
+        mas configuracion despues de eso — no se llego a confirmar cuanto mas falta.
+        Es trabajo de infra transversal (afecta `vitest.config.ts` para todo el repo, no
+        solo este test), no una tarea chica — requiere su propia sesion dedicada si se
+        decide priorizar. No se dejo nada a medias: `vitest.config.ts` quedo intacto.
 - [ ] Agregar tests backend si se detecta diferencia entre preview frontend y validacion de
       `EmitDocumentUseCase` (sin diferencia detectada hasta ahora; backend no tuvo cambios
       en este sprint)
@@ -411,77 +447,140 @@ Criterio de aceptacion:
 
 ### Sprint 5 — Dashboard Operacional
 
-Estado: **primer corte tenant implementado**.
+Estado: **completo para el alcance de este roadmap** (conteos, limite del plan y "todo
+bien" de suscripcion via Sprint 6).
 
 Objetivo: reemplazar contadores placeholder por metricas reales.
 
+**Dashboard superadmin: fuera de alcance de `UX_REFACTOR.md`.** Es un sprint de producto
+aparte (metricas globales: tenants por estado/plan, ingresos estimados — ver `TENANTS.md`
+seccion "Dashboard Superadmin — Pendiente"), no una migracion de UX de algo que ya existe.
+No se planifica aqui; se retomo cuando ese sprint se priorice explicitamente.
+
 Backend:
 
-- [x] Crear endpoint agregado tenant en dominio `documents`: `GET /documents/summary`.
-  - [x] documentos emitidos del periodo
-  - [x] autorizados/rechazados/fallidos
-  - [x] total autorizado del periodo
-  - consumo del limite mensual del plan
-  - estado certificado y dias para expirar
-  - estado suscripcion
-- Evaluar endpoint superadmin separado si se necesita metricas globales.
+- [x] Crear endpoint agregado tenant en dominio `documents`: `GET /documents/summary`
+      (`GetDocumentsSummaryUseCase` + `DynamoDocumentsRepository.summary_this_month()`,
+      `DocumentSummary.to_dict()` en `backend/lambdas/documents/domain/entities.py`).
+  - [x] documentos emitidos del periodo (`issued_count`)
+  - [x] autorizados/rechazados/fallidos (`authorized_count`/`rejected_count`/`failed_count`,
+        mas `pending_count`/`processing_count` para "en proceso")
+  - [x] total autorizado del periodo (`authorized_total`)
+  - [x] **consumo del limite mensual del plan.** `_summary` resuelve el tenant + su plan
+        igual que `_emit` (`_get_tenant`/`_get_plan`, mismo `DynamoPlanReader` ya usado por
+        `EmitDocumentUseCase`) y selecciona `pruebas_monthly_docs_limit` o `document_limit`
+        segun `tenant.sri_environment` — el mismo numero que aplica la verificacion real al
+        emitir. `GetDocumentsSummaryUseCase.execute(tenant_id, monthly_limit)` adjunta
+        `document_limit`/`is_unlimited` (`-1` = ilimitado) al `DocumentSummary` inmutable via
+        `dataclasses.replace`; el repositorio de documents sigue sin saber nada de planes.
+        Si el plan no se puede resolver (`ValidationError` — ej. plan desactivado por
+        superadmin con tenants aun suscritos), `_resolve_monthly_limit` lo atrapa y devuelve
+        `None`: el summary completo no se cae, solo se omite el limite (`document_limit:
+        null`). No se toco el comportamiento de `_emit` (sigue sin ese guard).
+  - [ ] estado certificado y dias para expirar — **no via este endpoint**, pero ya visible
+        en el dashboard: `TenantDashboardScreen` renderiza `CertificateSection` (componente
+        preexistente de `TENANTS.md`/`CERTIFICATES.md`) debajo del resumen, con el mismo
+        badge de dias-para-expirar que usa el resto de la app. No hace falta duplicarlo en
+        el payload de `/documents/summary`.
+  - [x] estado suscripcion — **no via este endpoint, resuelto en Sprint 6**.
+        `PendingActivationBanner`/`PaymentFailedBanner` ya cubren los estados con problema
+        a nivel de layout tenant; el widget informativo de "todo bien" se agrego en
+        `BillingScreen` (card "Tu suscripción está al día" cuando `subscription_status ===
+        'active'`, ver Sprint 6) en vez de en el dashboard — es donde el usuario ya espera
+        mirar el estado de su plan, y evita sumar otra card mas al dashboard.
 - [x] Evitar scans caros no acotados en el primer corte: summary usa Query por
       `tenant-docs-index` acotado al mes civil Ecuador y suma solo ese rango.
       Si se requieren historicos largos, crear tabla/materializacion por evento o worker.
 
 Frontend:
 
-- [x] Reemplazar placeholders del dashboard tenant por datos reales:
+- [x] Reemplazar placeholders del dashboard tenant por datos reales (`TenantDashboardScreen`
+      via `useDocumentsSummary`):
   - emitidos del mes
   - autorizados
   - rechazados/fallidos
   - total autorizado
   - progreso de autorizacion del mes
-- Definir tambien dashboard/resumen superadmin si el modulo superadmin necesita metrica
-  operativa global.
+  - [x] consumo del limite mensual del plan: card "Limite del plan" con barra de progreso
+        (verde <80%, ambar 80-99%, rojo >=100%) cuando `document_limit` esta presente;
+        badge "Ilimitado" cuando `is_unlimited`; no se muestra nada cuando el backend no
+        pudo resolver el plan (`document_limit: null`) — degradacion silenciosa, no error.
 - [x] Agregar loading/error por bloque, no pantalla entera si solo falla una metrica
       (`ApiErrorBanner` del resumen sin bloquear tenant/certificado).
 
 Criterio de aceptacion:
 
 - [x] Dashboard tenant muestra numeros reales despues de emitir documentos.
-- Superadmin no queda con placeholders si tiene resumen operativo.
 - [x] Dashboard tenant no usa contadores `—`; cae a `0` si aun no hay actividad.
+- [x] El usuario ve cuanto le queda de su limite mensual del plan antes de toparse con
+      `DocumentLimitReachedError` al emitir (card "Limite del plan" en el dashboard).
 
 ### Sprint 6 — Reorganizacion De Modulos Y Perfil/Empresa
+
+Estado: **implementado**.
 
 Objetivo: reducir ruido en navegacion y agrupar configuraciones relacionadas.
 
 Frontend:
 
-- Crear pantalla "Mi Perfil" / "Empresa" con tabs o secciones:
-  - Usuario/perfil
-  - Datos de empresa
-  - Certificado digital
-  - Establecimientos y puntos de emision
-  - Descuento global
-  - Suscripcion y facturacion
-- Ocultar modulos secundarios del menu principal cuando vivan bajo perfil/empresa.
-- Aplicar permisos:
-  - viewer: lectura donde corresponda
-  - admin/owner: configuraciones tenant
-  - superadmin: gestion global
-- Mantener paridad UX entre vistas tenant y superadmin: mismas primitivas de listado,
-  filtros, formularios, modales y acciones cuando el caso de uso sea equivalente.
+- [x] Crear pantalla "Empresa" (`CompanyScreen`, ruta `/(app)/(tenant)/settings/company`):
+  - [x] Datos de empresa — resumen de solo lectura (`DetailSection`/`DetailField`, mismas
+        primitivas que `TenantDetailScreen`) + boton "Editar datos" solo si `canWrite(role)`.
+  - [x] Certificado digital — reusa `CertificateSection` (mismo componente que ya usaban
+        `TenantDashboardScreen` y `TenantDetailScreen`; no se duplico logica).
+  - [x] Establecimientos y puntos de emision — fila de navegacion a la pantalla existente
+        (`EstablishmentsScreen`, sin cambios).
+  - [x] Descuento global — fila de navegacion a `DiscountCampaignScreen` (sin cambios).
+  - [x] Suscripcion y facturacion — fila de navegacion a `BillingScreen` (con el ajuste de
+        pago manual, ver Suscripciones abajo).
+  - No se hizo como tabs dentro de una sola pantalla: es un hub con secciones inline
+    (datos + certificado) y filas de navegacion hacia las pantallas existentes — evita
+    reescribir `EstablishmentsScreen`/`DiscountCampaignScreen`/`BillingScreen`, que ya son
+    pantallas completas con su propio CRUD/estado.
+  - "Usuario/perfil" no se tocó: sigue siendo `ProfileScreen` (`/(app)/profile`, ya
+    existía antes de este roadmap) — es una pantalla separada, no una tab de "Empresa",
+    porque aplica tambien a superadmin (que no tiene "empresa").
+  - [x] `CompanyEditScreen` (`/settings/company/edit`) — nueva pantalla de self-edit del
+        tenant, reusa `TenantForm` en `mode="edit"` (RUC ya queda deshabilitado por el
+        propio form en ese modo; no hay seccion de Plan en `mode="edit"`, consistente con
+        que `UpdateTenantCommand` no acepta `plan_id`). Redirige con `<Redirect>` si el rol
+        no tiene permiso de escritura, aunque ademas el backend ya exigia `owner|admin` en
+        `PATCH /tenants/{id}` (defensa en profundidad, no el unico guard).
+- [x] Ocultar modulos secundarios del menu principal: `items.ts` ya no lista
+      "Establecimientos"/"Descuento global"/"Facturación" — se reemplazaron por un unico
+      item "Mi empresa" que abre el hub.
+- [x] Aplicar permisos:
+  - viewer: `CompanyScreen` no muestra el boton "Editar datos"; `CertificateSection` ya
+    recibe `canManage` propio.
+  - admin/owner: pueden editar datos de empresa y certificado.
+  - superadmin: no aplica — el hub es tenant-only (superadmin tiene su propia navegacion
+    sin "Mi empresa").
+- [x] Paridad UX tenant/superadmin donde el caso de uso es equivalente: `CompanyScreen`
+      reusa exactamente `DetailSection`/`DetailField`/`CertificateSection`, las mismas
+      primitivas que ya usaba `TenantDetailScreen` (vista superadmin de un tenant) — no se
+      crearon primitivas nuevas y paralelas.
 
 Suscripciones:
 
-- Ajustar UI de pago manual:
-  - no permitir pago anticipado si el plan esta vigente
-  - habilitar boton solo cuando el estado/ciclo lo requiera (`expired`, `payment_failed`,
-    o la regla de negocio que se defina en `SUBSCRIPTIONS.md`)
-  - mantener cobro automatico como camino principal
+- [x] Ajustar UI de pago manual (`BillingScreen`):
+  - [x] no permitir pago anticipado si el plan esta vigente: el card de "Renovar
+        suscripción"/"Pagar con tarjeta nueva" solo se muestra cuando
+        `subscription_status !== 'active'`.
+  - [x] cuando esta `active`, se muestra un card informativo ("Tu suscripción está al día")
+        en vez del boton de pago — refuerza que el cobro automatico es el camino principal.
+  - [x] el boton sigue habilitado para `expired`/`payment_failed` (motivo de pago manual
+        real); no se introdujo una regla de "ultimos N dias" porque `SUBSCRIPTIONS.md` no
+        define ese grace period — si se necesita, es una decision de negocio nueva, no un
+        ajuste de UI.
+  - [x] cobro automatico via `dlocal_payer_id` (ver `SUBSCRIPTIONS.md`) sigue siendo el
+        camino principal sin cambios; esto solo oculta el camino manual cuando no aplica.
 
 Criterio de aceptacion:
 
-- Menu principal queda enfocado en operacion diaria.
-- Configuraciones de empresa no aparecen como modulos sueltos.
-- Billing no invita a pagar antes de tiempo.
+- [x] Menu principal queda enfocado en operacion diaria (Dashboard, Clientes, Productos,
+      Documentos, Mi empresa).
+- [x] Configuraciones de empresa no aparecen como modulos sueltos — viven bajo "Mi empresa".
+- [x] Billing no invita a pagar antes de tiempo.
 
 ### Sprint 7 — Centralizacion Final De Componentes
 

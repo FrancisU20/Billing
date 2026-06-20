@@ -654,6 +654,14 @@ campos esten completos.
          → `confirmPayment` → `applyRenewal` (con retry).
   `ApplySubscriptionRenewalUseCase` no valida el subscription_status — acepta `payment_failed`
   y deja el tenant en `active` si el pago es PAID.
+  **Sin pago anticipado (`UX_REFACTOR.md` Sprint 6):** cuando `subscription_status ===
+  'active'`, `BillingScreen` no muestra el card de pago — muestra un card informativo
+  ("Tu suscripción está al día") en su lugar. El card de pago manual ("Renovar
+  suscripción"/"Pagar con tarjeta nueva") solo aparece para `expired`/`payment_failed`
+  (o el estado neutro sin suscripcion todavia, que en la practica no deberia alcanzar
+  esta pantalla porque `pending_payment` se intercepta antes en `(tenant)/_layout.tsx`).
+  No existe una regla de "ultimos N dias antes de vencer" — si se necesita, es una
+  decision de negocio nueva a definir aqui, no solo un ajuste de UI.
 
 - **Guard con banners** `(tenant)/_layout.tsx`:
   - `payment_failed` → muestra Stack + `PaymentFailedBanner` encima (acceso al dashboard permitido)

@@ -44,5 +44,7 @@ export const Routes = {
     documentNew: '/(app)/(tenant)/documents/emit' as const,
     documentDetail: (id: string) => `/(app)/(tenant)/documents/${id}` as const,
     establishments: '/(app)/(tenant)/settings/estab' as const,
+    company: '/(app)/(tenant)/settings/company' as const,
+    companyEdit: '/(app)/(tenant)/settings/company/edit' as const,
   },
 } as const

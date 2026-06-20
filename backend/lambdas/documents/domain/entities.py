@@ -40,6 +40,8 @@ class DocumentSummary:
     pending_count: int
     processing_count: int
     authorized_total: Decimal
+    document_limit: int | None = None
+    is_unlimited: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -52,6 +54,8 @@ class DocumentSummary:
             "pending_count": self.pending_count,
             "processing_count": self.processing_count,
             "authorized_total": str(self.authorized_total),
+            "document_limit": self.document_limit,
+            "is_unlimited": self.is_unlimited,
         }
 
 

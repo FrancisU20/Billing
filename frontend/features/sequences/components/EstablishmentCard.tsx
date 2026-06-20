@@ -17,10 +17,16 @@ import type { Establishment } from '../types'
 interface EstablishmentCardProps {
   tenantId: string
   establishment: Establishment
+  canManage: boolean
   onChanged: () => Promise<void> | void
 }
 
-export function EstablishmentCard({ tenantId, establishment, onChanged }: EstablishmentCardProps) {
+export function EstablishmentCard({
+  tenantId,
+  establishment,
+  canManage,
+  onChanged,
+}: EstablishmentCardProps) {
   const { semantic } = useTheme()
   const [addOpen, setAddOpen] = useState(false)
   const [pointCode, setPointCode] = useState('')
@@ -91,9 +97,11 @@ export function EstablishmentCard({ tenantId, establishment, onChanged }: Establ
             Establecimiento {establishment.code}
           </Text>
         </View>
-        <Button variant="outline" size="sm" onPress={() => setAddOpen((v) => !v)}>
-          {addOpen ? 'Cancelar' : 'Punto de emisión'}
-        </Button>
+        {canManage ? (
+          <Button variant="outline" size="sm" onPress={() => setAddOpen((v) => !v)}>
+            {addOpen ? 'Cancelar' : 'Punto de emisión'}
+          </Button>
+        ) : null}
       </View>
 
       <View style={styles.pointsList}>
@@ -137,15 +145,17 @@ export function EstablishmentCard({ tenantId, establishment, onChanged }: Establ
                     Punto {point.code} · inicia en {point.initial_sequential}
                   </Text>
                 </View>
-                <ListItemAction
-                  icon="create-outline"
-                  label={`Editar punto ${point.code}`}
-                  onPress={() => {
-                    setEditingCode(point.code)
-                    setEditLabel(point.label)
-                    setEditInitial(String(point.initial_sequential))
-                  }}
-                />
+                {canManage ? (
+                  <ListItemAction
+                    icon="create-outline"
+                    label={`Editar punto ${point.code}`}
+                    onPress={() => {
+                      setEditingCode(point.code)
+                      setEditLabel(point.label)
+                      setEditInitial(String(point.initial_sequential))
+                    }}
+                  />
+                ) : null}
               </>
             )}
           </View>
@@ -154,7 +164,7 @@ export function EstablishmentCard({ tenantId, establishment, onChanged }: Establ
 
       {editError ? <ApiErrorBanner error={editError} /> : null}
 
-      {addOpen ? (
+      {addOpen && canManage ? (
         <View style={styles.addForm}>
           <FormField
             label="Código"

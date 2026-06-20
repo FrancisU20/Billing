@@ -44,7 +44,14 @@ Dashboard/operabilidad: `GET /documents/summary` devuelve el resumen del mes civ
 para el tenant autenticado (`issued_count`, `authorized_count`, `rejected_count`,
 `failed_count`, `pending_count`, `processing_count`, `authorized_total`). Usa Query sobre
 `tenant-docs-index` acotado al mes y suma solo documentos autorizados para el total
-facturado visible.
+facturado visible. Tambien incluye `document_limit`/`is_unlimited`: el handler resuelve
+tenant+plan igual que `_emit` (mismo `DynamoPlanReader`, mismo criterio
+`pruebas_monthly_docs_limit` vs `document_limit` segun `sri_environment`) y se lo pasa a
+`GetDocumentsSummaryUseCase`, que lo adjunta al `DocumentSummary` inmutable sin que el
+repositorio de documents conozca nada de planes. Si el plan no se puede resolver
+(`ValidationError`, ej. desactivado por superadmin con tenants aun suscritos),
+`document_limit` queda en `null` y el resto del summary se devuelve igual — no se cae todo
+el endpoint por esa causa.
 
 **Fuera de alcance MVP:** Nota de credito (04), retencion (07), batch masivo XLSX.
 Esos se disenan en sprints posteriores pero la arquitectura actual los soporta sin

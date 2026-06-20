@@ -7,6 +7,7 @@ import { useTheme } from '@/lib/theme-context'
 import { typography, spacing, radius, shadow, sizes } from '@/constants/tokens'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
+import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
@@ -58,6 +59,18 @@ export function TenantDashboardScreen() {
   const failedCount = summary?.failed_count ?? 0
   const inProgressCount = (summary?.pending_count ?? 0) + (summary?.processing_count ?? 0)
   const authorizedRate = issuedCount > 0 ? Math.round((authorizedCount / issuedCount) * 100) : 0
+  const documentLimit = summary?.document_limit ?? null
+  const isUnlimitedPlan = summary?.is_unlimited ?? false
+  const limitRate =
+    documentLimit && documentLimit > 0
+      ? Math.min(100, Math.round((issuedCount / documentLimit) * 100))
+      : 0
+  const limitToneKey = limitRate >= 100 ? 'error' : limitRate >= 80 ? 'warning' : 'success'
+  const limitTone = {
+    error: { color: semantic.status.error, bg: semantic.status.errorBg },
+    warning: { color: semantic.status.warning, bg: semantic.status.warningBg },
+    success: { color: semantic.status.success, bg: semantic.status.successBg },
+  }[limitToneKey]
   const periodCaption = summary
     ? `Periodo ${formatCivilDate(summary.period_start)} - ${formatCivilDate(summary.period_end)}`
     : 'Periodo actual'
@@ -200,6 +213,51 @@ export function TenantDashboardScreen() {
             />
           </View>
         </Card>
+
+        {isUnlimitedPlan ? (
+          <Card variant="elevated" elevated style={staticStyles.insightCard}>
+            <View style={staticStyles.insightHeader}>
+              <View
+                style={[staticStyles.insightIcon, { backgroundColor: semantic.status.successBg }]}
+              >
+                <Ionicons name="infinite-outline" size={20} color={semantic.status.success} />
+              </View>
+              <View style={staticStyles.insightCopy}>
+                <Text style={[staticStyles.insightTitle, { color: semantic.text.primary }]}>
+                  Límite del plan
+                </Text>
+                <Text style={[staticStyles.insightDescription, { color: semantic.text.secondary }]}>
+                  {`${formatInteger(issuedCount)} documentos emitidos este mes.`}
+                </Text>
+              </View>
+              <Badge label="Ilimitado" variant="success" size="sm" />
+            </View>
+          </Card>
+        ) : documentLimit ? (
+          <Card variant="elevated" elevated style={staticStyles.insightCard}>
+            <View style={staticStyles.insightHeader}>
+              <View style={[staticStyles.insightIcon, { backgroundColor: limitTone.bg }]}>
+                <Ionicons name="speedometer-outline" size={20} color={limitTone.color} />
+              </View>
+              <View style={staticStyles.insightCopy}>
+                <Text style={[staticStyles.insightTitle, { color: semantic.text.primary }]}>
+                  Límite del plan
+                </Text>
+                <Text style={[staticStyles.insightDescription, { color: semantic.text.secondary }]}>
+                  {`${formatInteger(issuedCount)} de ${formatInteger(documentLimit)} documentos usados este mes.`}
+                </Text>
+              </View>
+            </View>
+            <View style={[staticStyles.progressTrack, { backgroundColor: semantic.chart.track }]}>
+              <View
+                style={[
+                  staticStyles.progressFill,
+                  { backgroundColor: limitTone.color, width: `${limitRate}%` },
+                ]}
+              />
+            </View>
+          </Card>
+        ) : null}
 
         <SectionHeader title="Módulos" caption="Suite fiscal" />
         <Card variant="elevated" elevated style={staticStyles.modulesCard}>

@@ -414,3 +414,16 @@ Reglas:
   mockear el modulo `../store` completo con `vi.mock(...)` para evitar resolver dependencias
   de Expo en jsdom. Ver `features/auth/hooks/useLogin.test.ts`, `useChallenge.test.ts`,
   `useLogout.test.ts`.
+
+### Render De Componentes: No Soportado Todavia
+
+No existe ningun test que monte un componente real (`render()` de `@testing-library/react`
+sobre un componente que importe `react-native`). Investigado en `UX_REFACTOR.md` Sprint 4.5:
+`vitest`/Rolldown no puede parsear `node_modules/react-native/index.js` (sintaxis Flow).
+Alias `react-native` → `react-native-web` (ya es dependencia, sin Flow) resuelve ese error
+puntual, pero `react-native-web` necesita `@vitejs/plugin-react` (no instalado) para
+JSX/runtime, y probablemente mas configuracion despues de eso — no confirmado cuanto mas
+falta. Si se necesita testear render/interaccion de un componente, tratarlo como una tarea
+de infra aparte (cambia `vitest.config.ts` para todo el repo), no como parte de la tarea que
+lo pidio. Mientras tanto, lo testeable son funciones puras extraidas del componente
+(`form.ts`, `filters.ts`, etc.) — patron ya usado en todo el repo.

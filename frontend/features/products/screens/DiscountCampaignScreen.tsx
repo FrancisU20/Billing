@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
+import { DetailField, DetailSection } from '@/components/ui/DetailSection'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { PercentField } from '@/components/ui/SpecializedFields'
@@ -12,7 +13,9 @@ import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
+import { canWrite } from '@/constants/roles'
 import { radius, spacing, typography } from '@/constants/tokens'
+import { selectUser, useAuthStore } from '@/features/auth/store'
 import { productsApi } from '../api'
 import { useDiscountCampaign } from '../hooks/useDiscountCampaign'
 import { updateDiscountCampaignSchema } from '../schemas'
@@ -20,6 +23,8 @@ import { updateDiscountCampaignSchema } from '../schemas'
 export function DiscountCampaignScreen() {
   const toast = useToast()
   const { semantic } = useTheme()
+  const user = useAuthStore(selectUser)
+  const canManage = canWrite(user?.role ?? null)
   const { campaign, loading, error, refresh } = useDiscountCampaign()
 
   const [active, setActive] = useState(false)
@@ -63,48 +68,55 @@ export function DiscountCampaignScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {error ? <ApiErrorBanner error={error} /> : null}
 
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-          ]}
-        >
-          <Text style={[styles.label, { color: semantic.text.secondary }]}>Estado</Text>
-          <SegmentedControl
-            value={active ? 'active' : 'inactive'}
-            options={[
-              { label: 'Desactivada', value: 'inactive' },
-              { label: 'Activa', value: 'active' },
+        {canManage ? (
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
             ]}
-            onChange={(next) => setActive(next === 'active')}
-          />
-
-          <PercentField
-            label="Porcentaje de descuento (%)"
-            placeholder="0.00"
-            error={percentageError}
-            onChangeText={setPercentage}
-            value={percentage}
-          />
-
-          {submitError ? <ApiErrorBanner error={submitError} /> : null}
-
-          <Button
-            variant="primary"
-            size="lg"
-            fullWidth
-            isLoading={submitting}
-            isDisabled={!!percentageError}
-            onPress={submit}
           >
-            Guardar
-          </Button>
+            <Text style={[styles.label, { color: semantic.text.secondary }]}>Estado</Text>
+            <SegmentedControl
+              value={active ? 'active' : 'inactive'}
+              options={[
+                { label: 'Desactivada', value: 'inactive' },
+                { label: 'Activa', value: 'active' },
+              ]}
+              onChange={(next) => setActive(next === 'active')}
+            />
 
-          <Text style={[styles.note, { color: semantic.text.tertiary }]}>
-            Cuando está activa, el facturador sugiere este % en cada línea, salvo que el descuento
-            propio del producto sea mayor — en ese caso se prioriza el del producto.
-          </Text>
-        </View>
+            <PercentField
+              label="Porcentaje de descuento (%)"
+              placeholder="0.00"
+              error={percentageError}
+              onChangeText={setPercentage}
+              value={percentage}
+            />
+
+            {submitError ? <ApiErrorBanner error={submitError} /> : null}
+
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              isLoading={submitting}
+              isDisabled={!!percentageError}
+              onPress={submit}
+            >
+              Guardar
+            </Button>
+
+            <Text style={[styles.note, { color: semantic.text.tertiary }]}>
+              Cuando está activa, el facturador sugiere este % en cada línea, salvo que el descuento
+              propio del producto sea mayor — en ese caso se prioriza el del producto.
+            </Text>
+          </View>
+        ) : (
+          <DetailSection title="Descuento global" icon="pricetag-outline">
+            <DetailField label="Estado" value={campaign?.active ? 'Activa' : 'Desactivada'} />
+            <DetailField label="Porcentaje" value={`${percentage}%`} />
+          </DetailSection>
+        )}
       </ScrollView>
     </View>
   )

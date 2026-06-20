@@ -33,6 +33,21 @@ ver ni modificar los datos de otros tenants.
 - `frontend/app/(app)/(superadmin)/tenants/`
 - `TenantDetailScreen` permite al superadmin reintentar el acceso owner inicial mediante
   `POST /tenants/{id}/onboarding/retry`.
+- `TenantDashboardScreen` (home tenant): metricas reales via `useDocumentsSummary`
+  (`GET /documents/summary`, ver `INVOICES.md`/`UX_REFACTOR.md` Sprint 5) — emitidos,
+  autorizados, con novedad, total autorizado, progreso de autorizacion y card de "Limite
+  del plan" (barra de progreso verde/ambar/rojo o badge "Ilimitado"). Tambien renderiza
+  `CertificateSection` debajo del resumen. No tiene equivalente superadmin (ver "Dashboard
+  Superadmin — Pendiente" abajo).
+- `CompanyScreen` (`/(app)/(tenant)/settings/company`, item de menu "Mi empresa") y
+  `CompanyEditScreen` (`/settings/company/edit`) — hub de configuracion tenant agregado en
+  `UX_REFACTOR.md` Sprint 6. Agrupa: datos de empresa (resumen de solo lectura +
+  `CompanyEditScreen` para `owner|admin`, reusa `TenantForm` en `mode="edit"` — mismo
+  endpoint `PATCH /tenants/{id}` que ya permitia self-service, sin cambios de backend),
+  `CertificateSection` reusado, y filas de navegacion a `EstablishmentsScreen` (sin
+  cambios), `DiscountCampaignScreen` (sin cambios, ver `PRODUCTS.md`) y `BillingScreen`
+  (sin cambios estructurales; ver `SUBSCRIPTIONS.md` para el ajuste de pago manual). Antes
+  de este sprint, esos tres ultimos vivian como items sueltos del menu principal tenant.
 
 ## Entidades
 

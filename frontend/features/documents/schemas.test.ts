@@ -80,6 +80,8 @@ describe('document contract schemas', () => {
         pending_count: 1,
         processing_count: 0,
         authorized_total: '199.95',
+        document_limit: 500,
+        is_unlimited: false,
       }),
     ).toEqual({
       period_start: '2026-06-01',
@@ -91,7 +93,27 @@ describe('document contract schemas', () => {
       pending_count: 1,
       processing_count: 0,
       authorized_total: '199.95',
+      document_limit: 500,
+      is_unlimited: false,
     })
+  })
+
+  it('matches GET /documents/summary response when the plan limit could not be resolved', () => {
+    expect(
+      documentsSummarySchema.parse({
+        period_start: '2026-06-01',
+        period_end: '2026-06-19',
+        issued_count: 8,
+        authorized_count: 5,
+        rejected_count: 1,
+        failed_count: 1,
+        pending_count: 1,
+        processing_count: 0,
+        authorized_total: '199.95',
+        document_limit: null,
+        is_unlimited: false,
+      }).document_limit,
+    ).toBeNull()
   })
 
   it('builds the API payload from UI form values', () => {

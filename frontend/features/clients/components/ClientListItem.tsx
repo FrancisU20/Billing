@@ -1,6 +1,7 @@
 import React from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { ListItemAction, ListItemMeta } from '@/components/ui/ListItemPrimitives'
+import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu'
 import { useTheme } from '@/lib/theme-context'
 import { formatDate, initials } from '@/lib/utils/format'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
@@ -28,6 +29,26 @@ export function ClientListItem({
   const { semantic } = useTheme()
   const displayName = client.trade_name || client.legal_name
   const email = client.emails[0] ?? 'Sin email'
+
+  const rowActions: RowAction[] = canManage
+    ? [
+        { key: 'edit', icon: 'create-outline', label: 'Editar cliente', onPress: onEdit },
+        client.status === 'active'
+          ? {
+              key: 'delete',
+              icon: 'trash-outline',
+              label: 'Eliminar cliente',
+              danger: true,
+              onPress: onDelete,
+            }
+          : {
+              key: 'activate',
+              icon: 'play-circle-outline',
+              label: 'Activar cliente',
+              onPress: onToggleStatus,
+            },
+      ]
+    : []
 
   return (
     <Pressable
@@ -70,25 +91,7 @@ export function ClientListItem({
 
       <View style={styles.actions}>
         <ListItemAction icon="eye-outline" label="Ver cliente" onPress={onView} />
-        {canManage ? (
-          <>
-            <ListItemAction icon="create-outline" label="Editar cliente" onPress={onEdit} />
-            {client.status === 'active' ? (
-              <ListItemAction
-                icon="trash-outline"
-                label="Eliminar cliente"
-                danger
-                onPress={onDelete}
-              />
-            ) : (
-              <ListItemAction
-                icon="play-circle-outline"
-                label="Activar cliente"
-                onPress={onToggleStatus}
-              />
-            )}
-          </>
-        ) : null}
+        <RowActionsMenu actions={rowActions} triggerLabel="Más acciones de cliente" />
       </View>
     </Pressable>
   )

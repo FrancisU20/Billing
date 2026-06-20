@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 from lambdas.documents.domain.entities import Document, DocumentStatus
 from lambdas.documents.infra.plan_reader import PlanInfo
 from lambdas.tenants.domain.enums import SriEnvironment
+from shared.errors import ValidationError
 from tests.unit.lambdas.documents.test_use_cases import FakeDocumentsRepository, FakeSequencesPort
 from tests.unit.support import LambdaContext, api_event, configure_unit_environment, decode_response
 
@@ -231,7 +232,7 @@ class DocumentsSummaryHandlerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.mod = _load_handler()
 
-    def test_returns_month_summary(self) -> None:
+    def test_returns_month_summary_with_plan_limit(self) -> None:
         repo = FakeDocumentsRepository()
         repo.summary_result = repo.summary_result.__class__(
             period_start="2026-06-01",
@@ -250,13 +251,63 @@ class DocumentsSummaryHandlerTests(unittest.TestCase):
             claims=_owner_claims("t-1"),
         )
 
-        with patch.object(self.mod, "_repo", return_value=repo):
+        with (
+            patch.object(self.mod, "_repo", return_value=repo),
+            patch.object(self.mod, "_get_tenant", return_value=_fake_tenant()),
+            patch.object(
+                self.mod,
+                "_get_plan",
+                return_value=PlanInfo(document_limit=500, pruebas_monthly_docs_limit=50),
+            ),
+        ):
             resp = self.mod.handler(event, _CTX)
 
         body = decode_response(resp)
         self.assertEqual(resp["statusCode"], 200)
         self.assertEqual(body["data"]["issued_count"], 4)
         self.assertEqual(body["data"]["authorized_total"], "99.90")
+        self.assertEqual(body["data"]["document_limit"], 50)
+        self.assertFalse(body["data"]["is_unlimited"])
+
+    def test_returns_unlimited_when_plan_has_sentinel_limit(self) -> None:
+        repo = FakeDocumentsRepository()
+        event = api_event(
+            method="GET",
+            path="/documents/summary",
+            claims=_owner_claims("t-1"),
+        )
+
+        with (
+            patch.object(self.mod, "_repo", return_value=repo),
+            patch.object(self.mod, "_get_tenant", return_value=_fake_tenant()),
+            patch.object(self.mod, "_get_plan", return_value=_fake_plan()),
+        ):
+            resp = self.mod.handler(event, _CTX)
+
+        body = decode_response(resp)
+        self.assertTrue(body["data"]["is_unlimited"])
+
+    def test_omits_limit_when_plan_cannot_be_resolved(self) -> None:
+        repo = FakeDocumentsRepository()
+        event = api_event(
+            method="GET",
+            path="/documents/summary",
+            claims=_owner_claims("t-1"),
+        )
+
+        with (
+            patch.object(self.mod, "_repo", return_value=repo),
+            patch.object(self.mod, "_get_tenant", return_value=_fake_tenant()),
+            patch.object(
+                self.mod, "_get_plan", side_effect=ValidationError("plan_id inválido o inactivo")
+            ),
+        ):
+            resp = self.mod.handler(event, _CTX)
+
+        body = decode_response(resp)
+        self.assertEqual(resp["statusCode"], 200)
+        self.assertIsNone(body["data"]["document_limit"])
+        self.assertFalse(body["data"]["is_unlimited"])
 
 
 # ── GET /documents/{id} ───────────────────────────────────────────────────────

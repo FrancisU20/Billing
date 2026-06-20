@@ -1,7 +1,7 @@
 import React from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { ListItemAction } from '@/components/ui/ListItemPrimitives'
+import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu'
 import { useTheme } from '@/lib/theme-context'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { productKindLabel } from '../constants'
@@ -29,6 +29,26 @@ export function ProductListItem({
   const stockText = product.stock_enabled
     ? `Stock ${product.stock_quantity ?? '0'}`
     : productKindLabel(product.kind)
+
+  const rowActions: RowAction[] = canManage
+    ? [
+        { key: 'edit', icon: 'create-outline', label: 'Editar producto', onPress: onEdit },
+        product.status === 'ACTIVE'
+          ? {
+              key: 'delete',
+              icon: 'trash-outline',
+              label: 'Eliminar producto',
+              danger: true,
+              onPress: onDelete,
+            }
+          : {
+              key: 'activate',
+              icon: 'play-circle-outline',
+              label: 'Activar producto',
+              onPress: onToggleStatus,
+            },
+      ]
+    : []
 
   return (
     <Pressable
@@ -60,25 +80,7 @@ export function ProductListItem({
         </View>
       </View>
       <View style={styles.actions}>
-        {canManage ? (
-          <>
-            <ListItemAction icon="create-outline" label="Editar producto" onPress={onEdit} />
-            {product.status === 'ACTIVE' ? (
-              <ListItemAction
-                icon="trash-outline"
-                label="Eliminar producto"
-                danger
-                onPress={onDelete}
-              />
-            ) : (
-              <ListItemAction
-                icon="play-circle-outline"
-                label="Activar producto"
-                onPress={onToggleStatus}
-              />
-            )}
-          </>
-        ) : null}
+        <RowActionsMenu actions={rowActions} triggerLabel="Más acciones de producto" />
       </View>
     </Pressable>
   )
