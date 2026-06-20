@@ -10,12 +10,21 @@ import type { Client } from '../types'
 
 interface ClientListItemProps {
   client: Client
+  canManage: boolean
   onView: () => void
   onEdit: () => void
   onDelete: () => void
+  onToggleStatus: () => void
 }
 
-export function ClientListItem({ client, onView, onEdit, onDelete }: ClientListItemProps) {
+export function ClientListItem({
+  client,
+  canManage,
+  onView,
+  onEdit,
+  onDelete,
+  onToggleStatus,
+}: ClientListItemProps) {
   const { semantic } = useTheme()
   const displayName = client.trade_name || client.legal_name
   const email = client.emails[0] ?? 'Sin email'
@@ -61,8 +70,25 @@ export function ClientListItem({ client, onView, onEdit, onDelete }: ClientListI
 
       <View style={styles.actions}>
         <ListItemAction icon="eye-outline" label="Ver cliente" onPress={onView} />
-        <ListItemAction icon="create-outline" label="Editar cliente" onPress={onEdit} />
-        <ListItemAction icon="trash-outline" label="Eliminar cliente" danger onPress={onDelete} />
+        {canManage ? (
+          <>
+            <ListItemAction icon="create-outline" label="Editar cliente" onPress={onEdit} />
+            {client.status === 'active' ? (
+              <ListItemAction
+                icon="trash-outline"
+                label="Eliminar cliente"
+                danger
+                onPress={onDelete}
+              />
+            ) : (
+              <ListItemAction
+                icon="play-circle-outline"
+                label="Activar cliente"
+                onPress={onToggleStatus}
+              />
+            )}
+          </>
+        ) : null}
       </View>
     </Pressable>
   )

@@ -29,3 +29,9 @@ class ListProductsUseCase:
             q=query.q,
             sku=query.sku,
         )
+
+    def count(self, query: ListProductsQuery) -> int | None:
+        """None when `q`/`sku` are active — those filters are matched in Python."""
+        if query.q or query.sku:
+            return None
+        return self._repo.count(status=query.status, kind=query.kind)

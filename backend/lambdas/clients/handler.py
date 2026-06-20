@@ -120,11 +120,13 @@ def _create(request: Request, context) -> dict:
 @require_role("owner", "admin", "viewer")
 def _list(request: Request, context) -> dict:
     query = _parse_list_query(request.query_params)
-    clients, next_token = ListClientsUseCase(_repo(request)).execute(query)
+    use_case = ListClientsUseCase(_repo(request))
+    clients, next_token = use_case.execute(query)
     return ApiResponse.paginated(
         items=[c.to_dict() for c in clients],
         next_token=next_token,
         request_id=request.request_id,
+        total=use_case.count(query),
     )
 
 

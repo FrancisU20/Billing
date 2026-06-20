@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -15,6 +15,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { useEstablishments } from '@/features/sequences/hooks/useEstablishments'
@@ -34,6 +35,7 @@ import {
   ecuadorIssuedAtDisplay,
   formValuesToEmitDocumentInput,
   resolveSuggestedDiscount,
+  shouldAutoApplySuggestedDiscount,
 } from '../form'
 import { emitDocumentFormValuesSchema, type EmitDocumentFormValues } from '../schemas'
 
@@ -42,6 +44,10 @@ export function EmitDocumentScreen() {
   const toast = useToast()
   const { semantic } = useTheme()
   const [pickerLineIndex, setPickerLineIndex] = useState<number | null>(null)
+  const [productDiscountByLine, setProductDiscountByLine] = useState<Record<number, string | null>>(
+    {},
+  )
+  const lastSuggestedDiscountByLine = useRef<Record<number, string>>({})
   const [issuedAtDisplay] = useState(() => ecuadorIssuedAtDisplay())
   const user = useAuthStore(selectUser)
   const tenantId = user?.tenantId ?? null
@@ -51,7 +57,10 @@ export function EmitDocumentScreen() {
     error: establishmentsError,
     refresh: refreshEstablishments,
   } = useEstablishments(tenantId)
-  const { campaign } = useDiscountCampaign()
+  const { campaign, refresh: refreshCampaign } = useDiscountCampaign()
+
+  useRefreshOnFocus(refreshEstablishments)
+  useRefreshOnFocus(refreshCampaign)
 
   const {
     control,
@@ -84,6 +93,32 @@ export function EmitDocumentScreen() {
 
   const selectedEstablishment = establishments.find((est) => est.code === establishmentCode)
 
+  useEffect(() => {
+    for (const [index, line] of (lines ?? []).entries()) {
+      const suggestedDiscount = resolveSuggestedDiscount(
+        line.quantity,
+        line.unit_price,
+        productDiscountByLine[index] ?? null,
+        campaign ? { active: campaign.active, percentage: campaign.percentage } : null,
+      )
+
+      if (
+        shouldAutoApplySuggestedDiscount(
+          line.discount,
+          lastSuggestedDiscountByLine.current[index],
+          suggestedDiscount,
+        )
+      ) {
+        setValue(`lines.${index}.discount`, suggestedDiscount, {
+          shouldDirty: true,
+          shouldValidate: true,
+        })
+      }
+
+      lastSuggestedDiscountByLine.current[index] = suggestedDiscount
+    }
+  }, [campaign, lines, productDiscountByLine, setValue])
+
   const { submitting, error, submit } = useFormSubmit(async (values: EmitDocumentFormValues) => {
     const document = await documentsApi.emit(
       formValuesToEmitDocumentInput(values),
@@ -114,18 +149,32 @@ export function EmitDocumentScreen() {
       shouldDirty: true,
       shouldValidate: true,
     })
+    setProductDiscountByLine((current) => ({
+      ...current,
+      [pickerLineIndex]: product.discount_percentage,
+    }))
     const quantity = getValues(`lines.${pickerLineIndex}.quantity`)
-    setValue(
-      `lines.${pickerLineIndex}.discount`,
-      resolveSuggestedDiscount(
-        quantity,
-        product.unit_price,
-        product.discount_percentage,
-        campaign ? { active: campaign.active, percentage: campaign.percentage } : null,
-      ),
-      { shouldDirty: true, shouldValidate: true },
+    const suggestedDiscount = resolveSuggestedDiscount(
+      quantity,
+      product.unit_price,
+      product.discount_percentage,
+      campaign ? { active: campaign.active, percentage: campaign.percentage } : null,
     )
+    lastSuggestedDiscountByLine.current[pickerLineIndex] = suggestedDiscount
+    setValue(`lines.${pickerLineIndex}.discount`, suggestedDiscount, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
     setPickerLineIndex(null)
+  }
+
+  function removeLine(index: number) {
+    remove(index)
+    setProductDiscountByLine((current) => reindexByRemovedLine(current, index))
+    lastSuggestedDiscountByLine.current = reindexByRemovedLine(
+      lastSuggestedDiscountByLine.current,
+      index,
+    )
   }
 
   if (loadingEstablishments) {
@@ -244,7 +293,7 @@ export function EmitDocumentScreen() {
               errors={errors}
               canRemove={fields.length > 1}
               onPickProduct={() => setPickerLineIndex(index)}
-              onRemove={() => remove(index)}
+              onRemove={() => removeLine(index)}
               onChangeIvaRate={(rate) =>
                 setValue(`lines.${index}.iva_rate`, rate, {
                   shouldDirty: true,
@@ -452,6 +501,21 @@ function TotalRow({
       </Text>
     </View>
   )
+}
+
+function reindexByRemovedLine<T>(
+  values: Record<number, T>,
+  removedIndex: number,
+): Record<number, T> {
+  return Object.entries(values).reduce<Record<number, T>>((next, [key, value]) => {
+    const index = Number(key)
+    if (index < removedIndex) {
+      next[index] = value
+    } else if (index > removedIndex) {
+      next[index - 1] = value
+    }
+    return next
+  }, {})
 }
 
 const styles = StyleSheet.create({

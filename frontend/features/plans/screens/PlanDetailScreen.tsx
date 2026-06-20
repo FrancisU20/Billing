@@ -14,6 +14,7 @@ import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { formatCurrency, formatDateTime } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
@@ -30,6 +31,8 @@ export function PlanDetailScreen() {
   const { semantic } = useTheme()
   const { plan, loading, error, refresh } = useAdminPlan(slug ?? null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+
+  useRefreshOnFocus(refresh)
 
   const {
     submitting: toggling,

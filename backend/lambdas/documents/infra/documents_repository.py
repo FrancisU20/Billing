@@ -75,17 +75,13 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             raise DocumentNotFoundError()
         return self._from_item(item)
 
-    def list(
+    def _list_filter_expr(
         self,
-        tenant_id: str,
-        *,
-        status: str | None = None,
-        serie: str | None = None,
-        date_from: str | None = None,
-        date_to: str | None = None,
-        limit: int = 20,
-        cursor: str | None = None,
-    ) -> tuple[list[Document], str | None]:
+        status: str | None,
+        serie: str | None,
+        date_from: str | None,
+        date_to: str | None,
+    ):
         filters = [Attr("deleted").ne(True)]
         if status:
             filters.append(Attr("status").eq(status))
@@ -99,11 +95,23 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         filter_expr = filters[0]
         for f in filters[1:]:
             filter_expr = filter_expr & f
+        return filter_expr
 
+    def list(
+        self,
+        tenant_id: str,
+        *,
+        status: str | None = None,
+        serie: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        limit: int = 20,
+        cursor: str | None = None,
+    ) -> tuple[list[Document], str | None]:
         kwargs: dict = {
             "IndexName": _GSI,
             "KeyConditionExpression": Key("tenant_id").eq(tenant_id),
-            "FilterExpression": filter_expr,
+            "FilterExpression": self._list_filter_expr(status, serie, date_from, date_to),
             "ScanIndexForward": False,
             "Limit": limit,
         }
@@ -120,6 +128,35 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         items = resp.get("Items", [])
         next_cursor = encode_cursor(resp.get("LastEvaluatedKey"))
         return [self._from_item(i) for i in items], next_cursor
+
+    def count(
+        self,
+        tenant_id: str,
+        *,
+        status: str | None = None,
+        serie: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> int:
+        kwargs: dict = {
+            "IndexName": _GSI,
+            "KeyConditionExpression": Key("tenant_id").eq(tenant_id),
+            "FilterExpression": self._list_filter_expr(status, serie, date_from, date_to),
+            "Select": "COUNT",
+        }
+        total = 0
+        try:
+            while True:
+                resp = self._table.query(**kwargs)
+                total += resp.get("Count", 0)
+                last_key = resp.get("LastEvaluatedKey")
+                if not last_key:
+                    break
+                kwargs["ExclusiveStartKey"] = last_key
+        except ClientError as exc:
+            _log.error("DynamoDB count error (documents)", error=str(exc))
+            raise DatabaseError() from exc
+        return total
 
     def count_this_month(self, tenant_id: str, sri_environment: str) -> int:
         start_utc, end_utc = current_ecuador_month_utc_bounds()

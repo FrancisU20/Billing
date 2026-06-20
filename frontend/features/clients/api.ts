@@ -1,12 +1,16 @@
 import { z } from 'zod'
 import { api } from '@/lib/api/client'
+import { DEFAULT_PAGE_SIZE, type PageSize } from '@/constants/pagination'
 import { clientSchema, clientsPageSchema, createClientSchema, updateClientSchema } from './schemas'
-import { CLIENTS_PAGE_SIZE } from './constants'
 import type { ClientListFilters, CreateClientInput, UpdateClientInput } from './types'
 
-function clientsPath(filters: ClientListFilters = {}, nextToken?: string): string {
+function clientsPath(
+  filters: ClientListFilters = {},
+  nextToken?: string,
+  limit: PageSize = DEFAULT_PAGE_SIZE,
+): string {
   const params = new URLSearchParams()
-  params.set('limit', String(CLIENTS_PAGE_SIZE))
+  params.set('limit', String(limit))
   if (nextToken) params.set('next_token', nextToken)
   if (filters.q) params.set('q', filters.q)
   if (filters.identification) params.set('identification', filters.identification)
@@ -18,8 +22,8 @@ function clientsPath(filters: ClientListFilters = {}, nextToken?: string): strin
 }
 
 export const clientsApi = {
-  list: (filters?: ClientListFilters, nextToken?: string) =>
-    api.get(clientsPath(filters, nextToken), clientsPageSchema),
+  list: (filters?: ClientListFilters, nextToken?: string, limit?: PageSize) =>
+    api.get(clientsPath(filters, nextToken, limit), clientsPageSchema),
 
   getById: (id: string) => api.get(`/clients/${encodeURIComponent(id)}`, clientSchema),
 
@@ -33,4 +37,7 @@ export const clientsApi = {
 
   delete: (id: string, idempotencyKey: string) =>
     api.delete(`/clients/${encodeURIComponent(id)}`, z.undefined(), { idempotencyKey }),
+
+  setStatus: (id: string, status: 'active' | 'inactive', idempotencyKey: string) =>
+    api.patch(`/clients/${encodeURIComponent(id)}`, { status }, clientSchema, { idempotencyKey }),
 }

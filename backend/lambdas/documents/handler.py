@@ -210,21 +210,22 @@ def _list(request: Request, context) -> dict:
     tenant_id = _resolve_tenant_id(request)
     params = parse(ListDocumentsQueryParams, request.query_params)
 
-    documents, next_cursor = ListDocumentsUseCase(_repo()).execute(
-        ListDocumentsCommand(
-            tenant_id=tenant_id,
-            status=params.status,
-            serie=params.serie,
-            date_from=params.date_from,
-            date_to=params.date_to,
-            limit=params.limit,
-            cursor=params.cursor,
-        )
+    use_case = ListDocumentsUseCase(_repo())
+    command = ListDocumentsCommand(
+        tenant_id=tenant_id,
+        status=params.status,
+        serie=params.serie,
+        date_from=params.date_from,
+        date_to=params.date_to,
+        limit=params.limit,
+        cursor=params.cursor,
     )
+    documents, next_cursor = use_case.execute(command)
     return ApiResponse.paginated(
         items=[d.to_dict() for d in documents],
         next_token=next_cursor,
         request_id=request.request_id,
+        total=use_case.count(command),
     )
 
 

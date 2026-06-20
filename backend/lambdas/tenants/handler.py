@@ -173,11 +173,13 @@ def _create(request: Request, context) -> dict:
 @require_superadmin
 def _list(request: Request, context) -> dict:
     query = _parse_list_query(request.query_params)
-    tenants, next_token = ListTenantsUseCase(_repo()).execute(query)
+    use_case = ListTenantsUseCase(_repo())
+    tenants, next_token = use_case.execute(query)
     return ApiResponse.paginated(
         items=[t.to_dict() for t in tenants],
         next_token=next_token,
         request_id=request.request_id,
+        total=use_case.count(query),
     )
 
 

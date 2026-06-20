@@ -155,6 +155,8 @@ class FakeTenantRepository:
         self.commit_admin_events_calls: list[dict[str, Any]] = []
         self.get_by_ruc_calls: list[str] = []
         self.list_calls: list[dict[str, Any]] = []
+        self.count_result: int = 0
+        self.count_calls: list[dict[str, Any]] = []
         self.get_by_id_calls: list[str] = []
         self.set_pending_order_id_calls: list[tuple[str, str]] = []
         self.pending_activation_tenants: list[Tenant] = []
@@ -210,6 +212,23 @@ class FakeTenantRepository:
         )
         return self.list_result
 
+    def count(
+        self,
+        status: str | None = None,
+        sri_environment: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+    ) -> int:
+        self.count_calls.append(
+            {
+                "status": status,
+                "sri_environment": sri_environment,
+                "created_from": created_from,
+                "created_to": created_to,
+            }
+        )
+        return self.count_result
+
     def commit(self, **kwargs: Any) -> None:
         self.commit_calls.append(kwargs)
         if self.commit_errors:
@@ -262,6 +281,8 @@ class FakeClientRepository:
         self.get_by_identification_calls: list[tuple[str, str | None]] = []
         self.list_calls: list[dict[str, Any]] = []
         self.commit_error: Exception | None = None
+        self.count_result: int = 0
+        self.count_calls: list[dict[str, Any]] = []
 
     def get_by_id(self, client_id: str) -> Client:
         if client_id not in self.clients:
@@ -305,6 +326,23 @@ class FakeClientRepository:
             }
         )
         return self.list_result
+
+    def count(
+        self,
+        status: str | None = None,
+        identification_type: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+    ) -> int:
+        self.count_calls.append(
+            {
+                "status": status,
+                "identification_type": identification_type,
+                "created_from": created_from,
+                "created_to": created_to,
+            }
+        )
+        return self.count_result
 
     def save(self, client: Client, user_id: str) -> None:
         self.clients[client.id] = client

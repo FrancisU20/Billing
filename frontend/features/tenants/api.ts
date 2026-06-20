@@ -1,4 +1,5 @@
 import { api } from '@/lib/api/client'
+import { DEFAULT_PAGE_SIZE, type PageSize } from '@/constants/pagination'
 import {
   certificateMetadataSchema,
   certificateSchema,
@@ -10,7 +11,6 @@ import {
   toggleTenantStatusSchema,
   updateTenantSchema,
 } from './schemas'
-import { TENANTS_PAGE_SIZE } from './constants'
 import type {
   CertificateUpdateInput,
   CreateTenantInput,
@@ -19,9 +19,13 @@ import type {
 } from './types'
 import type { TenantListFilters } from './types'
 
-function listPath(filters: TenantListFilters = {}, nextToken?: string): string {
+function listPath(
+  filters: TenantListFilters = {},
+  nextToken?: string,
+  limit: PageSize = DEFAULT_PAGE_SIZE,
+): string {
   const params = new URLSearchParams()
-  params.set('limit', String(TENANTS_PAGE_SIZE))
+  params.set('limit', String(limit))
   if (nextToken) params.set('next_token', nextToken)
   if (filters.q) params.set('q', filters.q)
   if (filters.ruc) params.set('ruc', filters.ruc)
@@ -34,8 +38,8 @@ function listPath(filters: TenantListFilters = {}, nextToken?: string): string {
 }
 
 export const tenantsApi = {
-  list: (filters?: TenantListFilters, nextToken?: string) =>
-    api.get(listPath(filters, nextToken), tenantsPageSchema),
+  list: (filters?: TenantListFilters, nextToken?: string, limit?: PageSize) =>
+    api.get(listPath(filters, nextToken, limit), tenantsPageSchema),
 
   getById: (id: string) => api.get(`/tenants/${encodeURIComponent(id)}`, tenantSchema),
 

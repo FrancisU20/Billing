@@ -129,6 +129,13 @@ Rutas tenant:
 /settings/discount-campaign
 ```
 
+`ProductsListScreen`/`ProductListItem`: `owner|admin` ven Editar + (Eliminar si `ACTIVE` |
+Activar si `INACTIVE`, via `productsApi.setStatus` — mismo PATCH parcial existente, sin
+endpoint nuevo); `viewer` no ve esas acciones ni "Nuevo producto" (gated por
+`canWrite(role)`). `GET /products` devuelve `total` en el envelope (`Select=COUNT` Query
+tenant-scoped) salvo que `q`/`sku` esten activos — ver `BACKEND.md` y `UX_REFACTOR.md`
+Sprints 1/1.5.
+
 `DiscountCampaignScreen` (`/settings/discount-campaign`): toggle activa/inactiva +
 porcentaje, mismo patron de pantalla "singleton de ajustes" que `EstablishmentsScreen`.
 Item propio en la navegacion tenant ("Descuento global"), no anidado bajo `/products`

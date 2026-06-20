@@ -10,12 +10,21 @@ import { ProductStatusBadge } from './ProductStatusBadge'
 
 interface ProductListItemProps {
   product: Product
+  canManage: boolean
   onView: () => void
   onEdit: () => void
   onDelete: () => void
+  onToggleStatus: () => void
 }
 
-export function ProductListItem({ product, onView, onEdit, onDelete }: ProductListItemProps) {
+export function ProductListItem({
+  product,
+  canManage,
+  onView,
+  onEdit,
+  onDelete,
+  onToggleStatus,
+}: ProductListItemProps) {
   const { semantic } = useTheme()
   const stockText = product.stock_enabled
     ? `Stock ${product.stock_quantity ?? '0'}`
@@ -51,8 +60,25 @@ export function ProductListItem({ product, onView, onEdit, onDelete }: ProductLi
         </View>
       </View>
       <View style={styles.actions}>
-        <ListItemAction icon="create-outline" label="Editar producto" onPress={onEdit} />
-        <ListItemAction icon="trash-outline" label="Eliminar producto" danger onPress={onDelete} />
+        {canManage ? (
+          <>
+            <ListItemAction icon="create-outline" label="Editar producto" onPress={onEdit} />
+            {product.status === 'ACTIVE' ? (
+              <ListItemAction
+                icon="trash-outline"
+                label="Eliminar producto"
+                danger
+                onPress={onDelete}
+              />
+            ) : (
+              <ListItemAction
+                icon="play-circle-outline"
+                label="Activar producto"
+                onPress={onToggleStatus}
+              />
+            )}
+          </>
+        ) : null}
       </View>
     </Pressable>
   )

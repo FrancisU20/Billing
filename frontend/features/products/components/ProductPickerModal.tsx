@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { FormField } from '@/components/ui/FormField'
-import { Input } from '@/components/ui/Input'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { SearchInput } from '@/components/ui/SearchInput'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { ApiError, toApiError, type ApiError as ApiErrorType } from '@/lib/api/errors'
@@ -33,9 +33,11 @@ export function ProductPickerModal({ visible, onClose, onSelect }: ProductPicker
   const [quickName, setQuickName] = useState('')
   const [quickPrice, setQuickPrice] = useState('0.00')
   const [quickIva, setQuickIva] = useState<ProductIvaRate>('15')
+  const searchRequestId = useRef(0)
 
   useEffect(() => {
     if (!visible) return
+    searchRequestId.current += 1
     setQuery('')
     setResults([])
     setSearched(false)
@@ -72,19 +74,25 @@ export function ProductPickerModal({ visible, onClose, onSelect }: ProductPicker
     onClose()
   }
 
-  async function search() {
-    const q = query.trim()
-    if (!q) return
+  async function search(nextQuery = query) {
+    const q = nextQuery.trim()
+    if (q.length < 3) return
+    const requestId = searchRequestId.current + 1
+    searchRequestId.current = requestId
     setLoading(true)
     setError(null)
     try {
       const page = await productsApi.list({ q, status: 'ACTIVE' })
+      if (requestId !== searchRequestId.current) return
       setResults(page.items)
       setSearched(true)
     } catch (e) {
+      if (requestId !== searchRequestId.current) return
       setError(toApiError(e))
     } finally {
-      setLoading(false)
+      if (requestId === searchRequestId.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -149,12 +157,19 @@ export function ProductPickerModal({ visible, onClose, onSelect }: ProductPicker
 
           <View style={styles.searchRow}>
             <View style={styles.searchInput}>
-              <Input
-                leftIcon="search-outline"
+              <SearchInput
                 placeholder="SKU, nombre o descripción"
                 value={query}
                 onChangeText={setQuery}
-                onSubmitEditing={search}
+                onSearchChange={(nextQuery) => {
+                  if (!nextQuery) {
+                    setResults([])
+                    setSearched(false)
+                    return
+                  }
+                  void search(nextQuery)
+                }}
+                onSubmitEditing={() => search()}
                 autoFocus
               />
             </View>
@@ -162,8 +177,8 @@ export function ProductPickerModal({ visible, onClose, onSelect }: ProductPicker
               variant="primary"
               size="md"
               isLoading={loading}
-              isDisabled={!query.trim()}
-              onPress={search}
+              isDisabled={query.trim().length < 3}
+              onPress={() => search()}
             >
               Buscar
             </Button>
@@ -205,31 +220,37 @@ export function ProductPickerModal({ visible, onClose, onSelect }: ProductPicker
                   </Text>
                 </View>
               }
-              renderItem={({ item }) => (
-                <Pressable
-                  onPress={() => onSelect(item)}
-                  style={({ pressed }) => [
-                    styles.resultRow,
-                    {
-                      backgroundColor: pressed ? semantic.bg.secondary : 'transparent',
-                      borderColor: semantic.border.default,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[styles.resultName, { color: semantic.text.primary }]}
-                    numberOfLines={1}
+              renderItem={({ item }) => {
+                const discountPercentage = Number(item.discount_percentage ?? 0)
+                const discountText = discountPercentage > 0 ? ` · Desc. ${discountPercentage}%` : ''
+
+                return (
+                  <Pressable
+                    onPress={() => onSelect(item)}
+                    style={({ pressed }) => [
+                      styles.resultRow,
+                      {
+                        backgroundColor: pressed ? semantic.bg.secondary : 'transparent',
+                        borderColor: semantic.border.default,
+                      },
+                    ]}
                   >
-                    {item.name}
-                  </Text>
-                  <Text
-                    style={[styles.resultMeta, { color: semantic.text.secondary }]}
-                    numberOfLines={1}
-                  >
-                    {item.sku} · IVA {item.iva_rate} · ${Number(item.unit_price).toFixed(2)}
-                  </Text>
-                </Pressable>
-              )}
+                    <Text
+                      style={[styles.resultName, { color: semantic.text.primary }]}
+                      numberOfLines={1}
+                    >
+                      {item.name}
+                    </Text>
+                    <Text
+                      style={[styles.resultMeta, { color: semantic.text.secondary }]}
+                      numberOfLines={1}
+                    >
+                      {item.sku} · IVA {item.iva_rate} · ${Number(item.unit_price).toFixed(2)}
+                      {discountText}
+                    </Text>
+                  </Pressable>
+                )
+              }}
             />
           )}
 

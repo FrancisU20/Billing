@@ -6,12 +6,16 @@ import {
   emitDocumentSchema,
   rideUrlSchema,
 } from './schemas'
-import { DOCUMENTS_PAGE_SIZE } from './constants'
+import { DEFAULT_PAGE_SIZE, type PageSize } from '@/constants/pagination'
 import type { DocumentListFilters, EmitDocumentInput } from './types'
 
-function documentsPath(filters: DocumentListFilters = {}, cursor?: string): string {
+function documentsPath(
+  filters: DocumentListFilters = {},
+  cursor?: string,
+  limit: PageSize = DEFAULT_PAGE_SIZE,
+): string {
   const params = new URLSearchParams()
-  params.set('limit', String(DOCUMENTS_PAGE_SIZE))
+  params.set('limit', String(limit))
   if (cursor) params.set('cursor', cursor)
   if (filters.status) params.set('status', filters.status)
   if (filters.serie) params.set('serie', filters.serie)
@@ -21,8 +25,8 @@ function documentsPath(filters: DocumentListFilters = {}, cursor?: string): stri
 }
 
 export const documentsApi = {
-  list: (filters?: DocumentListFilters, cursor?: string) =>
-    api.get(documentsPath(filters, cursor), documentsPageSchema),
+  list: (filters?: DocumentListFilters, cursor?: string, limit?: PageSize) =>
+    api.get(documentsPath(filters, cursor, limit), documentsPageSchema),
 
   getById: (id: string) => api.get(`/documents/${encodeURIComponent(id)}`, documentSchema),
 

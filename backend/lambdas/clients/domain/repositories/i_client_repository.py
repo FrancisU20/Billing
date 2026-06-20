@@ -32,6 +32,16 @@ class IClientRepository(ABC):
         """Returns (items, next_token)."""
 
     @abstractmethod
+    def count(
+        self,
+        status: str | None = None,
+        identification_type: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+    ) -> int:
+        """Count matching `list()` filters, excluding `q`/`identification` (matched in Python)."""
+
+    @abstractmethod
     def save(self, client: Client, user_id: str) -> None: ...
 
     @abstractmethod

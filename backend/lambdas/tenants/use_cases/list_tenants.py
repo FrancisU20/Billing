@@ -35,3 +35,16 @@ class ListTenantsUseCase:
             created_from=query.created_from,
             created_to=query.created_to,
         )
+
+    def count(self, query: ListTenantsQuery) -> int | None:
+        """None when `q`/`ruc`/`plan_status` are active — those filters are
+        matched in Python, so a DB-side count would not reflect the actual
+        result set."""
+        if query.q or query.ruc or query.plan_status:
+            return None
+        return self._repo.count(
+            status=query.status,
+            sri_environment=query.sri_environment,
+            created_from=query.created_from,
+            created_to=query.created_to,
+        )

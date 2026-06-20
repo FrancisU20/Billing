@@ -60,6 +60,34 @@ def _transaction_cancelled(reasons: list[dict]) -> dict:
     }
 
 
+class ScanTable:
+    table_name = "unit-tenants"
+
+    def __init__(self, scan_responses: list[dict]) -> None:
+        self.scan_responses = scan_responses
+        self.scan_calls: list[dict] = []
+
+    def scan(self, **kwargs) -> dict:
+        self.scan_calls.append(kwargs)
+        return self.scan_responses.pop(0)
+
+
+class TenantRepositoryCountTests(unittest.TestCase):
+    def test_sums_count_across_pages(self) -> None:
+        table = ScanTable(
+            scan_responses=[
+                {"Count": 5, "LastEvaluatedKey": {"id": "tenant-x"}},
+                {"Count": 2},
+            ]
+        )
+        repo = DynamoTenantRepository(table)
+
+        total = repo.count(status="active")
+
+        self.assertEqual(total, 7)
+        self.assertEqual(table.scan_calls[0]["Select"], "COUNT")
+
+
 class TenantRepositoryTests(unittest.TestCase):
     def test_create_ruc_condition_failure_keeps_tenant_conflict_mapping(self) -> None:
         repo = DynamoTenantRepository(

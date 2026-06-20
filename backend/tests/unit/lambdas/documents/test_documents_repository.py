@@ -14,15 +14,27 @@ from shared.errors import DatabaseError
 class FakeDocumentsTable:
     table_name = "unit-documents"
 
-    def __init__(self, error_code: str | None = None) -> None:
+    def __init__(
+        self,
+        error_code: str | None = None,
+        query_responses: list[dict] | None = None,
+    ) -> None:
         self.error_code = error_code
         self.update_calls: list[dict] = []
+        self.query_responses = query_responses or []
+        self.query_calls: list[dict] = []
 
     def update_item(self, **kwargs) -> dict:
         self.update_calls.append(kwargs)
         if self.error_code:
             raise ClientError({"Error": {"Code": self.error_code, "Message": "boom"}}, "UpdateItem")
         return {}
+
+    def query(self, **kwargs) -> dict:
+        self.query_calls.append(kwargs)
+        if self.query_responses:
+            return self.query_responses.pop(0)
+        return {"Count": 0}
 
 
 class _FakeDynamoClient:
@@ -78,6 +90,23 @@ def _make_document(**overrides) -> Document:
     }
     defaults.update(overrides)
     return Document(**defaults)
+
+
+class DynamoDocumentsRepositoryCountTests(unittest.TestCase):
+    def test_sums_count_across_pages(self) -> None:
+        table = FakeDocumentsTable(
+            query_responses=[
+                {"Count": 4, "LastEvaluatedKey": {"pk": "TENANT#t-1", "sk": "DOC#x"}},
+                {"Count": 6},
+            ]
+        )
+        repo = DynamoDocumentsRepository(table)
+
+        total = repo.count("t-1", status="AUTHORIZED")
+
+        self.assertEqual(total, 10)
+        self.assertEqual(table.query_calls[0]["Select"], "COUNT")
+        self.assertEqual(table.query_calls[0]["IndexName"], "tenant-docs-index")
 
 
 class DynamoDocumentsRepositorySaveTests(unittest.TestCase):

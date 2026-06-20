@@ -111,6 +111,20 @@ class DynamoClientRepositoryTests(unittest.TestCase):
         self.assertIsNone(next_token)
         self.assertEqual(table.query_calls[0]["IndexName"], "identification-index")
 
+    def test_count_sums_across_pages(self) -> None:
+        table = FakeClientsTable(
+            query_responses=[
+                {"Count": 7, "LastEvaluatedKey": {"pk": "TENANT#tenant-1", "sk": "CLIENT#x"}},
+                {"Count": 3},
+            ]
+        )
+        repo = DynamoClientRepository("tenant-1", table)
+
+        total = repo.count(status="active")
+
+        self.assertEqual(total, 10)
+        self.assertEqual(table.query_calls[0]["Select"], "COUNT")
+
     def test_q_search_walks_pages_until_it_finds_matches(self) -> None:
         non_match = make_client(id="client-1", tenant_id="tenant-1", legal_name="Otro Cliente")
         match = make_client(id="client-2", tenant_id="tenant-1", legal_name="Acme Ecuador")

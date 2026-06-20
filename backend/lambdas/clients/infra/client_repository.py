@@ -120,6 +120,25 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
                 break
         return clients, cursor
 
+    def count(
+        self,
+        status: str | None = None,
+        identification_type: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+    ) -> int:
+        """Accurate only when `q`/`identification` are not in play — those are
+        matched in Python, not in DynamoDB, so a DB-side count would not match
+        the actual filtered result set."""
+        filters = _ClientListFilters(
+            status=status,
+            q=None,
+            identification_type=identification_type,
+            created_from=created_from,
+            created_to=created_to,
+        )
+        return self._count_raw(filters.to_dynamo_filter())
+
     def save(self, client: Client, user_id: str) -> None:
         self.commit(
             client=client,

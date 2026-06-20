@@ -161,6 +161,37 @@ class ClientMutationUseCaseTests(unittest.TestCase):
         self.assertEqual(repo.list_calls[0]["created_from"], "2026-06-01T00:00:00+00:00")
         self.assertEqual(repo.list_calls[0]["created_to"], "2026-06-08T23:59:59.999999+00:00")
 
+    def test_count_delegates_to_repository_without_text_filters(self) -> None:
+        repo = FakeClientRepository()
+        repo.count_result = 42
+
+        total = ListClientsUseCase(repo).count(
+            ListClientsQuery(limit=10, status=ClientStatus.ACTIVE.value)
+        )
+
+        self.assertEqual(total, 42)
+        self.assertEqual(repo.count_calls[0]["status"], ClientStatus.ACTIVE.value)
+
+    def test_count_is_none_when_q_filter_is_active(self) -> None:
+        repo = FakeClientRepository()
+        repo.count_result = 42
+
+        total = ListClientsUseCase(repo).count(ListClientsQuery(limit=10, q="acme"))
+
+        self.assertIsNone(total)
+        self.assertEqual(repo.count_calls, [])
+
+    def test_count_is_none_when_identification_filter_is_active(self) -> None:
+        repo = FakeClientRepository()
+        repo.count_result = 42
+
+        total = ListClientsUseCase(repo).count(
+            ListClientsQuery(limit=10, identification="1792146739001")
+        )
+
+        self.assertIsNone(total)
+        self.assertEqual(repo.count_calls, [])
+
 
 if __name__ == "__main__":
     unittest.main()

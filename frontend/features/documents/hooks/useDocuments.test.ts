@@ -24,6 +24,6 @@ describe('useDocuments', () => {
 
     expect(result.current.loading).toBe(true)
     await waitFor(() => expect(result.current.documents).toEqual([documentA]))
-    expect(list).toHaveBeenCalledWith(filters)
+    expect(list).toHaveBeenCalledWith(filters, undefined, 10)
   })
 })

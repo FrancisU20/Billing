@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { FlatList, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
@@ -8,21 +8,21 @@ import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { ListPaginationControls } from '@/components/ui/ListPaginationControls'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
+import { canWrite } from '@/constants/roles'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
+import { selectUser, useAuthStore } from '@/features/auth/store'
 import { clientsApi } from '../api'
 import { ClientListItem } from '../components/ClientListItem'
-import {
-  ClientsFilters,
-  emptyClientFilterDraft,
-  toClientListFilters,
-  type ClientFilterDraft,
-} from '../components/ClientsFilters'
+import { ClientsFilters } from '../components/ClientsFilters'
+import { emptyClientFilterDraft, toClientListFilters, type ClientFilterDraft } from '../filters'
 import { useClients } from '../hooks/useClients'
 import type { Client, ClientListFilters } from '../types'
 
@@ -30,10 +30,28 @@ export function ClientsListScreen() {
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
+  const role = useAuthStore((state) => selectUser(state)?.role ?? null)
+  const canManage = canWrite(role)
   const [draft, setDraft] = useState<ClientFilterDraft>(emptyClientFilterDraft)
   const [filters, setFilters] = useState<ClientListFilters>({})
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
-  const { clients, loading, loadingMore, error, refresh, fetchMore } = useClients(filters)
+  const [clientToToggle, setClientToToggle] = useState<Client | null>(null)
+  const {
+    clients,
+    loading,
+    error,
+    refresh,
+    nextPage,
+    previousPage,
+    setPageSize,
+    page,
+    pageSize,
+    totalItems,
+    totalPages,
+    canGoNext,
+    canGoPrevious,
+  } = useClients(filters)
+  useRefreshOnFocus(refresh)
 
   const summary = useMemo(() => {
     const active = clients.filter((client) => client.status === 'active').length
@@ -44,6 +62,10 @@ export function ClientsListScreen() {
   function applyFilters() {
     setFilters(toClientListFilters(draft))
   }
+
+  const applySearchFilters = useCallback((nextDraft: ClientFilterDraft) => {
+    setFilters(toClientListFilters(nextDraft))
+  }, [])
 
   function resetFilters() {
     setDraft(emptyClientFilterDraft)
@@ -62,13 +84,28 @@ export function ClientsListScreen() {
     await refresh()
   })
 
-  if (loading) return <LoadingSpinner fullScreen label="Cargando clientes..." />
+  const {
+    submitting: activating,
+    error: toggleError,
+    submit: confirmActivate,
+  } = useFormSubmit(async () => {
+    if (!clientToToggle) return
+    await clientsApi.setStatus(clientToToggle.id, 'active', createIdempotencyKey('client_status'))
+    toast.success('Cliente activado')
+    setClientToToggle(null)
+    await refresh()
+  })
+
+  if (loading && clients.length === 0)
+    return <LoadingSpinner fullScreen label="Cargando clientes..." />
 
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar
         title="Clientes"
-        subtitle={clients.length ? `${clients.length} resultados` : 'Facturación Ecuador'}
+        subtitle={
+          clients.length ? `Página ${page} · ${clients.length} registros` : 'Facturación Ecuador'
+        }
       />
 
       <FlatList
@@ -77,9 +114,11 @@ export function ClientsListScreen() {
         renderItem={({ item }) => (
           <ClientListItem
             client={item}
+            canManage={canManage}
             onView={() => router.push(Routes.tenant.clientDetail(item.id) as Href)}
             onEdit={() => router.push(Routes.tenant.clientEdit(item.id) as Href)}
             onDelete={() => setClientToDelete(item)}
+            onToggleStatus={() => setClientToToggle(item)}
           />
         )}
         contentContainerStyle={styles.list}
@@ -97,13 +136,15 @@ export function ClientsListScreen() {
                   Clientes para emisión y control fiscal
                 </Text>
               </View>
-              <Button
-                variant="primary"
-                size="md"
-                onPress={() => router.push(Routes.tenant.clientNew as Href)}
-              >
-                Nuevo cliente
-              </Button>
+              {canManage ? (
+                <Button
+                  variant="primary"
+                  size="md"
+                  onPress={() => router.push(Routes.tenant.clientNew as Href)}
+                >
+                  Nuevo cliente
+                </Button>
+              ) : null}
             </View>
 
             <View style={styles.metricsRow}>
@@ -117,10 +158,12 @@ export function ClientsListScreen() {
               onChange={setDraft}
               onApply={applyFilters}
               onReset={resetFilters}
+              onSearchApply={applySearchFilters}
             />
 
             {error ? <ApiErrorBanner error={error} /> : null}
             {actionError ? <ApiErrorBanner error={actionError} /> : null}
+            {toggleError ? <ApiErrorBanner error={toggleError} /> : null}
           </View>
         }
         ItemSeparatorComponent={() => <View style={{ height: spacing[3] }} />}
@@ -129,21 +172,31 @@ export function ClientsListScreen() {
             icon="people-outline"
             title="Sin clientes"
             description="No hay clientes que coincidan con los filtros actuales."
-            action={{
-              label: 'Crear cliente',
-              onPress: () => router.push(Routes.tenant.clientNew as Href),
-            }}
+            action={
+              canManage
+                ? {
+                    label: 'Crear cliente',
+                    onPress: () => router.push(Routes.tenant.clientNew as Href),
+                  }
+                : undefined
+            }
           />
         }
         ListFooterComponent={
-          loadingMore ? (
-            <View style={styles.loadingMore}>
-              <LoadingSpinner size="small" compact />
-            </View>
-          ) : null
+          <ListPaginationControls
+            page={page}
+            pageSize={pageSize}
+            itemCount={clients.length}
+            totalItems={totalItems}
+            totalPages={totalPages}
+            canGoPrevious={canGoPrevious}
+            canGoNext={canGoNext}
+            loading={loading}
+            onPrevious={previousPage}
+            onNext={nextPage}
+            onPageSizeChange={setPageSize}
+          />
         }
-        onEndReached={fetchMore}
-        onEndReachedThreshold={0.3}
         refreshing={loading}
         onRefresh={refresh}
         showsVerticalScrollIndicator={false}
@@ -157,6 +210,17 @@ export function ClientsListScreen() {
         isLoading={deleting}
         onCancel={() => setClientToDelete(null)}
         onConfirm={confirmDelete}
+      />
+
+      <ConfirmDialog
+        visible={!!clientToToggle}
+        title="Activar cliente"
+        message={`${clientToToggle?.trade_name || clientToToggle?.legal_name || 'Este cliente'} volverá a estar disponible para facturación.`}
+        confirmLabel="Activar"
+        icon="play-circle-outline"
+        isLoading={activating}
+        onCancel={() => setClientToToggle(null)}
+        onConfirm={confirmActivate}
       />
     </View>
   )
@@ -232,5 +296,4 @@ const styles = StyleSheet.create({
   },
   metricValue: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
   metricLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
-  loadingMore: { paddingVertical: spacing[5] },
 })

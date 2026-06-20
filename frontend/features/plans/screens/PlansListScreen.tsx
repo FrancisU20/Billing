@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { FlatList, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
@@ -8,21 +8,20 @@ import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { ListPaginationControls } from '@/components/ui/ListPaginationControls'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
+import { useLocalPagedItems } from '@/lib/hooks/useLocalPagedItems'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { plansApi } from '../api'
 import { PlanListItem } from '../components/PlanListItem'
-import {
-  PlansFilters,
-  emptyPlanFilterDraft,
-  toPlanListFilters,
-  type PlanFilterDraft,
-} from '../components/PlansFilters'
+import { PlansFilters } from '../components/PlansFilters'
+import { emptyPlanFilterDraft, toPlanListFilters, type PlanFilterDraft } from '../filters'
 import { useAdminPlans } from '../hooks/usePlans'
 import type { Plan, PlanListFilters } from '../types'
 
@@ -34,6 +33,18 @@ export function PlansListScreen() {
   const [filters, setFilters] = useState<PlanListFilters>({})
   const [planToToggle, setPlanToToggle] = useState<Plan | null>(null)
   const { plans, loading, error, refresh } = useAdminPlans(filters)
+  const {
+    pageItems: visiblePlans,
+    page,
+    pageSize,
+    totalPages,
+    canGoNext,
+    canGoPrevious,
+    nextPage,
+    previousPage,
+    setPageSize,
+  } = useLocalPagedItems(plans)
+  useRefreshOnFocus(refresh)
 
   const summary = useMemo(() => {
     const active = plans.filter((plan) => plan.active).length
@@ -44,6 +55,10 @@ export function PlansListScreen() {
   function applyFilters() {
     setFilters(toPlanListFilters(draft))
   }
+
+  const applySearchFilters = useCallback((nextDraft: PlanFilterDraft) => {
+    setFilters(toPlanListFilters(nextDraft))
+  }, [])
 
   function resetFilters() {
     setDraft(emptyPlanFilterDraft)
@@ -72,11 +87,15 @@ export function PlansListScreen() {
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar
         title="Planes"
-        subtitle={plans.length ? `${plans.length} resultados` : 'Catálogo SaaS'}
+        subtitle={
+          plans.length
+            ? `Página ${page} de ${totalPages} · ${plans.length} planes`
+            : 'Catálogo SaaS'
+        }
       />
 
       <FlatList
-        data={plans}
+        data={visiblePlans}
         keyExtractor={(plan) => plan.id}
         renderItem={({ item }) => (
           <PlanListItem
@@ -121,6 +140,7 @@ export function PlansListScreen() {
               onChange={setDraft}
               onApply={applyFilters}
               onReset={resetFilters}
+              onSearchApply={applySearchFilters}
             />
 
             {error ? <ApiErrorBanner error={error} /> : null}
@@ -134,6 +154,19 @@ export function PlansListScreen() {
             title="Sin planes"
             description="No hay planes que coincidan con los filtros actuales."
             action={{ label: 'Crear plan', onPress: () => router.push(Routes.superadmin.planNew) }}
+          />
+        }
+        ListFooterComponent={
+          <ListPaginationControls
+            page={page}
+            pageSize={pageSize}
+            itemCount={visiblePlans.length}
+            canGoPrevious={canGoPrevious}
+            canGoNext={canGoNext}
+            loading={loading}
+            onPrevious={previousPage}
+            onNext={nextPage}
+            onPageSizeChange={setPageSize}
           />
         }
         refreshing={loading}

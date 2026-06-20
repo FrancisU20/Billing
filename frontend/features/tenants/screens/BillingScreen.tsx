@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { radius, shadow, spacing, typography } from '@/constants/tokens'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useTheme } from '@/lib/theme-context'
 import { formatDate } from '@/lib/utils/format'
@@ -32,6 +33,8 @@ export function BillingScreen() {
   const tenantId = user?.tenantId ?? null
   const { tenant, loading, refresh } = useTenant(tenantId)
   const { plan } = usePlan(tenant?.plan_id)
+
+  useRefreshOnFocus(refresh)
 
   const [order, setOrder] = useState<CreatePaymentResult | null>(null)
   const [createOrderKey] = useState(() => createIdempotencyKey('subscription-create-order'))

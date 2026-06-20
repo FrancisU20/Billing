@@ -34,6 +34,7 @@ export const clientsPageSchema = z.object({
   items: z.array(clientSchema),
   next_token: z.string().nullable(),
   has_more: z.boolean(),
+  total: z.number().nullable().optional(),
 })
 
 export const createClientSchema = z

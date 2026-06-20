@@ -37,6 +37,17 @@ class ITenantRepository(ABC):
         """Returns (items, next_token). next_token=None if no more pages."""
 
     @abstractmethod
+    def count(
+        self,
+        status: str | None = None,
+        sri_environment: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+    ) -> int:
+        """Count matching `list()` filters, excluding `q`/`plan_status` (matched
+        in Python — `plan_status` is computed at read time, never stored)."""
+
+    @abstractmethod
     def list_with_certificate_expiry_due(self, before: datetime) -> list[Tenant]:
         """Active/suspended, non-deleted tenants with cert_expires_at <= before."""
 

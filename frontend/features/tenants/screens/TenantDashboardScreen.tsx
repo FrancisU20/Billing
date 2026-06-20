@@ -6,6 +6,7 @@ import { typography, spacing, radius, shadow, sizes } from '@/constants/tokens'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { Card } from '@/components/ui/Card'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useAuthStore, selectUser } from '@/features/auth/store'
 import { RoleLabel, canWrite } from '@/constants/roles'
 import { CertificateSection } from '../components/CertificateSection'
@@ -51,9 +52,11 @@ export function TenantDashboardScreen() {
   const user = useAuthStore(selectUser)
   const { semantic } = useTheme()
   const roleLabel = user?.role ? RoleLabel[user.role] : 'Sin rol'
-  const { tenant, loading: tenantLoading } = useTenant(user?.tenantId ?? null)
+  const { tenant, loading: tenantLoading, refresh } = useTenant(user?.tenantId ?? null)
   const tenantId = user?.tenantId ?? null
   const canManageCertificate = canWrite(user?.role ?? null)
+
+  useRefreshOnFocus(refresh)
 
   if (tenantLoading) return <LoadingSpinner fullScreen label="Cargando..." />
 

@@ -127,6 +127,38 @@ class BaseRepository(ABC):
             _log.error("DynamoDB query error", error=str(e))
             raise DatabaseError() from e
 
+    def _count_raw(self, extra_filter: Any | None = None) -> int:
+        """
+        Counts items matching `extra_filter` within this tenant's partition using
+        Select=COUNT (no item data transferred). Bounded by the tenant's own
+        partition, not a full-table scan — same cost class as `count_this_month`
+        in the documents repository.
+        """
+        base_filter = Attr("deleted").eq(False)
+        filter_expr = base_filter & extra_filter if extra_filter is not None else base_filter
+
+        kwargs: dict[str, Any] = {
+            "KeyConditionExpression": (
+                DKey("pk").eq(self._pk()) & DKey("sk").begins_with(f"{self._prefix}#")
+            ),
+            "FilterExpression": filter_expr,
+            "Select": "COUNT",
+        }
+
+        total = 0
+        try:
+            while True:
+                resp = self._table.query(**kwargs)
+                total += resp.get("Count", 0)
+                last_key = resp.get("LastEvaluatedKey")
+                if not last_key:
+                    break
+                kwargs["ExclusiveStartKey"] = last_key
+        except ClientError as e:
+            _log.error("DynamoDB count query error", error=str(e))
+            raise DatabaseError() from e
+        return total
+
     # ── audit log ─────────────────────────────────────────────────────────────
 
     def _audit(

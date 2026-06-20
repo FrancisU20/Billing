@@ -27,6 +27,12 @@ export function formatDateTime(iso: string): string {
   }).format(new Date(iso))
 }
 
+export function formatDateRangeLabel(from: string, to: string): string {
+  if (from && to) return `${from} – ${to}`
+  if (from) return `Desde ${from}`
+  return `Hasta ${to}`
+}
+
 export function formatRuc(ruc: string): string {
   return ruc.replace(/(\d{10})(\d{3})/, '$1-$2')
 }

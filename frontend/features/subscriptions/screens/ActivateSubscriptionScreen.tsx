@@ -9,6 +9,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Routes } from '@/constants/routes'
 import { radius, shadow, spacing, typography } from '@/constants/tokens'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useTheme } from '@/lib/theme-context'
 import { selectUser, useAuthStore } from '@/features/auth/store'
@@ -27,8 +28,10 @@ export function ActivateSubscriptionScreen() {
   const router = useRouter()
   const user = useAuthStore(selectUser)
   const tenantId = user?.tenantId ?? null
-  const { tenant, loading: tenantLoading } = useTenant(tenantId)
+  const { tenant, loading: tenantLoading, refresh } = useTenant(tenantId)
   const { plan } = usePlan(tenant?.plan_id)
+
+  useRefreshOnFocus(refresh)
 
   const [order, setOrder] = useState<CreatePaymentResult | null>(null)
   const [createOrderKey] = useState(() => createIdempotencyKey('subscription-activate-create'))

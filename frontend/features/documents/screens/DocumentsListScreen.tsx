@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { FlatList, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
@@ -7,17 +7,19 @@ import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { ListPaginationControls } from '@/components/ui/ListPaginationControls'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { spacing, typography } from '@/constants/tokens'
 import { DocumentListItem } from '../components/DocumentListItem'
+import { DocumentsFilters } from '../components/DocumentsFilters'
 import {
-  DocumentsFilters,
   emptyDocumentFilterDraft,
   toDocumentListFilters,
   type DocumentFilterDraft,
-} from '../components/DocumentsFilters'
+} from '../filters'
 import { useDocuments } from '../hooks/useDocuments'
 import type { DocumentListFilters } from '../types'
 
@@ -26,24 +28,49 @@ export function DocumentsListScreen() {
   const { semantic } = useTheme()
   const [draft, setDraft] = useState<DocumentFilterDraft>(emptyDocumentFilterDraft)
   const [filters, setFilters] = useState<DocumentListFilters>({})
-  const { documents, loading, loadingMore, error, refresh, fetchMore } = useDocuments(filters)
+  const {
+    documents,
+    loading,
+    error,
+    refresh,
+    nextPage,
+    previousPage,
+    setPageSize,
+    page,
+    pageSize,
+    totalItems,
+    totalPages,
+    canGoNext,
+    canGoPrevious,
+  } = useDocuments(filters)
+  useRefreshOnFocus(refresh)
 
   function applyFilters() {
     setFilters(toDocumentListFilters(draft))
   }
+
+  const applySearchFilters = useCallback((nextDraft: DocumentFilterDraft) => {
+    setFilters(toDocumentListFilters(nextDraft))
+  }, [])
 
   function resetFilters() {
     setDraft(emptyDocumentFilterDraft)
     setFilters({})
   }
 
-  if (loading) return <LoadingSpinner fullScreen label="Cargando documentos..." />
+  if (loading && documents.length === 0) {
+    return <LoadingSpinner fullScreen label="Cargando documentos..." />
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar
         title="Documentos"
-        subtitle={documents.length ? `${documents.length} resultados` : 'Facturación electrónica'}
+        subtitle={
+          documents.length
+            ? `Página ${page} · ${documents.length} registros`
+            : 'Facturación electrónica'
+        }
       />
 
       <FlatList
@@ -88,6 +115,7 @@ export function DocumentsListScreen() {
               onChange={setDraft}
               onApply={applyFilters}
               onReset={resetFilters}
+              onSearchApply={applySearchFilters}
             />
 
             {error ? <ApiErrorBanner error={error} /> : null}
@@ -106,14 +134,20 @@ export function DocumentsListScreen() {
           />
         }
         ListFooterComponent={
-          loadingMore ? (
-            <View style={styles.loadingMore}>
-              <LoadingSpinner size="small" compact />
-            </View>
-          ) : null
+          <ListPaginationControls
+            page={page}
+            pageSize={pageSize}
+            itemCount={documents.length}
+            totalItems={totalItems}
+            totalPages={totalPages}
+            canGoPrevious={canGoPrevious}
+            canGoNext={canGoNext}
+            loading={loading}
+            onPrevious={previousPage}
+            onNext={nextPage}
+            onPageSizeChange={setPageSize}
+          />
         }
-        onEndReached={fetchMore}
-        onEndReachedThreshold={0.3}
         refreshing={loading}
         onRefresh={refresh}
         showsVerticalScrollIndicator={false}
@@ -145,5 +179,4 @@ const styles = StyleSheet.create({
     fontWeight: typography.weight.bold,
     lineHeight: typography.size['2xl'] * 1.2,
   },
-  loadingMore: { paddingVertical: spacing[5] },
 })

@@ -32,7 +32,7 @@ frontend/
     screens/
   lib/
     api/                     # client, errors, idempotency, types
-    hooks/                   # useAsync, useFetch, usePaginatedList
+    hooks/                   # useAsync, useFetch, useCursorPagedList
     theme-context.tsx        # design system activo (ver "Design System")
     utils/                   # format, jwt
 ```
@@ -99,24 +99,34 @@ No crear un componente nuevo si uno de estos cubre el caso. Antes de agregar a
 `components/ui/`, confirmar que es realmente transversal (2+ features lo necesitan);
 si es especifico de un dominio, va en `features/{area}/components/`.
 
+Roadmap activo: `context/UX_REFACTOR.md` define los sprints para centralizar listados,
+busquedas, filtros, calendarios, formularios, acciones de estado, modales y consistencia
+visual de descuentos. Mientras ese roadmap este activo, todo componente nuevo de esos
+patrones debe nacer compartido salvo justificacion explicita. El alcance es toda la app:
+tenant, superadmin, auth/onboarding y modulos futuros.
+
 `components/ui/`:
 
-| Componente                   | Uso                                                                                                                                                                                                                 |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Button.tsx`                 | botones primarios/secundarios                                                                                                                                                                                       |
-| `Input.tsx`, `FormField.tsx` | campos de formulario + label/error                                                                                                                                                                                  |
-| `Card.tsx`                   | contenedor con elevacion                                                                                                                                                                                            |
-| `Badge.tsx`                  | etiquetas de estado                                                                                                                                                                                                 |
-| `ListItemPrimitives.tsx`     | `ListItemAction`, `ListItemMeta` y piezas de filas de listado                                                                                                                                                       |
-| `LoadingSpinner.tsx`         | spinner full-screen o inline                                                                                                                                                                                        |
-| `EmptyState.tsx`             | estado vacio con icono + accion                                                                                                                                                                                     |
-| `ApiErrorBanner.tsx`         | banner de error de API                                                                                                                                                                                              |
-| `ConfirmDialog.tsx`          | confirmacion de acciones destructivas/irreversibles                                                                                                                                                                 |
-| `SegmentedControl.tsx`       | selector tipo tabs                                                                                                                                                                                                  |
-| `Divider.tsx`                | separador                                                                                                                                                                                                           |
-| `DetailSection.tsx`          | `DetailSection`/`DetailField` — seccion con titulo+icono y grupo de pares label/valor en pantallas de detalle (`layout="grid"` por defecto, `"stack"` para apilar verticalmente, ej. bloques con botones de accion) |
-| `StatMetric.tsx`             | tarjeta de metrica (icono + valor + label) para resumenes/dashboards                                                                                                                                                |
-| `CertificateUploadField.tsx` | selector de archivo p12 + clave (Pressable de carga + `FormField` de password + error). Usar junto a `useCertificateFilePicker` (`lib/hooks/`). Compartido por onboarding (wizard) y tenants (reemplazo de certificado).                                          |
+| Componente                   | Uso                                                                                                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Button.tsx`                 | botones primarios/secundarios                                                                                                                                                                                            |
+| `Input.tsx`, `FormField.tsx` | campos de formulario + label/error                                                                                                                                                                                       |
+| `SearchInput.tsx`            | campo de busqueda compartido con icono, limpiar, debounce, minimo de caracteres y hint. Usar para busquedas remotas en listados y pickers; no llamar backend con 1-2 caracteres.                                         |
+| `Card.tsx`                   | contenedor con elevacion                                                                                                                                                                                                 |
+| `Badge.tsx`                  | etiquetas de estado                                                                                                                                                                                                      |
+| `ListItemPrimitives.tsx`     | `ListItemAction`, `ListItemMeta` y piezas de filas de listado                                                                                                                                                            |
+| `LoadingSpinner.tsx`         | spinner full-screen o inline                                                                                                                                                                                             |
+| `EmptyState.tsx`             | estado vacio con icono + accion                                                                                                                                                                                          |
+| `ApiErrorBanner.tsx`         | banner de error de API                                                                                                                                                                                                   |
+| `ConfirmDialog.tsx`          | confirmacion de acciones destructivas/irreversibles                                                                                                                                                                      |
+| `SegmentedControl.tsx`       | selector tipo tabs                                                                                                                                                                                                       |
+| `Divider.tsx`                | separador                                                                                                                                                                                                                |
+| `DetailSection.tsx`          | `DetailSection`/`DetailField` — seccion con titulo+icono y grupo de pares label/valor en pantallas de detalle (`layout="grid"` por defecto, `"stack"` para apilar verticalmente, ej. bloques con botones de accion)      |
+| `StatMetric.tsx`             | tarjeta de metrica (icono + valor + label) para resumenes/dashboards                                                                                                                                                     |
+| `ListPaginationControls.tsx` | controles compartidos de listados operativos: pagina actual, selector 10/25/50, anterior/siguiente. Acepta `totalItems`/`totalPages` opcionales — cuando el backend los expone muestra "Pagina X de Y" + total real; si no (filtro de texto libre activo), cae a "Pagina X" + conteo de la pagina actual. |
+| `CertificateUploadField.tsx` | selector de archivo p12 + clave (Pressable de carga + `FormField` de password + error). Usar junto a `useCertificateFilePicker` (`lib/hooks/`). Compartido por onboarding (wizard) y tenants (reemplazo de certificado). |
+| `FilterBar.tsx`               | filtros principales siempre visibles (children) + filtros secundarios colapsados detras de "Mas filtros" (con badge de cantidad activa) + chips de filtros activos con `x` para quitar uno y aplicar de inmediato + boton "Limpiar". Usar para cualquier panel de filtros con mas de 1-2 campos secundarios (status/tipo/fechas); no envolver un filtro que ya es minimo (ej. un solo segmented control). |
+| `FilterBlock.tsx`             | `FilterBlock` (label + contenido) y `FilterPill` (pill seleccionable) — piezas de layout para el contenido secundario de `FilterBar`.                                                                                    |
 
 `components/feedback/`:
 
@@ -267,18 +277,22 @@ Reglas:
 
 ## Hooks Reutilizables (`lib/hooks/`)
 
-| Hook                                        | Uso                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `useAsync`                                  | ejecutar una promesa con estados loading/error                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `useFetch<T>(fetcher)`                      | fetch de un solo recurso: recibe `(() => Promise<T>) \| null` (null = no fetchear) y devuelve `{ data, loading, error, refresh }`. `fetcher` debe ser estable (`useCallback`) para evitar loops. Base de los hooks `use{Entity}` por dominio (`useClient`, `useTenant`, `usePlan`, `useAdminPlan`).                                                                                                                                                                      |
-| `usePaginatedList<T, F>(filters, loadPage)` | listas paginadas: `items`, `nextToken`, `hasMore`, `loading`, `loadingMore`, `error`, `refresh`, `fetchMore`. No llamar `fetchMore` mientras `loading` o `loadingMore` esten activos — el hook ya lo bloquea internamente.                                                                                                                                                                                                                                               |
-| `useFormSubmit<TArgs>(action)`              | analogo de escritura a `useFetch`: envuelve una accion async (crear/actualizar/cambiar estado/borrar) con `submitting`/`error` + el try/catch/finally + `toApiError` estandar. Devuelve `{ submitting, error, submit }`, donde `submit` es `(...args: TArgs) => Promise<void>` (asignable a props `onPress`/`onConfirm`/`onSubmit` con retorno `void`). Usar siempre que una pantalla haga un submit/accion con loading+error, en vez de repetir `useState` + try/catch. |
-| `useCertificateFilePicker(init?)`           | selector de archivo `.p12`/`.pfx` (web-only): devuelve `{ fileName, certificateB64, error, pickFile, reset }`. Usado por `RegisterCertificateScreen` (onboarding) y `CertificateSection` (gestion post-onboarding, ver `ONBOARDING.md`/`CERTIFICATES.md`). |
+| Hook                                          | Uso                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `useAsync`                                    | ejecutar una promesa con estados loading/error                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `useFetch<T>(fetcher)`                        | fetch de un solo recurso: recibe `(() => Promise<T>) \| null` (null = no fetchear) y devuelve `{ data, loading, error, refresh }`. `fetcher` debe ser estable (`useCallback`) para evitar loops. Base de los hooks `use{Entity}` por dominio (`useClient`, `useTenant`, `usePlan`, `useAdminPlan`).                                                                                                                                                                      |
+| `useCursorPagedList<T, F>(filters, loadPage)` | listas con cursor opaco y controles de usuario: `items`, `page`, `pageSize`, `hasMore`, `totalItems`, `totalPages`, `canGoNext`, `canGoPrevious`, `refresh`, `nextPage`, `previousPage`, `setPageSize`. `totalItems`/`totalPages` vienen del campo `total` del backend (`null` si el endpoint no lo expone para ese filtro, ej. `q` activo en clients/products o `plan_status` en tenants — ver `BACKEND.md`). `filters` debe ser estable (estado/memo), no objeto inline.                                                                                                                                                           |
+| `useLocalPagedItems<T>(items)`                | paginacion local para fuentes pequenas o endpoints que aun devuelven lista completa (ej. planes admin actual). Ya expone `totalItems`/`totalPages` reales (calculados de `items.length`) porque la lista completa ya esta en memoria. Usar solo como transicion hasta contrato backend paginado si el volumen crece.                                                                                                                                                                                                                                                                            |
+| `usePaginatedList<T, F>(filters, loadPage)`   | legacy/infinite scroll. No usar en listados operativos nuevos; queda solo como compatibilidad hasta eliminarlo.                                                                                                                                                                                                                                                                                                                                                          |
+| `useDebouncedSearch(value, onSearchChange, opts?)` | logica de debounce detras de `SearchInput`: emite `onSearchChange(query)` solo cuando el texto consultable cambia (no en cada render del consumidor) y nunca emite una busqueda vacia fantasma al montar. Si necesitas un input de busqueda, usa `SearchInput`; usa este hook directo solo si necesitas la logica sin el `Input` visual. |
+| `useRefreshOnFocus(refresh, opts?)`           | refresca datos de listado/detalle cuando la ruta vuelve a foco (volver de crear/editar). `skipInitial` (default `true`) evita refrescar en el primer mount. Usar en toda pantalla con `useFetch`/`useCursorPagedList` para que crear/editar y volver muestre datos actualizados sin pull-to-refresh manual. |
+| `useFormSubmit<TArgs>(action)`                | analogo de escritura a `useFetch`: envuelve una accion async (crear/actualizar/cambiar estado/borrar) con `submitting`/`error` + el try/catch/finally + `toApiError` estandar. Devuelve `{ submitting, error, submit }`, donde `submit` es `(...args: TArgs) => Promise<void>` (asignable a props `onPress`/`onConfirm`/`onSubmit` con retorno `void`). Usar siempre que una pantalla haga un submit/accion con loading+error, en vez de repetir `useState` + try/catch. |
+| `useCertificateFilePicker(init?)`             | selector de archivo `.p12`/`.pfx` (web-only): devuelve `{ fileName, certificateB64, error, pickFile, reset }`. Usado por `RegisterCertificateScreen` (onboarding) y `CertificateSection` (gestion post-onboarding, ver `ONBOARDING.md`/`CERTIFICATES.md`).                                                                                                                                                                                                               |
 
 ## Estado Global
 
 La mayoria de features no necesitan estado global: datos de servidor se manejan con
-`usePaginatedList`/`useAsync` por pantalla. Cuando si hace falta estado compartido entre
+`useFetch`/`useCursorPagedList`/`useAsync` por pantalla. Cuando si hace falta estado compartido entre
 features (ej. sesion de auth en `features/auth/store.ts`), usar **Zustand** — ya es
 dependencia del proyecto. No introducir Context API ni otra libreria de estado para esto.
 
@@ -290,8 +304,9 @@ dependencia del proyecto. No introducir Context API ni otra libreria de estado p
   `features/{area}/schemas.ts`, no inline en el componente `*Form.tsx`. El componente
   importa el schema y lo pasa a `zodResolver(...)`. Ver `clientFormValuesSchema`,
   `tenantFormValuesSchema`, `planFormValuesSchema`.
-- No duplicar hooks de fetch/paginacion: `useFetch` para un solo recurso, `usePaginatedList`
-  para listas.
+- No duplicar hooks de fetch/paginacion: `useFetch` para un solo recurso,
+  `useCursorPagedList` para listas con cursor y `useLocalPagedItems` solo como transicion
+  para listas locales pequenas.
 - No duplicar el patron submit/accion con loading+error: usar `useFormSubmit` (ver
   `lib/hooks/useFormSubmit.ts`) en pantallas de creacion/edicion y en acciones de
   detalle/listado (toggle, delete, cambio de estado).
@@ -329,7 +344,7 @@ https://docs.expo.dev/versions/v56.0.0/ — no asumir comportamiento de versione
 1. Definir Zod schemas en `features/{area}/schemas.ts`.
 2. Exportar tipos desde `types.ts`.
 3. Implementar `api.ts` con validacion de respuesta.
-4. Usar hooks existentes (`useAsync`, `useFetch`, `usePaginatedList`) antes de crear uno nuevo.
+4. Usar hooks existentes (`useAsync`, `useFetch`, `useCursorPagedList`) antes de crear uno nuevo.
 5. Reusar `components/ui` / `components/layout` antes de crear un componente nuevo;
    si es especifico del dominio, va en `features/{area}/components/`.
 6. Mantener pantallas como composicion de componentes, siguiendo el patron

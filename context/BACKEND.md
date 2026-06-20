@@ -123,7 +123,12 @@ Error:
 Lista paginada:
 
 ```json
-{ "success": true, "data": { "items": [], "next_token": "eyJ...", "has_more": true }, "error": null, "meta": {} }
+{
+  "success": true,
+  "data": { "items": [], "next_token": "eyJ...", "has_more": true, "total": 42 },
+  "error": null,
+  "meta": {}
+}
 ```
 
 Reglas:
@@ -131,6 +136,16 @@ Reglas:
 - `next_token` es opaco. El frontend no lo decodifica.
 - Los filtros via query params se validan en handler y se aplican en repositorio.
 - Si se agregan listas nuevas, usar `DEFAULT_LIST_LIMIT` y `clamp_list_limit()` en backend.
+- `total` (campo `total_items`/`total_pages` v2, ver `UX_REFACTOR.md` Sprint 1): viene de
+  `ApiResponse.paginated(..., total=...)`. Se calcula con `BaseRepository._count_raw()`
+  (Query tenant-scoped + `Select=COUNT`, sin transferir items) en `clients`/`products`,
+  con `DynamoDocumentsRepository.count()` (mismo patron sobre el GSI) en `documents`, y
+  con un Scan + `Select=COUNT` en `tenants` (aceptable solo por ser catalogo B2B chico,
+  igual que `list()`). `total` es `None`/omitido cuando el filtro activo se resuelve en
+  Python y no en DynamoDB (`q`, `identification`, `sku`, `ruc`, `plan_status`) — un conteo
+  DB-side en ese caso no reflejaria el resultado filtrado real. `plans` no necesita nada
+  de esto: ya devuelve la lista completa y el frontend pagina localmente con
+  `useLocalPagedItems`.
 
 ### `Request.raw_body`
 

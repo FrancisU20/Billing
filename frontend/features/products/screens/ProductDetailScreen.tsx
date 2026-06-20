@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { DetailField, DetailSection } from '@/components/ui/DetailSection'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { formatDateTime } from '@/lib/utils/format'
 import { Routes } from '@/constants/routes'
@@ -21,6 +22,8 @@ export function ProductDetailScreen() {
   const router = useRouter()
   const { semantic } = useTheme()
   const { product, loading, error, refresh } = useProduct(id ?? null)
+
+  useRefreshOnFocus(refresh)
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando producto..." />
 

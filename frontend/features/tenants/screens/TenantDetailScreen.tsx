@@ -14,6 +14,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { formatDateTime, formatRuc, initials } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
@@ -35,6 +36,8 @@ export function TenantDetailScreen() {
   const [inactivateOpen, setInactivateOpen] = useState(false)
   const [reactivateOpen, setReactivateOpen] = useState(false)
   const [retryOnboardingOpen, setRetryOnboardingOpen] = useState(false)
+
+  useRefreshOnFocus(refresh)
 
   const {
     submitting: actionPending,

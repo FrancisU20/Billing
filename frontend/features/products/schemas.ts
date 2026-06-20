@@ -30,6 +30,7 @@ export const productsPageSchema = z.object({
   items: z.array(productSchema),
   next_token: z.string().nullable(),
   has_more: z.boolean(),
+  total: z.number().nullable().optional(),
 })
 
 export const productFormSchema = z

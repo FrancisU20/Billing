@@ -128,6 +128,30 @@ class TenantsHandlerTests(unittest.TestCase):
         self.assertIn("items", body["data"])
         self.assertEqual(len(body["data"]["items"]), 1)
 
+    def test_list_includes_total_when_no_text_filter_is_active(self) -> None:
+        repo = FakeTenantRepository()
+        repo.list_result = ([make_tenant(id="t-1")], None)
+        repo.count_result = 6
+        event = api_event(method="GET", path="/tenants", query={"status": "active"})
+
+        with patch.object(self.handler, "_repo", return_value=repo):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(body["data"]["total"], 6)
+
+    def test_list_omits_total_when_q_filter_is_active(self) -> None:
+        repo = FakeTenantRepository()
+        repo.list_result = ([make_tenant(id="t-1")], None)
+        repo.count_result = 6
+        event = api_event(method="GET", path="/tenants", query={"q": "codelabs"})
+
+        with patch.object(self.handler, "_repo", return_value=repo):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertNotIn("total", body["data"])
+
     def test_list_passes_search_and_filter_query(self) -> None:
         repo = FakeTenantRepository()
         tenant = make_tenant(id="t-1")

@@ -171,6 +171,10 @@ Cuando se implemente:
 
 - `tenants` lista con scan paginado + `FilterExpression`. Para queries de alta cardinalidad
   o dashboard, necesita endpoints agregados; los scans actuales son para listado admin.
+- `GET /tenants` devuelve `total` (`Select=COUNT` sobre el mismo Scan, ver `BACKEND.md` y
+  `UX_REFACTOR.md` Sprint 1) salvo que `q`/`ruc`/`plan_status` esten activos — esos se
+  resuelven en Python (`plan_status` se computa en lectura, nunca se persiste). Mismo costo
+  que `list()`; no resuelve la deuda de arriba, solo la extiende al conteo.
 
 ## Deuda Solventada
 

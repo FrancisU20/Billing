@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { FlatList, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
@@ -8,15 +8,19 @@ import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { Input } from '@/components/ui/Input'
+import { ListPaginationControls } from '@/components/ui/ListPaginationControls'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { SearchInput } from '@/components/ui/SearchInput'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
+import { canWrite } from '@/constants/roles'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
+import { selectUser, useAuthStore } from '@/features/auth/store'
 import { productsApi } from '../api'
 import { PRODUCT_KIND_OPTIONS } from '../constants'
 import { ProductListItem } from '../components/ProductListItem'
@@ -27,11 +31,29 @@ export function ProductsListScreen() {
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
+  const role = useAuthStore((state) => selectUser(state)?.role ?? null)
+  const canManage = canWrite(role)
   const [q, setQ] = useState('')
   const [kind, setKind] = useState<ProductKind | 'ALL'>('ALL')
   const [filters, setFilters] = useState<ProductListFilters>({})
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
-  const { products, loading, loadingMore, error, refresh, fetchMore } = useProducts(filters)
+  const [productToToggle, setProductToToggle] = useState<Product | null>(null)
+  const {
+    products,
+    loading,
+    error,
+    refresh,
+    nextPage,
+    previousPage,
+    setPageSize,
+    page,
+    pageSize,
+    totalItems,
+    totalPages,
+    canGoNext,
+    canGoPrevious,
+  } = useProducts(filters)
+  useRefreshOnFocus(refresh)
 
   const summary = useMemo(() => {
     const active = products.filter((product) => product.status === 'ACTIVE').length
@@ -39,12 +61,23 @@ export function ProductsListScreen() {
     return { active, stock, total: products.length }
   }, [products])
 
-  function applyFilters() {
-    setFilters({
-      q: q.trim() || undefined,
-      kind: kind === 'ALL' ? undefined : kind,
-    })
-  }
+  const applyFilters = useCallback(
+    (search = q, selectedKind = kind) => {
+      const normalizedSearch = search.trim()
+      setFilters({
+        q: normalizedSearch.length >= 3 ? normalizedSearch : undefined,
+        kind: selectedKind === 'ALL' ? undefined : selectedKind,
+      })
+    },
+    [kind, q],
+  )
+
+  const applySearch = useCallback(
+    (search: string) => {
+      applyFilters(search, kind)
+    },
+    [applyFilters, kind],
+  )
 
   function resetFilters() {
     setQ('')
@@ -64,13 +97,33 @@ export function ProductsListScreen() {
     await refresh()
   })
 
-  if (loading) return <LoadingSpinner fullScreen label="Cargando productos..." />
+  const {
+    submitting: activating,
+    error: toggleError,
+    submit: confirmActivate,
+  } = useFormSubmit(async () => {
+    if (!productToToggle) return
+    await productsApi.setStatus(
+      productToToggle.id,
+      'ACTIVE',
+      createIdempotencyKey('product_status'),
+    )
+    toast.success('Producto activado')
+    setProductToToggle(null)
+    await refresh()
+  })
+
+  if (loading && products.length === 0) {
+    return <LoadingSpinner fullScreen label="Cargando productos..." />
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar
         title="Productos"
-        subtitle={products.length ? `${products.length} resultados` : 'Catálogo facturable'}
+        subtitle={
+          products.length ? `Página ${page} · ${products.length} registros` : 'Catálogo facturable'
+        }
       />
 
       <FlatList
@@ -79,9 +132,11 @@ export function ProductsListScreen() {
         renderItem={({ item }) => (
           <ProductListItem
             product={item}
+            canManage={canManage}
             onView={() => router.push(Routes.tenant.productDetail(item.id) as Href)}
             onEdit={() => router.push(Routes.tenant.productEdit(item.id) as Href)}
             onDelete={() => setProductToDelete(item)}
+            onToggleStatus={() => setProductToToggle(item)}
           />
         )}
         contentContainerStyle={styles.list}
@@ -97,13 +152,15 @@ export function ProductsListScreen() {
                   Productos, servicios y membresías para facturar
                 </Text>
               </View>
-              <Button
-                variant="primary"
-                size="md"
-                onPress={() => router.push(Routes.tenant.productNew as Href)}
-              >
-                Nuevo producto
-              </Button>
+              {canManage ? (
+                <Button
+                  variant="primary"
+                  size="md"
+                  onPress={() => router.push(Routes.tenant.productNew as Href)}
+                >
+                  Nuevo producto
+                </Button>
+              ) : null}
             </View>
 
             <View style={styles.metricsRow}>
@@ -118,11 +175,11 @@ export function ProductsListScreen() {
                 { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
               ]}
             >
-              <Input
+              <SearchInput
                 value={q}
                 onChangeText={setQ}
+                onSearchChange={applySearch}
                 placeholder="Buscar por SKU, nombre o descripción"
-                leftIcon="search-outline"
               />
               <SegmentedControl
                 value={kind}
@@ -139,7 +196,7 @@ export function ProductsListScreen() {
                 <Button variant="outline" size="sm" onPress={resetFilters}>
                   Limpiar
                 </Button>
-                <Button variant="secondary" size="sm" onPress={applyFilters}>
+                <Button variant="secondary" size="sm" onPress={() => applyFilters()}>
                   Aplicar
                 </Button>
               </View>
@@ -147,6 +204,7 @@ export function ProductsListScreen() {
 
             {error ? <ApiErrorBanner error={error} /> : null}
             {actionError ? <ApiErrorBanner error={actionError} /> : null}
+            {toggleError ? <ApiErrorBanner error={toggleError} /> : null}
           </View>
         }
         ItemSeparatorComponent={() => <View style={{ height: spacing[3] }} />}
@@ -155,21 +213,31 @@ export function ProductsListScreen() {
             icon="cube-outline"
             title="Sin productos"
             description="Crea tu primer producto o servicio para usarlo en el facturador."
-            action={{
-              label: 'Crear producto',
-              onPress: () => router.push(Routes.tenant.productNew as Href),
-            }}
+            action={
+              canManage
+                ? {
+                    label: 'Crear producto',
+                    onPress: () => router.push(Routes.tenant.productNew as Href),
+                  }
+                : undefined
+            }
           />
         }
         ListFooterComponent={
-          loadingMore ? (
-            <View style={styles.loadingMore}>
-              <LoadingSpinner size="small" compact />
-            </View>
-          ) : null
+          <ListPaginationControls
+            page={page}
+            pageSize={pageSize}
+            itemCount={products.length}
+            totalItems={totalItems}
+            totalPages={totalPages}
+            canGoPrevious={canGoPrevious}
+            canGoNext={canGoNext}
+            loading={loading}
+            onPrevious={previousPage}
+            onNext={nextPage}
+            onPageSizeChange={setPageSize}
+          />
         }
-        onEndReached={fetchMore}
-        onEndReachedThreshold={0.3}
         refreshing={loading}
         onRefresh={refresh}
         showsVerticalScrollIndicator={false}
@@ -183,6 +251,17 @@ export function ProductsListScreen() {
         isLoading={deleting}
         onCancel={() => setProductToDelete(null)}
         onConfirm={confirmDelete}
+      />
+
+      <ConfirmDialog
+        visible={!!productToToggle}
+        title="Activar producto"
+        message={`${productToToggle?.name || 'Este producto'} volverá a estar disponible para facturación.`}
+        confirmLabel="Activar"
+        icon="play-circle-outline"
+        isLoading={activating}
+        onCancel={() => setProductToToggle(null)}
+        onConfirm={confirmActivate}
       />
     </View>
   )
@@ -260,5 +339,4 @@ const styles = StyleSheet.create({
   metricLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
   filters: { borderRadius: radius.md, borderWidth: 1, gap: spacing[3], padding: spacing[3] },
   filterActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
-  loadingMore: { paddingVertical: spacing[5] },
 })

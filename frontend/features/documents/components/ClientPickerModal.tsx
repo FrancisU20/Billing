@@ -1,10 +1,10 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { SearchInput } from '@/components/ui/SearchInput'
 import { clientsApi } from '@/features/clients/api'
 import type { Client } from '@/features/clients/types'
 import { toApiError, type ApiError } from '@/lib/api/errors'
@@ -24,20 +24,37 @@ export function ClientPickerModal({ visible, onClose, onSelect }: ClientPickerMo
   const [searched, setSearched] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
+  const searchRequestId = useRef(0)
 
-  async function search() {
-    const q = query.trim()
-    if (!q) return
+  useEffect(() => {
+    if (!visible) return
+    searchRequestId.current += 1
+    setQuery('')
+    setResults([])
+    setSearched(false)
+    setLoading(false)
+    setError(null)
+  }, [visible])
+
+  async function search(nextQuery = query) {
+    const q = nextQuery.trim()
+    if (q.length < 3) return
+    const requestId = searchRequestId.current + 1
+    searchRequestId.current = requestId
     setLoading(true)
     setError(null)
     try {
       const page = await clientsApi.list({ q })
+      if (requestId !== searchRequestId.current) return
       setResults(page.items)
       setSearched(true)
     } catch (e) {
+      if (requestId !== searchRequestId.current) return
       setError(toApiError(e))
     } finally {
-      setLoading(false)
+      if (requestId === searchRequestId.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -60,16 +77,29 @@ export function ClientPickerModal({ visible, onClose, onSelect }: ClientPickerMo
 
           <View style={styles.searchRow}>
             <View style={styles.searchInput}>
-              <Input
-                leftIcon="search-outline"
+              <SearchInput
                 placeholder="Razón social, nombre comercial o identificación"
                 value={query}
                 onChangeText={setQuery}
-                onSubmitEditing={search}
+                onSearchChange={(nextQuery) => {
+                  if (!nextQuery) {
+                    setResults([])
+                    setSearched(false)
+                    return
+                  }
+                  void search(nextQuery)
+                }}
+                onSubmitEditing={() => search()}
                 autoFocus
               />
             </View>
-            <Button variant="primary" size="md" isLoading={loading} onPress={search}>
+            <Button
+              variant="primary"
+              size="md"
+              isLoading={loading}
+              isDisabled={query.trim().length < 3}
+              onPress={() => search()}
+            >
               Buscar
             </Button>
           </View>

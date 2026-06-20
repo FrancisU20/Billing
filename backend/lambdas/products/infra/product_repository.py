@@ -91,6 +91,12 @@ class DynamoProductRepository(BaseRepository, IProductRepository):
                 break
         return products, cursor
 
+    def count(self, status: str | None = None, kind: str | None = None) -> int:
+        """Accurate only when `q`/`sku` are not in play — those are matched in
+        Python, not in DynamoDB."""
+        filters = _ProductListFilters(status=status, kind=kind, q=None)
+        return self._count_raw(filters.to_dynamo_filter())
+
     def commit(
         self,
         *,

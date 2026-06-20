@@ -9,6 +9,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { productsApi } from '../api'
@@ -21,6 +22,8 @@ export function DiscountCampaignScreen() {
 
   const [active, setActive] = useState(false)
   const [percentage, setPercentage] = useState('0.00')
+
+  useRefreshOnFocus(refresh)
 
   useEffect(() => {
     if (!campaign) return

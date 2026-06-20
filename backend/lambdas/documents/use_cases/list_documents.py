@@ -19,3 +19,12 @@ class ListDocumentsUseCase:
             limit=cmd.limit,
             cursor=cmd.cursor,
         )
+
+    def count(self, cmd: ListDocumentsCommand) -> int:
+        return self._repo.count(
+            cmd.tenant_id,
+            status=cmd.status,
+            serie=cmd.serie,
+            date_from=cmd.date_from,
+            date_to=cmd.date_to,
+        )

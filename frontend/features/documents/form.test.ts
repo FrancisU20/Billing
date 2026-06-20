@@ -5,6 +5,7 @@ import {
   ecuadorIssuedAtDate,
   ecuadorIssuedAtDisplay,
   resolveSuggestedDiscount,
+  shouldAutoApplySuggestedDiscount,
 } from './form'
 import type { EmitDocumentLineInput } from './schemas'
 
@@ -161,6 +162,24 @@ describe('resolveSuggestedDiscount', () => {
   it('returns 0 for an invalid or zero gross amount', () => {
     expect(resolveSuggestedDiscount('0', '30.00', '60.00', null)).toBe('0.00')
     expect(resolveSuggestedDiscount('', '', '60.00', null)).toBe('0.00')
+  })
+})
+
+describe('shouldAutoApplySuggestedDiscount', () => {
+  it('applies a new suggestion when the current discount is zero', () => {
+    expect(shouldAutoApplySuggestedDiscount('0.00', undefined, '10.00')).toBe(true)
+  })
+
+  it('updates a discount previously applied by the system', () => {
+    expect(shouldAutoApplySuggestedDiscount('10.00', '10.00', '12.00')).toBe(true)
+  })
+
+  it('does not override a manual discount', () => {
+    expect(shouldAutoApplySuggestedDiscount('7.00', '10.00', '12.00')).toBe(false)
+  })
+
+  it('clears a previous system suggestion when the next suggestion is zero', () => {
+    expect(shouldAutoApplySuggestedDiscount('10.00', '10.00', '0.00')).toBe(true)
   })
 })
 

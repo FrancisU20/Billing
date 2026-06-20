@@ -28,6 +28,10 @@ class IProductRepository(ABC):
         """List tenant products."""
 
     @abstractmethod
+    def count(self, status: str | None = None, kind: str | None = None) -> int:
+        """Count matching `list()` filters, excluding `q`/`sku` (matched in Python)."""
+
+    @abstractmethod
     def commit(
         self,
         *,

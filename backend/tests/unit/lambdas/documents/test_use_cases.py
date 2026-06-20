@@ -43,6 +43,8 @@ class FakeDocumentsRepository:
         self.documents: dict[str, Document] = {}
         self.save_calls: list[Document] = []
         self._month_count: int = 0
+        self.count_result: int = 0
+        self.count_calls: list[dict[str, Any]] = []
 
     def get(self, tenant_id: str, document_id: str) -> Document:
         doc = self.documents.get(f"{tenant_id}#{document_id}")
@@ -60,6 +62,10 @@ class FakeDocumentsRepository:
 
     def count_this_month(self, tenant_id: str, sri_environment: str) -> int:
         return self._month_count
+
+    def count(self, tenant_id: str, **kwargs: Any) -> int:
+        self.count_calls.append({"tenant_id": tenant_id, **kwargs})
+        return self.count_result
 
     def save(self, document: Document, **kwargs: Any) -> None:
         self.save_calls.append(document)
@@ -498,6 +504,18 @@ class ListDocumentsUseCaseTests(unittest.TestCase):
         docs, _ = ListDocumentsUseCase(repo).execute(ListDocumentsCommand(tenant_id="t-1"))
         self.assertEqual(len(docs), 1)
         self.assertEqual(docs[0].document_id, "d1")
+
+    def test_count_delegates_to_repository(self) -> None:
+        repo = FakeDocumentsRepository()
+        repo.count_result = 12
+
+        total = ListDocumentsUseCase(repo).count(
+            ListDocumentsCommand(tenant_id="t-1", status="AUTHORIZED")
+        )
+
+        self.assertEqual(total, 12)
+        self.assertEqual(repo.count_calls[0]["tenant_id"], "t-1")
+        self.assertEqual(repo.count_calls[0]["status"], "AUTHORIZED")
 
 
 # ── GetRideUrlUseCase ─────────────────────────────────────────────────────────

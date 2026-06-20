@@ -84,6 +84,40 @@ class ClientsHandlerTests(unittest.TestCase):
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(len(body["data"]["items"]), 1)
 
+    def test_list_includes_total_when_no_text_filter_is_active(self) -> None:
+        repo = FakeClientRepository()
+        repo.list_result = ([make_client(id="client-1")], None)
+        repo.count_result = 5
+        event = api_event(
+            method="GET",
+            path="/clients",
+            query={"status": "active"},
+            claims=_tenant_claims("admin"),
+        )
+
+        with patch.object(self.handler, "_repo", return_value=repo):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(body["data"]["total"], 5)
+
+    def test_list_omits_total_when_q_filter_is_active(self) -> None:
+        repo = FakeClientRepository()
+        repo.list_result = ([make_client(id="client-1")], None)
+        repo.count_result = 5
+        event = api_event(
+            method="GET",
+            path="/clients",
+            query={"q": "acme"},
+            claims=_tenant_claims("admin"),
+        )
+
+        with patch.object(self.handler, "_repo", return_value=repo):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertNotIn("total", body["data"])
+
     def test_list_passes_exact_identification_filter(self) -> None:
         repo = FakeClientRepository()
         repo.list_result = ([make_client(id="client-1")], None)

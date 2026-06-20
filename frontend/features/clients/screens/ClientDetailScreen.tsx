@@ -12,6 +12,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { formatDateTime, initials } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
@@ -28,6 +29,8 @@ export function ClientDetailScreen() {
   const { semantic } = useTheme()
   const { client, loading, error, refresh } = useClient(id ?? null)
   const [confirmOpen, setConfirmOpen] = useState(false)
+
+  useRefreshOnFocus(refresh)
 
   const {
     submitting: deleting,

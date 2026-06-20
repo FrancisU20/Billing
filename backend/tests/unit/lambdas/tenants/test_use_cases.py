@@ -249,6 +249,26 @@ class TenantMutationUseCaseTests(unittest.TestCase):
         self.assertEqual(repo.list_calls[0]["sri_environment"], "testing")
         self.assertEqual(repo.list_calls[0]["plan_status"], "active")
 
+    def test_count_delegates_to_repository_without_text_filters(self) -> None:
+        repo = FakeTenantRepository()
+        repo.count_result = 17
+
+        total = ListTenantsUseCase(repo).count(ListTenantsQuery(limit=10, status="active"))
+
+        self.assertEqual(total, 17)
+        self.assertEqual(repo.count_calls[0]["status"], "active")
+
+    def test_count_is_none_when_text_or_computed_filter_is_active(self) -> None:
+        repo = FakeTenantRepository()
+        repo.count_result = 17
+
+        self.assertIsNone(ListTenantsUseCase(repo).count(ListTenantsQuery(limit=10, q="x")))
+        self.assertIsNone(ListTenantsUseCase(repo).count(ListTenantsQuery(limit=10, ruc="x")))
+        self.assertIsNone(
+            ListTenantsUseCase(repo).count(ListTenantsQuery(limit=10, plan_status="active"))
+        )
+        self.assertEqual(repo.count_calls, [])
+
 
 class ApplySubscriptionRenewalUseCaseTests(unittest.TestCase):
     def _repo_with_tenant(self, **overrides) -> FakeTenantRepository:

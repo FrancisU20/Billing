@@ -1,8 +1,8 @@
-import { usePaginatedList } from '@/lib/hooks/usePaginatedList'
+import { useCursorPagedList } from '@/lib/hooks/useCursorPagedList'
 import { clientsApi } from '../api'
 import type { ClientListFilters } from '../types'
 
 export function useClients(filters: ClientListFilters) {
-  const { items, ...state } = usePaginatedList(filters, clientsApi.list)
+  const { items, ...state } = useCursorPagedList(filters, clientsApi.list)
   return { ...state, clients: items }
 }

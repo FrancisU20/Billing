@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { FlatList, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
@@ -7,17 +7,15 @@ import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { ListPaginationControls } from '@/components/ui/ListPaginationControls'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { TenantListItem } from '../components/TenantListItem'
-import {
-  TenantsFilters,
-  emptyTenantFilterDraft,
-  toTenantListFilters,
-  type TenantFilterDraft,
-} from '../components/TenantsFilters'
+import { TenantsFilters } from '../components/TenantsFilters'
+import { emptyTenantFilterDraft, toTenantListFilters, type TenantFilterDraft } from '../filters'
 import { useTenants } from '../hooks/useTenants'
 import type { TenantListFilters } from '../types'
 
@@ -26,7 +24,22 @@ export function TenantsListScreen() {
   const { semantic } = useTheme()
   const [draft, setDraft] = useState<TenantFilterDraft>(emptyTenantFilterDraft)
   const [filters, setFilters] = useState<TenantListFilters>({})
-  const { tenants, loading, loadingMore, error, refresh, fetchMore } = useTenants(filters)
+  const {
+    tenants,
+    loading,
+    error,
+    refresh,
+    nextPage,
+    previousPage,
+    setPageSize,
+    page,
+    pageSize,
+    totalItems,
+    totalPages,
+    canGoNext,
+    canGoPrevious,
+  } = useTenants(filters)
+  useRefreshOnFocus(refresh)
 
   const summary = useMemo(() => {
     const active = tenants.filter((tenant) => tenant.status === 'active').length
@@ -38,18 +51,25 @@ export function TenantsListScreen() {
     setFilters(toTenantListFilters(draft))
   }
 
+  const applySearchFilters = useCallback((nextDraft: TenantFilterDraft) => {
+    setFilters(toTenantListFilters(nextDraft))
+  }, [])
+
   function resetFilters() {
     setDraft(emptyTenantFilterDraft)
     setFilters({})
   }
 
-  if (loading) return <LoadingSpinner fullScreen label="Cargando empresas..." />
+  if (loading && tenants.length === 0)
+    return <LoadingSpinner fullScreen label="Cargando empresas..." />
 
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar
         title="Empresas"
-        subtitle={tenants.length ? `${tenants.length} resultados` : 'Administración SaaS'}
+        subtitle={
+          tenants.length ? `Página ${page} · ${tenants.length} registros` : 'Administración SaaS'
+        }
       />
 
       <FlatList
@@ -97,6 +117,7 @@ export function TenantsListScreen() {
               onChange={setDraft}
               onApply={applyFilters}
               onReset={resetFilters}
+              onSearchApply={applySearchFilters}
             />
 
             {error ? <ApiErrorBanner error={error} /> : null}
@@ -115,14 +136,20 @@ export function TenantsListScreen() {
           />
         }
         ListFooterComponent={
-          loadingMore ? (
-            <View style={styles.loadingMore}>
-              <LoadingSpinner size="small" compact />
-            </View>
-          ) : null
+          <ListPaginationControls
+            page={page}
+            pageSize={pageSize}
+            itemCount={tenants.length}
+            totalItems={totalItems}
+            totalPages={totalPages}
+            canGoPrevious={canGoPrevious}
+            canGoNext={canGoNext}
+            loading={loading}
+            onPrevious={previousPage}
+            onNext={nextPage}
+            onPageSizeChange={setPageSize}
+          />
         }
-        onEndReached={fetchMore}
-        onEndReachedThreshold={0.3}
         refreshing={loading}
         onRefresh={refresh}
         showsVerticalScrollIndicator={false}
@@ -201,5 +228,4 @@ const styles = StyleSheet.create({
   },
   metricValue: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
   metricLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
-  loadingMore: { paddingVertical: spacing[5] },
 })

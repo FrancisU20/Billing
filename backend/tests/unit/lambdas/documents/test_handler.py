@@ -184,6 +184,19 @@ class ListDocumentsHandlerTests(unittest.TestCase):
         self.assertEqual(resp["statusCode"], 200)
         self.assertEqual(body["data"]["items"], [])
 
+    def test_includes_total_from_repository_count(self) -> None:
+        repo = FakeDocumentsRepository()
+        repo.count_result = 8
+        event = api_event(
+            method="GET",
+            path="/documents",
+            claims=_owner_claims("t-1"),
+        )
+        with patch.object(self.mod, "_repo", return_value=repo):
+            resp = self.mod.handler(event, _CTX)
+        body = decode_response(resp)
+        self.assertEqual(body["data"]["total"], 8)
+
     def test_superadmin_can_pass_tenant_id_via_query(self) -> None:
         repo = FakeDocumentsRepository()
         repo.seed(_make_saved_document())

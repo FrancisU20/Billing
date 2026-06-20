@@ -29,6 +29,11 @@ de tenant B. "Consumidor Final" no es un `Client` — es un modo tributario espe
 
 - `frontend/features/clients/`
 - `frontend/app/(app)/(tenant)/clients/`
+- `ClientsListScreen`/`ClientListItem`: `owner|admin` ven Editar + (Eliminar si `active` |
+  Activar si `inactive`, via `clientsApi.setStatus`); `viewer` solo ve "Ver" (gated por
+  `canWrite(role)` de `constants/roles.ts`). Listado, filtros (`ClientsFilters` con
+  `FilterBar` compartido, ver `FRONTEND.md`) y paginacion (`ListPaginationControls` con
+  total real cuando no hay `q`/`identification` activo) — ver `UX_REFACTOR.md` Sprints 1/1.5/2.
 
 ## Entidades
 
@@ -117,6 +122,14 @@ GSI `identification-index`: permite busqueda exacta por `identification` sin sca
 - Busqueda `q` (general): v1 simple — camina paginas DynamoDB hasta llenar `limit` o agotar
   resultados. No usa full-text search. Para volumenes grandes esto es costoso; documentado
   como deuda tecnica.
+
+### Total De Resultados (v2 Paginacion)
+
+`GET /clients` devuelve `total` en el envelope (`ApiResponse.paginated(..., total=...)`) via
+`DynamoClientRepository.count()` — Query tenant-scoped + `Select=COUNT`, sin transferir items.
+`total` es `None`/omitido cuando `q` o `identification` estan activos: esos filtros se resuelven
+en Python (`_ClientListFilters.matches()`), no en DynamoDB, asi que un conteo DB-side no
+reflejaria el resultado filtrado real. Ver `BACKEND.md` para el patron general.
 
 ## Errores De Dominio
 

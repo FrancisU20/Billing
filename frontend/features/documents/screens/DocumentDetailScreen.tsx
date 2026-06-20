@@ -8,6 +8,7 @@ import { DetailField, DetailSection } from '@/components/ui/DetailSection'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
+import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { formatDate, formatDateTime } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { radius, spacing, typography } from '@/constants/tokens'
@@ -20,6 +21,8 @@ export function DocumentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { semantic } = useTheme()
   const { document, loading, error, refresh } = useDocument(id ?? null)
+
+  useRefreshOnFocus(refresh)
 
   const {
     submitting: downloading,

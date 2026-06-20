@@ -31,6 +31,18 @@ class IDocumentsRepository(ABC):
         """Count non-deleted documents emitted this calendar month."""
 
     @abstractmethod
+    def count(
+        self,
+        tenant_id: str,
+        *,
+        status: str | None = None,
+        serie: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> int:
+        """Count documents matching the same filters as `list()`."""
+
+    @abstractmethod
     def save(
         self,
         document: Document,

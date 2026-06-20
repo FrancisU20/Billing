@@ -33,3 +33,15 @@ class ListClientsUseCase:
             created_from=query.created_from,
             created_to=query.created_to,
         )
+
+    def count(self, query: ListClientsQuery) -> int | None:
+        """None when `q`/`identification` are active — those filters are matched
+        in Python, so a DB-side count would not reflect the actual result set."""
+        if query.q or query.identification:
+            return None
+        return self._repo.count(
+            status=query.status,
+            identification_type=query.identification_type,
+            created_from=query.created_from,
+            created_to=query.created_to,
+        )

@@ -89,6 +89,20 @@ export function resolveSuggestedDiscount(
   return round2(gross * (ceilingPct / 100)).toFixed(2)
 }
 
+export function shouldAutoApplySuggestedDiscount(
+  currentDiscount: string | undefined,
+  lastSuggestedDiscount: string | undefined,
+  nextSuggestedDiscount: string,
+): boolean {
+  const current = normalizeMoney(currentDiscount)
+  const next = normalizeMoney(nextSuggestedDiscount)
+  const last = lastSuggestedDiscount ? normalizeMoney(lastSuggestedDiscount) : undefined
+
+  if (current === next) return false
+  if (last && current === last) return true
+  return current === '0.00' && next !== '0.00'
+}
+
 export interface LineTotalsPreview {
   subtotal: number
   totalDiscount: number
@@ -100,6 +114,10 @@ export interface LineTotalsPreview {
 function toNumber(value: string): number {
   const n = parseFloat(value)
   return Number.isFinite(n) ? n : 0
+}
+
+function normalizeMoney(value: string | undefined): string {
+  return round2(toNumber(value ?? '0')).toFixed(2)
 }
 
 function round2(value: number): number {

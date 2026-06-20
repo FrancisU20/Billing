@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { api } from '@/lib/api/client'
+import { DEFAULT_PAGE_SIZE, type PageSize } from '@/constants/pagination'
 import {
   createProductSchema,
   discountCampaignSchema,
@@ -8,7 +9,6 @@ import {
   updateDiscountCampaignSchema,
   updateProductSchema,
 } from './schemas'
-import { PRODUCTS_PAGE_SIZE } from './constants'
 import type {
   CreateProductInput,
   ProductListFilters,
@@ -16,9 +16,13 @@ import type {
   UpdateProductInput,
 } from './types'
 
-function productsPath(filters: ProductListFilters = {}, nextToken?: string): string {
+function productsPath(
+  filters: ProductListFilters = {},
+  nextToken?: string,
+  limit: PageSize = DEFAULT_PAGE_SIZE,
+): string {
   const params = new URLSearchParams()
-  params.set('limit', String(PRODUCTS_PAGE_SIZE))
+  params.set('limit', String(limit))
   if (nextToken) params.set('next_token', nextToken)
   if (filters.q) params.set('q', filters.q)
   if (filters.sku) params.set('sku', filters.sku)
@@ -28,8 +32,8 @@ function productsPath(filters: ProductListFilters = {}, nextToken?: string): str
 }
 
 export const productsApi = {
-  list: (filters?: ProductListFilters, nextToken?: string) =>
-    api.get(productsPath(filters, nextToken), productsPageSchema),
+  list: (filters?: ProductListFilters, nextToken?: string, limit?: PageSize) =>
+    api.get(productsPath(filters, nextToken, limit), productsPageSchema),
 
   getById: (id: string) => api.get(`/products/${encodeURIComponent(id)}`, productSchema),
 
@@ -48,6 +52,11 @@ export const productsApi = {
 
   delete: (id: string, idempotencyKey: string) =>
     api.delete(`/products/${encodeURIComponent(id)}`, z.undefined(), { idempotencyKey }),
+
+  setStatus: (id: string, status: 'ACTIVE' | 'INACTIVE', idempotencyKey: string) =>
+    api.patch(`/products/${encodeURIComponent(id)}`, { status }, productSchema, {
+      idempotencyKey,
+    }),
 
   getDiscountCampaign: () => api.get('/products/discount-campaign', discountCampaignSchema),
 

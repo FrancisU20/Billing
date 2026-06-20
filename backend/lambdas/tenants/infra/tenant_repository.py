@@ -149,6 +149,40 @@ class DynamoTenantRepository(ITenantRepository):
 
         return tenants, encode_cursor(next_cursor)
 
+    def count(
+        self,
+        status: str | None = None,
+        sri_environment: str | None = None,
+        created_from: str | None = None,
+        created_to: str | None = None,
+    ) -> int:
+        """Accurate only when `q`/`plan_status` are not in play — those are
+        matched in Python (plan_status is computed at read time, never stored).
+        Full-table Scan with Select=COUNT: acceptable for a B2B SaaS tenant
+        catalog (same cost class already documented for `list()`)."""
+        filters = _TenantListFilters(
+            status=status,
+            q=None,
+            sri_environment=sri_environment,
+            plan_status=None,
+            created_from=created_from,
+            created_to=created_to,
+        )
+        kwargs: dict = {"FilterExpression": filters.to_dynamo_filter(), "Select": "COUNT"}
+        total = 0
+        try:
+            while True:
+                resp = self._table.scan(**kwargs)
+                total += resp.get("Count", 0)
+                last_key = resp.get("LastEvaluatedKey")
+                if not last_key:
+                    break
+                kwargs["ExclusiveStartKey"] = last_key
+        except ClientError as e:
+            _log.error("DynamoDB count scan error", error=str(e))
+            raise DatabaseError() from e
+        return total
+
     def list_with_subscription_expiry_due(self, before: datetime) -> list[Tenant]:
         """Return tenants with a paid plan whose cycle ends before `before`.
 

@@ -18,6 +18,8 @@ class FakeProductRepository:
         self.list_calls: list[dict] = []
         self.list_result = ([], None)
         self.commit_calls: list[dict] = []
+        self.count_calls: list[dict] = []
+        self.count_result = 0
 
     def get_by_id(self, product_id):
         product = self.products.get(product_id)
@@ -31,6 +33,10 @@ class FakeProductRepository:
     def list(self, **kwargs):
         self.list_calls.append(kwargs)
         return self.list_result
+
+    def count(self, **kwargs):
+        self.count_calls.append(kwargs)
+        return self.count_result
 
     def commit(self, **kwargs):
         self.commit_calls.append(kwargs)
@@ -159,6 +165,23 @@ class ProductUseCaseTests(unittest.TestCase):
         self.assertEqual(next_token, "cursor-1")
         self.assertEqual(repo.list_calls[0]["kind"], "SERVICE")
         self.assertEqual(repo.list_calls[0]["sku"], "SERV-001")
+
+    def test_count_delegates_to_repository_without_text_filters(self) -> None:
+        repo = FakeProductRepository()
+        repo.count_result = 9
+
+        total = ListProductsUseCase(repo).count(ListProductsQuery(limit=10, status="ACTIVE"))
+
+        self.assertEqual(total, 9)
+        self.assertEqual(repo.count_calls[0]["status"], "ACTIVE")
+
+    def test_count_is_none_when_q_or_sku_filter_is_active(self) -> None:
+        repo = FakeProductRepository()
+        repo.count_result = 9
+
+        self.assertIsNone(ListProductsUseCase(repo).count(ListProductsQuery(limit=10, q="x")))
+        self.assertIsNone(ListProductsUseCase(repo).count(ListProductsQuery(limit=10, sku="X")))
+        self.assertEqual(repo.count_calls, [])
 
 
 if __name__ == "__main__":
