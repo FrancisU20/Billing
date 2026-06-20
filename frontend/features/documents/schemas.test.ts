@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   documentSchema,
   documentsPageSchema,
+  documentsSummarySchema,
   emitDocumentResultSchema,
   emitDocumentSchema,
 } from './schemas'
@@ -65,6 +66,32 @@ describe('document contract schemas', () => {
     expect(
       documentsPageSchema.parse({ items: [document], next_token: null, has_more: false }),
     ).toEqual({ items: [document], next_token: null, has_more: false })
+  })
+
+  it('matches GET /documents/summary response', () => {
+    expect(
+      documentsSummarySchema.parse({
+        period_start: '2026-06-01',
+        period_end: '2026-06-19',
+        issued_count: 8,
+        authorized_count: 5,
+        rejected_count: 1,
+        failed_count: 1,
+        pending_count: 1,
+        processing_count: 0,
+        authorized_total: '199.95',
+      }),
+    ).toEqual({
+      period_start: '2026-06-01',
+      period_end: '2026-06-19',
+      issued_count: 8,
+      authorized_count: 5,
+      rejected_count: 1,
+      failed_count: 1,
+      pending_count: 1,
+      processing_count: 0,
+      authorized_total: '199.95',
+    })
   })
 
   it('builds the API payload from UI form values', () => {

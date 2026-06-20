@@ -68,6 +68,7 @@ class EmitDocumentRequest(BaseModel):
 class ListDocumentsQueryParams(BaseModel):
     status: str | None = None
     serie: str | None = None
+    q: str | None = None
     date_from: str | None = None
     date_to: str | None = None
     limit: int = Field(default=20, ge=1, le=100)

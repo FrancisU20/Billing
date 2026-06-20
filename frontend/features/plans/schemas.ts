@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isDecimalInput } from '@/lib/utils/form-validators'
 
 export const limitCycleSchema = z.enum(['month', 'year'])
 
@@ -34,7 +35,10 @@ export const plansListSchema = z.object({
   items: z.array(planSchema),
 })
 
-const priceInputSchema = z.union([z.number().min(0), z.string().min(1)])
+const priceInputSchema = z.union([
+  z.number().min(0),
+  z.string().trim().refine(isDecimalInput, 'Precio inválido'),
+])
 const integerInputSchema = (min: number) =>
   z.preprocess(
     (value) => (typeof value === 'string' ? Number(value) : value),
@@ -77,8 +81,8 @@ export const planFormValuesSchema = z.object({
   slug: z.string().regex(/^[a-z0-9_-]{2,30}$/, 'Slug inválido'),
   name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(80, 'Máximo 80 caracteres'),
   description: z.string().trim().max(300, 'Máximo 300 caracteres'),
-  monthly_price: z.string().trim().min(1, 'Precio requerido'),
-  annual_price: z.string().trim().min(1, 'Precio requerido'),
+  monthly_price: z.string().trim().refine(isDecimalInput, 'Precio inválido'),
+  annual_price: z.string().trim().refine(isDecimalInput, 'Precio inválido'),
   document_limit: z.number().int().min(0),
   document_limit_unlimited: z.boolean(),
   limit_cycle: limitCycleSchema,

@@ -14,6 +14,7 @@ class ListDocumentsUseCase:
             cmd.tenant_id,
             status=cmd.status,
             serie=cmd.serie,
+            q=cmd.q,
             date_from=cmd.date_from,
             date_to=cmd.date_to,
             limit=cmd.limit,
@@ -25,6 +26,7 @@ class ListDocumentsUseCase:
             cmd.tenant_id,
             status=cmd.status,
             serie=cmd.serie,
+            q=cmd.q,
             date_from=cmd.date_from,
             date_to=cmd.date_to,
         )

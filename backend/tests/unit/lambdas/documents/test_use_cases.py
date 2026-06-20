@@ -12,7 +12,7 @@ from lambdas.documents.domain.commands import (
     LineData,
     ListDocumentsCommand,
 )
-from lambdas.documents.domain.entities import Document, DocumentStatus
+from lambdas.documents.domain.entities import Document, DocumentStatus, DocumentSummary
 from lambdas.documents.domain.errors import (
     CertificateNotUploadedError,
     DocumentLimitReachedError,
@@ -26,6 +26,7 @@ from lambdas.documents.domain.repositories.i_discount_campaign_port import (
 from lambdas.documents.domain.repositories.i_product_catalog import InvoiceProductSnapshot
 from lambdas.documents.use_cases.emit_document import EmitDocumentUseCase
 from lambdas.documents.use_cases.get_document import GetDocumentUseCase
+from lambdas.documents.use_cases.get_documents_summary import GetDocumentsSummaryUseCase
 from lambdas.documents.use_cases.get_ride_url import GetRideUrlUseCase
 from lambdas.documents.use_cases.list_documents import ListDocumentsUseCase
 from shared.errors import ValidationError
@@ -44,6 +45,18 @@ class FakeDocumentsRepository:
         self.save_calls: list[Document] = []
         self._month_count: int = 0
         self.count_result: int = 0
+        self.summary_result = DocumentSummary(
+            period_start="2026-06-01",
+            period_end="2026-06-17",
+            issued_count=0,
+            authorized_count=0,
+            rejected_count=0,
+            failed_count=0,
+            pending_count=0,
+            processing_count=0,
+            authorized_total=Decimal("0.00"),
+        )
+        self.list_calls: list[dict[str, Any]] = []
         self.count_calls: list[dict[str, Any]] = []
 
     def get(self, tenant_id: str, document_id: str) -> Document:
@@ -57,6 +70,7 @@ class FakeDocumentsRepository:
         tenant_id: str,
         **kwargs: Any,
     ) -> tuple[list[Document], str | None]:
+        self.list_calls.append({"tenant_id": tenant_id, **kwargs})
         docs = [d for d in self.documents.values() if d.tenant_id == tenant_id]
         return docs, None
 
@@ -66,6 +80,9 @@ class FakeDocumentsRepository:
     def count(self, tenant_id: str, **kwargs: Any) -> int:
         self.count_calls.append({"tenant_id": tenant_id, **kwargs})
         return self.count_result
+
+    def summary_this_month(self, tenant_id: str) -> DocumentSummary:
+        return self.summary_result
 
     def save(self, document: Document, **kwargs: Any) -> None:
         self.save_calls.append(document)
@@ -471,6 +488,27 @@ class EmitDocumentUseCaseTests(unittest.TestCase):
 # ── GetDocumentUseCase ────────────────────────────────────────────────────────
 
 
+class GetDocumentsSummaryUseCaseTests(unittest.TestCase):
+    def test_returns_repository_month_summary(self) -> None:
+        repo = FakeDocumentsRepository()
+        repo.summary_result = DocumentSummary(
+            period_start="2026-06-01",
+            period_end="2026-06-17",
+            issued_count=7,
+            authorized_count=5,
+            rejected_count=1,
+            failed_count=1,
+            pending_count=0,
+            processing_count=0,
+            authorized_total=Decimal("123.45"),
+        )
+
+        summary = GetDocumentsSummaryUseCase(repo).execute("t-1")
+
+        self.assertEqual(summary.issued_count, 7)
+        self.assertEqual(summary.authorized_total, Decimal("123.45"))
+
+
 class GetDocumentUseCaseTests(unittest.TestCase):
     def test_returns_document(self) -> None:
         repo = FakeDocumentsRepository()
@@ -516,6 +554,14 @@ class ListDocumentsUseCaseTests(unittest.TestCase):
         self.assertEqual(total, 12)
         self.assertEqual(repo.count_calls[0]["tenant_id"], "t-1")
         self.assertEqual(repo.count_calls[0]["status"], "AUTHORIZED")
+
+    def test_execute_delegates_search_query_to_repository(self) -> None:
+        repo = FakeDocumentsRepository()
+
+        ListDocumentsUseCase(repo).execute(ListDocumentsCommand(tenant_id="t-1", q="Ulloa"))
+
+        self.assertEqual(repo.list_calls[0]["tenant_id"], "t-1")
+        self.assertEqual(repo.list_calls[0]["q"], "Ulloa")
 
 
 # ── GetRideUrlUseCase ─────────────────────────────────────────────────────────

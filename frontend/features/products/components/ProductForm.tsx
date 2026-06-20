@@ -3,9 +3,10 @@ import { StyleSheet, Text, View } from 'react-native'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
-import { Button } from '@/components/ui/Button'
+import { FormActions } from '@/components/ui/FormActions'
 import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { MoneyField, PercentField } from '@/components/ui/SpecializedFields'
 import type { ApiError } from '@/lib/api/errors'
 import { useTheme } from '@/lib/theme-context'
 import { spacing, typography } from '@/constants/tokens'
@@ -115,11 +116,9 @@ export function ProductForm({ mode, product, onSubmit, isLoading, apiError }: Pr
             control={control}
             name="unit_price"
             render={({ field: { onChange, onBlur, value } }) => (
-              <FormField
+              <MoneyField
                 label="Precio unitario"
                 placeholder="0.00"
-                keyboardType="decimal-pad"
-                leftIcon="cash-outline"
                 error={errors.unit_price?.message}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -167,11 +166,9 @@ export function ProductForm({ mode, product, onSubmit, isLoading, apiError }: Pr
             control={control}
             name="discount_percentage"
             render={({ field: { onChange, onBlur, value } }) => (
-              <FormField
+              <PercentField
                 label="Descuento (%)"
                 placeholder="0.00"
-                keyboardType="decimal-pad"
-                leftIcon="pricetag-outline"
                 error={errors.discount_percentage?.message}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -260,16 +257,12 @@ export function ProductForm({ mode, product, onSubmit, isLoading, apiError }: Pr
 
       {apiError ? <ApiErrorBanner error={apiError} /> : null}
 
-      <Button
-        variant="primary"
-        size="lg"
-        fullWidth
-        isLoading={isLoading}
-        isDisabled={!isValid}
-        onPress={handleSubmit(onSubmit)}
-      >
-        {mode === 'create' ? 'Crear producto' : 'Guardar cambios'}
-      </Button>
+      <FormActions
+        submitLabel={mode === 'create' ? 'Crear producto' : 'Guardar cambios'}
+        isSubmitting={isLoading}
+        isSubmitDisabled={!isValid}
+        onSubmit={handleSubmit(onSubmit)}
+      />
 
       <Text style={[styles.note, { color: semantic.text.tertiary }]}>
         El SKU se usará como código principal en la factura. Las facturas emitidas conservan su

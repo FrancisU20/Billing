@@ -26,12 +26,13 @@ from lambdas.documents.domain.entities import (
     BuyerNotificationStatus,
     Document,
     DocumentStatus,
+    DocumentSummary,
     InvoiceLine,
 )
 from lambdas.documents.domain.errors import DocumentNotFoundError
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from shared.audit.writer import audit_item, audit_put_transact_item
-from shared.dates import current_ecuador_month_utc_bounds, now_utc
+from shared.dates import current_ecuador_month_utc_bounds, now_ecuador, now_utc
 from shared.db.paginator import decode_cursor, encode_cursor
 from shared.errors import DatabaseError
 from shared.logger import get_logger
@@ -44,6 +45,10 @@ _GSI = "tenant-docs-index"
 def _dt(value: str) -> datetime:
     dt = datetime.fromisoformat(value)
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
+def _digits_only(value: str) -> str:
+    return "".join(ch for ch in value if ch.isdigit())
 
 
 class DynamoDocumentsRepository(IDocumentsRepository):
@@ -97,37 +102,96 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             filter_expr = filter_expr & f
         return filter_expr
 
+    def _matches_search(self, item: dict, q: str | None) -> bool:
+        query = (q or "").strip()
+        if not query:
+            return True
+
+        query_text = query.casefold()
+        query_digits = _digits_only(query)
+        serie = str(item.get("serie") or "")
+        try:
+            sequential = int(item.get("sequential") or 0)
+        except (TypeError, ValueError):
+            sequential = 0
+        sequential_padded = str(sequential).zfill(9)
+        sequential_display = (
+            f"{serie[:3]}-{serie[3:]}-{sequential_padded}"
+            if len(serie) == 6
+            else f"{serie}-{sequential_padded}"
+        )
+        buyer_id = str(item.get("buyer_id") or "")
+        buyer_name = str(item.get("buyer_name") or "")
+        access_key = str(item.get("access_key") or "")
+
+        text_candidates = [serie, sequential_display, buyer_id, buyer_name, access_key]
+        if any(query_text in candidate.casefold() for candidate in text_candidates):
+            return True
+
+        if not query_digits:
+            return False
+
+        digit_candidates = [
+            _digits_only(serie),
+            sequential_padded,
+            f"{_digits_only(serie)}{sequential_padded}",
+            _digits_only(buyer_id),
+            _digits_only(access_key),
+        ]
+        return any(query_digits in candidate for candidate in digit_candidates)
+
     def list(
         self,
         tenant_id: str,
         *,
         status: str | None = None,
         serie: str | None = None,
+        q: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
         limit: int = 20,
         cursor: str | None = None,
     ) -> tuple[list[Document], str | None]:
+        has_search = bool((q or "").strip())
         kwargs: dict = {
             "IndexName": _GSI,
             "KeyConditionExpression": Key("tenant_id").eq(tenant_id),
             "FilterExpression": self._list_filter_expr(status, serie, date_from, date_to),
             "ScanIndexForward": False,
-            "Limit": limit,
         }
+        if not has_search:
+            kwargs["Limit"] = limit
         start_key = decode_cursor(cursor)
         if start_key:
             kwargs["ExclusiveStartKey"] = start_key
 
+        documents: list[Document] = []
+        next_cursor = None
         try:
-            resp = self._table.query(**kwargs)
+            if not has_search:
+                resp = self._table.query(**kwargs)
+                items = resp.get("Items", [])
+                next_cursor = encode_cursor(resp.get("LastEvaluatedKey"))
+                return [self._from_item(item) for item in items], next_cursor
+
+            while len(documents) < limit:
+                kwargs["Limit"] = limit - len(documents)
+                resp = self._table.query(**kwargs)
+                documents.extend(
+                    self._from_item(item)
+                    for item in resp.get("Items", [])
+                    if self._matches_search(item, q)
+                )
+                last_key = resp.get("LastEvaluatedKey")
+                next_cursor = encode_cursor(last_key)
+                if len(documents) >= limit or not last_key:
+                    break
+                kwargs["ExclusiveStartKey"] = last_key
         except ClientError as exc:
             _log.error("DynamoDB query error (documents list)", error=str(exc))
             raise DatabaseError() from exc
 
-        items = resp.get("Items", [])
-        next_cursor = encode_cursor(resp.get("LastEvaluatedKey"))
-        return [self._from_item(i) for i in items], next_cursor
+        return documents[:limit], next_cursor
 
     def count(
         self,
@@ -135,6 +199,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         *,
         status: str | None = None,
         serie: str | None = None,
+        q: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> int:
@@ -142,13 +207,19 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             "IndexName": _GSI,
             "KeyConditionExpression": Key("tenant_id").eq(tenant_id),
             "FilterExpression": self._list_filter_expr(status, serie, date_from, date_to),
-            "Select": "COUNT",
         }
+        if not (q or "").strip():
+            kwargs["Select"] = "COUNT"
         total = 0
         try:
             while True:
                 resp = self._table.query(**kwargs)
-                total += resp.get("Count", 0)
+                if (q or "").strip():
+                    total += sum(
+                        1 for item in resp.get("Items", []) if self._matches_search(item, q)
+                    )
+                else:
+                    total += resp.get("Count", 0)
                 last_key = resp.get("LastEvaluatedKey")
                 if not last_key:
                     break
@@ -186,6 +257,60 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             _log.error("DynamoDB count_this_month error", error=str(exc))
             raise DatabaseError() from exc
         return total
+
+    def summary_this_month(self, tenant_id: str) -> DocumentSummary:
+        start_utc, end_utc = current_ecuador_month_utc_bounds()
+        local_now = now_ecuador()
+        period_start = local_now.replace(day=1).date().isoformat()
+        period_end = local_now.date().isoformat()
+        status_counts = {status.value: 0 for status in DocumentStatus}
+        authorized_total = Decimal("0.00")
+        last_key = None
+
+        try:
+            while True:
+                kwargs: dict = {
+                    "IndexName": _GSI,
+                    "KeyConditionExpression": (
+                        Key("tenant_id").eq(tenant_id)
+                        & Key("created_at").between(start_utc, end_utc)
+                    ),
+                    "FilterExpression": Attr("deleted").ne(True),
+                }
+                if last_key:
+                    kwargs["ExclusiveStartKey"] = last_key
+
+                resp = self._table.query(**kwargs)
+                for item in resp.get("Items", []):
+                    status = str(item.get("status") or "")
+                    if status not in status_counts:
+                        continue
+                    status_counts[status] += 1
+                    if status == DocumentStatus.AUTHORIZED.value:
+                        authorized_total += Decimal(str(item.get("total", "0.00")))
+
+                last_key = resp.get("LastEvaluatedKey")
+                if not last_key:
+                    break
+        except ClientError as exc:
+            _log.error("DynamoDB summary_this_month error", error=str(exc))
+            raise DatabaseError() from exc
+
+        failed_count = (
+            status_counts[DocumentStatus.FAILED.value]
+            + status_counts[DocumentStatus.FAILED_PERMANENT.value]
+        )
+        return DocumentSummary(
+            period_start=period_start,
+            period_end=period_end,
+            issued_count=sum(status_counts.values()),
+            authorized_count=status_counts[DocumentStatus.AUTHORIZED.value],
+            rejected_count=status_counts[DocumentStatus.REJECTED.value],
+            failed_count=failed_count,
+            pending_count=status_counts[DocumentStatus.PENDING.value],
+            processing_count=status_counts[DocumentStatus.PROCESSING.value],
+            authorized_total=authorized_total.quantize(Decimal("0.01")),
+        )
 
     # ── write ─────────────────────────────────────────────────────────────────
 

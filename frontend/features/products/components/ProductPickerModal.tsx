@@ -7,6 +7,7 @@ import { FormField } from '@/components/ui/FormField'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { MoneyField } from '@/components/ui/SpecializedFields'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { ApiError, toApiError, type ApiError as ApiErrorType } from '@/lib/api/errors'
 import { useTheme } from '@/lib/theme-context'
@@ -18,9 +19,15 @@ interface ProductPickerModalProps {
   visible: boolean
   onClose: () => void
   onSelect: (product: Product) => void
+  campaign?: { active: boolean; percentage: string } | null
 }
 
-export function ProductPickerModal({ visible, onClose, onSelect }: ProductPickerModalProps) {
+export function ProductPickerModal({
+  visible,
+  onClose,
+  onSelect,
+  campaign = null,
+}: ProductPickerModalProps) {
   const { semantic } = useTheme()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Product[]>([])
@@ -221,8 +228,7 @@ export function ProductPickerModal({ visible, onClose, onSelect }: ProductPicker
                 </View>
               }
               renderItem={({ item }) => {
-                const discountPercentage = Number(item.discount_percentage ?? 0)
-                const discountText = discountPercentage > 0 ? ` · Desc. ${discountPercentage}%` : ''
+                const discount = resolvePickerDiscount(item, campaign)
 
                 return (
                   <Pressable
@@ -246,8 +252,15 @@ export function ProductPickerModal({ visible, onClose, onSelect }: ProductPicker
                       numberOfLines={1}
                     >
                       {item.sku} · IVA {item.iva_rate} · ${Number(item.unit_price).toFixed(2)}
-                      {discountText}
                     </Text>
+                    {discount ? (
+                      <Text
+                        style={[styles.discountMeta, { color: semantic.accent.default }]}
+                        numberOfLines={1}
+                      >
+                        {discount}
+                      </Text>
+                    ) : null}
                   </Pressable>
                 )
               }}
@@ -281,11 +294,9 @@ export function ProductPickerModal({ visible, onClose, onSelect }: ProductPicker
                   />
                 </View>
                 <View style={styles.quickCol}>
-                  <FormField
+                  <MoneyField
                     label="Precio"
                     placeholder="0.00"
-                    keyboardType="decimal-pad"
-                    leftIcon="cash-outline"
                     value={quickPrice}
                     onChangeText={setQuickPrice}
                     required
@@ -319,6 +330,24 @@ export function ProductPickerModal({ visible, onClose, onSelect }: ProductPicker
   )
 }
 
+function resolvePickerDiscount(
+  product: Product,
+  campaign: { active: boolean; percentage: string } | null,
+): string | null {
+  const productPct = Number(product.discount_percentage ?? 0)
+  const campaignPct = campaign?.active ? Number(campaign.percentage) : 0
+  const effectivePct = Math.max(
+    Number.isFinite(productPct) ? productPct : 0,
+    Number.isFinite(campaignPct) ? campaignPct : 0,
+  )
+
+  if (effectivePct <= 0) return null
+
+  const source = productPct >= campaignPct ? 'catálogo' : 'campaña global'
+  const amount = (Number(product.unit_price) * (effectivePct / 100)).toFixed(2)
+  return `Descuento sugerido: ${effectivePct}% por ${source} · $${amount} por unidad`
+}
+
 const styles = StyleSheet.create({
   overlay: {
     alignItems: 'center',
@@ -347,6 +376,7 @@ const styles = StyleSheet.create({
   resultRow: { borderBottomWidth: 1, gap: spacing[1] - 2, padding: spacing[3] },
   resultName: { fontSize: typography.size.base, fontWeight: typography.weight.semibold },
   resultMeta: { fontFamily: typography.fontFamily.mono, fontSize: typography.size.xs },
+  discountMeta: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
   quickBox: { borderRadius: radius.md, borderWidth: 1, gap: spacing[3], padding: spacing[3] },
   quickTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },

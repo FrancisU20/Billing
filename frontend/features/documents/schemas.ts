@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isDecimalInput, isPositiveDecimalInput } from '@/lib/utils/form-validators'
 
 export const documentStatusSchema = z.enum([
   'PENDING',
@@ -77,6 +78,18 @@ export const documentsPageSchema = z.object({
   total: z.number().nullable().optional(),
 })
 
+export const documentsSummarySchema = z.object({
+  period_start: z.string().min(1),
+  period_end: z.string().min(1),
+  issued_count: z.coerce.number(),
+  authorized_count: z.coerce.number(),
+  rejected_count: z.coerce.number(),
+  failed_count: z.coerce.number(),
+  pending_count: z.coerce.number(),
+  processing_count: z.coerce.number(),
+  authorized_total: z.string().min(1),
+})
+
 export const rideUrlSchema = z.object({
   url: z.string().min(1),
 })
@@ -97,18 +110,9 @@ export const emitDocumentLineSchema = z
     product_id: z.string().nullable().optional(),
     code: z.string().trim().min(1, 'Requerido').max(25, 'Máximo 25 caracteres'),
     description: z.string().trim().min(1, 'Requerido').max(300, 'Máximo 300 caracteres'),
-    quantity: z
-      .string()
-      .trim()
-      .regex(/^\d+(\.\d{1,2})?$/, 'Cantidad inválida'),
-    unit_price: z
-      .string()
-      .trim()
-      .regex(/^\d+(\.\d{1,2})?$/, 'Precio inválido'),
-    discount: z
-      .string()
-      .trim()
-      .regex(/^\d+(\.\d{1,2})?$/, 'Descuento inválido'),
+    quantity: z.string().trim().refine(isDecimalInput, 'Cantidad inválida'),
+    unit_price: z.string().trim().refine(isDecimalInput, 'Precio inválido'),
+    discount: z.string().trim().refine(isDecimalInput, 'Descuento inválido'),
     iva_rate: ivaRateSchema,
   })
   .superRefine((line, ctx) => {
@@ -117,14 +121,14 @@ export const emitDocumentLineSchema = z
     const discount = Number(line.discount)
     const gross = quantity * unitPrice
 
-    if (!Number.isFinite(quantity) || quantity <= 0) {
+    if (!isPositiveDecimalInput(line.quantity) || !Number.isFinite(quantity)) {
       ctx.addIssue({
         code: 'custom',
         path: ['quantity'],
         message: 'Debe ser mayor a cero',
       })
     }
-    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
+    if (!isPositiveDecimalInput(line.unit_price) || !Number.isFinite(unitPrice)) {
       ctx.addIssue({
         code: 'custom',
         path: ['unit_price'],
@@ -228,6 +232,7 @@ export type SriErrorDetail = z.infer<typeof sriErrorSchema>
 export type DocumentLine = z.infer<typeof documentLineSchema>
 export type Document = z.infer<typeof documentSchema>
 export type DocumentsPage = z.infer<typeof documentsPageSchema>
+export type DocumentsSummary = z.infer<typeof documentsSummarySchema>
 export type EmitDocumentResult = z.infer<typeof emitDocumentResultSchema>
 export type EmitDocumentLineInput = z.infer<typeof emitDocumentLineSchema>
 export type EmitDocumentInput = z.infer<typeof emitDocumentSchema>

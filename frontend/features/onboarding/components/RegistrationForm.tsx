@@ -4,9 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
-import { Button } from '@/components/ui/Button'
+import { FormActions } from '@/components/ui/FormActions'
 import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { EmailField, PhoneField, RucField } from '@/components/ui/SpecializedFields'
 import { useTheme } from '@/lib/theme-context'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { registrationFormDefaultValues } from '../form'
@@ -36,10 +37,12 @@ export function RegistrationForm({
     control,
     handleSubmit,
     setValue,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm<RegistrationFormValues>({
     resolver: zodResolver(registrationFormValuesSchema),
     defaultValues: defaultValues ?? registrationFormDefaultValues(),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
   })
   const accountingRequired = useWatch({ control, name: 'accounting_required' })
 
@@ -50,11 +53,9 @@ export function RegistrationForm({
           control={control}
           name="ruc"
           render={({ field: { onChange, onBlur, value } }) => (
-            <FormField
+            <RucField
               label="RUC"
               placeholder="1792146739001"
-              keyboardType="number-pad"
-              leftIcon="card-outline"
               error={errors.ruc?.message}
               onChangeText={onChange}
               onBlur={onBlur}
@@ -139,12 +140,9 @@ export function RegistrationForm({
           control={control}
           name="email"
           render={({ field: { onChange, onBlur, value } }) => (
-            <FormField
+            <EmailField
               label="Email"
               placeholder="admin@empresa.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              leftIcon="mail-outline"
               error={errors.email?.message}
               onChangeText={onChange}
               onBlur={onBlur}
@@ -157,11 +155,9 @@ export function RegistrationForm({
           control={control}
           name="phone"
           render={({ field: { onChange, onBlur, value } }) => (
-            <FormField
+            <PhoneField
               label="Teléfono"
               placeholder="0999999999"
-              keyboardType="phone-pad"
-              leftIcon="call-outline"
               error={errors.phone?.message}
               onChangeText={onChange}
               onBlur={onBlur}
@@ -190,15 +186,12 @@ export function RegistrationForm({
 
       {apiError ? <ApiErrorBanner error={apiError} /> : null}
 
-      <Button
-        variant="primary"
-        size="lg"
-        fullWidth
-        isLoading={isLoading}
-        onPress={handleSubmit(onSubmit)}
-      >
-        Continuar
-      </Button>
+      <FormActions
+        submitLabel="Continuar"
+        isSubmitting={isLoading}
+        isSubmitDisabled={!isValid}
+        onSubmit={handleSubmit(onSubmit)}
+      />
     </View>
   )
 }

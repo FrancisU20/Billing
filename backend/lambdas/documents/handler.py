@@ -6,6 +6,7 @@ Documents Lambda — electronic invoice emission and retrieval.
 Routes:
     POST /documents                → emit_document (202 Accepted)
     GET  /documents                → list_documents
+    GET  /documents/summary        → get_documents_summary
     GET  /documents/{id}           → get_document
     GET  /documents/{id}/ride      → get_ride_url (pre-signed S3 URL)
 
@@ -42,6 +43,7 @@ from lambdas.documents.infra.sequences_adapter import DynamoSequencesAdapter
 from lambdas.documents.schemas import EmitDocumentRequest, ListDocumentsQueryParams
 from lambdas.documents.use_cases.emit_document import EmitDocumentUseCase
 from lambdas.documents.use_cases.get_document import GetDocumentUseCase
+from lambdas.documents.use_cases.get_documents_summary import GetDocumentsSummaryUseCase
 from lambdas.documents.use_cases.get_ride_url import GetRideUrlUseCase
 from lambdas.documents.use_cases.list_documents import ListDocumentsUseCase
 from lambdas.tenants.domain.enums import SriEnvironment
@@ -215,6 +217,7 @@ def _list(request: Request, context) -> dict:
         tenant_id=tenant_id,
         status=params.status,
         serie=params.serie,
+        q=params.q,
         date_from=params.date_from,
         date_to=params.date_to,
         limit=params.limit,
@@ -227,6 +230,14 @@ def _list(request: Request, context) -> dict:
         request_id=request.request_id,
         total=use_case.count(command),
     )
+
+
+@lambda_handler
+@require_role("owner", "admin", "viewer", "superadmin")
+def _summary(request: Request, context) -> dict:
+    tenant_id = _resolve_tenant_id(request)
+    summary = GetDocumentsSummaryUseCase(_repo()).execute(tenant_id)
+    return ApiResponse.ok(summary.to_dict(), request.request_id)
 
 
 @lambda_handler
@@ -260,6 +271,7 @@ def _get_ride(request: Request, context) -> dict:
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 _DOCUMENTS_PATTERN = re.compile(r"^/documents$")
+_DOCUMENTS_SUMMARY_PATTERN = re.compile(r"^/documents/summary$")
 _DOCUMENT_PATTERN = re.compile(r"^/documents/[^/]+$")
 _RIDE_PATTERN = re.compile(r"^/documents/[^/]+/ride$")
 
@@ -276,6 +288,10 @@ def handler(event: dict, context) -> dict:
             return _emit(event, context)
         if method == "GET":
             return _list(event, context)
+
+    if _DOCUMENTS_SUMMARY_PATTERN.match(path):
+        if method == "GET":
+            return _summary(event, context)
 
     if _RIDE_PATTERN.match(path):
         if method == "GET":

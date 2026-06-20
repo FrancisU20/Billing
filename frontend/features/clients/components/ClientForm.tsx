@@ -4,9 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
-import { Button } from '@/components/ui/Button'
+import { FormActions } from '@/components/ui/FormActions'
 import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { EmailField, IdentificationField, PhoneField } from '@/components/ui/SpecializedFields'
 import { useTheme } from '@/lib/theme-context'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { clientFormValuesSchema, type ClientFormValues } from '../schemas'
@@ -33,10 +34,12 @@ export function ClientForm({ mode, client, onSubmit, isLoading, apiError }: Clie
     control,
     handleSubmit,
     setValue,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormValuesSchema),
     defaultValues: clientToFormValues(client),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
   })
   const identificationType = useWatch({ control, name: 'identification_type' })
   const personType = useWatch({ control, name: 'person_type' })
@@ -67,12 +70,10 @@ export function ClientForm({ mode, client, onSubmit, isLoading, apiError }: Clie
           control={control}
           name="identification"
           render={({ field: { onChange, onBlur, value } }) => (
-            <FormField
+            <IdentificationField
+              identificationType={identificationType}
               label="Identificación"
               placeholder={identificationType === 'ruc' ? '1792146739001' : '1710034065'}
-              keyboardType={identificationType === 'pasaporte' ? 'default' : 'number-pad'}
-              autoCapitalize="characters"
-              leftIcon="finger-print-outline"
               error={errors.identification?.message}
               onChangeText={onChange}
               onBlur={onBlur}
@@ -156,12 +157,9 @@ export function ClientForm({ mode, client, onSubmit, isLoading, apiError }: Clie
           control={control}
           name="email"
           render={({ field: { onChange, onBlur, value } }) => (
-            <FormField
+            <EmailField
               label="Email principal"
               placeholder="facturacion@cliente.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              leftIcon="mail-outline"
               error={errors.email?.message}
               onChangeText={onChange}
               onBlur={onBlur}
@@ -173,11 +171,9 @@ export function ClientForm({ mode, client, onSubmit, isLoading, apiError }: Clie
           control={control}
           name="phone"
           render={({ field: { onChange, onBlur, value } }) => (
-            <FormField
+            <PhoneField
               label="Teléfono principal"
               placeholder="0999999999"
-              keyboardType="phone-pad"
-              leftIcon="call-outline"
               error={errors.phone?.message}
               onChangeText={onChange}
               onBlur={onBlur}
@@ -250,15 +246,12 @@ export function ClientForm({ mode, client, onSubmit, isLoading, apiError }: Clie
 
       {apiError ? <ApiErrorBanner error={apiError} /> : null}
 
-      <Button
-        variant="primary"
-        size="lg"
-        fullWidth
-        isLoading={isLoading}
-        onPress={handleSubmit(onSubmit)}
-      >
-        {mode === 'create' ? 'Crear cliente' : 'Guardar cambios'}
-      </Button>
+      <FormActions
+        submitLabel={mode === 'create' ? 'Crear cliente' : 'Guardar cambios'}
+        isSubmitting={isLoading}
+        isSubmitDisabled={!isValid}
+        onSubmit={handleSubmit(onSubmit)}
+      />
     </View>
   )
 }

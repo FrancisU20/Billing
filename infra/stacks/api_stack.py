@@ -748,6 +748,7 @@ class ApiStack(Stack):
         for method, route in [
             (apigwv2.HttpMethod.POST, "/documents"),
             (apigwv2.HttpMethod.GET,  "/documents"),
+            (apigwv2.HttpMethod.GET,  "/documents/summary"),
             (apigwv2.HttpMethod.GET,  "/documents/{id}"),
             (apigwv2.HttpMethod.GET,  "/documents/{id}/ride"),
         ]:

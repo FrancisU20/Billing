@@ -1,45 +1,26 @@
 import React from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import type { Href } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useTheme } from '@/lib/theme-context'
 import { typography, spacing, radius, shadow, sizes } from '@/constants/tokens'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
+import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
+import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useAuthStore, selectUser } from '@/features/auth/store'
+import { Routes } from '@/constants/routes'
 import { RoleLabel, canWrite } from '@/constants/roles'
+import { useDocumentsSummary } from '@/features/documents/hooks/useDocumentsSummary'
 import { CertificateSection } from '../components/CertificateSection'
 import { useTenant } from '../hooks/useTenant'
 
-type MetricTone = 'primary' | 'secondary' | 'error'
-
-const dashboardMetrics = [
-  {
-    icon: 'document-text-outline',
-    label: 'Documentos emitidos',
-    value: '—',
-    detail: 'Sin actividad registrada',
-    tone: 'primary',
-  },
-  {
-    icon: 'pulse-outline',
-    label: 'Autorizaciones',
-    value: '—',
-    detail: 'Sin datos del SRI',
-    tone: 'secondary',
-  },
-  {
-    icon: 'alert-circle-outline',
-    label: 'Con error',
-    value: '—',
-    detail: 'Sin emisiones registradas',
-    tone: 'error',
-  },
-] as const
+type MetricTone = 'primary' | 'secondary' | 'success' | 'error'
 
 const modulePreview = [
-  { icon: 'receipt-outline', title: 'Facturas', subtitle: 'Emisión SRI' },
   {
     icon: 'return-down-back-outline',
     title: 'Notas de crédito',
@@ -49,20 +30,67 @@ const modulePreview = [
 ] as const
 
 export function TenantDashboardScreen() {
+  const router = useRouter()
   const user = useAuthStore(selectUser)
   const { semantic } = useTheme()
   const roleLabel = user?.role ? RoleLabel[user.role] : 'Sin rol'
   const { tenant, loading: tenantLoading, refresh } = useTenant(user?.tenantId ?? null)
+  const {
+    summary,
+    loading: summaryLoading,
+    error: summaryError,
+    refresh: refreshSummary,
+  } = useDocumentsSummary()
   const tenantId = user?.tenantId ?? null
   const canManageCertificate = canWrite(user?.role ?? null)
 
   useRefreshOnFocus(refresh)
+  useRefreshOnFocus(refreshSummary)
 
   if (tenantLoading) return <LoadingSpinner fullScreen label="Cargando..." />
 
   const companyName = tenant?.trade_name ?? 'Mi Empresa'
 
   const sriBadge = tenant?.sri_environment === 'production' ? 'Producción' : 'Pruebas'
+  const issuedCount = summary?.issued_count ?? 0
+  const authorizedCount = summary?.authorized_count ?? 0
+  const rejectedCount = summary?.rejected_count ?? 0
+  const failedCount = summary?.failed_count ?? 0
+  const inProgressCount = (summary?.pending_count ?? 0) + (summary?.processing_count ?? 0)
+  const authorizedRate = issuedCount > 0 ? Math.round((authorizedCount / issuedCount) * 100) : 0
+  const periodCaption = summary
+    ? `Periodo ${formatCivilDate(summary.period_start)} - ${formatCivilDate(summary.period_end)}`
+    : 'Periodo actual'
+  const dashboardMetrics = [
+    {
+      icon: 'document-text-outline',
+      label: 'Documentos emitidos',
+      value: formatInteger(issuedCount),
+      detail: summaryLoading ? 'Actualizando...' : periodCaption,
+      tone: 'primary',
+    },
+    {
+      icon: 'checkmark-circle-outline',
+      label: 'Autorizados',
+      value: formatInteger(authorizedCount),
+      detail: `${authorizedRate}% de autorización`,
+      tone: 'success',
+    },
+    {
+      icon: 'alert-circle-outline',
+      label: 'Con novedad',
+      value: formatInteger(rejectedCount + failedCount),
+      detail: `${rejectedCount} rechazados · ${failedCount} fallidos`,
+      tone: 'error',
+    },
+    {
+      icon: 'cash-outline',
+      label: 'Total autorizado',
+      value: formatCurrency(summary?.authorized_total ?? '0.00'),
+      detail: `${formatInteger(inProgressCount)} en proceso`,
+      tone: 'secondary',
+    },
+  ] as const
 
   return (
     <View style={[staticStyles.container, { backgroundColor: semantic.bg.page }]}>
@@ -119,12 +147,16 @@ export function TenantDashboardScreen() {
 
           <View style={[staticStyles.heroFooter, { borderTopColor: semantic.border.default }]}>
             <HeroSignal label="Estado" value="En línea" />
-            <HeroSignal label="Periodo" value="Actual" />
+            <HeroSignal
+              label="Periodo"
+              value={summary ? formatCivilDate(summary.period_end) : 'Actual'}
+            />
             <HeroSignal label="Ambiente" value={sriBadge} />
           </View>
         </View>
 
         <SectionHeader title="Resumen operativo" caption="Actividad del periodo" />
+        {summaryError ? <ApiErrorBanner error={summaryError} /> : null}
         <View style={staticStyles.metricGrid}>
           {dashboardMetrics.map((metric) => (
             <MetricCard
@@ -153,19 +185,54 @@ export function TenantDashboardScreen() {
                 Flujo del mes
               </Text>
               <Text style={[staticStyles.insightDescription, { color: semantic.text.secondary }]}>
-                La actividad aparecerá aquí cuando empiecen las emisiones.
+                {issuedCount > 0
+                  ? `${authorizedCount} de ${issuedCount} documentos ya fueron autorizados por el SRI.`
+                  : 'Aún no hay documentos emitidos en el periodo actual.'}
               </Text>
             </View>
           </View>
           <View style={[staticStyles.progressTrack, { backgroundColor: semantic.chart.track }]}>
             <View
-              style={[staticStyles.progressFill, { backgroundColor: semantic.chart.tertiary }]}
+              style={[
+                staticStyles.progressFill,
+                { backgroundColor: semantic.chart.tertiary, width: `${authorizedRate}%` },
+              ]}
             />
           </View>
         </Card>
 
         <SectionHeader title="Módulos" caption="Suite fiscal" />
         <Card variant="elevated" elevated style={staticStyles.modulesCard}>
+          <View style={[staticStyles.moduleRow, { borderBottomColor: semantic.border.default }]}>
+            <View style={[staticStyles.moduleIcon, { backgroundColor: semantic.accent.subtle }]}>
+              <Ionicons name="receipt-outline" size={18} color={semantic.accent.default} />
+            </View>
+            <View style={staticStyles.moduleCopy}>
+              <Text style={[staticStyles.moduleTitle, { color: semantic.text.primary }]}>
+                Facturas
+              </Text>
+              <Text style={[staticStyles.moduleSubtitle, { color: semantic.text.secondary }]}>
+                Emisión SRI habilitada
+              </Text>
+              <View style={staticStyles.moduleActions}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onPress={() => router.push(Routes.tenant.documentNew as Href)}
+                >
+                  Emitir
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onPress={() => router.push(Routes.tenant.documents as Href)}
+                >
+                  Ver documentos
+                </Button>
+              </View>
+            </View>
+            <Ionicons name="checkmark-circle-outline" size={18} color={semantic.status.success} />
+          </View>
           {modulePreview.map((module) => (
             <View
               key={module.title}
@@ -184,7 +251,16 @@ export function TenantDashboardScreen() {
                   {module.subtitle}
                 </Text>
               </View>
-              <Ionicons name="time-outline" size={18} color={semantic.text.tertiary} />
+              <View
+                style={[
+                  staticStyles.comingSoonPill,
+                  { backgroundColor: semantic.bg.muted, borderColor: semantic.border.default },
+                ]}
+              >
+                <Text style={[staticStyles.comingSoonText, { color: semantic.text.tertiary }]}>
+                  Próximo
+                </Text>
+              </View>
             </View>
           ))}
           <View style={staticStyles.moduleFooter}>
@@ -245,6 +321,7 @@ function MetricCard({
   const tones: Record<MetricTone, { color: string; bg: string }> = {
     primary: { color: semantic.accent.default, bg: semantic.accent.subtle },
     secondary: { color: semantic.accent.alt, bg: semantic.accent.altSubtle },
+    success: { color: semantic.status.success, bg: semantic.status.successBg },
     error: { color: semantic.status.error, bg: semantic.status.errorBg },
   }
   const palette = tones[tone]
@@ -268,6 +345,25 @@ function MetricCard({
       </View>
     </Card>
   )
+}
+
+function formatInteger(value: number): string {
+  return new Intl.NumberFormat('es-EC', { maximumFractionDigits: 0 }).format(value)
+}
+
+function formatCurrency(value: string): string {
+  const amount = Number(value)
+  return new Intl.NumberFormat('es-EC', {
+    currency: 'USD',
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+    style: 'currency',
+  }).format(Number.isFinite(amount) ? amount : 0)
+}
+
+function formatCivilDate(value: string): string {
+  const [year, month, day] = value.split('-')
+  return year && month && day ? `${day}/${month}/${year}` : value
 }
 
 const staticStyles = StyleSheet.create({
@@ -356,7 +452,7 @@ const staticStyles = StyleSheet.create({
     lineHeight: typography.size.sm * typography.lineHeight.normal,
   },
   progressTrack: { height: 8, borderRadius: radius.full, overflow: 'hidden' },
-  progressFill: { width: 0, height: '100%' },
+  progressFill: { height: '100%' },
   modulesCard: { paddingBottom: 0 },
   moduleRow: {
     flexDirection: 'row',
@@ -375,6 +471,19 @@ const staticStyles = StyleSheet.create({
   moduleCopy: { flex: 1, minWidth: 0, gap: spacing[1] },
   moduleTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
   moduleSubtitle: { fontSize: typography.size.xs },
+  moduleActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[2],
+    paddingTop: spacing[2],
+  },
+  comingSoonPill: {
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[1],
+  },
+  comingSoonText: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
   moduleFooter: { paddingVertical: spacing[4] },
   moduleFooterText: {
     fontSize: typography.size.sm,

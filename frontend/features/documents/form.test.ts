@@ -4,6 +4,7 @@ import {
   defaultEmitDocumentFormValues,
   ecuadorIssuedAtDate,
   ecuadorIssuedAtDisplay,
+  resolveDiscountPolicy,
   resolveSuggestedDiscount,
   shouldAutoApplySuggestedDiscount,
 } from './form'
@@ -162,6 +163,39 @@ describe('resolveSuggestedDiscount', () => {
   it('returns 0 for an invalid or zero gross amount', () => {
     expect(resolveSuggestedDiscount('0', '30.00', '60.00', null)).toBe('0.00')
     expect(resolveSuggestedDiscount('', '', '60.00', null)).toBe('0.00')
+  })
+})
+
+describe('resolveDiscountPolicy', () => {
+  it('describes no discount when there is no product or active campaign percentage', () => {
+    expect(resolveDiscountPolicy('1', '100.00', null, null)).toEqual({
+      amount: '0.00',
+      percentage: 0,
+      source: 'none',
+      label: 'Sin descuento',
+    })
+  })
+
+  it('uses product discount when it is higher than campaign', () => {
+    expect(
+      resolveDiscountPolicy('2', '50.00', '15.00', { active: true, percentage: '10.00' }),
+    ).toEqual({
+      amount: '15.00',
+      percentage: 15,
+      source: 'product',
+      label: 'Catálogo',
+    })
+  })
+
+  it('uses active campaign when it is higher than product discount', () => {
+    expect(
+      resolveDiscountPolicy('1', '80.00', '5.00', { active: true, percentage: '12.50' }),
+    ).toEqual({
+      amount: '10.00',
+      percentage: 12.5,
+      source: 'campaign',
+      label: 'Campaña',
+    })
   })
 })
 

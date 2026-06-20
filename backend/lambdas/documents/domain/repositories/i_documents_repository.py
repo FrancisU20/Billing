@@ -4,7 +4,12 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 from lambdas._base.idempotency import IdempotencyContext
-from lambdas.documents.domain.entities import BuyerNotificationStatus, Document, DocumentStatus
+from lambdas.documents.domain.entities import (
+    BuyerNotificationStatus,
+    Document,
+    DocumentStatus,
+    DocumentSummary,
+)
 
 
 class IDocumentsRepository(ABC):
@@ -19,6 +24,7 @@ class IDocumentsRepository(ABC):
         *,
         status: str | None = None,
         serie: str | None = None,
+        q: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
         limit: int = 20,
@@ -31,12 +37,17 @@ class IDocumentsRepository(ABC):
         """Count non-deleted documents emitted this calendar month."""
 
     @abstractmethod
+    def summary_this_month(self, tenant_id: str) -> DocumentSummary:
+        """Return operational summary for the current Ecuador calendar month."""
+
+    @abstractmethod
     def count(
         self,
         tenant_id: str,
         *,
         status: str | None = None,
         serie: str | None = None,
+        q: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> int:

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isDecimalInput, isPercentageInput } from '@/lib/utils/form-validators'
 
 export const productKindSchema = z.enum(['PRODUCT', 'SERVICE', 'PACKAGE', 'MEMBERSHIP', 'OTHER'])
 export const productStatusSchema = z.enum(['ACTIVE', 'INACTIVE'])
@@ -40,27 +41,19 @@ export const productFormSchema = z
     description: z.string().trim().max(500, 'Máximo 500 caracteres'),
     kind: productKindSchema,
     unit: z.string().trim().min(1, 'Requerido').max(25, 'Máximo 25 caracteres'),
-    unit_price: z
-      .string()
-      .trim()
-      .regex(/^\d+(\.\d{1,2})?$/, 'Precio inválido'),
+    unit_price: z.string().trim().refine(isDecimalInput, 'Precio inválido'),
     iva_rate: productIvaRateSchema,
     discount_percentage: z
       .string()
       .trim()
-      .regex(/^\d+(\.\d{1,2})?$/, 'Descuento inválido')
-      .refine((value) => Number(value) <= 100, 'El descuento no puede superar 100%')
+      .refine(isPercentageInput, 'El descuento debe estar entre 0 y 100')
       .or(z.literal('')),
     stock_enabled: z.boolean(),
-    stock_quantity: z
-      .string()
-      .trim()
-      .regex(/^\d+(\.\d{1,2})?$/, 'Stock inválido')
-      .or(z.literal('')),
+    stock_quantity: z.string().trim().refine(isDecimalInput, 'Stock inválido').or(z.literal('')),
     low_stock_threshold: z
       .string()
       .trim()
-      .regex(/^\d+(\.\d{1,2})?$/, 'Umbral inválido')
+      .refine(isDecimalInput, 'Umbral inválido')
       .or(z.literal('')),
     status: productStatusSchema,
   })
@@ -72,30 +65,12 @@ const productPayloadBaseSchema = z.object({
   description: z.string().trim().max(500),
   kind: productKindSchema,
   unit: z.string().trim().min(1).max(25),
-  unit_price: z
-    .string()
-    .trim()
-    .regex(/^\d+(\.\d{1,2})?$/),
+  unit_price: z.string().trim().refine(isDecimalInput),
   iva_rate: productIvaRateSchema,
-  discount_percentage: z
-    .string()
-    .trim()
-    .regex(/^\d+(\.\d{1,2})?$/)
-    .nullable()
-    .optional(),
+  discount_percentage: z.string().trim().refine(isPercentageInput).nullable().optional(),
   stock_enabled: z.boolean(),
-  stock_quantity: z
-    .string()
-    .trim()
-    .regex(/^\d+(\.\d{1,2})?$/)
-    .nullable()
-    .optional(),
-  low_stock_threshold: z
-    .string()
-    .trim()
-    .regex(/^\d+(\.\d{1,2})?$/)
-    .nullable()
-    .optional(),
+  stock_quantity: z.string().trim().refine(isDecimalInput).nullable().optional(),
+  low_stock_threshold: z.string().trim().refine(isDecimalInput).nullable().optional(),
 })
 
 export const createProductSchema = productPayloadBaseSchema
@@ -113,11 +88,7 @@ export const discountCampaignSchema = z.object({
 
 export const updateDiscountCampaignSchema = z.object({
   active: z.boolean(),
-  percentage: z
-    .string()
-    .trim()
-    .regex(/^\d+(\.\d{1,2})?$/, 'Porcentaje inválido')
-    .refine((value) => Number(value) <= 100, 'El porcentaje no puede superar 100%'),
+  percentage: z.string().trim().refine(isPercentageInput, 'El porcentaje debe estar entre 0 y 100'),
 })
 
 export type ProductKind = z.infer<typeof productKindSchema>

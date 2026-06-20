@@ -2,6 +2,7 @@ import { api } from '@/lib/api/client'
 import {
   documentSchema,
   documentsPageSchema,
+  documentsSummarySchema,
   emitDocumentResultSchema,
   emitDocumentSchema,
   rideUrlSchema,
@@ -19,6 +20,7 @@ function documentsPath(
   if (cursor) params.set('cursor', cursor)
   if (filters.status) params.set('status', filters.status)
   if (filters.serie) params.set('serie', filters.serie)
+  if (filters.q) params.set('q', filters.q)
   if (filters.date_from) params.set('date_from', filters.date_from)
   if (filters.date_to) params.set('date_to', filters.date_to)
   return `/documents?${params.toString()}`
@@ -27,6 +29,8 @@ function documentsPath(
 export const documentsApi = {
   list: (filters?: DocumentListFilters, cursor?: string, limit?: PageSize) =>
     api.get(documentsPath(filters, cursor, limit), documentsPageSchema),
+
+  summary: () => api.get('/documents/summary', documentsSummarySchema),
 
   getById: (id: string) => api.get(`/documents/${encodeURIComponent(id)}`, documentSchema),
 

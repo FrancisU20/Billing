@@ -4,23 +4,23 @@ import type { DocumentListFilters, DocumentStatus } from './types'
 
 export interface DocumentFilterDraft {
   status: DocumentStatus | 'all'
-  serie: string
+  search: string
   dateFrom: string
   dateTo: string
 }
 
 export const emptyDocumentFilterDraft: DocumentFilterDraft = {
   status: 'all',
-  serie: '',
+  search: '',
   dateFrom: '',
   dateTo: '',
 }
 
 export function toDocumentListFilters(value: DocumentFilterDraft): DocumentListFilters {
-  const serie = value.serie.trim()
+  const search = value.search.trim()
   return {
     status: value.status === 'all' ? undefined : value.status,
-    serie: serie.length >= 3 ? serie : undefined,
+    q: search.length >= 3 ? search : undefined,
     date_from: value.dateFrom.trim() || undefined,
     date_to: value.dateTo.trim() || undefined,
   }

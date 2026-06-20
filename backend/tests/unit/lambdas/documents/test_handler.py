@@ -197,6 +197,20 @@ class ListDocumentsHandlerTests(unittest.TestCase):
         body = decode_response(resp)
         self.assertEqual(body["data"]["total"], 8)
 
+    def test_passes_general_search_query_to_repository(self) -> None:
+        repo = FakeDocumentsRepository()
+        event = api_event(
+            method="GET",
+            path="/documents",
+            query={"q": "Ulloa"},
+            claims=_owner_claims("t-1"),
+        )
+        with patch.object(self.mod, "_repo", return_value=repo):
+            resp = self.mod.handler(event, _CTX)
+        self.assertEqual(resp["statusCode"], 200)
+        self.assertEqual(repo.list_calls[0]["q"], "Ulloa")
+        self.assertEqual(repo.count_calls[0]["q"], "Ulloa")
+
     def test_superadmin_can_pass_tenant_id_via_query(self) -> None:
         repo = FakeDocumentsRepository()
         repo.seed(_make_saved_document())
@@ -208,6 +222,41 @@ class ListDocumentsHandlerTests(unittest.TestCase):
         with patch.object(self.mod, "_repo", return_value=repo):
             resp = self.mod.handler(event, _CTX)
         self.assertEqual(resp["statusCode"], 200)
+
+
+# ── GET /documents/summary ────────────────────────────────────────────────────
+
+
+class DocumentsSummaryHandlerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.mod = _load_handler()
+
+    def test_returns_month_summary(self) -> None:
+        repo = FakeDocumentsRepository()
+        repo.summary_result = repo.summary_result.__class__(
+            period_start="2026-06-01",
+            period_end="2026-06-17",
+            issued_count=4,
+            authorized_count=2,
+            rejected_count=1,
+            failed_count=1,
+            pending_count=0,
+            processing_count=0,
+            authorized_total=Decimal("99.90"),
+        )
+        event = api_event(
+            method="GET",
+            path="/documents/summary",
+            claims=_owner_claims("t-1"),
+        )
+
+        with patch.object(self.mod, "_repo", return_value=repo):
+            resp = self.mod.handler(event, _CTX)
+
+        body = decode_response(resp)
+        self.assertEqual(resp["statusCode"], 200)
+        self.assertEqual(body["data"]["issued_count"], 4)
+        self.assertEqual(body["data"]["authorized_total"], "99.90")
 
 
 # ── GET /documents/{id} ───────────────────────────────────────────────────────

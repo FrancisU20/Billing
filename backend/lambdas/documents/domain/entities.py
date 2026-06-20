@@ -29,6 +29,32 @@ class BuyerNotificationStatus(str, Enum):
     FAILED = "FAILED"
 
 
+@dataclass(frozen=True)
+class DocumentSummary:
+    period_start: str
+    period_end: str
+    issued_count: int
+    authorized_count: int
+    rejected_count: int
+    failed_count: int
+    pending_count: int
+    processing_count: int
+    authorized_total: Decimal
+
+    def to_dict(self) -> dict:
+        return {
+            "period_start": self.period_start,
+            "period_end": self.period_end,
+            "issued_count": self.issued_count,
+            "authorized_count": self.authorized_count,
+            "rejected_count": self.rejected_count,
+            "failed_count": self.failed_count,
+            "pending_count": self.pending_count,
+            "processing_count": self.processing_count,
+            "authorized_total": str(self.authorized_total),
+        }
+
+
 @dataclass
 class InvoiceLine:
     code: str

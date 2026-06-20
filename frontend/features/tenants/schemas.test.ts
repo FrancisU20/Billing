@@ -9,7 +9,7 @@ import {
 
 const tenant = {
   id: 'tenant-1',
-  ruc: '1790012345001',
+  ruc: '1792146739001',
   trade_name: 'CodeLabs',
   legal_name: 'CodeLabs S.A.',
   legal_rep_name: 'Pancho Ulloa',
@@ -57,7 +57,7 @@ describe('tenant contract schemas', () => {
 
   it('keeps create and update payloads scoped to writable fields', () => {
     const createPayload = {
-      ruc: '1790012345001',
+      ruc: '1792146739001',
       trade_name: 'CodeLabs',
       legal_name: 'CodeLabs S.A.',
       legal_rep_name: 'Pancho Ulloa',
@@ -73,5 +73,22 @@ describe('tenant contract schemas', () => {
     expect(() => updateTenantSchema.parse({ sri_environment: 'production' })).not.toThrow()
     expect(() => updateTenantSchema.parse({ created_at: '2026-06-08T00:00:00Z' })).toThrow()
     expect(() => toggleTenantStatusSchema.parse({ status: 'inactive' })).not.toThrow()
+  })
+
+  it('rejects invalid RUC and email in writable payloads', () => {
+    const createPayload = {
+      ruc: '1792146739002',
+      trade_name: 'CodeLabs',
+      legal_name: 'CodeLabs S.A.',
+      legal_rep_name: 'Pancho Ulloa',
+      email: 'admin@codelabs.ec',
+      phone: '0999999999',
+      address: 'Quito',
+      accounting_required: false,
+      plan_id: 'plan-1',
+    }
+
+    expect(() => createTenantSchema.parse(createPayload)).toThrow(/RUC ecuatoriano inválido/)
+    expect(() => updateTenantSchema.parse({ email: 'correo-malo' })).toThrow(/Email inválido/)
   })
 })

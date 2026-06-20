@@ -4,9 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
-import { Button } from '@/components/ui/Button'
+import { FormActions } from '@/components/ui/FormActions'
 import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { MoneyField } from '@/components/ui/SpecializedFields'
 import { useTheme } from '@/lib/theme-context'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import {
@@ -33,10 +34,12 @@ export function PlanForm({ mode, plan, onSubmit, isLoading, apiError }: PlanForm
     control,
     handleSubmit,
     setValue,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm<PlanFormValues>({
     resolver: zodResolver(planFormValuesSchema),
     defaultValues: planToFormValues(plan),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
   })
   const limitCycle = useWatch({ control, name: 'limit_cycle' })
   const dedicatedQueue = useWatch({ control, name: 'dedicated_queue' })
@@ -130,10 +133,8 @@ export function PlanForm({ mode, plan, onSubmit, isLoading, apiError }: PlanForm
             control={control}
             name="monthly_price"
             render={({ field: { onChange, onBlur, value } }) => (
-              <FormField
+              <MoneyField
                 label="Precio mensual"
-                keyboardType="decimal-pad"
-                leftIcon="cash-outline"
                 error={errors.monthly_price?.message}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -146,10 +147,8 @@ export function PlanForm({ mode, plan, onSubmit, isLoading, apiError }: PlanForm
             control={control}
             name="annual_price"
             render={({ field: { onChange, onBlur, value } }) => (
-              <FormField
+              <MoneyField
                 label="Precio anual"
-                keyboardType="decimal-pad"
-                leftIcon="calendar-outline"
                 error={errors.annual_price?.message}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -164,7 +163,9 @@ export function PlanForm({ mode, plan, onSubmit, isLoading, apiError }: PlanForm
           <SegmentedControl<LimitCycle>
             options={PLAN_LIMIT_CYCLE_OPTIONS}
             value={limitCycle}
-            onChange={(next) => setValue('limit_cycle', next, { shouldDirty: true })}
+            onChange={(next) =>
+              setValue('limit_cycle', next, { shouldDirty: true, shouldValidate: true })
+            }
           />
         </View>
       </FormSection>
@@ -230,7 +231,10 @@ export function PlanForm({ mode, plan, onSubmit, isLoading, apiError }: PlanForm
               options={BOOLEAN_TOGGLE_OPTIONS}
               value={dedicatedQueue ? 'yes' : 'no'}
               onChange={(next) =>
-                setValue('dedicated_queue', next === 'yes', { shouldDirty: true })
+                setValue('dedicated_queue', next === 'yes', {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
               }
             />
           </View>
@@ -241,7 +245,12 @@ export function PlanForm({ mode, plan, onSubmit, isLoading, apiError }: PlanForm
             <SegmentedControl<'yes' | 'no'>
               options={BOOLEAN_TOGGLE_OPTIONS}
               value={selfService ? 'yes' : 'no'}
-              onChange={(next) => setValue('self_service', next === 'yes', { shouldDirty: true })}
+              onChange={(next) =>
+                setValue('self_service', next === 'yes', {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
             />
           </View>
         </View>
@@ -291,15 +300,12 @@ export function PlanForm({ mode, plan, onSubmit, isLoading, apiError }: PlanForm
 
       {apiError ? <ApiErrorBanner error={apiError} /> : null}
 
-      <Button
-        variant="primary"
-        size="lg"
-        fullWidth
-        isLoading={isLoading}
-        onPress={handleSubmit(submit)}
-      >
-        {mode === 'create' ? 'Crear plan' : 'Guardar cambios'}
-      </Button>
+      <FormActions
+        submitLabel={mode === 'create' ? 'Crear plan' : 'Guardar cambios'}
+        isSubmitting={isLoading}
+        isSubmitDisabled={!isValid}
+        onSubmit={handleSubmit(submit)}
+      />
     </View>
   )
 }
@@ -347,7 +353,9 @@ function LimitField({
           <Text style={[styles.switchText, { color: semantic.text.secondary }]}>Ilimitado</Text>
           <Switch
             value={unlimited}
-            onValueChange={(next) => setValue(unlimitedName, next, { shouldDirty: true })}
+            onValueChange={(next) =>
+              setValue(unlimitedName, next, { shouldDirty: true, shouldValidate: true })
+            }
             trackColor={{ false: semantic.border.strong, true: semantic.accent.muted }}
             thumbColor={unlimited ? semantic.accent.default : semantic.bg.elevated}
           />

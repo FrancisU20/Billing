@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from botocore.exceptions import ClientError
@@ -107,6 +107,91 @@ class DynamoDocumentsRepositoryCountTests(unittest.TestCase):
         self.assertEqual(total, 10)
         self.assertEqual(table.query_calls[0]["Select"], "COUNT")
         self.assertEqual(table.query_calls[0]["IndexName"], "tenant-docs-index")
+
+    def test_summary_this_month_counts_statuses_and_authorized_total(self) -> None:
+        repo_for_items = DynamoDocumentsRepository(FakeDocumentsTable())
+        authorized = repo_for_items._to_item(
+            _make_document(
+                document_id="doc-1",
+                status=DocumentStatus.AUTHORIZED,
+                total=Decimal("11.50"),
+                created_at=datetime(2026, 6, 18, 12, tzinfo=UTC),
+            )
+        )
+        rejected = repo_for_items._to_item(
+            _make_document(
+                document_id="doc-2",
+                status=DocumentStatus.REJECTED,
+                total=Decimal("23.00"),
+                created_at=datetime(2026, 6, 18, 13, tzinfo=UTC),
+            )
+        )
+        failed = repo_for_items._to_item(
+            _make_document(
+                document_id="doc-3",
+                status=DocumentStatus.FAILED_PERMANENT,
+                total=Decimal("34.50"),
+                created_at=datetime(2026, 6, 18, 14, tzinfo=UTC),
+            )
+        )
+        table = FakeDocumentsTable(query_responses=[{"Items": [authorized, rejected, failed]}])
+        repo = DynamoDocumentsRepository(table)
+
+        summary = repo.summary_this_month("tenant-1")
+
+        self.assertEqual(summary.issued_count, 3)
+        self.assertEqual(summary.authorized_count, 1)
+        self.assertEqual(summary.rejected_count, 1)
+        self.assertEqual(summary.failed_count, 1)
+        self.assertEqual(summary.authorized_total, Decimal("11.50"))
+        self.assertEqual(table.query_calls[0]["IndexName"], "tenant-docs-index")
+
+
+class DynamoDocumentsRepositorySearchTests(unittest.TestCase):
+    def _item(self, **overrides) -> dict:
+        repo = DynamoDocumentsRepository(FakeDocumentsTable())
+        return repo._to_item(_make_document(**overrides))
+
+    def test_matches_search_by_name_identification_and_sri_number(self) -> None:
+        repo = DynamoDocumentsRepository(FakeDocumentsTable())
+        item = self._item(
+            buyer_name="Francisco Ulloa",
+            buyer_id="1712345678001",
+            sequential=42,
+        )
+
+        self.assertTrue(repo._matches_search(item, "ullOA"))
+        self.assertTrue(repo._matches_search(item, "1712345678"))
+        self.assertTrue(repo._matches_search(item, "001-001-000000042"))
+        self.assertTrue(repo._matches_search(item, "001001000000042"))
+
+    def test_list_continues_querying_until_search_page_is_filled(self) -> None:
+        miss = self._item(document_id="doc-1", buyer_name="Cliente Uno")
+        match = self._item(document_id="doc-2", buyer_name="Francisco Ulloa")
+        table = FakeDocumentsTable(
+            query_responses=[
+                {"Items": [miss], "LastEvaluatedKey": {"pk": "TENANT#t-1", "sk": "DOC#1"}},
+                {"Items": [match]},
+            ]
+        )
+        repo = DynamoDocumentsRepository(table)
+
+        docs, cursor = repo.list("tenant-1", q="Ulloa", limit=1)
+
+        self.assertEqual([doc.document_id for doc in docs], ["doc-2"])
+        self.assertIsNone(cursor)
+        self.assertEqual(len(table.query_calls), 2)
+
+    def test_count_with_search_filters_items_in_python(self) -> None:
+        match = self._item(document_id="doc-1", buyer_name="Francisco Ulloa")
+        miss = self._item(document_id="doc-2", buyer_name="Cliente Uno")
+        table = FakeDocumentsTable(query_responses=[{"Items": [match, miss]}])
+        repo = DynamoDocumentsRepository(table)
+
+        total = repo.count("tenant-1", q="Ulloa")
+
+        self.assertEqual(total, 1)
+        self.assertNotIn("Select", table.query_calls[0])
 
 
 class DynamoDocumentsRepositorySaveTests(unittest.TestCase):

@@ -4,9 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
-import { Button } from '@/components/ui/Button'
+import { FormActions } from '@/components/ui/FormActions'
 import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { EmailField, PhoneField, RucField } from '@/components/ui/SpecializedFields'
 import { useTheme } from '@/lib/theme-context'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { ACCOUNTING_REQUIRED_OPTIONS, TENANT_ENVIRONMENT_OPTIONS } from '../constants'
@@ -38,10 +39,12 @@ export function TenantForm({
     control,
     handleSubmit,
     setValue,
-    formState: { errors },
+    formState: { errors, isValid },
   } = useForm<TenantFormValues>({
     resolver: zodResolver(tenantFormValuesSchema),
     defaultValues: tenantToFormValues(tenant),
+    mode: 'onChange',
+    reValidateMode: 'onChange',
   })
   const selectedPlanId = useWatch({ control, name: 'plan_id' })
   const sriEnvironment = useWatch({ control, name: 'sri_environment' })
@@ -54,11 +57,9 @@ export function TenantForm({
           control={control}
           name="ruc"
           render={({ field: { onChange, onBlur, value } }) => (
-            <FormField
+            <RucField
               label="RUC"
               placeholder="1792146739001"
-              keyboardType="number-pad"
-              leftIcon="card-outline"
               error={errors.ruc?.message}
               onChangeText={onChange}
               onBlur={onBlur}
@@ -157,12 +158,9 @@ export function TenantForm({
           control={control}
           name="email"
           render={({ field: { onChange, onBlur, value } }) => (
-            <FormField
+            <EmailField
               label="Email"
               placeholder="admin@empresa.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              leftIcon="mail-outline"
               error={errors.email?.message}
               onChangeText={onChange}
               onBlur={onBlur}
@@ -175,11 +173,9 @@ export function TenantForm({
           control={control}
           name="phone"
           render={({ field: { onChange, onBlur, value } }) => (
-            <FormField
+            <PhoneField
               label="Teléfono"
               placeholder="0999999999"
-              keyboardType="phone-pad"
-              leftIcon="call-outline"
               error={errors.phone?.message}
               onChangeText={onChange}
               onBlur={onBlur}
@@ -250,15 +246,12 @@ export function TenantForm({
 
       {apiError ? <ApiErrorBanner error={apiError} /> : null}
 
-      <Button
-        variant="primary"
-        size="lg"
-        fullWidth
-        isLoading={isLoading}
-        onPress={handleSubmit(onSubmit)}
-      >
-        {mode === 'create' ? 'Crear empresa' : 'Guardar cambios'}
-      </Button>
+      <FormActions
+        submitLabel={mode === 'create' ? 'Crear empresa' : 'Guardar cambios'}
+        isSubmitting={isLoading}
+        isSubmitDisabled={!isValid}
+        onSubmit={handleSubmit(onSubmit)}
+      />
     </View>
   )
 }

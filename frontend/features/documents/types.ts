@@ -6,6 +6,7 @@ export type {
   Document,
   DocumentLine,
   DocumentsPage,
+  DocumentsSummary,
   DocumentStatus,
   EmitDocumentFormValues,
   EmitDocumentInput,
@@ -19,6 +20,7 @@ export type {
 export interface DocumentListFilters {
   status?: DocumentStatus
   serie?: string
+  q?: string
   date_from?: string
   date_to?: string
 }

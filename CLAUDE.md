@@ -91,6 +91,8 @@ consistencia visual de descuentos, reorganizacion de modulos y centralizacion de
 componentes. Aplica a toda la app: tenant (`owner/admin/viewer`), superadmin,
 auth/onboarding y modulos futuros; no solo al dashboard tenant. Nota de Credito (04),
 auto-provision de colas enterprise y batch masivo quedan despues salvo cambio de prioridad.
+Primer corte de dashboard real implementado para tenant via `GET /documents/summary`
+(conteos del mes y total autorizado); superadmin global queda pendiente.
 
 ## Memorias Base
 
@@ -135,7 +137,7 @@ corresponda. Estado actual por capa/dominio:
 | `context/CERTIFICATES.md`  | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras                                                                                                                                                                                                                                                                         |
 | `context/INVOICES.md`      | Literal SOAP de rechazo sin verificar contra SRI real; RIDE sin barcode/logo; clasificacion de errores SRI parcial; colas dedicadas enterprise sin auto-provision; `ClientPickerModal` aun no extraido a `components/ui/`; `invoice_processor` sin concurrencia reservada (cuenta AWS limitada a 10 ejecuciones concurrentes en `sa-east-1`)    |
 | `context/SUBSCRIPTIONS.md` | Scans en workers (aceptable hasta ~10 K); webhook sin DLQ; orders PENDING (3DS) sin limpieza automatica                                                                                                                                                                                                                                         |
-| `context/UX_REFACTOR.md`   | Salto a pagina arbitraria (no solo Anterior/Siguiente) sin resolver; busquedas backend a escala (`q` in-memory) y calendario (Sprint 3) pendientes; formularios poco amigables (Sprint 4); acciones `active/inactive` sin auditar en campanas/descuentos; menu de acciones por fila (hoy son botones planos); dashboard sin metricas reales; modulos de configuracion dispersos; componentes reutilizables aun no centralizados del todo |
+| `context/UX_REFACTOR.md`   | Salto a pagina arbitraria (no solo Anterior/Siguiente) sin resolver; busquedas backend a escala (`q` in-memory) pendientes; formularios poco amigables (Sprint 4); acciones `active/inactive` sin auditar en campanas/descuentos; menu de acciones por fila (hoy son botones planos); dashboard sin metricas reales; modulos de configuracion dispersos; componentes reutilizables aun no centralizados del todo |
 
 ## Stack
 

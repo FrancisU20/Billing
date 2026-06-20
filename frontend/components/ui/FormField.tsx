@@ -5,7 +5,7 @@ import { useTheme } from '@/lib/theme-context'
 import { overlay, typography, spacing } from '@/constants/tokens'
 import { Input } from './Input'
 
-interface FormFieldProps extends TextInputProps {
+export interface FormFieldProps extends TextInputProps {
   label: string
   error?: string
   hint?: string

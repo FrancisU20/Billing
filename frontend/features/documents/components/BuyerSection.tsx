@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
+import { EmailField } from '@/components/ui/SpecializedFields'
 import { spacing, typography } from '@/constants/tokens'
 import type { Client, IdentificationType } from '@/features/clients/types'
 import { useTheme } from '@/lib/theme-context'
@@ -148,12 +149,9 @@ export function BuyerSection({ control, setValue, errors }: BuyerSectionProps) {
         control={control}
         name="buyer_email"
         render={({ field: { onChange, onBlur, value } }) => (
-          <FormField
+          <EmailField
             label="Email (opcional)"
             placeholder="comprador@email.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            leftIcon="mail-outline"
             isDisabled={fieldsDisabled}
             error={errors.buyer_email?.message}
             onChangeText={onChange}

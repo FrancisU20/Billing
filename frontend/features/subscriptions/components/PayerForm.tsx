@@ -1,7 +1,10 @@
 import React, { useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { FormField } from '@/components/ui/FormField'
+import { EmailField, IdentificationField } from '@/components/ui/SpecializedFields'
 import { radius, spacing, typography } from '@/constants/tokens'
+import { isEmailInput } from '@/lib/utils/form-validators'
+import { isValidCedula, isValidRuc } from '@/lib/utils/ruc'
 import { useTheme } from '@/lib/theme-context'
 
 export interface PayerFormValues {
@@ -35,7 +38,10 @@ export function usePayerForm(): UsePayerFormReturn {
   const [payerDocument, setPayerDocument] = useState('')
 
   const isComplete =
-    !!firstName.trim() && !!lastName.trim() && !!payerEmail.trim() && !!payerDocument.trim()
+    !!firstName.trim() &&
+    !!lastName.trim() &&
+    isEmailInput(payerEmail) &&
+    (documentType === 'CI' ? isValidCedula(payerDocument) : isValidRuc(payerDocument))
 
   function reset() {
     setFirstName('')
@@ -62,6 +68,14 @@ export function PayerForm({ values, setters }: PayerFormProps) {
   const { semantic } = useTheme()
   const { firstName, lastName, payerEmail, documentType, payerDocument } = values
   const { setFirstName, setLastName, setPayerEmail, setDocumentType, setPayerDocument } = setters
+  const emailError = payerEmail && !isEmailInput(payerEmail) ? 'Email inválido' : undefined
+  const documentError =
+    payerDocument &&
+    !(documentType === 'CI' ? isValidCedula(payerDocument) : isValidRuc(payerDocument))
+      ? documentType === 'CI'
+        ? 'Cédula ecuatoriana inválida'
+        : 'RUC ecuatoriano inválido'
+      : undefined
 
   return (
     <>
@@ -90,14 +104,13 @@ export function PayerForm({ values, setters }: PayerFormProps) {
         </View>
       </View>
 
-      <FormField
+      <EmailField
         label="Email"
         value={payerEmail}
         onChangeText={setPayerEmail}
         placeholder="correo@ejemplo.com"
-        autoCapitalize="none"
         autoCorrect={false}
-        keyboardType="email-address"
+        error={emailError}
       />
 
       <View style={styles.docGroup}>
@@ -132,14 +145,14 @@ export function PayerForm({ values, setters }: PayerFormProps) {
         </View>
       </View>
 
-      <FormField
+      <IdentificationField
+        identificationType={documentType === 'CI' ? 'cedula' : 'ruc'}
         label="Número de documento"
         value={payerDocument}
         onChangeText={setPayerDocument}
         placeholder={documentType === 'CI' ? '10 dígitos' : '13 dígitos'}
-        autoCapitalize="none"
         autoCorrect={false}
-        keyboardType="number-pad"
+        error={documentError}
       />
     </>
   )

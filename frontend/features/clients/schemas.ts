@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { isPhoneInput } from '@/lib/utils/form-validators'
+import { isValidCedula, isValidRuc } from '@/lib/utils/ruc'
 
 export const clientStatusSchema = z.enum(['active', 'inactive'])
 export const identificationTypeSchema = z.enum(['ruc', 'cedula', 'pasaporte', 'exterior'])
@@ -37,7 +39,28 @@ export const clientsPageSchema = z.object({
   total: z.number().nullable().optional(),
 })
 
-export const createClientSchema = z
+function validateClientIdentification(
+  value: { identification: string; identification_type: z.infer<typeof identificationTypeSchema> },
+  ctx: z.RefinementCtx,
+) {
+  const identification = value.identification.trim()
+  if (value.identification_type === 'ruc' && !isValidRuc(identification)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['identification'],
+      message: 'RUC ecuatoriano inválido',
+    })
+  }
+  if (value.identification_type === 'cedula' && !isValidCedula(identification)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['identification'],
+      message: 'Cédula ecuatoriana inválida',
+    })
+  }
+}
+
+const createClientSchemaBase = z
   .object({
     identification: z.string().trim().min(3, 'Mínimo 3 caracteres').max(25, 'Máximo 25 caracteres'),
     identification_type: identificationTypeSchema,
@@ -46,32 +69,49 @@ export const createClientSchema = z
     trade_name: z.string().trim().max(250, 'Máximo 250 caracteres'),
     special_taxpayer: z.boolean(),
     emails: z.array(z.string().trim().email('Email inválido')).max(5, 'Máximo 5 emails'),
-    phones: z.array(z.string().trim().min(7, 'Mínimo 7 caracteres')).max(5, 'Máximo 5 teléfonos'),
+    phones: z
+      .array(z.string().trim().refine(isPhoneInput, 'Teléfono inválido'))
+      .max(5, 'Máximo 5 teléfonos'),
     addresses: z.array(clientAddressSchema).max(5, 'Máximo 5 direcciones'),
   })
   .strict()
 
-export const updateClientSchema = createClientSchema
+export const createClientSchema = createClientSchemaBase.superRefine(validateClientIdentification)
+
+export const updateClientSchema = createClientSchemaBase
   .extend({
     status: clientStatusSchema.optional(),
   })
   .partial()
   .strict()
+  .superRefine((value, ctx) => {
+    if (value.identification && value.identification_type) {
+      validateClientIdentification(
+        {
+          identification: value.identification,
+          identification_type: value.identification_type,
+        },
+        ctx,
+      )
+    }
+  })
 
-export const clientFormValuesSchema = z.object({
-  identification: z.string().trim().min(3, 'Mínimo 3 caracteres').max(25, 'Máximo 25 caracteres'),
-  identification_type: identificationTypeSchema,
-  person_type: personTypeSchema,
-  legal_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(250, 'Máximo 250 caracteres'),
-  trade_name: z.string().trim().max(250, 'Máximo 250 caracteres'),
-  special_taxpayer: z.boolean(),
-  email: z.string().trim().email('Email inválido').or(z.literal('')),
-  phone: z.string().trim().min(7, 'Mínimo 7 caracteres').or(z.literal('')),
-  address_label: z.string().trim().max(50, 'Máximo 50 caracteres'),
-  address_line: z.string().trim().max(500, 'Máximo 500 caracteres'),
-  address_city: z.string().trim().max(100, 'Máximo 100 caracteres'),
-  status: clientStatusSchema,
-})
+export const clientFormValuesSchema = z
+  .object({
+    identification: z.string().trim().min(3, 'Mínimo 3 caracteres').max(25, 'Máximo 25 caracteres'),
+    identification_type: identificationTypeSchema,
+    person_type: personTypeSchema,
+    legal_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(250, 'Máximo 250 caracteres'),
+    trade_name: z.string().trim().max(250, 'Máximo 250 caracteres'),
+    special_taxpayer: z.boolean(),
+    email: z.string().trim().email('Email inválido').or(z.literal('')),
+    phone: z.string().trim().refine(isPhoneInput, 'Teléfono inválido').or(z.literal('')),
+    address_label: z.string().trim().max(50, 'Máximo 50 caracteres'),
+    address_line: z.string().trim().max(500, 'Máximo 500 caracteres'),
+    address_city: z.string().trim().max(100, 'Máximo 100 caracteres'),
+    status: clientStatusSchema,
+  })
+  .superRefine(validateClientIdentification)
 
 export type Client = z.infer<typeof clientSchema>
 export type ClientStatus = z.infer<typeof clientStatusSchema>

@@ -1,9 +1,9 @@
 import React from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Button } from '@/components/ui/Button'
+import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { FilterBar } from '@/components/ui/FilterBar'
 import { FilterBlock, FilterPill } from '@/components/ui/FilterBlock'
-import { Input } from '@/components/ui/Input'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { spacing } from '@/constants/tokens'
 import { DOCUMENT_STATUS_OPTIONS } from '../constants'
@@ -55,26 +55,11 @@ export function DocumentsFilters({
             </FilterBlock>
 
             <FilterBlock label="Emisión">
-              <View style={styles.dateRow}>
-                <View style={styles.dateInput}>
-                  <Input
-                    leftIcon="calendar-outline"
-                    placeholder="Desde"
-                    value={value.dateFrom}
-                    onChangeText={(dateFrom) => onChange({ ...value, dateFrom })}
-                    onSubmitEditing={onApply}
-                  />
-                </View>
-                <View style={styles.dateInput}>
-                  <Input
-                    leftIcon="calendar-outline"
-                    placeholder="Hasta"
-                    value={value.dateTo}
-                    onChangeText={(dateTo) => onChange({ ...value, dateTo })}
-                    onSubmitEditing={onApply}
-                  />
-                </View>
-              </View>
+              <DateRangePicker
+                from={value.dateFrom}
+                to={value.dateTo}
+                onChange={({ from, to }) => onChange({ ...value, dateFrom: from, dateTo: to })}
+              />
             </FilterBlock>
           </View>
 
@@ -87,11 +72,11 @@ export function DocumentsFilters({
       }
     >
       <SearchInput
-        leftIcon="pricetag-outline"
-        placeholder="Buscar por serie (001001)"
-        value={value.serie}
-        onChangeText={(serie) => onChange({ ...value, serie })}
-        onSearchChange={(serie) => onSearchApply?.({ ...value, serie })}
+        leftIcon="search-outline"
+        placeholder="Serie, cédula/RUC o nombre"
+        value={value.search}
+        onChangeText={(search) => onChange({ ...value, search })}
+        onSearchChange={(search) => onSearchApply?.({ ...value, search })}
         onSubmitEditing={onApply}
       />
     </FilterBar>
@@ -101,7 +86,5 @@ export function DocumentsFilters({
 const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
   pillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
-  dateRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
-  dateInput: { flex: 1, minWidth: 140 },
   actions: { alignItems: 'flex-start' },
 })

@@ -1,9 +1,9 @@
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Button } from '@/components/ui/Button'
+import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { FilterBar } from '@/components/ui/FilterBar'
 import { FilterBlock, FilterPill } from '@/components/ui/FilterBlock'
-import { Input } from '@/components/ui/Input'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useTheme } from '@/lib/theme-context'
@@ -80,26 +80,11 @@ export function TenantsFilters({
           </View>
 
           <FilterBlock label="Creación">
-            <View style={styles.dateRow}>
-              <View style={styles.dateInput}>
-                <Input
-                  leftIcon="calendar-outline"
-                  placeholder="Desde"
-                  value={value.createdFrom}
-                  onChangeText={(createdFrom) => onChange({ ...value, createdFrom })}
-                  onSubmitEditing={onApply}
-                />
-              </View>
-              <View style={styles.dateInput}>
-                <Input
-                  leftIcon="calendar-outline"
-                  placeholder="Hasta"
-                  value={value.createdTo}
-                  onChangeText={(createdTo) => onChange({ ...value, createdTo })}
-                  onSubmitEditing={onApply}
-                />
-              </View>
-            </View>
+            <DateRangePicker
+              from={value.createdFrom}
+              to={value.createdTo}
+              onChange={({ from, to }) => onChange({ ...value, createdFrom: from, createdTo: to })}
+            />
           </FilterBlock>
 
           <View style={styles.actions}>
@@ -142,7 +127,5 @@ const styles = StyleSheet.create({
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
   pillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
-  dateRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
-  dateInput: { minWidth: 140, flex: 1 },
   actions: { alignItems: 'flex-start' },
 })

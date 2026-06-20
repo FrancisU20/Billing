@@ -34,6 +34,7 @@ import {
   defaultEmitDocumentLine,
   ecuadorIssuedAtDisplay,
   formValuesToEmitDocumentInput,
+  resolveDiscountPolicy,
   resolveSuggestedDiscount,
   shouldAutoApplySuggestedDiscount,
 } from '../form'
@@ -129,6 +130,11 @@ export function EmitDocumentScreen() {
   })
 
   const totals = computeLineTotals(lines ?? [])
+  const discountPreview = computeDiscountPreview(
+    lines ?? [],
+    productDiscountByLine,
+    campaign ? { active: campaign.active, percentage: campaign.percentage } : null,
+  )
 
   function applyProductToLine(product: Product) {
     if (pickerLineIndex === null) return
@@ -280,17 +286,23 @@ export function EmitDocumentScreen() {
         </FormSection>
 
         <FormSection title="Líneas de detalle" icon="list-outline">
-          {campaign?.active ? (
-            <Text style={[styles.campaignHint, { color: semantic.accent.default }]}>
-              Campaña activa: hasta {Number(campaign.percentage)}% de descuento por línea.
-            </Text>
-          ) : null}
+          <DiscountContextBanner
+            campaign={
+              campaign ? { active: campaign.active, percentage: campaign.percentage } : null
+            }
+            discountedLines={discountPreview.discountedLines}
+            suggestedDiscount={discountPreview.suggestedDiscount}
+          />
           {fields.map((field, index) => (
             <DocumentLineItem
               key={field.id}
               index={index}
               control={control}
               errors={errors}
+              productDiscountPercentage={productDiscountByLine[index] ?? null}
+              campaign={
+                campaign ? { active: campaign.active, percentage: campaign.percentage } : null
+              }
               canRemove={fields.length > 1}
               onPickProduct={() => setPickerLineIndex(index)}
               onRemove={() => removeLine(index)}
@@ -351,6 +363,9 @@ export function EmitDocumentScreen() {
         >
           <TotalRow label="Subtotal" value={totals.subtotal} />
           <TotalRow label="Descuento" value={totals.totalDiscount} />
+          {discountPreview.suggestedDiscount > 0 ? (
+            <TotalRow label="Descuento sugerido" value={discountPreview.suggestedDiscount} muted />
+          ) : null}
           <TotalRow label="IVA 15%" value={totals.iva15} />
           <TotalRow label="IVA 5%" value={totals.iva5} />
           <TotalRow label="Total" value={totals.total} emphasis />
@@ -373,7 +388,47 @@ export function EmitDocumentScreen() {
         visible={pickerLineIndex !== null}
         onClose={() => setPickerLineIndex(null)}
         onSelect={applyProductToLine}
+        campaign={campaign ? { active: campaign.active, percentage: campaign.percentage } : null}
       />
+    </View>
+  )
+}
+
+function DiscountContextBanner({
+  campaign,
+  discountedLines,
+  suggestedDiscount,
+}: {
+  campaign: { active: boolean; percentage: string } | null
+  discountedLines: number
+  suggestedDiscount: number
+}) {
+  const { semantic } = useTheme()
+  const campaignActive = campaign?.active && Number(campaign.percentage) > 0
+
+  if (!campaignActive && discountedLines === 0) {
+    return null
+  }
+
+  return (
+    <View
+      style={[
+        styles.discountBanner,
+        { backgroundColor: semantic.accent.subtle, borderColor: semantic.accent.muted },
+      ]}
+    >
+      <Ionicons name="pricetag-outline" size={18} color={semantic.accent.default} />
+      <View style={styles.discountBannerText}>
+        <Text style={[styles.discountBannerTitle, { color: semantic.text.primary }]}>
+          Descuentos visibles antes de emitir
+        </Text>
+        <Text style={[styles.discountBannerBody, { color: semantic.text.secondary }]}>
+          {campaignActive ? `Campaña global activa: ${Number(campaign.percentage)}%. ` : ''}
+          {discountedLines > 0
+            ? `${discountedLines} línea${discountedLines === 1 ? '' : 's'} con descuento sugerido por $${suggestedDiscount.toFixed(2)}.`
+            : 'Selecciona productos con descuento o aplica descuento manual por línea.'}
+        </Text>
+      </View>
     </View>
   )
 }
@@ -473,10 +528,12 @@ function TotalRow({
   label,
   value,
   emphasis = false,
+  muted = false,
 }: {
   label: string
   value: number
   emphasis?: boolean
+  muted?: boolean
 }) {
   const { semantic } = useTheme()
   return (
@@ -485,7 +542,13 @@ function TotalRow({
         style={[
           styles.totalLabel,
           emphasis && styles.totalLabelEmphasis,
-          { color: emphasis ? semantic.text.primary : semantic.text.secondary },
+          {
+            color: emphasis
+              ? semantic.text.primary
+              : muted
+                ? semantic.text.tertiary
+                : semantic.text.secondary,
+          },
         ]}
       >
         {label}
@@ -500,6 +563,30 @@ function TotalRow({
         ${value.toFixed(2)}
       </Text>
     </View>
+  )
+}
+
+function computeDiscountPreview(
+  lines: EmitDocumentFormValues['lines'],
+  productDiscountByLine: Record<number, string | null>,
+  campaign: { active: boolean; percentage: string } | null,
+): { discountedLines: number; suggestedDiscount: number } {
+  return lines.reduce(
+    (acc, line, index) => {
+      const policy = resolveDiscountPolicy(
+        line.quantity,
+        line.unit_price,
+        productDiscountByLine[index] ?? null,
+        campaign,
+      )
+      const amount = Number(policy.amount)
+      if (policy.source !== 'none' && Number.isFinite(amount) && amount > 0) {
+        acc.discountedLines += 1
+        acc.suggestedDiscount += amount
+      }
+      return acc
+    },
+    { discountedLines: 0, suggestedDiscount: 0 },
   )
 }
 
@@ -532,7 +619,17 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   sectionBody: { gap: spacing[3] },
-  campaignHint: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
+  discountBanner: {
+    alignItems: 'flex-start',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing[2],
+    padding: spacing[3],
+  },
+  discountBannerText: { flex: 1, gap: spacing[1] - 2 },
+  discountBannerTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
+  discountBannerBody: { fontSize: typography.size.xs, lineHeight: typography.size.xs * 1.5 },
   note: { fontSize: typography.size.xs, lineHeight: typography.size.xs * 1.5 },
   pillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   pill: {

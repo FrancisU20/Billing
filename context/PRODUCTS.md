@@ -144,12 +144,15 @@ porque conceptualmente es un ajuste del tenant, no un producto del catalogo.
 Integracion en facturador:
 
 - Selector/buscador de productos por linea.
+- El selector muestra el descuento sugerido efectivo para factura: gana el mayor entre
+  `discount_percentage` del producto y la campana global activa.
 - Accion de creacion rapida desde la pantalla de emision, oculta detras de "Añadir"
   para no sobrecargar la busqueda.
 - Al seleccionar producto, se autollenan codigo, descripcion, precio unitario e IVA.
-- El usuario puede editar cantidad/descuento antes de emitir. El descuento usa un
-  input reutilizable que permite ingresar valor exacto o porcentaje, pero el payload
-  fiscal conserva el descuento como valor absoluto.
+- El usuario puede editar cantidad/descuento antes de emitir. La linea muestra fuente
+  (`Catalogo`/`Campana`), porcentaje y monto sugerido; si el usuario modifica el descuento,
+  la UI lo marca como edicion manual. El payload fiscal conserva el descuento como valor
+  absoluto y backend valida el techo real.
 
 ## Deuda Tecnica
 

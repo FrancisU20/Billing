@@ -77,16 +77,48 @@ export function resolveSuggestedDiscount(
   productDiscountPercentage: string | null,
   campaign: { active: boolean; percentage: string } | null,
 ): string {
+  return resolveDiscountPolicy(quantity, unitPrice, productDiscountPercentage, campaign).amount
+}
+
+export type DiscountPolicySource = 'none' | 'product' | 'campaign'
+
+export interface DiscountPolicyPreview {
+  amount: string
+  percentage: number
+  source: DiscountPolicySource
+  label: string
+}
+
+/**
+ * Politica visible de descuento para el facturador. Replica la regla fiscal:
+ * aplica el mayor porcentaje entre catalogo y campaña activa. Solo alimenta UI;
+ * el backend recalcula y valida con Decimal antes de emitir.
+ */
+export function resolveDiscountPolicy(
+  quantity: string,
+  unitPrice: string,
+  productDiscountPercentage: string | null,
+  campaign: { active: boolean; percentage: string } | null,
+): DiscountPolicyPreview {
   const qty = toNumber(quantity)
   const price = toNumber(unitPrice)
   const gross = qty * price
-  if (gross <= 0) return '0.00'
+  if (gross <= 0) return noDiscountPolicy()
 
   const productPct = productDiscountPercentage ? toNumber(productDiscountPercentage) : 0
   const campaignPct = campaign?.active ? toNumber(campaign.percentage) : 0
   const ceilingPct = Math.max(productPct, campaignPct)
+  if (ceilingPct <= 0) return noDiscountPolicy()
 
-  return round2(gross * (ceilingPct / 100)).toFixed(2)
+  const source: DiscountPolicySource = productPct >= campaignPct ? 'product' : 'campaign'
+  const label = source === 'product' ? 'Catálogo' : 'Campaña'
+
+  return {
+    amount: round2(gross * (ceilingPct / 100)).toFixed(2),
+    percentage: round2(ceilingPct),
+    source,
+    label,
+  }
 }
 
 export function shouldAutoApplySuggestedDiscount(
@@ -118,6 +150,10 @@ function toNumber(value: string): number {
 
 function normalizeMoney(value: string | undefined): string {
   return round2(toNumber(value ?? '0')).toFixed(2)
+}
+
+function noDiscountPolicy(): DiscountPolicyPreview {
+  return { amount: '0.00', percentage: 0, source: 'none', label: 'Sin descuento' }
 }
 
 function round2(value: number): number {

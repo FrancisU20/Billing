@@ -49,6 +49,7 @@ class ListDocumentsCommand:
     tenant_id: str
     status: str | None = None
     serie: str | None = None
+    q: str | None = None
     date_from: str | None = None
     date_to: str | None = None
     limit: int = 20

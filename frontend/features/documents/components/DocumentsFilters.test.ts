@@ -8,13 +8,13 @@ import {
 } from '../filters'
 
 describe('toDocumentListFilters', () => {
-  it('does not emit serie search with fewer than 3 characters', () => {
-    expect(toDocumentListFilters({ ...emptyDocumentFilterDraft, serie: '00' })).toEqual({})
+  it('does not emit invoice search with fewer than 3 characters', () => {
+    expect(toDocumentListFilters({ ...emptyDocumentFilterDraft, search: '00' })).toEqual({})
   })
 
-  it('emits serie search from 3 characters', () => {
-    expect(toDocumentListFilters({ ...emptyDocumentFilterDraft, serie: '001' })).toEqual({
-      serie: '001',
+  it('emits invoice search from 3 characters', () => {
+    expect(toDocumentListFilters({ ...emptyDocumentFilterDraft, search: 'Ulloa' })).toEqual({
+      q: 'Ulloa',
     })
   })
 })

@@ -266,29 +266,39 @@ Criterio de aceptacion:
 
 ### Sprint 3 — Calendario Y Fechas
 
+Estado: **implementado para filtros de listados**.
+
 Objetivo: eliminar inputs manuales de fecha con formato fragil.
 
 Frontend:
 
-- Crear `DateRangePicker` compartido:
-  - web: calendario/popover accesible
-  - movil: selector nativo o modal propio segun compatibilidad Expo
+- [x] Crear `DateRangePicker` compartido:
+  - modal propio compatible RN/Web, sin dependencia externa
+  - calendario mensual con navegacion anterior/siguiente
   - presets: Hoy, Esta semana, Este mes, Limpiar
   - salida canonica `YYYY-MM-DD` civil Ecuador
-- Reemplazar filtros `created_from/to`, `date_from/to`, `issued_from/to`.
-- Validar rango: desde <= hasta.
+  - rango ordenado automaticamente (`desde <= hasta`)
+- [x] Reemplazar filtros `created_from/to`, `date_from/to`, `issued_from/to` en listados:
+  - `DocumentsFilters` (`date_from`/`date_to`, fecha de emision)
+  - `ClientsFilters` (`created_from`/`created_to`)
+  - `TenantsFilters` (`created_from`/`created_to`)
+  - `PlansFilters` (`created_from`/`created_to`)
+- [x] Agregar helpers testeados en `lib/utils/date-range.ts` para fechas civiles sin
+      `new Date("YYYY-MM-DD")` ni `toISOString().slice(...)`.
 
 Backend:
 
-- Mantener `parse_date_boundary` y conversion a limites UTC en backend.
-- Agregar tests si algun endpoint tiene parsing inconsistente.
+- [x] Mantener contratos existentes y parsing backend sin cambios.
+- [x] No se detecto parsing inconsistente que requiera tests backend nuevos en este sprint.
 
 Criterio de aceptacion:
 
-- Ningun listado pide escribir fechas manualmente.
-- Rango invalido se comunica antes de llamar al backend.
+- [x] Ningun filtro de listado migrado pide escribir fechas manualmente.
+- [x] Rango invalido se corrige antes de llegar al backend.
 
 ### Sprint 4 — Formularios Y Validacion En Vivo
+
+Estado: **en ejecucion**.
 
 Objetivo: formularios mas claros, amigables, con validacion inmediata y componentes
 centralizados.
@@ -296,24 +306,33 @@ centralizados.
 Frontend:
 
 - Crear/fortalecer componentes:
-  - `FormField`
-  - `Input`
-  - `SelectField`
-  - `MoneyInput`
-  - `PercentInput`
-  - `EmailInput`
-  - `RucInput`
-  - `IdentificationInput`
-  - `PhoneInput` si aplica
-  - `FormActions`
+  - [x] `FormField`
+  - [x] `Input`
+  - [ ] `SelectField`
+  - [x] `MoneyField` (`SpecializedFields.tsx`)
+  - [x] `PercentField` (`SpecializedFields.tsx`)
+  - [x] `EmailField` (`SpecializedFields.tsx`)
+  - [x] `RucField` (`SpecializedFields.tsx`)
+  - [x] `IdentificationField` (`SpecializedFields.tsx`)
+  - [x] `PhoneField` (`SpecializedFields.tsx`)
+  - [x] `FormActions`
 - Crear `validators`/helpers compartidos para:
-  - email
-  - RUC
-  - cedula
-  - dinero decimal
-  - porcentaje
-  - secuencial/serie SRI
-- Configurar formularios para `mode: "onChange"` o equivalente, con mensajes por campo.
+  - [x] email (Zod schemas)
+  - [x] RUC (`lib/utils/ruc.ts` + schemas tenant/client)
+  - [x] cedula (`lib/utils/ruc.ts` + schema client)
+  - [x] dinero decimal (`lib/utils/form-validators.ts`)
+  - [x] porcentaje (`lib/utils/form-validators.ts`)
+  - [ ] secuencial/serie SRI
+- Configurar formularios para `mode: "onChange"` o equivalente, con mensajes por campo:
+  - [x] `ClientForm`
+  - [x] `TenantForm`
+  - [x] `PlanForm`
+  - [x] `RegistrationForm` (onboarding)
+  - [x] `ProductForm` ya estaba en vivo; se conecto a campos especializados.
+  - [x] `EmitDocumentScreen` ya estaba en vivo.
+  - [x] `PayerForm` valida email y cedula/RUC antes de habilitar pago.
+  - [x] Acciones de submit centralizadas con `FormActions` en `ClientForm`, `ProductForm`,
+        `TenantForm`, `PlanForm` y `RegistrationForm`.
 - Revisar formularios sin schema o con validacion tardia.
 - Redisenar pantallas de crear/editar como experiencias guiadas:
   - secciones cortas con titulos de negocio
@@ -337,9 +356,9 @@ Backend:
 
 Criterio de aceptacion:
 
-- Email invalido muestra error antes del submit.
-- Campos fiscales invalidos muestran mensaje local claro.
-- Submit se deshabilita si el formulario local esta invalido.
+- [x] Email invalido muestra error antes del submit en formularios migrados.
+- [x] Campos fiscales invalidos muestran mensaje local claro en clientes/tenants.
+- [x] Submit se deshabilita si el formulario local esta invalido en clientes/tenants/plans/products/documents/onboarding; billing bloquea el pago hasta tener pagador valido.
 - Crear/editar se entiende sin conocer detalles tecnicos del backend.
 
 ### Sprint 4.5 — Descuentos En UI Y Consistencia Comercial
@@ -360,14 +379,14 @@ Alcance:
 
 - Definir comportamiento de producto:
   - [x] si el producto tiene descuento, mostrarlo en detalle y picker
-  - [ ] si el producto tiene descuento, mostrarlo en listado (`ProductsListScreen` aun sin
-        columna/indicador de descuento)
-  - [x] linea de factura: descuento sugerido visible y aplicado en `EmitDocumentScreen`
+  - [x] si el producto tiene descuento, mostrarlo en listado (`ProductListItem`) y picker
+  - [x] linea de factura: descuento sugerido visible y aplicado en `EmitDocumentScreen`,
+        con fuente (`Catalogo`/`Campana`) y monto sugerido por linea
   - [x] si se edita el descuento, invalidar/refrescar listados y pickers (via
         `useRefreshOnFocus` de Sprint 1)
 - Definir comportamiento de campana global:
-  - [x] mostrar campana activa en facturador de forma visible pero no invasiva (hint sobre
-        lineas de detalle)
+  - [x] mostrar campana activa en facturador de forma visible pero no invasiva (banner sobre
+        lineas de detalle + resumen de descuento sugerido)
   - [x] al seleccionar producto, mostrar porcentaje sugerido y aplicarlo automaticamente
         (`resolveSuggestedDiscount` + `shouldAutoApplySuggestedDiscount`)
   - [x] para lineas manuales, recalcular el techo sugerido cuando cambia la campana o la
@@ -375,7 +394,8 @@ Alcance:
         campana)
   - [x] recalcular totales visibles inmediatamente
 - Tests:
-  - [x] tests frontend para `resolveSuggestedDiscount` y `shouldAutoApplySuggestedDiscount`
+  - [x] tests frontend para `resolveSuggestedDiscount`, `resolveDiscountPolicy` y
+        `shouldAutoApplySuggestedDiscount`
         (`form.test.ts`)
   - [ ] tests de render/cambio de lineas a nivel componente (`EmitDocumentScreen`) — no
         existen todavia, solo tests de las funciones puras
@@ -385,39 +405,48 @@ Alcance:
 
 Criterio de aceptacion:
 
-- Cambiar descuento de producto se ve en productos, picker y facturador sin refresh manual.
-- Activar/cambiar campana global se ve en facturador y totales visibles.
-- El descuento que el usuario ve antes de emitir coincide con lo que backend acepta y persiste.
+- [x] Cambiar descuento de producto se ve en productos, picker y facturador sin refresh manual.
+- [x] Activar/cambiar campana global se ve en facturador y totales visibles.
+- [x] El descuento que el usuario ve antes de emitir coincide con lo que backend acepta y persiste.
 
 ### Sprint 5 — Dashboard Operacional
+
+Estado: **primer corte tenant implementado**.
 
 Objetivo: reemplazar contadores placeholder por metricas reales.
 
 Backend:
 
-- Crear endpoint agregado tenant, por ejemplo `GET /dashboard/summary`:
-  - documentos emitidos del periodo
-  - autorizados/rechazados/fallidos
-  - total facturado del periodo
+- [x] Crear endpoint agregado tenant en dominio `documents`: `GET /documents/summary`.
+  - [x] documentos emitidos del periodo
+  - [x] autorizados/rechazados/fallidos
+  - [x] total autorizado del periodo
   - consumo del limite mensual del plan
   - estado certificado y dias para expirar
   - estado suscripcion
 - Evaluar endpoint superadmin separado si se necesita metricas globales.
-- Evitar scans caros no acotados; si el agregado no es barato, crear tabla/materializacion
-  por evento o worker.
+- [x] Evitar scans caros no acotados en el primer corte: summary usa Query por
+      `tenant-docs-index` acotado al mes civil Ecuador y suma solo ese rango.
+      Si se requieren historicos largos, crear tabla/materializacion por evento o worker.
 
 Frontend:
 
-- Reemplazar placeholders del dashboard por datos reales.
+- [x] Reemplazar placeholders del dashboard tenant por datos reales:
+  - emitidos del mes
+  - autorizados
+  - rechazados/fallidos
+  - total autorizado
+  - progreso de autorizacion del mes
 - Definir tambien dashboard/resumen superadmin si el modulo superadmin necesita metrica
   operativa global.
-- Agregar loading/error por bloque, no pantalla entera si solo falla una metrica.
+- [x] Agregar loading/error por bloque, no pantalla entera si solo falla una metrica
+      (`ApiErrorBanner` del resumen sin bloquear tenant/certificado).
 
 Criterio de aceptacion:
 
-- Dashboard muestra numeros reales despues de emitir documentos.
+- [x] Dashboard tenant muestra numeros reales despues de emitir documentos.
 - Superadmin no queda con placeholders si tiene resumen operativo.
-- No hay contadores `—` salvo falta real de datos.
+- [x] Dashboard tenant no usa contadores `—`; cae a `0` si aun no hay actividad.
 
 ### Sprint 6 — Reorganizacion De Modulos Y Perfil/Empresa
 

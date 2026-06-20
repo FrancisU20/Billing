@@ -31,9 +31,20 @@ RECEPTOR" por estado viejo del formulario.
 Frontend: la fecha de emision se calcula con zona horaria `America/Guayaquil`, se muestra
 bloqueada junto a la hora local y solo viaja al backend/SRI la fecha `YYYY-MM-DD`.
 
+Frontend de descuentos: el facturador muestra antes de emitir la politica efectiva por
+linea (`max(descuento producto, campana global activa)`), fuente (`Catalogo`/`Campana`),
+monto sugerido y total sugerido. Esto es solo preview de UX; `documents` recalcula con
+`Decimal` y valida el techo real en backend antes de persistir.
+
 **Alcance MVP (Sprint 1-6):** Factura electronica (tipo 01), emision individual,
 multiples establecimientos desde el primer dia, RIDE descargable y entrega automatica
 al comprador con XML autorizado + RIDE adjuntos cuando existe `buyer_email`.
+
+Dashboard/operabilidad: `GET /documents/summary` devuelve el resumen del mes civil Ecuador
+para el tenant autenticado (`issued_count`, `authorized_count`, `rejected_count`,
+`failed_count`, `pending_count`, `processing_count`, `authorized_total`). Usa Query sobre
+`tenant-docs-index` acotado al mes y suma solo documentos autorizados para el total
+facturado visible.
 
 **Fuera de alcance MVP:** Nota de credito (04), retencion (07), batch masivo XLSX.
 Esos se disenan en sprints posteriores pero la arquitectura actual los soporta sin
@@ -979,8 +990,9 @@ frontend/features/documents/
   types.ts               # tipos derivados + DocumentListFilters
   constants.ts           # status labels/badge variant, iva rates, buyer_id_types, payment methods
   form.ts                # defaults, formValuesToEmitDocumentInput, computeLineTotals (preview)
+  filters.ts             # filtros de listado; `q` busca numero SRI, cedula/RUC, access key o nombre
   hooks/
-    useDocuments.ts        # usePaginatedList
+    useDocuments.ts        # useCursorPagedList con paginacion 10/25/50
     useDocument.ts         # useFetch + auto-poll cada 5s mientras PENDING/PROCESSING
   components/
     DocumentStatusBadge.tsx
@@ -1013,6 +1025,12 @@ separado — `EmitDocumentScreen` usa `useFormSubmit` inline, igual que
 `NewClientScreen` (patron ya establecido en el repo para creacion). El selector de
 comprador integra busqueda de clientes existentes (`ClientPickerModal`), no solo
 entrada manual — decision de producto tomada explicitamente en este sprint.
+
+Decision posterior de UX: el listado de documentos expone una busqueda general `q`
+reactiva (minimo 3 caracteres) que matchea numero SRI con o sin guiones
+(`001-001-000000001` / `001001000000001`), secuencial, serie, clave de acceso,
+cedula/RUC del comprador y nombre del comprador. `serie` queda como filtro tecnico
+compatible de API.
 
 Rutas Expo Router:
 
