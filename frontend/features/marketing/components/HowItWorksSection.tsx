@@ -1,7 +1,7 @@
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { useTheme } from '@/lib/theme-context'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { layout, radius, spacing, typography } from '@/constants/tokens'
 
 const steps = [
   {
@@ -25,31 +25,41 @@ export function HowItWorksSection() {
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.title, { color: semantic.text.primary }]}>Cómo funciona</Text>
+      <View style={styles.content}>
+        <Text style={[styles.title, { color: semantic.text.primary }]}>Cómo funciona</Text>
 
-      <View style={styles.steps}>
-        {steps.map((step, index) => (
-          <View key={step.title} style={styles.step}>
-            <View style={[styles.stepNumber, { backgroundColor: semantic.accent.subtle }]}>
-              <Text style={[styles.stepNumberText, { color: semantic.accent.default }]}>
-                {index + 1}
-              </Text>
+        <View style={styles.steps}>
+          {steps.map((step, index) => (
+            <View key={step.title} style={styles.step}>
+              <View style={[styles.stepNumber, { backgroundColor: semantic.accent.subtle }]}>
+                <Text style={[styles.stepNumberText, { color: semantic.accent.default }]}>
+                  {index + 1}
+                </Text>
+              </View>
+              <View style={styles.stepCopy}>
+                <Text style={[styles.stepTitle, { color: semantic.text.primary }]}>
+                  {step.title}
+                </Text>
+                <Text style={[styles.stepDescription, { color: semantic.text.secondary }]}>
+                  {step.description}
+                </Text>
+              </View>
             </View>
-            <View style={styles.stepCopy}>
-              <Text style={[styles.stepTitle, { color: semantic.text.primary }]}>{step.title}</Text>
-              <Text style={[styles.stepDescription, { color: semantic.text.secondary }]}>
-                {step.description}
-              </Text>
-            </View>
-          </View>
-        ))}
+          ))}
+        </View>
       </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { gap: spacing[5], paddingHorizontal: spacing[5], paddingVertical: spacing[6] },
+  container: { paddingHorizontal: spacing[5], paddingVertical: spacing[8] },
+  content: {
+    alignSelf: 'center',
+    gap: spacing[5],
+    maxWidth: layout.contentMaxWidth,
+    width: '100%',
+  },
   title: {
     fontSize: typography.size['2xl'],
     fontWeight: typography.weight.bold,

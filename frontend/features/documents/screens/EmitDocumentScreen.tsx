@@ -26,12 +26,12 @@ import { Routes } from '@/constants/routes'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { documentsApi } from '../api'
 import { BuyerSection } from '../components/BuyerSection'
-import { DocumentLineItem } from '../components/DocumentLineItem'
+import { DocumentLineEditModal } from '../components/DocumentLineEditModal'
+import { DocumentLineRow } from '../components/DocumentLineRow'
 import { PAYMENT_METHOD_OPTIONS } from '../constants'
 import {
   computeLineTotals,
   defaultEmitDocumentFormValues,
-  defaultEmitDocumentLine,
   ecuadorIssuedAtDisplay,
   formValuesToEmitDocumentInput,
   resolveDiscountPolicy,
@@ -44,7 +44,8 @@ export function EmitDocumentScreen() {
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
-  const [pickerLineIndex, setPickerLineIndex] = useState<number | null>(null)
+  const [productPickerOpen, setProductPickerOpen] = useState(false)
+  const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null)
   const [productDiscountByLine, setProductDiscountByLine] = useState<Record<number, string | null>>(
     {},
   )
@@ -136,42 +137,41 @@ export function EmitDocumentScreen() {
     campaign ? { active: campaign.active, percentage: campaign.percentage } : null,
   )
 
-  function applyProductToLine(product: Product) {
-    if (pickerLineIndex === null) return
-    setValue(`lines.${pickerLineIndex}.product_id`, product.id, { shouldDirty: true })
-    setValue(`lines.${pickerLineIndex}.code`, product.sku, {
+  function incrementLineQuantity(index: number) {
+    const current = Number(getValues(`lines.${index}.quantity`)) || 0
+    setValue(`lines.${index}.quantity`, String(current + 1), {
       shouldDirty: true,
       shouldValidate: true,
     })
-    setValue(`lines.${pickerLineIndex}.description`, product.description || product.name, {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-    setValue(`lines.${pickerLineIndex}.unit_price`, product.unit_price, {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-    setValue(`lines.${pickerLineIndex}.iva_rate`, product.iva_rate, {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-    setProductDiscountByLine((current) => ({
-      ...current,
-      [pickerLineIndex]: product.discount_percentage,
-    }))
-    const quantity = getValues(`lines.${pickerLineIndex}.quantity`)
+  }
+
+  function addProductLine(product: Product) {
+    const existingIndex = (lines ?? []).findIndex((line) => line.product_id === product.id)
+    if (existingIndex >= 0) {
+      incrementLineQuantity(existingIndex)
+      setProductPickerOpen(false)
+      return
+    }
+
+    const newIndex = fields.length
     const suggestedDiscount = resolveSuggestedDiscount(
-      quantity,
+      '1',
       product.unit_price,
       product.discount_percentage,
       campaign ? { active: campaign.active, percentage: campaign.percentage } : null,
     )
-    lastSuggestedDiscountByLine.current[pickerLineIndex] = suggestedDiscount
-    setValue(`lines.${pickerLineIndex}.discount`, suggestedDiscount, {
-      shouldDirty: true,
-      shouldValidate: true,
+    append({
+      product_id: product.id,
+      code: product.sku,
+      description: product.description || product.name,
+      quantity: '1',
+      unit_price: product.unit_price,
+      discount: suggestedDiscount,
+      iva_rate: product.iva_rate,
     })
-    setPickerLineIndex(null)
+    setProductDiscountByLine((current) => ({ ...current, [newIndex]: product.discount_percentage }))
+    lastSuggestedDiscountByLine.current[newIndex] = suggestedDiscount
+    setProductPickerOpen(false)
   }
 
   function removeLine(index: number) {
@@ -181,6 +181,7 @@ export function EmitDocumentScreen() {
       lastSuggestedDiscountByLine.current,
       index,
     )
+    setEditingLineIndex((current) => (current === index ? null : current))
   }
 
   if (loadingEstablishments) {
@@ -222,70 +223,142 @@ export function EmitDocumentScreen() {
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar title="Emitir documento" canGoBack />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <FormSection title="Establecimiento y punto de emisión" icon="storefront-outline">
-          <View style={styles.pillGrid}>
-            {establishments.map((est) => (
-              <Pill
-                key={est.code}
-                label={est.label}
-                selected={establishmentCode === est.code}
-                onPress={() => {
-                  setValue('establishment_code', est.code, { shouldValidate: true })
-                  setValue('emission_point_code', est.emission_points[0]?.code ?? '', {
-                    shouldValidate: true,
-                  })
-                }}
-              />
-            ))}
-          </View>
-          {selectedEstablishment ? (
-            <View style={styles.pillGrid}>
-              {selectedEstablishment.emission_points.map((point) => (
-                <Pill
-                  key={point.code}
-                  label={point.label}
-                  selected={emissionPointCode === point.code}
-                  onPress={() =>
-                    setValue('emission_point_code', point.code, { shouldValidate: true })
+        <View style={styles.twoColRow}>
+          <View style={styles.halfColumn}>
+            <FormSection title="Establecimiento y punto de emisión" icon="storefront-outline" fill>
+              {establishments.length > 1 ? (
+                <View style={styles.subField}>
+                  <Text style={[styles.subFieldLabel, { color: semantic.text.secondary }]}>
+                    Establecimiento
+                  </Text>
+                  <SegmentedControl
+                    stretch
+                    value={establishmentCode}
+                    options={establishments.map((est) => ({ value: est.code, label: est.label }))}
+                    onChange={(code) => {
+                      setValue('establishment_code', code, { shouldValidate: true })
+                      const est = establishments.find((candidate) => candidate.code === code)
+                      setValue('emission_point_code', est?.emission_points[0]?.code ?? '', {
+                        shouldValidate: true,
+                      })
+                    }}
+                  />
+                </View>
+              ) : (
+                <LockedInfoRow
+                  icon="storefront-outline"
+                  label="Establecimiento"
+                  value={selectedEstablishment?.label ?? ''}
+                />
+              )}
+              {selectedEstablishment && selectedEstablishment.emission_points.length > 1 ? (
+                <View style={styles.subField}>
+                  <Text style={[styles.subFieldLabel, { color: semantic.text.secondary }]}>
+                    Punto de emisión
+                  </Text>
+                  <SegmentedControl
+                    stretch
+                    value={emissionPointCode}
+                    options={selectedEstablishment.emission_points.map((point) => ({
+                      value: point.code,
+                      label: point.label,
+                    }))}
+                    onChange={(code) =>
+                      setValue('emission_point_code', code, { shouldValidate: true })
+                    }
+                  />
+                </View>
+              ) : selectedEstablishment ? (
+                <LockedInfoRow
+                  icon="pricetags-outline"
+                  label="Punto de emisión"
+                  value={
+                    selectedEstablishment.emission_points.find(
+                      (point) => point.code === emissionPointCode,
+                    )?.label ?? ''
                   }
                 />
-              ))}
-            </View>
-          ) : null}
-        </FormSection>
+              ) : null}
+            </FormSection>
+          </View>
 
-        <FormSection title="Fecha de emisión" icon="calendar-outline">
-          <LockedIssuedAt value={issuedAtDisplay} sriDate={issuedAt} />
-          {errors.issued_at?.message ? (
-            <Text style={[styles.fieldError, { color: semantic.status.error }]}>
-              {errors.issued_at.message}
-            </Text>
-          ) : null}
-        </FormSection>
+          <View style={styles.halfColumn}>
+            <FormSection title="Fecha de emisión" icon="calendar-outline" fill>
+              <LockedIssuedAt value={issuedAtDisplay} sriDate={issuedAt} />
+              {errors.issued_at?.message ? (
+                <Text style={[styles.fieldError, { color: semantic.status.error }]}>
+                  {errors.issued_at.message}
+                </Text>
+              ) : null}
+            </FormSection>
+          </View>
+        </View>
 
         <FormSection title="Comprador" icon="person-outline">
           <BuyerSection control={control} setValue={setValue} errors={errors} />
         </FormSection>
 
-        <FormSection title="Forma de pago" icon="card-outline">
-          <View style={styles.pillGrid}>
-            {PAYMENT_METHOD_OPTIONS.map((option) => (
-              <Pill
-                key={option.value}
-                label={option.label}
-                selected={paymentMethod === option.value}
-                onPress={() =>
-                  setValue('payment_method', option.value, {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  })
+        <View style={styles.twoColRow}>
+          <View style={styles.halfColumn}>
+            <FormSection title="Forma de pago" icon="card-outline">
+              <View style={styles.pillGrid}>
+                {PAYMENT_METHOD_OPTIONS.map((option) => (
+                  <Pill
+                    key={option.value}
+                    label={option.label}
+                    selected={paymentMethod === option.value}
+                    onPress={() =>
+                      setValue('payment_method', option.value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
+                  />
+                ))}
+              </View>
+            </FormSection>
+          </View>
+
+          <View style={styles.halfColumn}>
+            <FormSection title="Avanzado" icon="construct-outline">
+              <SegmentedControl
+                value={overrideDiscountCeiling ? 'yes' : 'no'}
+                options={[
+                  { label: 'Techo de descuento normal', value: 'no' },
+                  { label: 'Anular techo de descuento', value: 'yes' },
+                ]}
+                onChange={(next) =>
+                  setValue('override_discount_ceiling', next === 'yes', { shouldValidate: true })
                 }
               />
-            ))}
+              {overrideDiscountCeiling ? (
+                <Controller
+                  control={control}
+                  name="override_reason"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <FormField
+                      label="Motivo del descuento excepcional"
+                      placeholder="Ej. gesto comercial autorizado por el gerente"
+                      leftIcon="alert-circle-outline"
+                      error={errors.override_reason?.message}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      value={value}
+                      required
+                    />
+                  )}
+                />
+              ) : (
+                <Text style={[styles.note, { color: semantic.text.tertiary }]}>
+                  Por defecto, ningún descuento puede superar el máximo del catálogo o la campaña
+                  activa. Esta opción queda registrada con tu usuario y motivo.
+                </Text>
+              )}
+            </FormSection>
           </View>
-        </FormSection>
+        </View>
 
-        <FormSection title="Líneas de detalle" icon="list-outline">
+        <FormSection title="Productos" icon="cube-outline">
           <DiscountContextBanner
             campaign={
               campaign ? { active: campaign.active, percentage: campaign.percentage } : null
@@ -293,66 +366,33 @@ export function EmitDocumentScreen() {
             discountedLines={discountPreview.discountedLines}
             suggestedDiscount={discountPreview.suggestedDiscount}
           />
-          {fields.map((field, index) => (
-            <DocumentLineItem
-              key={field.id}
-              index={index}
-              control={control}
-              errors={errors}
-              productDiscountPercentage={productDiscountByLine[index] ?? null}
-              campaign={
-                campaign ? { active: campaign.active, percentage: campaign.percentage } : null
-              }
-              canRemove={fields.length > 1}
-              onPickProduct={() => setPickerLineIndex(index)}
-              onRemove={() => removeLine(index)}
-              onChangeIvaRate={(rate) =>
-                setValue(`lines.${index}.iva_rate`, rate, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
-          ))}
-          <Button variant="outline" size="md" onPress={() => append(defaultEmitDocumentLine())}>
-            Agregar línea
-          </Button>
-        </FormSection>
 
-        <FormSection title="Avanzado" icon="construct-outline">
-          <SegmentedControl
-            value={overrideDiscountCeiling ? 'yes' : 'no'}
-            options={[
-              { label: 'Techo de descuento normal', value: 'no' },
-              { label: 'Anular techo de descuento', value: 'yes' },
-            ]}
-            onChange={(next) =>
-              setValue('override_discount_ceiling', next === 'yes', { shouldValidate: true })
-            }
-          />
-          {overrideDiscountCeiling ? (
-            <Controller
-              control={control}
-              name="override_reason"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <FormField
-                  label="Motivo del descuento excepcional"
-                  placeholder="Ej. gesto comercial autorizado por el gerente"
-                  leftIcon="alert-circle-outline"
-                  error={errors.override_reason?.message}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  value={value}
-                  required
-                />
-              )}
-            />
-          ) : (
-            <Text style={[styles.note, { color: semantic.text.tertiary }]}>
-              Por defecto, ningún descuento puede superar el máximo del catálogo o la campaña
-              activa. Esta opción queda registrada con tu usuario y motivo.
+          {fields.length === 0 ? (
+            <Text
+              style={[
+                styles.note,
+                { color: errors.lines?.message ? semantic.status.error : semantic.text.tertiary },
+              ]}
+            >
+              {errors.lines?.message ?? 'Sin productos todavía. Usa "Agregar producto".'}
             </Text>
+          ) : (
+            <View style={styles.linesList}>
+              {fields.map((field, index) => (
+                <DocumentLineRow
+                  key={field.id}
+                  index={index}
+                  control={control}
+                  onPress={() => setEditingLineIndex(index)}
+                  onRemove={() => removeLine(index)}
+                />
+              ))}
+            </View>
           )}
+
+          <Button variant="outline" size="md" onPress={() => setProductPickerOpen(true)}>
+            Agregar producto
+          </Button>
         </FormSection>
 
         <View
@@ -385,10 +425,27 @@ export function EmitDocumentScreen() {
         </Button>
       </ScrollView>
       <ProductPickerModal
-        visible={pickerLineIndex !== null}
-        onClose={() => setPickerLineIndex(null)}
-        onSelect={applyProductToLine}
+        visible={productPickerOpen}
+        onClose={() => setProductPickerOpen(false)}
+        onSelect={addProductLine}
         campaign={campaign ? { active: campaign.active, percentage: campaign.percentage } : null}
+      />
+      <DocumentLineEditModal
+        index={editingLineIndex}
+        control={control}
+        errors={errors}
+        onClose={() => setEditingLineIndex(null)}
+        productDiscountPercentage={
+          editingLineIndex !== null ? (productDiscountByLine[editingLineIndex] ?? null) : null
+        }
+        campaign={campaign ? { active: campaign.active, percentage: campaign.percentage } : null}
+        onChangeIvaRate={(rate) => {
+          if (editingLineIndex === null) return
+          setValue(`lines.${editingLineIndex}.iva_rate`, rate, {
+            shouldDirty: true,
+            shouldValidate: true,
+          })
+        }}
       />
     </View>
   )
@@ -434,6 +491,31 @@ function DiscountContextBanner({
 }
 
 function LockedIssuedAt({ value, sriDate }: { value: string; sriDate: string }) {
+  return (
+    <LockedInfoRow
+      icon="calendar-outline"
+      label="Fecha y hora Ecuador"
+      value={value}
+      meta={`Fecha SRI: ${sriDate}`}
+    />
+  )
+}
+
+/** Caja "no editable" generica — mismo lenguaje visual para todo dato fijo que no es un
+ * Input deshabilitado (`Input.tsx` ya cubre ese caso) sino un valor sin alternativa real
+ * para elegir, ej. el unico establecimiento/punto de emision del tenant. Evita que un
+ * `SegmentedControl` con una sola opcion se vea como un boton vacio sin proposito. */
+function LockedInfoRow({
+  icon,
+  label,
+  value,
+  meta,
+}: {
+  icon: keyof typeof Ionicons.glyphMap
+  label: string
+  value: string
+  meta?: string
+}) {
   const { semantic } = useTheme()
   return (
     <View
@@ -443,16 +525,14 @@ function LockedIssuedAt({ value, sriDate }: { value: string; sriDate: string }) 
       ]}
     >
       <View style={styles.lockedDateIcon}>
-        <Ionicons name="calendar-outline" size={18} color={semantic.accent.default} />
+        <Ionicons name={icon} size={18} color={semantic.accent.default} />
       </View>
       <View style={styles.lockedDateText}>
-        <Text style={[styles.lockedDateLabel, { color: semantic.text.secondary }]}>
-          Fecha y hora Ecuador
-        </Text>
+        <Text style={[styles.lockedDateLabel, { color: semantic.text.secondary }]}>{label}</Text>
         <Text style={[styles.lockedDateValue, { color: semantic.text.primary }]}>{value}</Text>
-        <Text style={[styles.lockedDateMeta, { color: semantic.text.tertiary }]}>
-          Fecha SRI: {sriDate}
-        </Text>
+        {meta ? (
+          <Text style={[styles.lockedDateMeta, { color: semantic.text.tertiary }]}>{meta}</Text>
+        ) : null}
       </View>
       <Ionicons name="lock-closed-outline" size={18} color={semantic.text.tertiary} />
     </View>
@@ -463,16 +543,25 @@ function FormSection({
   title,
   icon,
   children,
+  fill = false,
 }: {
   title: string
   icon: keyof typeof Ionicons.glyphMap
   children: React.ReactNode
+  /** Solo para parejas dentro de `twoColRow`, donde el sibling con mas contenido debe
+   * marcar la altura de la fila — `halfColumn` ya queda con esa altura via el
+   * `alignItems: 'stretch'` por defecto de `twoColRow`, y `fill` hace que este card
+   * la ocupe en vez de quedarse en su alto de contenido. No usar en cards standalone
+   * (Comprador, Productos, etc.): ahi el padre no tiene una altura real que repartir y
+   * `flex: 1` colapsa el card a 0 con el contenido desbordando por debajo. */
+  fill?: boolean
 }) {
   const { semantic } = useTheme()
   return (
     <View
       style={[
         styles.section,
+        fill && styles.sectionFill,
         { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
       ]}
     >
@@ -608,7 +697,13 @@ function reindexByRemovedLine<T>(
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { gap: spacing[4], padding: spacing[5], paddingBottom: spacing[12] },
-  section: { borderRadius: radius.md, borderWidth: 1, gap: spacing[4], padding: spacing[4] },
+  section: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing[4],
+    padding: spacing[4],
+  },
+  sectionFill: { flex: 1 },
   sectionHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
   sectionIcon: {
     alignItems: 'center',
@@ -619,6 +714,15 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   sectionBody: { gap: spacing[3] },
+  twoColRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
+  halfColumn: { flex: 1, minWidth: 280 },
+  subField: { gap: spacing[2] },
+  subFieldLabel: {
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.semibold,
+    textTransform: 'uppercase',
+  },
+  linesList: { gap: spacing[2] },
   discountBanner: {
     alignItems: 'flex-start',
     borderRadius: radius.md,

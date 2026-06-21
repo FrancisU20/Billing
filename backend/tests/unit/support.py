@@ -157,6 +157,8 @@ class FakeTenantRepository:
         self.list_calls: list[dict[str, Any]] = []
         self.count_result: int = 0
         self.count_calls: list[dict[str, Any]] = []
+        self.aggregate_dashboard_stats_result: Any = None
+        self.aggregate_dashboard_stats_calls: list[datetime] = []
         self.get_by_id_calls: list[str] = []
         self.set_pending_order_id_calls: list[tuple[str, str]] = []
         self.pending_activation_tenants: list[Tenant] = []
@@ -257,12 +259,18 @@ class FakeTenantRepository:
     def list_with_pending_activation(self) -> list[Tenant]:
         return self.pending_activation_tenants
 
+    def aggregate_dashboard_stats(self, now: datetime) -> Any:
+        self.aggregate_dashboard_stats_calls.append(now)
+        return self.aggregate_dashboard_stats_result
+
 
 class FakePlanCatalog:
     def __init__(self, *, active: bool = True, exists: bool = True) -> None:
         self.active = active
         self.exists = exists
         self.checked_ids: list[str] = []
+        self.get_pricing_result: dict[str, Any] = {}
+        self.get_pricing_calls: list[set[str]] = []
 
     def ensure_active(self, plan_id: str) -> None:
         self.checked_ids.append(plan_id)
@@ -270,6 +278,10 @@ class FakePlanCatalog:
             raise ValidationError("plan_id inválido")
         if not self.active:
             raise ValidationError("plan_id no está activo")
+
+    def get_pricing(self, plan_ids: set[str]) -> dict[str, Any]:
+        self.get_pricing_calls.append(plan_ids)
+        return self.get_pricing_result
 
 
 class FakeClientRepository:
@@ -330,6 +342,7 @@ class FakeClientRepository:
     def count(
         self,
         status: str | None = None,
+        identification: str | None = None,
         identification_type: str | None = None,
         created_from: str | None = None,
         created_to: str | None = None,
@@ -337,6 +350,7 @@ class FakeClientRepository:
         self.count_calls.append(
             {
                 "status": status,
+                "identification": identification,
                 "identification_type": identification_type,
                 "created_from": created_from,
                 "created_to": created_to,

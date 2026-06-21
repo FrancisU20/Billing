@@ -2,8 +2,8 @@ import React from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTheme } from '@/lib/theme-context'
-import { Logo } from '@/components/branding/Logo'
-import { overlay, typography, spacing, radius } from '@/constants/tokens'
+import { Wordmark } from '@/components/branding/Logo'
+import { overlay, typography, spacing } from '@/constants/tokens'
 import { Routes } from '@/constants/routes'
 import { LoginForm } from '../components/LoginForm'
 import { useLogin } from '../hooks/useLogin'
@@ -37,19 +37,13 @@ export function LoginScreen() {
   const pageBg = isDark ? semantic.bg.page : semantic.bg.page
   const titleColor = isDark ? overlay.text.primary : semantic.text.primary
   const subtitleColor = isDark ? overlay.text.subtle : semantic.text.secondary
-  const brandColor = isDark ? overlay.text.subtle : semantic.text.tertiary
   const dividerColor = isDark ? overlay.border.default : semantic.border.default
   const backLinkColor = isDark ? overlay.text.faint : semantic.text.tertiary
 
   return (
     <View style={[staticStyles.page, { backgroundColor: pageBg }]}>
       <View style={staticStyles.content}>
-        <View style={staticStyles.brand}>
-          <Logo size={32} style={staticStyles.mark} />
-          <Text style={[staticStyles.brandName, { color: brandColor }]}>
-            CODELABS <Text style={{ color: semantic.accent.default }}>BILLING</Text>
-          </Text>
-        </View>
+        <Wordmark height={22} />
 
         <View style={staticStyles.heading}>
           <Text style={[staticStyles.title, { color: titleColor }]}>Inicia sesión</Text>
@@ -79,9 +73,6 @@ export function LoginScreen() {
 const staticStyles = StyleSheet.create({
   page: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing[6] },
   content: { width: '100%', maxWidth: 420, gap: spacing[7] },
-  brand: { gap: spacing[3] },
-  mark: { borderRadius: radius.sm, overflow: 'hidden' },
-  brandName: { fontSize: typography.size.xs, fontWeight: typography.weight.bold, letterSpacing: 2 },
   heading: { gap: spacing[2] },
   title: {
     fontSize: typography.size['4xl'],

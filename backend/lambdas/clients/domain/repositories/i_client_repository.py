@@ -35,11 +35,13 @@ class IClientRepository(ABC):
     def count(
         self,
         status: str | None = None,
+        identification: str | None = None,
         identification_type: str | None = None,
         created_from: str | None = None,
         created_to: str | None = None,
     ) -> int:
-        """Count matching `list()` filters, excluding `q`/`identification` (matched in Python)."""
+        """Count matching `list()` filters, excluding `q` (matched in Python). `identification`
+        is a GSI prefix Query (Select=COUNT), so it stays accurate here."""
 
     @abstractmethod
     def save(self, client: Client, user_id: str) -> None: ...

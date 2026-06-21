@@ -654,7 +654,7 @@ campos esten completos.
          → `confirmPayment` → `applyRenewal` (con retry).
   `ApplySubscriptionRenewalUseCase` no valida el subscription_status — acepta `payment_failed`
   y deja el tenant en `active` si el pago es PAID.
-  **Sin pago anticipado (`UX_REFACTOR.md` Sprint 6):** cuando `subscription_status ===
+  **Sin pago anticipado:** cuando `subscription_status ===
   'active'`, `BillingScreen` no muestra el card de pago — muestra un card informativo
   ("Tu suscripción está al día") en su lugar. El card de pago manual ("Renovar
   suscripción"/"Pagar con tarjeta nueva") solo aparece para `expired`/`payment_failed`

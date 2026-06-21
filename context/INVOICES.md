@@ -23,7 +23,7 @@ Ultima actualizacion: 2026-06-19.
 Emision de documentos electronicos hacia el SRI de Ecuador. Nucleo del negocio.
 
 Regla fiscal critica: si `buyer_id_type == "07"` (Consumidor Final), el sistema fuerza
-`buyer_id = "9999999999999"`, `buyer_name = "Consumidor Final"`, `client_id = null` y
+`buyer_id = "9999999999999"`, `buyer_name = "CONSUMIDOR FINAL"`, `client_id = null` y
 `buyer_email = null` antes de emitir. Si llegan 13 nueves con otro tipo de identificacion,
 el request se rechaza. Esto evita rechazos SRI tipo "69: ERROR EN LA IDENTIFICACION DEL
 RECEPTOR" por estado viejo del formulario.
@@ -428,6 +428,9 @@ Reglas:
   sobreescribir ni borrar durante los 7 anios de retension.
 - Solo `AUTHORIZED` genera archivos en S3. Documentos `REJECTED` no van a S3.
 - Descarga del RIDE: pre-signed URL con TTL 15 minutos (endpoint `GET /documents/{id}/ride`).
+  Disponible tanto en `DocumentDetailScreen` como en `DocumentListItem` (`RowActionsMenu`,
+  solo si `status === 'AUTHORIZED'` — si no hay ninguna accion disponible el kebab no se
+  renderiza) — ver "Acciones de fila" en `FRONTEND.md`.
 
 Estimacion de costo de almacenamiento para un enterprise de 10,000 docs/dia:
 ```
@@ -760,11 +763,14 @@ Respuesta de autorizacion puede ser:
   prueba real muestra un literal distinto, el ajuste es de una linea en
   `sri_client.py::_parse_autorizacion`, sin tocar use cases.
 
-Clasificacion de errores del SRI (critica para no reintentar lo que es permanente),
-implementada en `sri_error_classifier.py`:
+Normalizacion y clasificacion de errores del SRI (critica para no reintentar lo que es
+permanente), implementada en `sri_error_mapper.py` con facade legacy
+`sri_error_classifier.py`:
 - **Permanente** (default para codigos no listados): codigos de error de validacion del
   XML, firma invalida, RUC no registrado, numero de secuencial duplicado. Marcar
-  `REJECTED`, no reintentar.
+  `REJECTED`, no reintentar. Los errores se persisten normalizados con `code`,
+  `message`, `user_message`, `category`, `classification`, `raw_message` y
+  `additional_info`.
 - **Reintentable** (lista corta de codigos conocidos + cualquier error de transporte
   HTTP/timeout/5xx, que ni siquiera llega a tener codigo SRI): marcar `FAILED`,
   retry\_count++, y relanzar excepcion para que SQS reintente (DLQ a los 5 intentos,
@@ -896,7 +902,7 @@ acepta `client_id=null` con `buyer_id_type="07"` y usa valores fijos:
 ```
 tipoIdentificacionComprador = "07"
 identificacionComprador     = "9999999999999"
-razonSocialComprador        = "Consumidor Final"
+razonSocialComprador        = "CONSUMIDOR FINAL"
 client_id                   = null
 ```
 
@@ -1003,13 +1009,13 @@ frontend/features/documents/
     useDocument.ts         # useFetch + auto-poll cada 5s mientras PENDING/PROCESSING
   components/
     DocumentStatusBadge.tsx
-    DocumentListItem.tsx
+    DocumentListItem.tsx     # RowActionsMenu con "Descargar RIDE" si AUTHORIZED
     DocumentsFilters.tsx
-    DocumentLineItem.tsx    # fila dentro de useFieldArray, con preview de total por linea
+    DocumentLineRow.tsx      # fila compacta de una linea por producto (lista escaneable)
+    DocumentLineEditModal.tsx # modal de detalle (cantidad/descuento/IVA/codigo/descripcion)
     IvaRatePicker.tsx       # SegmentedControl de 4 tarifas
-    BuyerIdTypePicker.tsx   # grid OptionTile (RUC/Cedula/Pasaporte/Exterior)
-    BuyerSection.tsx        # 3 modos: Consumidor Final / Cliente existente / Manual
-    ClientPickerModal.tsx   # busca clientsApi.list({q}) — reuso directo de features/clients
+    BuyerSection.tsx        # 2 modos: Consumidor Final / Cliente existente — sin "Manual"
+    ClientPickerModal.tsx   # busca clientsApi.list({q}) + creacion rapida (igual patron que ProductPickerModal)
   screens/
     DocumentsListScreen.tsx
     EmitDocumentScreen.tsx
@@ -1032,6 +1038,53 @@ separado — `EmitDocumentScreen` usa `useFormSubmit` inline, igual que
 `NewClientScreen` (patron ya establecido en el repo para creacion). El selector de
 comprador integra busqueda de clientes existentes (`ClientPickerModal`), no solo
 entrada manual — decision de producto tomada explicitamente en este sprint.
+
+**Rediseño de UX de emision (post-MVP):** `BuyerSection` elimino el modo "Manual" —
+los campos de identificacion/nombre/email del comprador quedan siempre disabled,
+poblados unicamente al elegir un cliente real via `ClientPickerModal` (que ahora tiene
+creacion rapida inline, igual patron que `ProductPickerModal`). Nunca se permite
+facturar a una identidad que no quede guardada como `Client`.
+
+La creacion rapida de `ClientPickerModal` pide tipo/numero de identificacion, tipo de
+persona y razon social (obligatorios), mas **correo (obligatorio)**, telefono y
+direccion (ambos opcionales) — el correo es obligatorio aqui porque este cliente se
+factura de inmediato; no aplica a Consumidor Final, que nunca abre este modal (usa el
+placeholder fijo `9999999999999`, sin cambios). `ClientForm.tsx` (alta/edicion completa
+de clientes fuera del flujo de facturacion) sigue con email/telefono/direccion
+opcionales — la obligatoriedad es especifica de "el cliente que se factura", no una
+regla nueva del dominio `Client` en general.
+
+El selector de establecimiento/punto de emision en `EmitDocumentScreen` solo usa
+`SegmentedControl` cuando hay mas de una opcion real entre las que elegir. Con un solo
+establecimiento o un solo punto (caso comun: tenant chico con su unico establecimiento +
+punto 099 de pruebas) se renderiza como `LockedInfoRow` (icono+label+valor+candado, mismo
+lenguaje visual que `LockedIssuedAt`/Fecha de emision) en vez de un `SegmentedControl` de
+una sola opcion, que se veia como un boton vacio sin proposito y dejaba espacio en blanco
+desparejo frente a la card de Fecha de emision. Generalizable: cualquier futuro
+`SegmentedControl` que pueda quedar con 0-1 opciones reales deberia evaluar el mismo
+tratamiento en vez de renderizar el control igual.
+
+La lista de productos (`EmitDocumentScreen`) es ahora `DocumentLineRow` (una fila por
+linea + eliminar) en vez de un card siempre expandido por linea — pensado para listas
+largas (ej. flujos con lector de codigo de barras a futuro) donde un card por linea
+sobrecargaria la pantalla. Sigue el mismo patron responsive de toda fila de listado
+(`useIsDesktopLayout` + `ListCell`, ver `ProductListItem`/`ClientListItem`): en desktop
+se ve como fila de columnas (Producto/codigo, Cantidad, Precio unit., Descuento, Sin IVA,
+Con IVA) en vez de una sola linea de texto comprimida, aprovechando el ancho disponible;
+en mobile colapsa a nombre + meta compacta + `Sin IVA $X` / total con IVA en una fila de
+totales. El descuento se muestra como `Badge variant="warning"` con `-$monto (pct%)` —
+mismo formato y misma formula (`discount / (quantity*unit_price) * 100`) que
+`_discount_cell` en `ride_builder.py` (Sprint 2e), para que el front no invente un
+numero distinto al que ya se le muestra al comprador en el RIDE. El boton "Agregar
+producto" abre `ProductPickerModal` (busqueda + creacion rapida); si el producto
+elegido ya esta en la lista, suma +1 a su cantidad en vez de duplicar la linea. El
+detalle de cada linea (cantidad/descuento/IVA/codigo/descripcion) se edita en
+`DocumentLineEditModal`, no inline — toda fila nueva nace desde `ProductPickerModal`,
+nunca como una linea en blanco para tipear a mano; por eso `defaultEmitDocumentFormValues`
+arranca con `lines: []`. Se evaluo agregar tambien un campo de escaneo siempre visible
+con lookup automatico por SKU exacto, pero se descarto por UX confusa (mezclaba
+"buscar" y "agregar" en un mismo input sin flujo claro) — si se retoma, debe ser un
+input separado y explicito, no un atajo silencioso sobre el boton existente.
 
 Decision posterior de UX: el listado de documentos expone una busqueda general `q`
 reactiva (minimo 3 caracteres) que matchea numero SRI con o sin guiones
@@ -1075,7 +1128,7 @@ Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregado
 | Deuda | Impacto |
 | --- | --- |
 | Tabla IVA hardcodeada en codigo | Si el gobierno cambia la tarifa hay que hacer deploy. Evaluar tabla DynamoDB con rangos de fecha cuando el gobierno sea menos predecible. |
-| Clasificacion de errores SRI incompleta | El SRI Ecuador tiene ~50 codigos de error. La clasificacion inicial cubre los mas comunes. Afinar con datos reales de produccion. |
+| Mapeo de errores SRI incompleto | El SRI Ecuador tiene ~50 codigos de error. El mapeo inicial cubre los mas comunes y el codigo 69 observado en testing. Afinar con datos reales de produccion. |
 | Colas enterprise dedicadas sin cleanup automatico | Si un tenant enterprise es dado de baja, su cola y ESM quedan huerfanos. Necesita un proceso de deprovision. |
 | Worker SIGN sin agrupacion de tenants en cola compartida | Para clientes pequenos, cada documento = 1 llamada SOAP al SRI (no hay batching entre distintos RUCs). Aceptable hasta ~50,000 docs/dia en la cola compartida. |
 | Scans de batch\_jobs para listado | Igual que tenants/clients: aceptable para volumen bajo. |
@@ -1083,7 +1136,6 @@ Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregado
 | Literal de estado "rechazado" en autorizacion SOAP sin verificar contra SRI real | `sri_client.py` asume que todo lo que no es `AUTORIZADO`/`EN PROCESO` es rechazo; falta confirmar el literal exacto (`NO AUTORIZADO` segun Ficha Tecnica) contra el ambiente de pruebas real del SRI. Ajuste aislado a una funcion si difiere. |
 | `Establecimiento` sin direccion propia | `dirEstablecimiento` (obligatorio en XSD) reusa `tenant.address` para todos los establecimientos del tenant. Agregar `address` a `Establecimiento` si se necesita una direccion real por sucursal. |
 | RIDE sin codigo de barras real ni logo del tenant | MVP genera PDF con todos los campos obligatorios en texto via reportlab. Agregar barcode Code128/logo es trabajo de UI, no de cumplimiento legal — evaluar si un cliente lo pide. |
-| `ClientPickerModal` no esta en `components/ui/` | Es el primer selector de lista con busqueda del repo; vive en `features/documents/components/` porque solo este feature lo usa. Si otro feature necesita un picker similar, extraer a `components/ui/` (regla de FRONTEND.md: 2+ features lo necesitan). |
 | `EstablishmentsScreen` con forms inline via `useState` plano (no react-hook-form) | Los mini-forms de alta/edicion de punto de emision son simples (2-3 campos) y no justifican el overhead de react-hook-form+zod. Si crecen en complejidad, migrar al patron `*Form.tsx` + Controller. |
 | Emails de documento al emisor sin adjuntar PDF | `DocumentAuthorizedEvent` etc. notifican al emisor sin adjuntos. El emisor descarga el RIDE desde `GET /documents/{id}/ride`. El comprador si recibe XML autorizado + RIDE adjuntos via `DocumentBuyerNotificationRequestedEvent`. |
 | `invoice_processor` SIGN/POLL sin concurrencia reservada diferenciada | Cuenta AWS en `sa-east-1` con limite de Lambda en 10 ejecuciones concurrentes totales (default no aumentado). Pedir quota increase a AWS y reintroducir `reserved_concurrent_executions=30/20` en `api_stack.py` cuando se apruebe. |

@@ -63,45 +63,49 @@ export function CompanyScreen() {
               />
             </DetailSection>
 
-            <CertificateSection tenantId={tenant.id} canManage={canManage} />
+            <View style={styles.widgetsRow}>
+              <View style={styles.widgetColumn}>
+                <CertificateSection
+                  tenantId={tenant.id}
+                  canManage={canManage}
+                  style={styles.equalHeightCard}
+                />
+              </View>
 
-            <SectionLabel title="Configuración" />
-            <View
-              style={[
-                styles.linksCard,
-                { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-              ]}
-            >
-              <SettingsRow
-                icon="storefront-outline"
-                title="Establecimientos"
-                subtitle="Puntos de emisión y secuenciales SRI"
-                onPress={() => router.push(Routes.tenant.establishments as Href)}
-              />
-              <SettingsRow
-                icon="pricetag-outline"
-                title="Descuento global"
-                subtitle="Campaña de descuento por tenant"
-                onPress={() => router.push(Routes.tenant.discountCampaign as Href)}
-              />
-              <SettingsRow
-                icon="card-outline"
-                title="Suscripción y facturación"
-                subtitle="Plan, ciclo y método de pago"
-                onPress={() => router.push(Routes.tenant.billing as Href)}
-                last
-              />
+              <View style={styles.widgetColumn}>
+                <DetailSection
+                  title="Configuración"
+                  icon="settings-outline"
+                  layout="stack"
+                  style={styles.equalHeightCard}
+                >
+                  <SettingsRow
+                    icon="storefront-outline"
+                    title="Establecimientos"
+                    subtitle="Puntos de emisión y secuenciales SRI"
+                    onPress={() => router.push(Routes.tenant.establishments as Href)}
+                  />
+                  <SettingsRow
+                    icon="pricetag-outline"
+                    title="Descuento global"
+                    subtitle="Campaña de descuento por tenant"
+                    onPress={() => router.push(Routes.tenant.discountCampaign as Href)}
+                  />
+                  <SettingsRow
+                    icon="card-outline"
+                    title="Suscripción"
+                    subtitle="Facturación y pagos"
+                    onPress={() => router.push(Routes.tenant.billing as Href)}
+                    last
+                  />
+                </DetailSection>
+              </View>
             </View>
           </>
         ) : null}
       </ScrollView>
     </View>
   )
-}
-
-function SectionLabel({ title }: { title: string }) {
-  const { semantic } = useTheme()
-  return <Text style={[styles.sectionLabel, { color: semantic.text.secondary }]}>{title}</Text>
 }
 
 function SettingsRow({
@@ -143,17 +147,14 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { padding: spacing[5], gap: spacing[4], paddingBottom: spacing[12] },
   sectionHeader: { alignItems: 'flex-end' },
-  sectionLabel: {
-    fontSize: typography.size.xs,
-    fontWeight: typography.weight.semibold,
-    textTransform: 'uppercase',
-  },
-  linksCard: { borderRadius: radius.md, borderWidth: 1 },
+  widgetsRow: { alignItems: 'stretch', flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
+  widgetColumn: { flexGrow: 1, flexBasis: 320, minWidth: 320 },
+  equalHeightCard: { flex: 1 },
   row: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing[3],
-    padding: spacing[4],
+    paddingVertical: spacing[3],
   },
   rowIcon: {
     alignItems: 'center',

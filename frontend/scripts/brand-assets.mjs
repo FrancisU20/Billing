@@ -4,87 +4,50 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { inflateSync } from 'node:zlib'
 
+// public/wordmark-dark.png (logo usado en los emails transaccionales, ver
+// brevo_email_sender.py) no se genera aqui: qlmanage renderiza mal SVG no
+// cuadrados (recorta el contenido). Si el wordmark cambia, regenerarlo con un
+// navegador headless (Playwright/Chromium) a partir de
+// assets/brand/wali/wordmark-dark-transparent.svg, no con qlmanage.
+
 const command = process.argv[2]
 const root = process.cwd()
+const brandDir = join(root, 'assets/brand/wali')
 
 const paths = {
   appJson: join(root, 'app.json'),
+  sourceLight: join(brandDir, 'icon-app-light.svg'),
+  sourceDark: join(brandDir, 'icon-app-dark.svg'),
+  sourceForeground: join(brandDir, 'icon-w-on-light-transparent.svg'),
   lightSvg: join(root, 'public/favicon-light.svg'),
   darkSvg: join(root, 'public/favicon-dark.svg'),
   publicPng: join(root, 'public/favicon.png'),
   assetPng: join(root, 'assets/favicon.png'),
   appIcon: join(root, 'assets/icon.png'),
+  androidForeground: join(root, 'assets/android-icon-foreground.png'),
+  androidBackground: join(root, 'assets/android-icon-background.png'),
+  androidMonochrome: join(root, 'assets/android-icon-monochrome.png'),
 }
 
-const logo = {
-  cPath: 'M 300 116 A 130 130 0 1 0 300 284 L 259 250 A 77 77 0 1 1 259 150 Z',
-  particles: [
-    { cx: 319, cy: 100, r: 10, opacity: 1 },
-    { cx: 346, cy: 147, r: 6.5, opacity: 0.75 },
-    { cx: 355, cy: 200, r: 4, opacity: 0.45 },
-    { cx: 346, cy: 253, r: 6.5, opacity: 0.75 },
-    { cx: 319, cy: 300, r: 10, opacity: 1 },
-  ],
-}
+const brandBackgroundLight = '#F7F8FC'
 
-const themes = {
-  light: {
-    gradientFrom: '#6366F1',
-    gradientTo: '#3730A3',
-    mark: '#FFFFFF',
-    particle: '#FFFFFF',
-  },
-  dark: {
-    gradientFrom: '#1E1B3A',
-    gradientTo: '#0D0B1E',
-    glow: '#6366F1',
-    mark: '#6366F1',
-    particle: '#818CF8',
-  },
-}
-
-function renderSvg(themeName) {
-  const theme = themes[themeName]
-  const glow =
-    themeName === 'dark'
-      ? `\n    <radialGradient id="logo-glow" cx="50%" cy="50%" r="50%">\n      <stop offset="0%" stop-color="${theme.glow}" stop-opacity="0.15" />\n      <stop offset="100%" stop-color="${theme.glow}" stop-opacity="0" />\n    </radialGradient>`
-      : ''
-  const glowShape =
-    themeName === 'dark'
-      ? '\n  <ellipse cx="190" cy="200" rx="160" ry="160" fill="url(#logo-glow)" />'
-      : ''
-  const particles = logo.particles
-    .map((particle) => {
-      const opacity =
-        particle.opacity === 1
-          ? ''
-          : ` opacity="${themeName === 'dark' ? darkOpacity(particle.opacity) : particle.opacity}"`
-      return `  <circle cx="${particle.cx}" cy="${particle.cy}" r="${particle.r}" fill="${theme.particle}"${opacity} />`
-    })
-    .join('\n')
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
-  <defs>
-    <radialGradient id="logo-gradient" cx="38%" cy="30%" r="70%">
-      <stop offset="0%" stop-color="${theme.gradientFrom}" />
-      <stop offset="100%" stop-color="${theme.gradientTo}" />
-    </radialGradient>${glow}
-  </defs>
-  <rect width="400" height="400" rx="72" fill="url(#logo-gradient)" />${glowShape}
-  <path d="${logo.cPath}" fill="${theme.mark}" />
-${particles}
+const androidBackgroundSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="${brandBackgroundLight}" />
 </svg>
 `
-}
 
-function darkOpacity(lightOpacity) {
-  if (lightOpacity === 0.75) return 0.8
-  if (lightOpacity === 0.45) return 0.5
-  return lightOpacity
-}
+const monochromeWSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<g transform="translate(117.8,355.9) scale(0.3647,-0.3647)" fill="none" stroke="#000000" stroke-width="158.0" stroke-linecap="round" stroke-linejoin="round">
+<path d="M79.0,469.0 L229.0,79.0 L379.0,469.0" /><path d="M379.0,469.0 L529.0,79.0 L679.0,469.0" /></g>
+</svg>
+`
+
+// Pixel de control para el fondo: lejos del W y de las esquinas redondeadas
+// del icono, en cualquier tamano de render (fraccion del lado del canvas).
+const backgroundProbe = { xFrac: 0.5, yFrac: 40 / 512 }
 
 function renderPng(svgPath, size, targetPath) {
-  const outputDir = mkdtempSync(join(tmpdir(), 'codelabs-brand-'))
+  const outputDir = mkdtempSync(join(tmpdir(), 'wali-brand-'))
   const result = spawnSync('qlmanage', ['-t', '-s', String(size), '-o', outputDir, svgPath], {
     encoding: 'utf8',
   })
@@ -104,26 +67,41 @@ function renderPng(svgPath, size, targetPath) {
   rmSync(outputDir, { recursive: true, force: true })
 }
 
+function renderInlineSvgToPng(svgContent, size, targetPath) {
+  const tmpDir = mkdtempSync(join(tmpdir(), 'wali-brand-src-'))
+  const tmpSvg = join(tmpDir, 'source.svg')
+  writeFileSync(tmpSvg, svgContent)
+  renderPng(tmpSvg, size, targetPath)
+  rmSync(tmpDir, { recursive: true, force: true })
+}
+
 function generate() {
-  writeFileSync(paths.lightSvg, renderSvg('light'))
-  writeFileSync(paths.darkSvg, renderSvg('dark'))
+  copyFileSync(paths.sourceLight, paths.lightSvg)
+  copyFileSync(paths.sourceDark, paths.darkSvg)
   renderPng(paths.lightSvg, 1024, paths.appIcon)
   renderPng(paths.lightSvg, 256, paths.assetPng)
   copyFileSync(paths.assetPng, paths.publicPng)
+
+  renderPng(paths.sourceForeground, 512, paths.androidForeground)
+  renderInlineSvgToPng(androidBackgroundSvg, 512, paths.androidBackground)
+  renderInlineSvgToPng(monochromeWSvg, 432, paths.androidMonochrome)
 }
 
 function verify() {
-  assertEqualFile(paths.lightSvg, renderSvg('light'))
-  assertEqualFile(paths.darkSvg, renderSvg('dark'))
+  assertEqualFile(paths.lightSvg, paths.sourceLight)
+  assertEqualFile(paths.darkSvg, paths.sourceDark)
   assertPng(paths.appIcon, 1024, 'assets/icon.png')
   assertPng(paths.assetPng, 256, 'assets/favicon.png')
   assertPng(paths.publicPng, 256, 'public/favicon.png')
   assertExpoDoesNotInjectCompetingFavicon()
 }
 
-function assertEqualFile(path, expected) {
+function assertEqualFile(path, sourcePath) {
   const actual = readFileSync(path, 'utf8')
-  if (actual !== expected) throw new Error(`${path} is not generated from scripts/brand-assets.mjs`)
+  const expected = readFileSync(sourcePath, 'utf8')
+  if (actual !== expected) {
+    throw new Error(`${path} is not copied from ${sourcePath} — run brand:generate`)
+  }
 }
 
 function assertPng(path, expectedSize, label) {
@@ -134,12 +112,16 @@ function assertPng(path, expectedSize, label) {
     )
   }
 
-  const center = png.pixelAt(Math.floor(png.width / 2), Math.floor(png.height / 2))
-  const isBrandPurple =
-    center.r > 45 && center.r < 120 && center.g > 35 && center.g < 120 && center.b > 130
-  if (!isBrandPurple) {
-    throw new Error(`${label} center pixel does not match the CodeLabs purple brand icon`)
+  const probeX = Math.round(png.width * backgroundProbe.xFrac)
+  const probeY = Math.round(png.height * backgroundProbe.yFrac)
+  const probe = png.pixelAt(probeX, probeY)
+  if (!isBrandBackground(probe)) {
+    throw new Error(`${label} background pixel does not match the Wali brand background`)
   }
+}
+
+function isBrandBackground({ r, g, b }) {
+  return r > 235 && g > 235 && b > 240
 }
 
 function assertExpoDoesNotInjectCompetingFavicon() {

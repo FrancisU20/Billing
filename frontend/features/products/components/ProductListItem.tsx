@@ -1,7 +1,9 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { ListCell, ListItemAction } from '@/components/ui/ListItemPrimitives'
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu'
+import { useIsDesktopLayout } from '@/lib/hooks/useIsDesktopLayout'
 import { useTheme } from '@/lib/theme-context'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { productKindLabel } from '../constants'
@@ -26,6 +28,7 @@ export function ProductListItem({
   onToggleStatus,
 }: ProductListItemProps) {
   const { semantic } = useTheme()
+  const isDesktop = useIsDesktopLayout()
   const stockText = product.stock_enabled
     ? `Stock ${product.stock_quantity ?? '0'}`
     : productKindLabel(product.kind)
@@ -51,14 +54,10 @@ export function ProductListItem({
     : []
 
   return (
-    <Pressable
-      onPress={onView}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.container,
-        {
-          backgroundColor: pressed ? semantic.bg.secondary : semantic.bg.card,
-          borderColor: semantic.border.default,
-        },
+        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
       ]}
     >
       <View style={styles.main}>
@@ -66,23 +65,66 @@ export function ProductListItem({
           <Ionicons name="cube-outline" size={18} color={semantic.accent.default} />
         </View>
         <View style={styles.copy}>
-          <View style={styles.titleRow}>
-            <Text style={[styles.sku, { color: semantic.text.tertiary }]}>{product.sku}</Text>
-            <ProductStatusBadge status={product.status} />
-          </View>
-          <Text style={[styles.name, { color: semantic.text.primary }]} numberOfLines={1}>
-            {product.name}
-          </Text>
-          <Text style={[styles.meta, { color: semantic.text.secondary }]} numberOfLines={1}>
-            {stockText} · IVA {product.iva_rate} · ${Number(product.unit_price).toFixed(2)}
-            {product.discount_percentage ? ` · -${Number(product.discount_percentage)}%` : ''}
-          </Text>
+          {isDesktop ? (
+            <DesktopRow product={product} stockText={stockText} />
+          ) : (
+            <MobileRow product={product} stockText={stockText} />
+          )}
         </View>
       </View>
       <View style={styles.actions}>
+        <ListItemAction icon="eye-outline" label="Ver producto" onPress={onView} />
         <RowActionsMenu actions={rowActions} triggerLabel="Más acciones de producto" />
       </View>
-    </Pressable>
+    </View>
+  )
+}
+
+function MobileRow({ product, stockText }: { product: Product; stockText: string }) {
+  const { semantic } = useTheme()
+  return (
+    <>
+      <View style={styles.titleRow}>
+        <Text style={[styles.sku, { color: semantic.text.tertiary }]}>{product.sku}</Text>
+        <ProductStatusBadge status={product.status} />
+      </View>
+      <Text style={[styles.name, { color: semantic.text.primary }]} numberOfLines={1}>
+        {product.name}
+      </Text>
+      <Text style={[styles.meta, { color: semantic.text.secondary }]} numberOfLines={1}>
+        {stockText} · IVA {product.iva_rate} · ${Number(product.unit_price).toFixed(2)}
+        {product.discount_percentage ? ` · -${Number(product.discount_percentage)}%` : ''}
+      </Text>
+    </>
+  )
+}
+
+function DesktopRow({ product, stockText }: { product: Product; stockText: string }) {
+  const { semantic } = useTheme()
+  return (
+    <View style={styles.desktopRow}>
+      <View style={styles.colProduct}>
+        <View style={styles.titleRow}>
+          <Text style={[styles.sku, { color: semantic.text.tertiary }]}>{product.sku}</Text>
+          <ProductStatusBadge status={product.status} />
+        </View>
+        <Text style={[styles.name, { color: semantic.text.primary }]} numberOfLines={1}>
+          {product.name}
+        </Text>
+      </View>
+      <ListCell label="Stock / Tipo" value={stockText} style={styles.colKind} />
+      <ListCell label="IVA" value={`${product.iva_rate}%`} style={styles.colIva} />
+      <ListCell
+        label="Precio"
+        value={`$${Number(product.unit_price).toFixed(2)}`}
+        style={styles.colPrice}
+      />
+      <ListCell
+        label="Descuento"
+        value={product.discount_percentage ? `-${Number(product.discount_percentage)}%` : '—'}
+        style={styles.colDiscount}
+      />
+    </View>
   )
 }
 
@@ -110,4 +152,10 @@ const styles = StyleSheet.create({
   name: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   meta: { fontSize: typography.size.sm },
   actions: { flexDirection: 'row', gap: spacing[1] },
+  desktopRow: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: spacing[5] },
+  colProduct: { flexBasis: 260, gap: spacing[1], minWidth: 200 },
+  colKind: { flexBasis: 130 },
+  colIva: { flexBasis: 80 },
+  colPrice: { flexBasis: 100 },
+  colDiscount: { flex: 1, minWidth: 100 },
 })

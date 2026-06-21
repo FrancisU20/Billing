@@ -7,138 +7,147 @@ export type ShadowStyle = ViewStyle & { boxShadow: string }
 
 export const colors = {
   primary: {
-    50: '#EFF6FF',
-    100: '#DBEAFE',
-    200: '#BFDBFE',
-    300: '#93C5FD',
-    400: '#60A5FA',
-    500: '#2563EB',
-    600: '#1D4ED8',
-    700: '#1E40AF',
-    800: '#1E3A8A',
-    900: '#172554',
-    950: '#0B1220',
+    50: '#F1F1FF',
+    100: '#E3E2FF',
+    200: '#C7C5FF',
+    300: '#A29CFF',
+    400: '#9994FF',
+    500: '#766FFF',
+    600: '#4F46FF',
+    700: '#3A31EB',
+    800: '#2219D4',
+    900: '#231CAD',
+    950: '#17126E',
   },
   cyan: {
     50: '#ECFEFF',
     100: '#CFFAFE',
+    300: '#67E8F9',
     400: '#22D3EE',
     500: '#06B6D4',
     600: '#0891B2',
     700: '#0E7490',
-  },
-  teal: {
-    50: '#F0FDFA',
-    100: '#CCFBF1',
-    400: '#2DD4BF',
-    500: '#14B8A6',
-    600: '#0D9488',
-    700: '#0F766E',
+    800: '#155E75',
+    900: '#164E63',
   },
   neutral: {
     0: '#FFFFFF',
-    50: '#FAFAFA',
-    100: '#F4F4F5',
-    200: '#E4E4E7',
-    300: '#D4D4D8',
-    400: '#A1A1AA',
-    500: '#71717A',
-    600: '#52525B',
-    700: '#3F3F46',
-    800: '#27272A',
-    900: '#18181B',
-    950: '#09090B',
+    50: '#F8FAFC',
+    100: '#F1F5F9',
+    200: '#E2E8F0',
+    300: '#CBD5E1',
+    400: '#94A3B8',
+    500: '#64748B',
+    600: '#475569',
+    700: '#334155',
+    800: '#1E293B',
+    900: '#0F172A',
+    950: '#020617',
   },
   success: {
-    50: '#F0FDF4',
-    100: '#DCFCE7',
-    500: '#22C55E',
-    600: '#16A34A',
-    700: '#15803D',
+    50: '#ECFDF5',
+    100: '#D1FAE5',
+    300: '#6EE7B7',
+    400: '#34D399',
+    500: '#10B981',
+    600: '#059669',
+    700: '#047857',
+    800: '#065F46',
+    900: '#064E3B',
   },
   warning: {
     50: '#FFFBEB',
     100: '#FEF3C7',
+    300: '#FCD34D',
+    400: '#FBBF24',
     500: '#F59E0B',
     600: '#D97706',
     700: '#B45309',
+    800: '#92400E',
+    900: '#78350F',
   },
   error: {
-    50: '#FFF1F2',
-    100: '#FFE4E6',
+    50: '#FEF2F2',
+    100: '#FEE2E2',
+    300: '#FCA5A5',
     400: '#F87171',
     500: '#EF4444',
     600: '#DC2626',
     700: '#B91C1C',
+    800: '#991B1B',
+    900: '#7F1D1D',
   },
-  nav: '#0B1220',
+  nav: '#0D1126',
 } as const
 
 export const lightSemantic = {
   bg: {
     primary: colors.neutral[0],
-    secondary: '#F8FAFC',
-    tertiary: '#EEF2F7',
+    secondary: colors.neutral[50],
+    tertiary: colors.neutral[100],
     elevated: colors.neutral[0],
-    muted: '#F1F5F9',
+    muted: colors.neutral[100],
     inverse: colors.neutral[950],
     nav: colors.nav,
     card: colors.neutral[0],
-    page: '#F6F8FB',
+    page: colors.neutral[50],
   },
   text: {
-    primary: colors.neutral[950],
+    primary: colors.neutral[900],
     secondary: colors.neutral[500],
     tertiary: colors.neutral[400],
     disabled: colors.neutral[300],
-    inverse: colors.neutral[0],
+    inverse: colors.neutral[50],
     link: colors.primary[600],
     onDark: colors.neutral[0],
   },
   border: {
     default: colors.neutral[200],
-    focus: colors.primary[500],
+    focus: colors.primary[600],
     error: colors.error[500],
     strong: colors.neutral[300],
   },
   accent: {
-    default: colors.primary[500],
-    hover: colors.primary[600],
-    pressed: colors.primary[700],
+    default: colors.primary[600],
+    hover: colors.primary[700],
+    pressed: colors.primary[800],
     subtle: colors.primary[50],
     muted: colors.primary[100],
-    alt: colors.cyan[600],
+    alt: colors.cyan[500],
     altSubtle: colors.cyan[50],
-    tertiary: colors.teal[600],
-    tertiarySubtle: colors.teal[50],
+    tertiary: colors.success[500],
+    tertiarySubtle: colors.success[50],
   },
   chart: {
     primary: colors.primary[600],
     secondary: colors.cyan[600],
-    tertiary: colors.teal[600],
+    tertiary: colors.success[600],
     track: colors.neutral[200],
   },
   status: {
     success: colors.success[500],
     successBg: colors.success[50],
+    successBorder: colors.success[100],
     warning: colors.warning[500],
     warningBg: colors.warning[50],
+    warningBorder: colors.warning[100],
     error: colors.error[500],
     errorBg: colors.error[50],
+    errorBorder: colors.error[100],
   },
 } as const
 
 export const darkSemantic = {
   bg: {
-    primary: '#0B0F17',
-    secondary: '#111827',
-    tertiary: '#1F2937',
-    elevated: '#111827',
-    muted: '#0F172A',
+    primary: colors.neutral[950],
+    secondary: colors.neutral[900],
+    tertiary: colors.neutral[800],
+    elevated: colors.neutral[900],
+    muted: colors.neutral[900],
     inverse: colors.neutral[0],
-    nav: '#020617',
-    card: '#111827',
-    page: '#070B12',
+    nav: colors.neutral[950],
+    card: colors.neutral[900],
+    page: colors.neutral[950],
   },
   text: {
     primary: colors.neutral[50],
@@ -150,35 +159,38 @@ export const darkSemantic = {
     onDark: colors.neutral[0],
   },
   border: {
-    default: 'rgba(255,255,255,0.08)',
+    default: colors.neutral[800],
     focus: colors.primary[400],
     error: colors.error[400],
-    strong: 'rgba(255,255,255,0.15)',
+    strong: colors.neutral[700],
   },
   accent: {
     default: colors.primary[400],
     hover: colors.primary[300],
     pressed: colors.primary[500],
-    subtle: 'rgba(99,102,241,0.15)',
-    muted: 'rgba(99,102,241,0.25)',
+    subtle: 'rgba(118,111,255,0.16)',
+    muted: 'rgba(118,111,255,0.24)',
     alt: colors.cyan[400],
     altSubtle: 'rgba(34,211,238,0.14)',
-    tertiary: colors.teal[400],
-    tertiarySubtle: 'rgba(45,212,191,0.14)',
+    tertiary: colors.success[400],
+    tertiarySubtle: 'rgba(52,211,153,0.14)',
   },
   chart: {
     primary: colors.primary[400],
     secondary: colors.cyan[400],
-    tertiary: colors.teal[400],
+    tertiary: colors.success[400],
     track: 'rgba(255,255,255,0.10)',
   },
   status: {
     success: colors.success[500],
-    successBg: 'rgba(34,197,94,0.12)',
+    successBg: 'rgba(16,185,129,0.14)',
+    successBorder: 'rgba(16,185,129,0.24)',
     warning: colors.warning[500],
-    warningBg: 'rgba(245,158,11,0.12)',
+    warningBg: 'rgba(245,158,11,0.14)',
+    warningBorder: 'rgba(245,158,11,0.26)',
     error: colors.error[400],
-    errorBg: 'rgba(239,68,68,0.12)',
+    errorBg: 'rgba(248,113,113,0.14)',
+    errorBorder: 'rgba(248,113,113,0.26)',
   },
 } as const
 
@@ -219,10 +231,13 @@ export interface SemanticTokens {
   status: {
     success: string
     successBg: string
+    successBorder: string
     warning: string
     warningBg: string
+    warningBorder: string
     error: string
     errorBg: string
+    errorBorder: string
   }
 }
 
@@ -248,6 +263,16 @@ export const sizes = {
   avatarSm: 46,
   avatarMd: 52,
   avatarLg: 58,
+} as const
+
+// Ancho minimo de viewport para el layout de sidebar fijo en web (ver useIsDesktopLayout).
+export const breakpoints = {
+  desktop: 900,
+} as const
+
+// Ancho maximo de contenido centrado en las secciones de la landing/marketing (ver PlansSection).
+export const layout = {
+  contentMaxWidth: 1180,
 } as const
 
 export const radius = {
@@ -331,19 +356,15 @@ export const animation = {
   },
 } as const
 
-// Identidad visual del logo Codelabs Ecuador (C con particulas orbitales)
+// Identidad visual del logo Wali ("W" de doble trazo morado/tinta sobre fondo plano)
 export const brand = {
-  gradient: {
-    light: { from: colors.primary[500], to: colors.primary[800] },
-    dark: { from: '#0F2147', to: '#06111F' },
+  accent: colors.primary[600],
+  surface: {
+    light: '#F7F8FC',
+    dark: '#0D1126',
   },
-  mark: {
-    light: colors.neutral[0],
-    dark: colors.primary[500],
+  ink: {
+    light: '#0D1126',
+    dark: colors.neutral[0],
   },
-  particle: {
-    light: colors.neutral[0],
-    dark: colors.primary[400],
-  },
-  glow: colors.primary[500],
 } as const

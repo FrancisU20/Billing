@@ -1,5 +1,5 @@
 ##############################################################################
-# Deploy Prod — CodeLabs Billing Cloud
+# Deploy Prod — Wali (infra: codelabs-billing)
 #
 # Pipeline de despliegue para producción. SIEMPRE manual (workflow_dispatch).
 # Nunca se dispara automáticamente — todo push a master requiere acción

@@ -1,11 +1,9 @@
 import React from 'react'
-import { StyleSheet, View } from 'react-native'
-import { Button } from '@/components/ui/Button'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { FilterBar } from '@/components/ui/FilterBar'
-import { FilterBlock, FilterPill } from '@/components/ui/FilterBlock'
+import { FilterBlock } from '@/components/ui/FilterBlock'
 import { SearchInput } from '@/components/ui/SearchInput'
-import { spacing } from '@/constants/tokens'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { DOCUMENT_STATUS_OPTIONS } from '../constants'
 import { clearDocumentFilterField, documentFilterChips, type DocumentFilterDraft } from '../filters'
 
@@ -37,37 +35,25 @@ export function DocumentsFilters({
     <FilterBar
       chips={chips}
       activeSecondaryCount={chips.length}
+      onApply={onApply}
       onReset={onReset}
       secondaryContent={
         <>
-          <View style={styles.grid}>
-            <FilterBlock label="Estado">
-              <View style={styles.pillGrid}>
-                {DOCUMENT_STATUS_OPTIONS.map((option) => (
-                  <FilterPill
-                    key={option.value}
-                    label={option.label}
-                    selected={value.status === option.value}
-                    onPress={() => onChange({ ...value, status: option.value })}
-                  />
-                ))}
-              </View>
-            </FilterBlock>
+          <FilterBlock label="Estado">
+            <SegmentedControl
+              options={DOCUMENT_STATUS_OPTIONS}
+              value={value.status}
+              onChange={(status) => onChange({ ...value, status })}
+            />
+          </FilterBlock>
 
-            <FilterBlock label="Emisión">
-              <DateRangePicker
-                from={value.dateFrom}
-                to={value.dateTo}
-                onChange={({ from, to }) => onChange({ ...value, dateFrom: from, dateTo: to })}
-              />
-            </FilterBlock>
-          </View>
-
-          <View style={styles.actions}>
-            <Button variant="primary" size="md" onPress={onApply}>
-              Aplicar filtros
-            </Button>
-          </View>
+          <FilterBlock label="Emisión">
+            <DateRangePicker
+              from={value.dateFrom}
+              to={value.dateTo}
+              onChange={({ from, to }) => onChange({ ...value, dateFrom: from, dateTo: to })}
+            />
+          </FilterBlock>
         </>
       }
     >
@@ -82,9 +68,3 @@ export function DocumentsFilters({
     </FilterBar>
   )
 }
-
-const styles = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
-  pillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
-  actions: { alignItems: 'flex-start' },
-})

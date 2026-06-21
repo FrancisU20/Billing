@@ -7,6 +7,7 @@ import {
   View,
   type TextInputProps,
   type TextStyle,
+  type ViewStyle,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/lib/theme-context'
@@ -32,6 +33,16 @@ const webTextInputReset: WebTextInputStyle = {
   outlineWidth: 0,
   // iOS Safari hace autozoom al enfocar un input con font-size < 16px.
   ...(Platform.OS === 'web' ? { fontSize: typography.size.md } : null),
+}
+
+// Cursor "no permitido" en vez del cursor de texto (I) — `editable={false}` ya bloquea
+// la edicion, pero sin esto el cursor del mouse sigue pareciendo el de un campo
+// editable, lo cual confunde (ver feedback: "que no cambie el cursor a I"). El tipo
+// `CursorValue` de RN solo declara 'auto'/'pointer' — react-native-web si soporta el
+// resto del enum CSS en runtime, de ahi el cast en cada sitio de uso.
+function disabledCursorStyle(isDisabled?: boolean): { cursor: 'not-allowed' } | null {
+  if (!isDisabled || Platform.OS !== 'web') return null
+  return { cursor: 'not-allowed' }
 }
 
 export const Input = forwardRef<TextInput, InputProps>(
@@ -72,6 +83,7 @@ export const Input = forwardRef<TextInput, InputProps>(
         style={[
           staticStyles.container,
           { borderColor, backgroundColor: bg, opacity: isDisabled ? 0.5 : 1 },
+          disabledCursorStyle(isDisabled) as unknown as ViewStyle,
         ]}
       >
         {leftIcon ? (
@@ -83,8 +95,13 @@ export const Input = forwardRef<TextInput, InputProps>(
           {...props}
           value={value ?? ''}
           editable={!isDisabled}
+          // En web, `editable={false}` solo bloquea la escritura: el input sigue siendo
+          // foco-able al click y muestra el caret titilando, como si se pudiera editar.
+          // `pointerEvents="none"` evita que el click llegue al input.
+          pointerEvents={isDisabled ? 'none' : undefined}
           secureTextEntry={secureTextEntry && !visible}
           onFocus={(e) => {
+            if (isDisabled) return
             setFocused(true)
             props.onFocus?.(e)
           }}
@@ -96,6 +113,7 @@ export const Input = forwardRef<TextInput, InputProps>(
             staticStyles.input,
             webTextInputReset,
             { color: dark ? overlay.text.primary : semantic.text.primary },
+            disabledCursorStyle(isDisabled) as unknown as TextStyle,
             style,
           ]}
           placeholderTextColor={dark ? overlay.text.placeholder : semantic.text.tertiary}
@@ -112,6 +130,10 @@ export const Input = forwardRef<TextInput, InputProps>(
           </Pressable>
         ) : rightElement ? (
           <View style={staticStyles.rightEl}>{rightElement}</View>
+        ) : isDisabled ? (
+          <View style={staticStyles.rightEl}>
+            <Ionicons name="lock-closed-outline" size={16} color={iconColor} />
+          </View>
         ) : null}
       </View>
     )

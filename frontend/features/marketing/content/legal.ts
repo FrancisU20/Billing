@@ -19,7 +19,7 @@ export const termsContent: LegalContent = {
   title: 'Términos y Condiciones de Uso',
   lastUpdated: LAST_UPDATED,
   intro:
-    'Estos Términos y Condiciones regulan el acceso y uso de CodeLabs Billing (el "Servicio"), ' +
+    'Estos Términos y Condiciones regulan el acceso y uso de Wali (el "Servicio"), ' +
     'una plataforma SaaS de facturación electrónica operada por CodeLabs Ecuador ("CodeLabs", ' +
     '"nosotros"). Al crear una cuenta o usar el Servicio, aceptas estos términos en su totalidad.',
   sections: [
@@ -29,7 +29,7 @@ export const termsContent: LegalContent = {
         {
           type: 'p',
           text:
-            'CodeLabs Billing permite a empresas ecuatorianas emitir, firmar electrónicamente y ' +
+            'Wali permite a empresas ecuatorianas emitir, firmar electrónicamente y ' +
             'gestionar comprobantes autorizados por el Servicio de Rentas Internas (SRI), entre ' +
             'ellos:',
         },
@@ -238,7 +238,7 @@ export const privacyContent: LegalContent = {
   title: 'Política de Privacidad',
   lastUpdated: LAST_UPDATED,
   intro:
-    'En CodeLabs Billing nos tomamos en serio la protección de tu información y la de tus ' +
+    'En Wali nos tomamos en serio la protección de tu información y la de tus ' +
     'clientes. Esta política explica qué datos recopilamos, cómo los usamos, con quién los ' +
     'compartimos y qué derechos tienes sobre ellos.',
   sections: [
@@ -249,7 +249,7 @@ export const privacyContent: LegalContent = {
           type: 'p',
           text:
             `CodeLabs Ecuador es responsable del tratamiento de los datos personales recopilados a ` +
-            `través de CodeLabs Billing. Puedes contactarnos en ${CONTACT_EMAIL} para cualquier ` +
+            `través de Wali. Puedes contactarnos en ${CONTACT_EMAIL} para cualquier ` +
             'consulta relacionada con esta política.',
         },
       ],
@@ -424,7 +424,7 @@ export const refundContent: LegalContent = {
   lastUpdated: LAST_UPDATED,
   intro:
     'Esta política describe cómo funcionan las cancelaciones y reembolsos de las suscripciones ' +
-    'de CodeLabs Billing.',
+    'de Wali.',
   sections: [
     {
       heading: '1. Naturaleza de las suscripciones',
@@ -432,7 +432,7 @@ export const refundContent: LegalContent = {
         {
           type: 'p',
           text:
-            'Las suscripciones a CodeLabs Billing son de pago recurrente (mensual o anual) y se ' +
+            'Las suscripciones a Wali son de pago recurrente (mensual o anual) y se ' +
             'cobran por adelantado al inicio de cada período. El acceso a las funcionalidades y ' +
             'límites de uso corresponde al plan vigente durante ese período.',
         },

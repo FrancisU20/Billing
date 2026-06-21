@@ -33,6 +33,22 @@ export function formatDateRangeLabel(from: string, to: string): string {
   return `Hasta ${to}`
 }
 
+export function formatRelativeTime(iso: string, now: Date = new Date()): string {
+  const diffMs = now.getTime() - new Date(iso).getTime()
+  const diffMinutes = Math.round(diffMs / 60_000)
+  if (diffMinutes < 1) return 'Hace un momento'
+  if (diffMinutes < 60) return `Hace ${diffMinutes} min`
+  const diffHours = Math.round(diffMinutes / 60)
+  if (diffHours < 24) return `Hace ${diffHours} h`
+  const diffDays = Math.round(diffHours / 24)
+  if (diffDays === 1) return 'Ayer'
+  if (diffDays < 30) return `Hace ${diffDays} días`
+  const diffMonths = Math.round(diffDays / 30)
+  if (diffMonths < 12) return `Hace ${diffMonths} ${diffMonths === 1 ? 'mes' : 'meses'}`
+  const diffYears = Math.round(diffMonths / 12)
+  return `Hace ${diffYears} ${diffYears === 1 ? 'año' : 'años'}`
+}
+
 export function formatRuc(ruc: string): string {
   return ruc.replace(/(\d{10})(\d{3})/, '$1-$2')
 }

@@ -79,6 +79,11 @@ class FakePaymentReader(IPaymentReader):
         self.marked.append((order_id, tenant_id))
         return {"ConditionCheck": {"TableName": "payments", "Key": {"id": f"PAYMENT#{order_id}"}}}
 
+    def aggregate_revenue(self, now):
+        from lambdas.tenants.domain.dashboard_summary import PaymentRevenueStats
+
+        return PaymentRevenueStats.empty()
+
 
 def _captured_payment(
     order_id: str = "ORD-1",
@@ -670,6 +675,131 @@ class RetryPaymentUseCaseTests(unittest.TestCase):
     def test_gross_price_applied_to_dlocal_charge(self) -> None:
         (_, _, _), (_, _, dlocal, _) = self._run()
         self.assertEqual(dlocal.calls[0]["amount"], "6.71")
+
+
+class GetSuperadminDashboardUseCaseTests(unittest.TestCase):
+    def test_combines_tenant_payment_and_plan_stats(self) -> None:
+        from decimal import Decimal
+
+        from lambdas.tenants.domain.dashboard_summary import (
+            PaymentRevenueStats,
+            PlanPricing,
+            TenantAggregateStats,
+        )
+        from lambdas.tenants.use_cases.get_superadmin_dashboard import (
+            GetSuperadminDashboardUseCase,
+        )
+
+        tenant_repo = FakeTenantRepository()
+        tenant_repo.aggregate_dashboard_stats_result = TenantAggregateStats(
+            total=10,
+            new_this_month=2,
+            new_previous_month=4,
+            by_environment={"testing": 4, "production": 6},
+            by_subscription_status={"active": 7, "expired": 2, "payment_failed": 1},
+            active_by_plan_id={"uuid-basic": 5, "uuid-pro": 2},
+            recent_tenants=[],
+        )
+        payment_reader = FakePaymentReader()
+        payment_reader.aggregate_revenue = lambda now: PaymentRevenueStats(
+            gross_this_month=Decimal("123.45"),
+            gross_previous_month=Decimal("100.00"),
+            gross_this_year=Decimal("999.99"),
+            gross_previous_year=Decimal("0.00"),
+            daily_last_30_days=[],
+        )
+        plan_catalog = FakePlanCatalog()
+        plan_catalog.get_pricing_result = {
+            "uuid-basic": PlanPricing(
+                name="Básico",
+                monthly_price=Decimal("10.00"),
+                annual_price=Decimal("100.00"),
+                limit_cycle="month",
+            ),
+            "uuid-pro": PlanPricing(
+                name="Pro",
+                monthly_price=Decimal("30.00"),
+                annual_price=Decimal("300.00"),
+                limit_cycle="year",
+            ),
+        }
+
+        now = datetime(2026, 6, 20, tzinfo=UTC)
+        summary = GetSuperadminDashboardUseCase(tenant_repo, payment_reader, plan_catalog).execute(
+            now
+        )
+
+        self.assertEqual(summary.tenants_total, 10)
+        self.assertEqual(summary.tenants_new_this_month, 2)
+        self.assertEqual(summary.tenants_by_environment, {"testing": 4, "production": 6})
+        self.assertEqual(summary.memberships_active, 7)
+        self.assertEqual(summary.memberships_inactive, 3)
+        self.assertEqual(summary.revenue_this_month, Decimal("123.45"))
+        self.assertEqual(summary.revenue_this_year, Decimal("999.99"))
+        # MRR = gross(10.00)*5 [monthly plan: 11.20*5=56.00]
+        #     + gross(300.00/12)*2 [annual plan / 12: 28.00*2=56.00]
+        self.assertEqual(summary.mrr_estimate, Decimal("112.00"))
+        self.assertEqual(summary.top_plan.plan_id, "uuid-basic")
+        self.assertEqual(summary.top_plan.name, "Básico")
+        self.assertEqual(summary.top_plan.tenant_count, 5)
+        # Tendencias honestas: (123.45-100.00)/100.00*100 = 23.45% -> 23.4 (ROUND_HALF_EVEN)
+        self.assertEqual(summary.revenue_this_month_trend_pct, Decimal("23.4"))
+        # Sin base previa (0.00) -> None, no "0%" ni division por cero
+        self.assertIsNone(summary.revenue_this_year_trend_pct)
+        # (2-4)/4*100 = -50.0%
+        self.assertEqual(summary.tenants_new_this_month_trend_pct, Decimal("-50.0"))
+
+    def test_top_plan_is_none_without_active_tenants(self) -> None:
+        from decimal import Decimal
+
+        from lambdas.tenants.domain.dashboard_summary import TenantAggregateStats
+        from lambdas.tenants.use_cases.get_superadmin_dashboard import (
+            GetSuperadminDashboardUseCase,
+        )
+
+        tenant_repo = FakeTenantRepository()
+        tenant_repo.aggregate_dashboard_stats_result = TenantAggregateStats(
+            total=3,
+            new_this_month=0,
+            new_previous_month=0,
+            by_environment={"testing": 3},
+            by_subscription_status={"expired": 3},
+            active_by_plan_id={},
+            recent_tenants=[],
+        )
+        summary = GetSuperadminDashboardUseCase(tenant_repo, None, FakePlanCatalog()).execute(
+            datetime(2026, 6, 20, tzinfo=UTC)
+        )
+
+        self.assertIsNone(summary.top_plan)
+        self.assertEqual(summary.memberships_active, 0)
+        self.assertEqual(summary.memberships_inactive, 3)
+        self.assertEqual(summary.revenue_this_month, Decimal("0.00"))
+
+    def test_no_payment_reader_yields_zero_revenue(self) -> None:
+        from decimal import Decimal
+
+        from lambdas.tenants.domain.dashboard_summary import TenantAggregateStats
+        from lambdas.tenants.use_cases.get_superadmin_dashboard import (
+            GetSuperadminDashboardUseCase,
+        )
+
+        tenant_repo = FakeTenantRepository()
+        tenant_repo.aggregate_dashboard_stats_result = TenantAggregateStats(
+            total=0,
+            new_this_month=0,
+            new_previous_month=0,
+            by_environment={},
+            by_subscription_status={},
+            active_by_plan_id={},
+            recent_tenants=[],
+        )
+        summary = GetSuperadminDashboardUseCase(tenant_repo, None, FakePlanCatalog()).execute(
+            datetime(2026, 6, 20, tzinfo=UTC)
+        )
+
+        self.assertEqual(summary.revenue_this_month, Decimal("0.00"))
+        self.assertEqual(summary.revenue_this_year, Decimal("0.00"))
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/lib/theme-context'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { layout, radius, spacing, typography } from '@/constants/tokens'
 
 const features = [
   {
@@ -44,42 +44,50 @@ export function FeaturesSection() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.heading}>
-        <Text style={[styles.title, { color: semantic.text.primary }]}>
-          Todo lo que necesitas para facturar
-        </Text>
-        <Text style={[styles.subtitle, { color: semantic.text.secondary }]}>
-          Una plataforma pensada para cumplir con el SRI sin distraerte de tu negocio.
-        </Text>
-      </View>
+      <View style={styles.content}>
+        <View style={styles.heading}>
+          <Text style={[styles.title, { color: semantic.text.primary }]}>
+            Todo lo que necesitas para facturar
+          </Text>
+          <Text style={[styles.subtitle, { color: semantic.text.secondary }]}>
+            Una plataforma pensada para cumplir con el SRI sin distraerte de tu negocio.
+          </Text>
+        </View>
 
-      <View style={styles.grid}>
-        {features.map((feature) => (
-          <View
-            key={feature.title}
-            style={[
-              styles.card,
-              { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
-            ]}
-          >
-            <View style={[styles.iconWrap, { backgroundColor: semantic.accent.subtle }]}>
-              <Ionicons name={feature.icon} size={20} color={semantic.accent.default} />
+        <View style={styles.grid}>
+          {features.map((feature) => (
+            <View
+              key={feature.title}
+              style={[
+                styles.card,
+                { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
+              ]}
+            >
+              <View style={[styles.iconWrap, { backgroundColor: semantic.accent.subtle }]}>
+                <Ionicons name={feature.icon} size={20} color={semantic.accent.default} />
+              </View>
+              <Text style={[styles.cardTitle, { color: semantic.text.primary }]}>
+                {feature.title}
+              </Text>
+              <Text style={[styles.cardDescription, { color: semantic.text.secondary }]}>
+                {feature.description}
+              </Text>
             </View>
-            <Text style={[styles.cardTitle, { color: semantic.text.primary }]}>
-              {feature.title}
-            </Text>
-            <Text style={[styles.cardDescription, { color: semantic.text.secondary }]}>
-              {feature.description}
-            </Text>
-          </View>
-        ))}
+          ))}
+        </View>
       </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { gap: spacing[5], paddingHorizontal: spacing[5], paddingVertical: spacing[6] },
+  container: { paddingHorizontal: spacing[5], paddingVertical: spacing[8] },
+  content: {
+    alignSelf: 'center',
+    gap: spacing[5],
+    maxWidth: layout.contentMaxWidth,
+    width: '100%',
+  },
   heading: { gap: spacing[2] },
   title: {
     fontSize: typography.size['2xl'],

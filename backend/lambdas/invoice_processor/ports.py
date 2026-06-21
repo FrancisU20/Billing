@@ -19,6 +19,16 @@ from shared.domain.events.domain_event import DomainEvent
 class SriErrorDetail:
     code: str
     message: str
+    additional_info: str | None = None
+
+    def to_dict(self) -> dict:
+        from lambdas.invoice_processor.sri_error_mapper import normalize_sri_error
+
+        return normalize_sri_error(
+            code=self.code,
+            message=self.message,
+            additional_info=self.additional_info,
+        )
 
 
 @dataclass(frozen=True)

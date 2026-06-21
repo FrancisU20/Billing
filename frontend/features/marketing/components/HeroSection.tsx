@@ -2,8 +2,9 @@ import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Button } from '@/components/ui/Button'
+import { useIsDesktopLayout } from '@/lib/hooks/useIsDesktopLayout'
 import { useTheme } from '@/lib/theme-context'
-import { colors, overlay, radius, spacing, typography } from '@/constants/tokens'
+import { colors, layout, overlay, radius, spacing, typography } from '@/constants/tokens'
 import { OnDarkButton } from './OnDarkButton'
 
 const heroSignals = [
@@ -19,60 +20,65 @@ interface HeroSectionProps {
 
 export function HeroSection({ onCreateAccount, onLogin }: HeroSectionProps) {
   const { semantic } = useTheme()
+  const isDesktop = useIsDesktopLayout()
 
   return (
     <View style={styles.container}>
-      <View style={[styles.badge, { borderColor: overlay.border.default }]}>
-        <Ionicons name="sparkles-outline" size={14} color={semantic.accent.default} />
-        <Text style={[styles.badgeText, { color: semantic.accent.default }]}>
-          SaaS de facturación electrónica · Ecuador
-        </Text>
-      </View>
-
-      <View style={styles.layout}>
-        <View style={styles.copy}>
-          <Text style={styles.title}>CodeLabs Billing</Text>
-          <Text style={styles.subtitle}>
-            Facturación electrónica para empresas ecuatorianas: emite, autoriza y entrega
-            comprobantes SRI desde un panel claro, con ambiente de pruebas incluido.
-          </Text>
-        </View>
-
-        <View style={[styles.preview, { borderColor: overlay.border.default }]}>
-          <View style={styles.previewHeader}>
-            <View>
-              <Text style={styles.previewEyebrow}>Factura autorizada</Text>
-              <Text style={styles.previewTitle}>001-099-000000128</Text>
+      <View style={styles.content}>
+        <View style={[styles.layout, isDesktop && styles.layoutRow]}>
+          <View style={[styles.copy, isDesktop && styles.copyDesktop]}>
+            <View style={[styles.badge, { borderColor: overlay.border.default }]}>
+              <Ionicons name="sparkles-outline" size={14} color={semantic.accent.default} />
+              <Text style={[styles.badgeText, { color: semantic.accent.default }]}>
+                SaaS de facturación electrónica · Ecuador
+              </Text>
             </View>
-            <Ionicons name="checkmark-circle" size={28} color={colors.teal[400]} />
+
+            <Text style={styles.title}>Facturación electrónica sin complicaciones</Text>
+            <Text style={styles.subtitle}>
+              Emite, autoriza y entrega comprobantes SRI desde un panel claro, con ambiente de
+              pruebas incluido.
+            </Text>
+
+            <View style={styles.actions}>
+              <Button variant="primary" size="lg" onPress={onCreateAccount}>
+                Crear mi cuenta gratis
+              </Button>
+              <OnDarkButton size="lg" onPress={onLogin}>
+                Ya tengo cuenta
+              </OnDarkButton>
+            </View>
+
+            <View style={styles.signalRow}>
+              {heroSignals.map((signal) => (
+                <View
+                  key={signal.label}
+                  style={[styles.signalPill, { borderColor: overlay.border.default }]}
+                >
+                  <Ionicons name={signal.icon} size={14} color={overlay.text.subtle} />
+                  <Text style={styles.signalText}>{signal.label}</Text>
+                </View>
+              ))}
+            </View>
           </View>
-          <View style={styles.previewRows}>
-            <PreviewRow label="Clave de acceso" value="190620260117921467390011001099..." />
-            <PreviewRow label="Comprador" value="Cliente Demo S.A." />
-            <PreviewRow label="Total" value="$115.00" strong />
+
+          <View style={[styles.previewColumn, isDesktop && styles.previewColumnDesktop]}>
+            <View style={[styles.preview, { borderColor: overlay.border.default }]}>
+              <View style={styles.previewHeader}>
+                <View>
+                  <Text style={styles.previewEyebrow}>Factura autorizada</Text>
+                  <Text style={styles.previewTitle}>001-099-000000128</Text>
+                </View>
+                <Ionicons name="checkmark-circle" size={28} color={colors.success[400]} />
+              </View>
+              <View style={styles.previewRows}>
+                <PreviewRow label="Clave de acceso" value="190620260117921467390011001099..." />
+                <PreviewRow label="Comprador" value="Cliente Demo S.A." />
+                <PreviewRow label="Total" value="$115.00" strong />
+              </View>
+            </View>
           </View>
         </View>
-      </View>
-
-      <View style={styles.actions}>
-        <Button variant="primary" size="lg" onPress={onCreateAccount}>
-          Crear mi cuenta gratis
-        </Button>
-        <OnDarkButton size="lg" onPress={onLogin}>
-          Ya tengo cuenta
-        </OnDarkButton>
-      </View>
-
-      <View style={styles.signalRow}>
-        {heroSignals.map((signal) => (
-          <View
-            key={signal.label}
-            style={[styles.signalPill, { borderColor: overlay.border.default }]}
-          >
-            <Ionicons name={signal.icon} size={14} color={overlay.text.subtle} />
-            <Text style={styles.signalText}>{signal.label}</Text>
-          </View>
-        ))}
       </View>
     </View>
   )
@@ -101,10 +107,12 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.nav,
     paddingHorizontal: spacing[5],
-    paddingTop: spacing[4],
+    paddingTop: spacing[6],
     paddingBottom: spacing[10],
-    gap: spacing[6],
   },
+  content: { alignSelf: 'center', maxWidth: layout.contentMaxWidth, width: '100%' },
+  layout: { gap: spacing[7] },
+  layoutRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[10] },
   badge: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
@@ -116,8 +124,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[1.5],
   },
   badgeText: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
-  layout: { gap: spacing[6] },
-  copy: { gap: spacing[3], maxWidth: 720 },
+  copy: { gap: spacing[4] },
+  copyDesktop: { flexBasis: 0, flexGrow: 11, maxWidth: 620 },
   title: {
     color: overlay.text.primary,
     fontSize: typography.size['4xl'],
@@ -146,12 +154,15 @@ const styles = StyleSheet.create({
     fontSize: typography.size.xs,
     fontWeight: typography.weight.medium,
   },
+  previewColumn: { alignItems: 'stretch' },
+  previewColumnDesktop: { flexBasis: 0, flexGrow: 9, maxWidth: 460 },
   preview: {
     borderWidth: 1,
     borderRadius: radius.md,
     padding: spacing[4],
     gap: spacing[4],
     maxWidth: 520,
+    width: '100%',
     backgroundColor: overlay.surface.default,
   },
   previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

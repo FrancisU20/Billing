@@ -12,9 +12,9 @@ import { useTheme } from '@/lib/theme-context'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { clientFormValuesSchema, type ClientFormValues } from '../schemas'
 import {
+  CLIENT_FORM_STATUS_OPTIONS,
   CLIENT_IDENTIFICATION_OPTIONS,
   CLIENT_PERSON_OPTIONS,
-  CLIENT_STATUS_OPTIONS,
 } from '../constants'
 import { clientToFormValues } from '../form'
 import type { ApiError } from '@/lib/api/errors'
@@ -232,14 +232,12 @@ export function ClientForm({ mode, client, onSubmit, isLoading, apiError }: Clie
 
       {mode === 'edit' ? (
         <FormSection title="Estado" icon="toggle-outline">
-          <SegmentedControl<ClientStatus | 'all'>
-            options={CLIENT_STATUS_OPTIONS.filter((option) => option.value !== 'all')}
+          <SegmentedControl<ClientStatus>
+            options={CLIENT_FORM_STATUS_OPTIONS}
             value={status}
-            onChange={(nextStatus) => {
-              if (nextStatus !== 'all') {
-                setValue('status', nextStatus, { shouldDirty: true, shouldValidate: true })
-              }
-            }}
+            onChange={(nextStatus) =>
+              setValue('status', nextStatus, { shouldDirty: true, shouldValidate: true })
+            }
           />
         </FormSection>
       ) : null}

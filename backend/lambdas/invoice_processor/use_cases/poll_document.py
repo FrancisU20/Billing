@@ -170,7 +170,7 @@ class PollDocumentUseCase:
             )
             return
 
-        sri_errors = [{"code": e.code, "message": e.message} for e in (result.errors or [])]
+        sri_errors = [e.to_dict() for e in (result.errors or [])]
         self._documents_repo.update_status(
             tenant_id,
             document_id,

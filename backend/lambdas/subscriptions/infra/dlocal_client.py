@@ -15,7 +15,7 @@ from shared.logger import get_logger
 
 _log = get_logger(__name__)
 
-_USER_AGENT = "CodeLabsBillingCloud/1.0"
+_USER_AGENT = "WaliBilling/1.0"
 
 
 class DLocalClient(IDLocalClient):

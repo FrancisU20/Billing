@@ -41,7 +41,7 @@ class EmitDocumentRequestSchemaTests(unittest.TestCase):
         self.assertIsNone(req.client_id)
         self.assertEqual(req.buyer_id_type, "07")
         self.assertEqual(req.buyer_id, "9999999999999")
-        self.assertEqual(req.buyer_name, "Consumidor Final")
+        self.assertEqual(req.buyer_name, "CONSUMIDOR FINAL")
         self.assertIsNone(req.buyer_email)
 
     def test_rejects_consumidor_final_id_with_non_consumidor_type(self) -> None:

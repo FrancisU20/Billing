@@ -1,5 +1,5 @@
 ##############################################################################
-# Deploy Dev — CodeLabs Billing Cloud
+# Deploy Dev — Wali (infra: codelabs-billing)
 #
 # Pipeline completo de CI/CD para el ambiente de desarrollo.
 # Se ejecuta en cada push a la rama `develop`.

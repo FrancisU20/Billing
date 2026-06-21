@@ -1,15 +1,15 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import { FlatList, StyleSheet, Text, View } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import { FlatList, StyleSheet, View } from 'react-native'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
-import { Button } from '@/components/ui/Button'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { ListPaginationControls } from '@/components/ui/ListPaginationControls'
+import { ListScreenHeader } from '@/components/layout/ListScreenHeader'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { StatMetric } from '@/components/ui/StatMetric'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
@@ -17,7 +17,7 @@ import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { canWrite } from '@/constants/roles'
-import { radius, sizes, spacing, typography } from '@/constants/tokens'
+import { spacing } from '@/constants/tokens'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { clientsApi } from '../api'
 import { ClientListItem } from '../components/ClientListItem'
@@ -43,6 +43,7 @@ export function ClientsListScreen() {
     refresh,
     nextPage,
     previousPage,
+    goToPage,
     setPageSize,
     page,
     pageSize,
@@ -99,6 +100,21 @@ export function ClientsListScreen() {
   if (loading && clients.length === 0)
     return <LoadingSpinner fullScreen label="Cargando clientes..." />
 
+  const paginationProps = {
+    page,
+    pageSize,
+    itemCount: clients.length,
+    totalItems,
+    totalPages,
+    onGoToPage: goToPage,
+    canGoPrevious,
+    canGoNext,
+    loading,
+    onPrevious: previousPage,
+    onNext: nextPage,
+    onPageSizeChange: setPageSize,
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar
@@ -124,33 +140,24 @@ export function ClientsListScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View style={styles.header}>
-            <View style={styles.heroRow}>
-              <View style={styles.heroCopy}>
-                <View style={styles.kickerRow}>
-                  <Ionicons name="people-outline" size={16} color={semantic.accent.default} />
-                  <Text style={[styles.kicker, { color: semantic.accent.default }]}>
-                    Cartera de clientes
-                  </Text>
-                </View>
-                <Text style={[styles.heading, { color: semantic.text.primary }]}>
-                  Clientes para emisión y control fiscal
-                </Text>
-              </View>
-              {canManage ? (
-                <Button
-                  variant="primary"
-                  size="md"
-                  onPress={() => router.push(Routes.tenant.clientNew as Href)}
-                >
-                  Nuevo cliente
-                </Button>
-              ) : null}
-            </View>
+            <ListScreenHeader
+              icon="people-outline"
+              kicker="Cartera de clientes"
+              heading="Clientes para emisión y control fiscal"
+              action={
+                canManage
+                  ? {
+                      label: 'Nuevo cliente',
+                      onPress: () => router.push(Routes.tenant.clientNew as Href),
+                    }
+                  : undefined
+              }
+            />
 
             <View style={styles.metricsRow}>
-              <Metric label="Activos" value={summary.active} icon="checkmark-circle-outline" />
-              <Metric label="Inactivos" value={summary.inactive} icon="pause-circle-outline" />
-              <Metric label="Cargados" value={clients.length} icon="layers-outline" />
+              <StatMetric label="Activos" value={summary.active} icon="checkmark-circle-outline" />
+              <StatMetric label="Inactivos" value={summary.inactive} icon="pause-circle-outline" />
+              <StatMetric label="Cargados" value={clients.length} icon="layers-outline" />
             </View>
 
             <ClientsFilters
@@ -164,6 +171,8 @@ export function ClientsListScreen() {
             {error ? <ApiErrorBanner error={error} /> : null}
             {actionError ? <ApiErrorBanner error={actionError} /> : null}
             {toggleError ? <ApiErrorBanner error={toggleError} /> : null}
+
+            <ListPaginationControls {...paginationProps} />
           </View>
         }
         ItemSeparatorComponent={() => <View style={{ height: spacing[3] }} />}
@@ -183,19 +192,9 @@ export function ClientsListScreen() {
           />
         }
         ListFooterComponent={
-          <ListPaginationControls
-            page={page}
-            pageSize={pageSize}
-            itemCount={clients.length}
-            totalItems={totalItems}
-            totalPages={totalPages}
-            canGoPrevious={canGoPrevious}
-            canGoNext={canGoNext}
-            loading={loading}
-            onPrevious={previousPage}
-            onNext={nextPage}
-            onPageSizeChange={setPageSize}
-          />
+          <View style={styles.paginatorBottom}>
+            <ListPaginationControls {...paginationProps} />
+          </View>
         }
         refreshing={loading}
         onRefresh={refresh}
@@ -226,74 +225,10 @@ export function ClientsListScreen() {
   )
 }
 
-function Metric({
-  label,
-  value,
-  icon,
-}: {
-  label: string
-  value: number
-  icon: keyof typeof Ionicons.glyphMap
-}) {
-  const { semantic } = useTheme()
-  return (
-    <View
-      style={[
-        styles.metric,
-        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-      ]}
-    >
-      <View style={[styles.metricIcon, { backgroundColor: semantic.accent.subtle }]}>
-        <Ionicons name={icon} size={16} color={semantic.accent.default} />
-      </View>
-      <View>
-        <Text style={[styles.metricValue, { color: semantic.text.primary }]}>{value}</Text>
-        <Text style={[styles.metricLabel, { color: semantic.text.secondary }]}>{label}</Text>
-      </View>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   list: { padding: spacing[4], paddingBottom: spacing[12] },
   header: { gap: spacing[4], marginBottom: spacing[4] },
-  heroRow: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing[4],
-    justifyContent: 'space-between',
-  },
-  heroCopy: { flex: 1, minWidth: 260, gap: spacing[1] },
-  kickerRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[1] },
-  kicker: {
-    fontSize: typography.size.xs,
-    fontWeight: typography.weight.bold,
-    textTransform: 'uppercase',
-  },
-  heading: {
-    fontSize: typography.size['2xl'],
-    fontWeight: typography.weight.bold,
-    lineHeight: typography.size['2xl'] * 1.2,
-  },
+  paginatorBottom: { marginTop: spacing[4] },
   metricsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
-  metric: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing[3],
-    minWidth: 150,
-    padding: spacing[3],
-  },
-  metricIcon: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    height: sizes.icon,
-    justifyContent: 'center',
-    width: sizes.icon,
-  },
-  metricValue: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
-  metricLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
 })

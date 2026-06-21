@@ -20,6 +20,11 @@ export const paymentMethodSchema = z.enum(['01', '15', '16', '17', '18', '19', '
 export const sriErrorSchema = z.object({
   code: z.string(),
   message: z.string(),
+  user_message: z.string().optional(),
+  category: z.string().optional(),
+  classification: z.enum(['PERMANENT', 'RETRYABLE']).optional(),
+  raw_message: z.string().optional(),
+  additional_info: z.string().nullable().optional(),
 })
 
 export const documentLineSchema = z.object({
@@ -180,8 +185,10 @@ export const emitDocumentSchema = z
   })
   .strict()
 
-// Modo de selección del comprador — solo UI, no se envía al backend.
-export const buyerModeSchema = z.enum(['consumidor_final', 'cliente', 'manual'])
+// Modo de selección del comprador — solo UI, no se envía al backend. Sin modo "manual":
+// todo comprador que no sea Consumidor Final debe ser un Client real y guardado, nunca
+// texto libre que no se persiste en ningún registro.
+export const buyerModeSchema = z.enum(['consumidor_final', 'cliente'])
 
 export const emitDocumentFormValuesSchema = z
   .object({

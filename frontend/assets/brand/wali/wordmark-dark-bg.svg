@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2226.0 880.0" width="2226" height="880" role="img" aria-label="wali">
+<rect width="2226.0" height="880.0" rx="0" fill="#0D1126"/>
+<g transform="translate(90,790) scale(1,-1)">
+<g transform="translate(0,0)" fill="none" stroke-width="158.0" stroke-linecap="round" stroke-linejoin="round">
+<path d="M79.0,469.0 L229.0,79.0 L379.0,469.0" stroke="#4F46FF"/><path d="M379.0,469.0 L529.0,79.0 L679.0,469.0" stroke="#FFFFFF"/></g>
+<path transform="translate(776.0,0)" d="M286 563Q348 563 394.5 538.0Q441 513 469 475V554H610V0H469V81Q442 42 394.5 16.5Q347 -9 285 -9Q215 -9 157.5 27.0Q100 63 66.5 128.5Q33 194 33 279Q33 363 66.5 428.0Q100 493 157.5 528.0Q215 563 286 563ZM322 440Q283 440 250.0 421.0Q217 402 196.5 365.5Q176 329 176 279Q176 229 196.5 191.5Q217 154 250.5 134.0Q284 114 322 114Q361 114 395.0 133.5Q429 153 449.0 189.5Q469 226 469 277Q469 328 449.0 364.5Q429 401 395.0 420.5Q361 440 322 440Z" fill="#FFFFFF"/>
+<path transform="translate(1472.0,0)" d="M209 740V0H69V740Z" fill="#FFFFFF"/>
+<path transform="translate(1768.0,0)" d="M54 702Q54 737 78.5 760.5Q103 784 140 784Q177 784 201.5 760.5Q226 737 226 702Q226 667 201.5 643.5Q177 620 140 620Q103 620 78.5 643.5Q54 667 54 702ZM209 554V0H69V554Z" fill="#FFFFFF"/>
+</g>
+</svg>

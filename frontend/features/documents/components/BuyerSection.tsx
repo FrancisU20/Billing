@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
-import { EmailField } from '@/components/ui/SpecializedFields'
+import { EmailField, PhoneField } from '@/components/ui/SpecializedFields'
 import { spacing, typography } from '@/constants/tokens'
 import type { Client, IdentificationType } from '@/features/clients/types'
 import { useTheme } from '@/lib/theme-context'
@@ -21,7 +21,6 @@ import {
   CONSUMIDOR_FINAL_NAME,
 } from '../constants'
 import type { EmitDocumentFormValues } from '../schemas'
-import { BuyerIdTypePicker } from './BuyerIdTypePicker'
 import { ClientPickerModal } from './ClientPickerModal'
 
 const CLIENT_IDENTIFICATION_TO_BUYER_ID_TYPE: Record<
@@ -43,11 +42,15 @@ interface BuyerSectionProps {
 export function BuyerSection({ control, setValue, errors }: BuyerSectionProps) {
   const { semantic } = useTheme()
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [hasInteracted, setHasInteracted] = useState(false)
+  const [clientExtra, setClientExtra] = useState({ phone: '', address: '' })
   const buyerMode = useWatch({ control, name: 'buyer_mode' })
   const clientId = useWatch({ control, name: 'client_id' })
 
   function setBuyerMode(mode: EmitDocumentFormValues['buyer_mode']) {
     setValue('buyer_mode', mode, { shouldDirty: true, shouldValidate: true })
+    setHasInteracted(false)
+    setClientExtra({ phone: '', address: '' })
     if (mode === 'consumidor_final') {
       setValue('client_id', null, { shouldDirty: true, shouldValidate: true })
       setValue('buyer_id_type', CONSUMIDOR_FINAL_ID_TYPE, {
@@ -57,8 +60,11 @@ export function BuyerSection({ control, setValue, errors }: BuyerSectionProps) {
       setValue('buyer_id', CONSUMIDOR_FINAL_ID, { shouldDirty: true, shouldValidate: true })
       setValue('buyer_name', CONSUMIDOR_FINAL_NAME, { shouldDirty: true, shouldValidate: true })
       setValue('buyer_email', '', { shouldDirty: true, shouldValidate: true })
-    } else if (mode === 'manual') {
+    } else {
       setValue('client_id', null, { shouldDirty: true, shouldValidate: true })
+      setValue('buyer_id', '', { shouldDirty: true, shouldValidate: true })
+      setValue('buyer_name', '', { shouldDirty: true, shouldValidate: true })
+      setValue('buyer_email', '', { shouldDirty: true, shouldValidate: true })
     }
   }
 
@@ -74,92 +80,115 @@ export function BuyerSection({ control, setValue, errors }: BuyerSectionProps) {
       shouldValidate: true,
     })
     setValue('buyer_email', client.emails[0] ?? '', { shouldDirty: true, shouldValidate: true })
+    setClientExtra({ phone: client.phones[0] ?? '', address: client.addresses[0]?.line ?? '' })
     setPickerOpen(false)
   }
-
-  const fieldsDisabled = buyerMode === 'consumidor_final'
 
   return (
     <View style={styles.container}>
       <SegmentedControl options={BUYER_MODE_OPTIONS} value={buyerMode} onChange={setBuyerMode} />
 
       {buyerMode === 'cliente' ? (
-        <View style={styles.clientPicker}>
-          <Button variant="outline" size="md" onPress={() => setPickerOpen(true)}>
+        <View style={styles.clientPickerRow}>
+          <Button
+            variant="primary"
+            size="md"
+            onPress={() => {
+              setHasInteracted(true)
+              setPickerOpen(true)
+            }}
+          >
             {clientId ? 'Cambiar cliente' : 'Buscar cliente'}
           </Button>
-          {errors.client_id?.message ? (
-            <Text style={[styles.errorText, { color: semantic.status.error }]}>
+          {hasInteracted && errors.client_id?.message ? (
+            <Text style={[styles.statusText, { color: semantic.status.error }]}>
               {errors.client_id.message}
             </Text>
-          ) : null}
+          ) : (
+            <Text style={[styles.statusText, { color: semantic.text.tertiary }]}>
+              Los datos se completan al elegir el cliente — no se editan aquí, para evitar facturar
+              a alguien que no quede registrado.
+            </Text>
+          )}
         </View>
       ) : null}
 
-      {buyerMode === 'manual' ? (
-        <Controller
-          control={control}
-          name="buyer_id_type"
-          render={({ field: { value } }) => (
-            <BuyerIdTypePicker
-              value={value}
-              onChange={(next) =>
-                setValue('buyer_id_type', next, { shouldDirty: true, shouldValidate: true })
-              }
+      <View style={styles.fieldGrid}>
+        <View style={styles.fieldHalf}>
+          <Controller
+            control={control}
+            name="buyer_id"
+            render={({ field: { value } }) => (
+              <FormField
+                label="Identificación"
+                placeholder="9999999999999"
+                leftIcon="finger-print-outline"
+                isDisabled
+                value={value}
+                onChangeText={() => undefined}
+                required
+              />
+            )}
+          />
+        </View>
+        <View style={styles.fieldHalf}>
+          <Controller
+            control={control}
+            name="buyer_name"
+            render={({ field: { value } }) => (
+              <FormField
+                label="Nombre / razón social"
+                placeholder="Consumidor Final"
+                leftIcon="person-outline"
+                isDisabled
+                value={value}
+                onChangeText={() => undefined}
+                required
+              />
+            )}
+          />
+        </View>
+      </View>
+
+      <View style={styles.fieldGrid}>
+        <View style={styles.fieldHalf}>
+          <Controller
+            control={control}
+            name="buyer_email"
+            render={({ field: { value } }) => (
+              <EmailField
+                label="Email"
+                placeholder="Sin email registrado"
+                isDisabled
+                value={value}
+                onChangeText={() => undefined}
+              />
+            )}
+          />
+        </View>
+        {buyerMode === 'cliente' ? (
+          <View style={styles.fieldHalf}>
+            <PhoneField
+              label="Teléfono"
+              placeholder="Sin teléfono registrado"
+              isDisabled
+              value={clientExtra.phone}
+              onChangeText={() => undefined}
             />
-          )}
+          </View>
+        ) : null}
+      </View>
+
+      {buyerMode === 'cliente' ? (
+        <FormField
+          label="Dirección"
+          placeholder="Sin dirección registrada"
+          leftIcon="location-outline"
+          isDisabled
+          value={clientExtra.address}
+          onChangeText={() => undefined}
         />
       ) : null}
-
-      <Controller
-        control={control}
-        name="buyer_id"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <FormField
-            label="Identificación del comprador"
-            placeholder="9999999999999"
-            leftIcon="finger-print-outline"
-            isDisabled={fieldsDisabled}
-            error={errors.buyer_id?.message}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            value={value}
-            required
-          />
-        )}
-      />
-      <Controller
-        control={control}
-        name="buyer_name"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <FormField
-            label="Nombre / razón social"
-            placeholder="Consumidor Final"
-            leftIcon="person-outline"
-            isDisabled={fieldsDisabled}
-            error={errors.buyer_name?.message}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            value={value}
-            required
-          />
-        )}
-      />
-      <Controller
-        control={control}
-        name="buyer_email"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <EmailField
-            label="Email (opcional)"
-            placeholder="comprador@email.com"
-            isDisabled={fieldsDisabled}
-            error={errors.buyer_email?.message}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            value={value}
-          />
-        )}
-      />
 
       <ClientPickerModal
         visible={pickerOpen}
@@ -172,6 +201,18 @@ export function BuyerSection({ control, setValue, errors }: BuyerSectionProps) {
 
 const styles = StyleSheet.create({
   container: { gap: spacing[3] },
-  clientPicker: { gap: spacing[1] },
-  errorText: { fontSize: typography.size.xs },
+  clientPickerRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[3],
+  },
+  statusText: {
+    flex: 1,
+    fontSize: typography.size.xs,
+    lineHeight: typography.size.xs * 1.5,
+    minWidth: 200,
+  },
+  fieldGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
+  fieldHalf: { flex: 1, minWidth: 220 },
 })

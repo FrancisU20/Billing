@@ -35,6 +35,7 @@ from lambdas.clients.domain.repositories.i_client_repository import IClientRepos
 from lambdas.clients.domain.value_objects.address import Address
 from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.db.base_repository import BaseRepository
+from shared.db.paginator import decode_cursor, encode_cursor
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
 
@@ -94,17 +95,28 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
             created_to=created_to,
         )
         if identification:
-            client = self.get_by_identification(identification.strip().upper())
-            if not client:
-                return [], None
-            if not filters.matches(client):
-                return [], None
-            return [client], None
+            prefix = identification.strip().upper()
+            cursor = next_token
+            clients: list[Client] = []
+            while len(clients) < limit:
+                items, cursor = self._identification_prefix_raw(
+                    prefix=prefix,
+                    limit=limit - len(clients),
+                    next_token=cursor,
+                )
+                for item in items:
+                    client = self._from_item(item)
+                    if not filters.matches(client):
+                        continue
+                    clients.append(client)
+                if cursor is None:
+                    break
+            return clients, cursor
 
         extra_filter = filters.to_dynamo_filter()
 
         cursor = next_token
-        clients: list[Client] = []
+        clients = []
         while len(clients) < limit:
             items, cursor = self._list_raw(
                 limit=limit - len(clients),
@@ -120,16 +132,46 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
                 break
         return clients, cursor
 
+    def _identification_prefix_raw(
+        self,
+        prefix: str,
+        limit: int,
+        next_token: str | None,
+    ) -> tuple[list[dict], str | None]:
+        """Query (not Scan) on `identification-index`: PK=tenant_id, SK begins_with
+        `prefix`. Lets the user type a partial cedula/RUC (eg. "1003") and find matches
+        ("1003368725") without a table-wide walk — same cost class as an exact lookup,
+        because DynamoDB sorts the GSI sort key lexicographically."""
+        kwargs: dict = {
+            "IndexName": "identification-index",
+            "KeyConditionExpression": (
+                Key("tenant_id").eq(self._tenant_id) & Key("identification").begins_with(prefix)
+            ),
+            "FilterExpression": Attr("entity_type").eq("CLIENT") & Attr("deleted").eq(False),
+            "Limit": limit,
+        }
+        cursor = decode_cursor(next_token)
+        if cursor:
+            kwargs["ExclusiveStartKey"] = cursor
+        try:
+            resp = self._table.query(**kwargs)
+        except ClientError as exc:
+            _log.error("DynamoDB identification-index prefix query error", error=str(exc))
+            raise DatabaseError() from exc
+        return resp.get("Items", []), encode_cursor(resp.get("LastEvaluatedKey"))
+
     def count(
         self,
         status: str | None = None,
+        identification: str | None = None,
         identification_type: str | None = None,
         created_from: str | None = None,
         created_to: str | None = None,
     ) -> int:
-        """Accurate only when `q`/`identification` are not in play — those are
-        matched in Python, not in DynamoDB, so a DB-side count would not match
-        the actual filtered result set."""
+        """Accurate even when `identification` is set: it's a prefix Query on the GSI,
+        not a Python-side match, so it composes with the other DynamoDB-side filters via
+        Select=COUNT. Only `q` (free-text over name fields) stays unsupported here —
+        that one is still matched in Python."""
         filters = _ClientListFilters(
             status=status,
             q=None,
@@ -137,7 +179,32 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
             created_from=created_from,
             created_to=created_to,
         )
+        if identification:
+            return self._identification_prefix_count(identification.strip().upper(), filters)
         return self._count_raw(filters.to_dynamo_filter())
+
+    def _identification_prefix_count(self, prefix: str, filters: _ClientListFilters) -> int:
+        kwargs: dict = {
+            "IndexName": "identification-index",
+            "KeyConditionExpression": (
+                Key("tenant_id").eq(self._tenant_id) & Key("identification").begins_with(prefix)
+            ),
+            "FilterExpression": filters.to_dynamo_filter() & Attr("deleted").eq(False),
+            "Select": "COUNT",
+        }
+        total = 0
+        try:
+            while True:
+                resp = self._table.query(**kwargs)
+                total += resp.get("Count", 0)
+                last_key = resp.get("LastEvaluatedKey")
+                if not last_key:
+                    break
+                kwargs["ExclusiveStartKey"] = last_key
+        except ClientError as exc:
+            _log.error("DynamoDB identification-index prefix count error", error=str(exc))
+            raise DatabaseError() from exc
+        return total
 
     def save(self, client: Client, user_id: str) -> None:
         self.commit(

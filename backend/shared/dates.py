@@ -48,6 +48,33 @@ def current_ecuador_month_utc_bounds(now: datetime | None = None) -> tuple[str, 
     return start_local.astimezone(UTC).isoformat(), end_local.astimezone(UTC).isoformat()
 
 
+def current_ecuador_year_utc_bounds(now: datetime | None = None) -> tuple[str, str]:
+    local_now = to_ecuador(now or now_utc())
+    start_local = local_now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    next_year = start_local.replace(year=start_local.year + 1)
+    end_local = next_year - timedelta(microseconds=1)
+    return start_local.astimezone(UTC).isoformat(), end_local.astimezone(UTC).isoformat()
+
+
+def current_ecuador_previous_month_utc_bounds(now: datetime | None = None) -> tuple[str, str]:
+    local_now = to_ecuador(now or now_utc())
+    this_month_start = local_now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if this_month_start.month == 1:
+        start_local = this_month_start.replace(year=this_month_start.year - 1, month=12)
+    else:
+        start_local = this_month_start.replace(month=this_month_start.month - 1)
+    end_local = this_month_start - timedelta(microseconds=1)
+    return start_local.astimezone(UTC).isoformat(), end_local.astimezone(UTC).isoformat()
+
+
+def current_ecuador_previous_year_utc_bounds(now: datetime | None = None) -> tuple[str, str]:
+    local_now = to_ecuador(now or now_utc())
+    this_year_start = local_now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    start_local = this_year_start.replace(year=this_year_start.year - 1)
+    end_local = this_year_start - timedelta(microseconds=1)
+    return start_local.astimezone(UTC).isoformat(), end_local.astimezone(UTC).isoformat()
+
+
 def parse_datetime_as_ecuador(value: str) -> datetime:
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:

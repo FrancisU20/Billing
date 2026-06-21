@@ -13,7 +13,7 @@ export default function TenantLayout() {
   const { tenant, loading, refresh } = useTenant(user?.tenantId ?? null)
 
   if (isSuperadmin) {
-    return <Redirect href={Routes.superadmin.tenants} />
+    return <Redirect href={Routes.superadmin.dashboard} />
   }
 
   // Hold render until tenant loads to avoid a flash of dashboard before guard fires.

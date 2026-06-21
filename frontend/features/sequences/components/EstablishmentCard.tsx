@@ -4,8 +4,6 @@ import { Ionicons } from '@expo/vector-icons'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { FormField } from '@/components/ui/FormField'
-import { Input } from '@/components/ui/Input'
-import { ListItemAction } from '@/components/ui/ListItemPrimitives'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useTheme } from '@/lib/theme-context'
@@ -78,6 +76,13 @@ export function EstablishmentCard({
     await onChanged()
   })
 
+  function closeAddForm() {
+    setAddOpen(false)
+    setPointCode('')
+    setPointLabel('')
+    setPointInitial('1')
+  }
+
   return (
     <View
       style={[
@@ -93,121 +98,233 @@ export function EstablishmentCard({
           <Text style={[styles.title, { color: semantic.text.primary }]}>
             {establishment.label}
           </Text>
-          <Text style={[styles.subtitle, { color: semantic.text.secondary }]}>
-            Establecimiento {establishment.code}
-          </Text>
+          <View style={styles.headerMeta}>
+            <Text
+              style={[
+                styles.codePill,
+                styles.mono,
+                { color: semantic.accent.default, backgroundColor: semantic.accent.subtle },
+              ]}
+            >
+              Estab. {establishment.code}
+            </Text>
+            <Text style={[styles.subtitle, { color: semantic.text.secondary }]}>
+              {establishment.emission_points.length} punto
+              {establishment.emission_points.length === 1 ? '' : 's'} de emisión
+            </Text>
+          </View>
         </View>
         {canManage ? (
-          <Button variant="outline" size="sm" onPress={() => setAddOpen((v) => !v)}>
-            {addOpen ? 'Cancelar' : 'Punto de emisión'}
+          <Button
+            variant={addOpen ? 'ghost' : 'outline'}
+            size="sm"
+            onPress={() => setAddOpen((v) => !v)}
+          >
+            {addOpen ? 'Ocultar' : 'Agregar punto'}
           </Button>
         ) : null}
       </View>
 
-      <View style={styles.pointsList}>
-        {establishment.emission_points.map((point) => (
-          <View
-            key={point.code}
-            style={[styles.pointRow, { borderColor: semantic.border.default }]}
-          >
-            {editingCode === point.code ? (
-              <View style={styles.editRow}>
-                <View style={styles.editLabelInput}>
-                  <Input value={editLabel} onChangeText={setEditLabel} placeholder="Etiqueta" />
-                </View>
-                <View style={styles.editInitialInput}>
-                  <Input
-                    value={editInitial}
-                    onChangeText={setEditInitial}
-                    placeholder="Secuencial"
-                    keyboardType="number-pad"
-                  />
-                </View>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  isLoading={editingPoint}
-                  onPress={() => submitEditPoint()}
-                >
-                  Guardar
-                </Button>
-                <Button variant="ghost" size="sm" onPress={() => setEditingCode(null)}>
-                  Cancelar
-                </Button>
-              </View>
-            ) : (
-              <>
-                <View style={styles.pointCopy}>
-                  <Text style={[styles.pointLabel, { color: semantic.text.primary }]}>
-                    {point.label}
-                  </Text>
-                  <Text style={[styles.pointMeta, { color: semantic.text.secondary }]}>
-                    Punto {point.code} · inicia en {point.initial_sequential}
-                  </Text>
-                </View>
-                {canManage ? (
-                  <ListItemAction
-                    icon="create-outline"
-                    label={`Editar punto ${point.code}`}
-                    onPress={() => {
-                      setEditingCode(point.code)
-                      setEditLabel(point.label)
-                      setEditInitial(String(point.initial_sequential))
-                    }}
-                  />
-                ) : null}
-              </>
-            )}
-          </View>
-        ))}
-      </View>
-
-      {editError ? <ApiErrorBanner error={editError} /> : null}
-
       {addOpen && canManage ? (
-        <View style={styles.addForm}>
-          <FormField
-            label="Código"
-            placeholder="001"
-            value={pointCode}
-            onChangeText={setPointCode}
-            keyboardType="number-pad"
-            leftIcon="pricetag-outline"
-          />
-          <FormField
-            label="Etiqueta"
-            placeholder="Caja 1"
-            value={pointLabel}
-            onChangeText={setPointLabel}
-            leftIcon="bookmark-outline"
-          />
-          <FormField
-            label="Secuencial inicial"
-            placeholder="1"
-            value={pointInitial}
-            onChangeText={setPointInitial}
-            keyboardType="number-pad"
-            leftIcon="trending-up-outline"
-            hint="Usa un valor mayor a 1 si ya facturabas con otro sistema y quieres continuar la numeración."
-          />
+        <View
+          style={[
+            styles.addForm,
+            { backgroundColor: semantic.bg.secondary, borderColor: semantic.border.default },
+          ]}
+        >
+          <View style={styles.formHeader}>
+            <Text style={[styles.formTitle, { color: semantic.text.primary }]}>
+              Nuevo punto de emisión
+            </Text>
+            <Text style={[styles.formHint, { color: semantic.text.secondary }]}>
+              Creará la serie {establishment.code}-XXX. El punto 099 está reservado para pruebas.
+            </Text>
+          </View>
+
+          <View style={styles.formGrid}>
+            <View style={styles.codeInput}>
+              <FormField
+                label="Punto SRI"
+                placeholder="001"
+                value={pointCode}
+                onChangeText={setPointCode}
+                keyboardType="number-pad"
+                leftIcon="keypad-outline"
+                maxLength={3}
+                required
+              />
+            </View>
+            <View style={styles.labelInput}>
+              <FormField
+                label="Nombre visible"
+                placeholder="Caja principal"
+                value={pointLabel}
+                onChangeText={setPointLabel}
+                leftIcon="bookmark-outline"
+                required
+              />
+            </View>
+            <View style={styles.initialInput}>
+              <FormField
+                label="Primer secuencial"
+                placeholder="1"
+                value={pointInitial}
+                onChangeText={setPointInitial}
+                keyboardType="number-pad"
+                leftIcon="trending-up-outline"
+                hint="Usa el siguiente número si vienes de otro sistema."
+                required
+              />
+            </View>
+          </View>
+
           {addError ? <ApiErrorBanner error={addError} /> : null}
-          <Button
-            variant="primary"
-            size="md"
-            isLoading={addingPoint}
-            onPress={() => submitAddPoint()}
-          >
-            Agregar punto de emisión
-          </Button>
+          <View style={styles.formActions}>
+            <Button variant="ghost" size="md" onPress={closeAddForm}>
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              isLoading={addingPoint}
+              onPress={() => submitAddPoint()}
+            >
+              Guardar punto
+            </Button>
+          </View>
         </View>
       ) : null}
+
+      <View style={styles.pointsList}>
+        {establishment.emission_points.length > 0 ? (
+          establishment.emission_points.map((point) => (
+            <View
+              key={point.code}
+              style={[
+                styles.pointRow,
+                { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
+              ]}
+            >
+              {editingCode === point.code ? (
+                <View style={styles.editPanel}>
+                  <View style={styles.formGrid}>
+                    <View style={styles.labelInput}>
+                      <FormField
+                        label="Nombre visible"
+                        value={editLabel}
+                        onChangeText={setEditLabel}
+                        placeholder="Caja principal"
+                        leftIcon="bookmark-outline"
+                      />
+                    </View>
+                    <View style={styles.initialInput}>
+                      <FormField
+                        label="Primer secuencial"
+                        value={editInitial}
+                        onChangeText={setEditInitial}
+                        placeholder="1"
+                        keyboardType="number-pad"
+                        leftIcon="trending-up-outline"
+                      />
+                    </View>
+                  </View>
+                  {editError ? <ApiErrorBanner error={editError} /> : null}
+                  <View style={styles.formActions}>
+                    <Button variant="ghost" size="sm" onPress={() => setEditingCode(null)}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      isLoading={editingPoint}
+                      onPress={() => submitEditPoint()}
+                    >
+                      Guardar cambios
+                    </Button>
+                  </View>
+                </View>
+              ) : (
+                <>
+                  <View style={[styles.seriesBadge, { backgroundColor: semantic.accent.subtle }]}>
+                    <Text
+                      style={[styles.seriesText, styles.mono, { color: semantic.accent.default }]}
+                    >
+                      {establishment.code}-{point.code}
+                    </Text>
+                  </View>
+
+                  <View style={styles.pointCopy}>
+                    <View style={styles.pointTitleRow}>
+                      <Text style={[styles.pointLabel, { color: semantic.text.primary }]}>
+                        {point.label}
+                      </Text>
+                      {point.code === '099' ? (
+                        <Text
+                          style={[
+                            styles.testingPill,
+                            { color: semantic.status.warning, backgroundColor: semantic.bg.muted },
+                          ]}
+                        >
+                          Pruebas
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text style={[styles.pointMeta, { color: semantic.text.secondary }]}>
+                      Primer secuencial {point.initial_sequential.toLocaleString('es-EC')} · Primer
+                      comprobante {establishment.code}-{point.code}-
+                      {formatSriSequential(point.initial_sequential)}
+                    </Text>
+                  </View>
+
+                  {canManage ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onPress={() => {
+                        setEditingCode(point.code)
+                        setEditLabel(point.label)
+                        setEditInitial(String(point.initial_sequential))
+                      }}
+                    >
+                      Editar
+                    </Button>
+                  ) : null}
+                </>
+              )}
+            </View>
+          ))
+        ) : (
+          <View
+            style={[
+              styles.emptyPoints,
+              { backgroundColor: semantic.bg.secondary, borderColor: semantic.border.default },
+            ]}
+          >
+            <Text style={[styles.emptyTitle, { color: semantic.text.primary }]}>
+              Sin puntos de emisión
+            </Text>
+            <Text style={[styles.emptyCopy, { color: semantic.text.secondary }]}>
+              Agrega al menos un punto para emitir facturas desde este establecimiento.
+            </Text>
+            {canManage ? (
+              <Button variant="outline" size="sm" onPress={() => setAddOpen(true)}>
+                Agregar punto
+              </Button>
+            ) : null}
+          </View>
+        )}
+      </View>
     </View>
   )
 }
 
+function formatSriSequential(value: number) {
+  return String(value).padStart(9, '0')
+}
+
 const styles = StyleSheet.create({
   card: { borderRadius: radius.md, borderWidth: 1, gap: spacing[4], padding: spacing[4] },
-  header: { alignItems: 'center', flexDirection: 'row', gap: spacing[3] },
+  header: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
   icon: {
     alignItems: 'center',
     borderRadius: radius.md,
@@ -217,6 +334,14 @@ const styles = StyleSheet.create({
   },
   headerCopy: { flex: 1, gap: spacing[1] - 2 },
   title: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
+  headerMeta: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
+  codePill: {
+    borderRadius: radius.sm,
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.bold,
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[1] - 2,
+  },
   subtitle: { fontSize: typography.size.xs },
   pointsList: { gap: spacing[2] },
   pointRow: {
@@ -224,20 +349,59 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing[2],
+    flexWrap: 'wrap',
+    gap: spacing[3],
     padding: spacing[3],
   },
-  pointCopy: { flex: 1, gap: spacing[1] - 2 },
-  pointLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
-  pointMeta: { fontSize: typography.size.xs },
-  editRow: {
+  seriesBadge: {
     alignItems: 'center',
-    flex: 1,
+    borderRadius: radius.sm,
+    justifyContent: 'center',
+    minHeight: 44,
+    minWidth: 88,
+    paddingHorizontal: spacing[3],
+  },
+  seriesText: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
+  pointCopy: { flex: 1, gap: spacing[1] - 2 },
+  pointTitleRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
+  pointLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  testingPill: {
+    borderRadius: radius.full,
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.semibold,
+    paddingHorizontal: spacing[2],
+    paddingVertical: spacing[1] - 2,
+  },
+  pointMeta: { fontSize: typography.size.xs },
+  editPanel: { flex: 1, gap: spacing[3], minWidth: 260 },
+  addForm: { borderRadius: radius.md, borderWidth: 1, gap: spacing[4], padding: spacing[4] },
+  formHeader: { gap: spacing[1] },
+  formTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
+  formHint: {
+    fontSize: typography.size.xs,
+    lineHeight: typography.size.xs * typography.lineHeight.normal,
+  },
+  formGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
+  codeInput: { width: 140 },
+  labelInput: { flex: 1, minWidth: 220 },
+  initialInput: { width: 190 },
+  formActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing[2],
+    justifyContent: 'flex-end',
   },
-  editLabelInput: { flex: 1, minWidth: 140 },
-  editInitialInput: { width: 120 },
-  addForm: { gap: spacing[3] },
+  emptyPoints: {
+    alignItems: 'flex-start',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    gap: spacing[2],
+    padding: spacing[4],
+  },
+  emptyTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  emptyCopy: {
+    fontSize: typography.size.xs,
+    lineHeight: typography.size.xs * typography.lineHeight.normal,
+  },
+  mono: { fontFamily: typography.fontFamily.mono },
 })

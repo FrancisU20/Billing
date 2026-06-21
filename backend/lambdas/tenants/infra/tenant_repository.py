@@ -24,11 +24,13 @@ from lambdas._base.idempotency import (
     completion_transact_item,
     mark_completed,
 )
+from lambdas.tenants.domain.dashboard_summary import RecentTenant, TenantAggregateStats
 from lambdas.tenants.domain.enums import SriEnvironment, TenantStatus
 from lambdas.tenants.domain.errors import TenantNotFoundError, TenantRucAlreadyExistsError
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.tenants.domain.tenant import Tenant
 from shared.audit.writer import audit_item, audit_put_transact_item
+from shared.dates import current_ecuador_month_utc_bounds, current_ecuador_previous_month_utc_bounds
 from shared.db.paginator import decode_cursor, encode_cursor
 from shared.db.transactions import (
     ExtraTransactionConditionFailedError,
@@ -182,6 +184,73 @@ class DynamoTenantRepository(ITenantRepository):
             _log.error("DynamoDB count scan error", error=str(e))
             raise DatabaseError() from e
         return total
+
+    def aggregate_dashboard_stats(self, now: datetime) -> TenantAggregateStats:
+        """Single full-table Scan (same cost class as `count()` — small B2B catalog),
+        tallied in one Python pass. `active_by_plan_id` only counts
+        subscription_status='active' tenants — it is the source for both "top plan"
+        and the MRR base in GetSuperadminDashboardUseCase. `recent_tenants` is the
+        5 newest tenants — sorted in memory at the end, no extra Scan."""
+        month_start, month_end = current_ecuador_month_utc_bounds(now)
+        month_start_dt, month_end_dt = _dt(month_start), _dt(month_end)
+        prev_month_start, prev_month_end = current_ecuador_previous_month_utc_bounds(now)
+        prev_month_start_dt, prev_month_end_dt = _dt(prev_month_start), _dt(prev_month_end)
+
+        total = 0
+        new_this_month = 0
+        new_previous_month = 0
+        by_environment: dict[str, int] = {}
+        by_subscription_status: dict[str, int] = {}
+        active_by_plan_id: dict[str, int] = {}
+        all_tenants: list[Tenant] = []
+
+        kwargs: dict = {
+            "FilterExpression": Attr("entity_type").eq("TENANT") & Attr("deleted").eq(False)
+        }
+        try:
+            while True:
+                resp = self._table.scan(**kwargs)
+                for item in resp.get("Items", []):
+                    tenant = self._from_item(item)
+                    all_tenants.append(tenant)
+                    total += 1
+                    if month_start_dt <= tenant.created_at <= month_end_dt:
+                        new_this_month += 1
+                    elif prev_month_start_dt <= tenant.created_at <= prev_month_end_dt:
+                        new_previous_month += 1
+                    env = tenant.sri_environment.value
+                    by_environment[env] = by_environment.get(env, 0) + 1
+                    sub_status = tenant.subscription_status or "none"
+                    by_subscription_status[sub_status] = (
+                        by_subscription_status.get(sub_status, 0) + 1
+                    )
+                    if tenant.subscription_status == "active":
+                        active_by_plan_id[tenant.plan_id] = (
+                            active_by_plan_id.get(tenant.plan_id, 0) + 1
+                        )
+
+                last_key = resp.get("LastEvaluatedKey")
+                if not last_key:
+                    break
+                kwargs["ExclusiveStartKey"] = last_key
+        except ClientError as e:
+            _log.error("DynamoDB aggregate_dashboard_stats scan error", error=str(e))
+            raise DatabaseError() from e
+
+        recent_tenants = [
+            RecentTenant(id=t.id, trade_name=t.trade_name, created_at=t.created_at.isoformat())
+            for t in sorted(all_tenants, key=lambda t: t.created_at, reverse=True)[:5]
+        ]
+
+        return TenantAggregateStats(
+            total=total,
+            new_this_month=new_this_month,
+            new_previous_month=new_previous_month,
+            by_environment=by_environment,
+            by_subscription_status=by_subscription_status,
+            active_by_plan_id=active_by_plan_id,
+            recent_tenants=recent_tenants,
+        )
 
     def list_with_subscription_expiry_due(self, before: datetime) -> list[Tenant]:
         """Return tenants with a paid plan whose cycle ends before `before`.

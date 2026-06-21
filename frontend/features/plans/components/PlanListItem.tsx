@@ -1,12 +1,17 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import { StyleSheet, Text, View } from 'react-native'
 import { Badge } from '@/components/ui/Badge'
-import { ListItemAction, ListItemMeta } from '@/components/ui/ListItemPrimitives'
+import {
+  EntityAvatar,
+  ListCell,
+  ListItemAction,
+  ListItemMeta,
+} from '@/components/ui/ListItemPrimitives'
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu'
+import { useIsDesktopLayout } from '@/lib/hooks/useIsDesktopLayout'
 import { useTheme } from '@/lib/theme-context'
 import { formatDate } from '@/lib/utils/format'
-import { radius, sizes, spacing, typography } from '@/constants/tokens'
+import { radius, spacing, typography } from '@/constants/tokens'
 import { cycleLabel, formatBillingPrice, formatDocumentLimit, formatPlanLimit } from '../format'
 import type { Plan } from '../types'
 
@@ -19,6 +24,7 @@ interface PlanListItemProps {
 
 export function PlanListItem({ plan, onView, onEdit, onToggle }: PlanListItemProps) {
   const { semantic } = useTheme()
+  const isDesktop = useIsDesktopLayout()
 
   const rowActions: RowAction[] = [
     { key: 'edit', icon: 'create-outline', label: 'Editar plan', onPress: onEdit },
@@ -32,21 +38,62 @@ export function PlanListItem({ plan, onView, onEdit, onToggle }: PlanListItemPro
   ]
 
   return (
-    <Pressable
-      onPress={onView}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.container,
-        {
-          backgroundColor: pressed ? semantic.bg.secondary : semantic.bg.card,
-          borderColor: semantic.border.default,
-        },
+        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
       ]}
     >
-      <View style={[styles.avatar, { backgroundColor: semantic.accent.subtle }]}>
-        <Ionicons name="pricetag-outline" size={20} color={semantic.accent.default} />
-      </View>
+      <EntityAvatar icon="pricetag-outline" />
 
       <View style={styles.main}>
+        {isDesktop ? <DesktopRow plan={plan} /> : <MobileRow plan={plan} />}
+      </View>
+
+      <View style={styles.actions}>
+        <ListItemAction icon="eye-outline" label="Ver plan" onPress={onView} />
+        <RowActionsMenu actions={rowActions} triggerLabel="Más acciones de plan" />
+      </View>
+    </View>
+  )
+}
+
+function MobileRow({ plan }: { plan: Plan }) {
+  const { semantic } = useTheme()
+  return (
+    <>
+      <View style={styles.nameRow}>
+        <Text style={[styles.name, { color: semantic.text.primary }]} numberOfLines={1}>
+          {plan.name}
+        </Text>
+        <Badge
+          label={plan.active ? 'Activo' : 'Inactivo'}
+          variant={plan.active ? 'success' : 'neutral'}
+          size="sm"
+        />
+      </View>
+      <Text style={[styles.description, { color: semantic.text.secondary }]} numberOfLines={1}>
+        {plan.description || plan.slug}
+      </Text>
+      <View style={styles.metaRow}>
+        <ListItemMeta icon="cash-outline" text={formatBillingPrice(plan)} />
+        <ListItemMeta icon="document-text-outline" text={formatDocumentLimit(plan)} />
+        <ListItemMeta
+          icon="people-outline"
+          text={formatPlanLimit(plan.max_users, 'usuario', 'usuarios')}
+        />
+        <ListItemMeta icon="calendar-outline" text={cycleLabel(plan.limit_cycle)} />
+        <ListItemMeta icon="time-outline" text={formatDate(plan.created_at)} />
+      </View>
+    </>
+  )
+}
+
+function DesktopRow({ plan }: { plan: Plan }) {
+  const { semantic } = useTheme()
+  return (
+    <View style={styles.desktopRow}>
+      <View style={styles.colPlan}>
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: semantic.text.primary }]} numberOfLines={1}>
             {plan.name}
@@ -60,23 +107,17 @@ export function PlanListItem({ plan, onView, onEdit, onToggle }: PlanListItemPro
         <Text style={[styles.description, { color: semantic.text.secondary }]} numberOfLines={1}>
           {plan.description || plan.slug}
         </Text>
-        <View style={styles.metaRow}>
-          <ListItemMeta icon="cash-outline" text={formatBillingPrice(plan)} />
-          <ListItemMeta icon="document-text-outline" text={formatDocumentLimit(plan)} />
-          <ListItemMeta
-            icon="people-outline"
-            text={formatPlanLimit(plan.max_users, 'usuario', 'usuarios')}
-          />
-          <ListItemMeta icon="calendar-outline" text={cycleLabel(plan.limit_cycle)} />
-          <ListItemMeta icon="time-outline" text={formatDate(plan.created_at)} />
-        </View>
       </View>
-
-      <View style={styles.actions}>
-        <ListItemAction icon="eye-outline" label="Ver plan" onPress={onView} />
-        <RowActionsMenu actions={rowActions} triggerLabel="Más acciones de plan" />
-      </View>
-    </Pressable>
+      <ListCell label="Precio" value={formatBillingPrice(plan)} style={styles.colPrice} />
+      <ListCell label="Documentos" value={formatDocumentLimit(plan)} style={styles.colDocLimit} />
+      <ListCell
+        label="Usuarios"
+        value={formatPlanLimit(plan.max_users, 'usuario', 'usuarios')}
+        style={styles.colUserLimit}
+      />
+      <ListCell label="Ciclo" value={cycleLabel(plan.limit_cycle)} style={styles.colCycle} />
+      <ListCell label="Creado" value={formatDate(plan.created_at)} style={styles.colDate} />
+    </View>
   )
 }
 
@@ -89,17 +130,17 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     padding: spacing[4],
   },
-  avatar: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    height: sizes.avatarSm,
-    justifyContent: 'center',
-    width: sizes.avatarSm,
-  },
   main: { flex: 1, gap: spacing[1], minWidth: 0 },
   nameRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
   name: { flex: 1, fontSize: typography.size.base, fontWeight: typography.weight.bold },
   description: { fontSize: typography.size.sm },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   actions: { flexDirection: 'row', gap: spacing[2] },
+  desktopRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[5] },
+  colPlan: { flexBasis: 220, gap: spacing[1], minWidth: 180 },
+  colPrice: { flexBasis: 110 },
+  colDocLimit: { flexBasis: 120 },
+  colUserLimit: { flexBasis: 110 },
+  colCycle: { flex: 1, minWidth: 100 },
+  colDate: { flexBasis: 110 },
 })

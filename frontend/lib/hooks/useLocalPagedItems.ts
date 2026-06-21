@@ -23,6 +23,13 @@ export function useLocalPagedItems<T>(items: T[], initialPageSize: PageSize = DE
     setPage((current) => Math.max(current - 1, 1))
   }, [])
 
+  const goToPage = useCallback(
+    (target: number) => {
+      setPage(Math.min(Math.max(1, Math.trunc(target) || 1), totalPages))
+    },
+    [totalPages],
+  )
+
   const setPageSize = useCallback((nextPageSize: PageSize) => {
     setPageSizeState(nextPageSize)
   }, [])
@@ -37,6 +44,7 @@ export function useLocalPagedItems<T>(items: T[], initialPageSize: PageSize = DE
     canGoPrevious: page > 1,
     nextPage,
     previousPage,
+    goToPage,
     setPageSize,
   }
 }

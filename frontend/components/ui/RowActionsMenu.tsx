@@ -20,8 +20,9 @@ interface RowActionsMenuProps {
 
 /**
  * Boton "..." que abre un action sheet con las acciones secundarias de una fila de
- * listado (todo menos la accion primaria, que sigue siendo el tap sobre la fila o un
- * boton visible aparte). Evita que cada fila acumule 3+ botones planos.
+ * listado (todo menos "Ver", que es un boton de ojo visible aparte — la fila ya no es
+ * clickeable completa, ver DocumentListItem/ClientListItem). Evita que cada fila
+ * acumule 3+ botones planos.
  */
 export function RowActionsMenu({ actions, triggerLabel = 'Más acciones' }: RowActionsMenuProps) {
   const [visible, setVisible] = useState(false)

@@ -111,6 +111,24 @@ class DynamoClientRepositoryTests(unittest.TestCase):
         self.assertIsNone(next_token)
         self.assertEqual(table.query_calls[0]["IndexName"], "identification-index")
 
+    def test_list_by_identification_prefix_finds_partial_match(self) -> None:
+        """Typing "1003" should find "1003368725" via begins_with on the GSI sort
+        key — no table-wide walk needed."""
+        client = make_client(id="client-1", tenant_id="tenant-1", identification="1003368725")
+        table = FakeClientsTable(
+            query_items=[DynamoClientRepository("tenant-1", FakeClientsTable())._to_item(client)]
+        )
+        repo = DynamoClientRepository("tenant-1", table)
+
+        clients, _ = repo.list(limit=20, next_token=None, identification="1003")
+
+        self.assertEqual([c.id for c in clients], ["client-1"])
+        self.assertEqual(table.query_calls[0]["IndexName"], "identification-index")
+        condition = table.query_calls[0]["KeyConditionExpression"]
+        begins_with_condition = condition.get_expression()["values"][1]
+        self.assertEqual(begins_with_condition.get_expression()["operator"], "begins_with")
+        self.assertEqual(begins_with_condition.get_expression()["values"][1], "1003")
+
     def test_count_sums_across_pages(self) -> None:
         table = FakeClientsTable(
             query_responses=[
@@ -123,6 +141,21 @@ class DynamoClientRepositoryTests(unittest.TestCase):
         total = repo.count(status="active")
 
         self.assertEqual(total, 10)
+        self.assertEqual(table.query_calls[0]["Select"], "COUNT")
+
+    def test_count_by_identification_prefix_uses_select_count_on_gsi(self) -> None:
+        table = FakeClientsTable(
+            query_responses=[
+                {"Count": 2, "LastEvaluatedKey": {"pk": "TENANT#tenant-1", "sk": "CLIENT#x"}},
+                {"Count": 1},
+            ]
+        )
+        repo = DynamoClientRepository("tenant-1", table)
+
+        total = repo.count(identification="1003")
+
+        self.assertEqual(total, 3)
+        self.assertEqual(table.query_calls[0]["IndexName"], "identification-index")
         self.assertEqual(table.query_calls[0]["Select"], "COUNT")
 
     def test_q_search_walks_pages_until_it_finds_matches(self) -> None:

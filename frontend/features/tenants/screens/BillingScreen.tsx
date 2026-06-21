@@ -117,7 +117,7 @@ export function BillingScreen() {
   if (threeDs.state.phase === 'awaiting' || threeDs.state.phase === 'checking') {
     return (
       <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
-        <AppNavBar title="Verificación del banco" subtitle="Autenticación 3DS" />
+        <AppNavBar title="Verificación del banco" subtitle="Autenticación 3DS" canGoBack />
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <View
             style={[
@@ -162,7 +162,7 @@ export function BillingScreen() {
   if (threeDs.state.phase === 'failed') {
     return (
       <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
-        <AppNavBar title="Facturación" subtitle="Suscripción y pagos" />
+        <AppNavBar title="Suscripción" subtitle="Facturación y pagos" canGoBack />
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <View
             style={[
@@ -216,7 +216,7 @@ export function BillingScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
-      <AppNavBar title="Facturación" subtitle="Suscripción y pagos" />
+      <AppNavBar title="Suscripción" subtitle="Facturación y pagos" canGoBack />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {success ? (

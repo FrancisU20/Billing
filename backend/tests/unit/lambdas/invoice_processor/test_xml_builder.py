@@ -48,6 +48,21 @@ class BuildInvoiceXmlTests(unittest.TestCase):
         self.assertEqual(children[1], "dirEstablecimiento")
         self.assertEqual(root.findtext("infoFactura/dirEstablecimiento"), "Av Siempre Viva 123")
 
+    def test_consumidor_final_uses_official_sri_values(self) -> None:
+        document = make_document(
+            buyer_id_type="07",
+            buyer_id="9999999999999",
+            buyer_name="CONSUMIDOR FINAL",
+        )
+        tenant = make_invoice_tenant()
+
+        xml = build_invoice_xml(document, tenant)
+        root = etree.fromstring(xml.encode("utf-8"))
+
+        self.assertEqual(root.findtext("infoFactura/tipoIdentificacionComprador"), "07")
+        self.assertEqual(root.findtext("infoFactura/identificacionComprador"), "9999999999999")
+        self.assertEqual(root.findtext("infoFactura/razonSocialComprador"), "CONSUMIDOR FINAL")
+
     def test_production_environment_maps_to_ambiente_2(self) -> None:
         document = make_document(sri_environment="production")
         tenant = make_invoice_tenant()

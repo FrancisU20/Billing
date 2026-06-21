@@ -35,12 +35,14 @@ class ListClientsUseCase:
         )
 
     def count(self, query: ListClientsQuery) -> int | None:
-        """None when `q`/`identification` are active — those filters are matched
-        in Python, so a DB-side count would not reflect the actual result set."""
-        if query.q or query.identification:
+        """None only when `q` is active — that one is matched in Python over name
+        fields. `identification` is a GSI prefix Query (Select=COUNT), so it stays
+        accurate even when combined with the other filters."""
+        if query.q:
             return None
         return self._repo.count(
             status=query.status,
+            identification=query.identification,
             identification_type=query.identification_type,
             created_from=query.created_from,
             created_to=query.created_to,

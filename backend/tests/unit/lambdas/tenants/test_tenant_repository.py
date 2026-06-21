@@ -88,6 +88,90 @@ class TenantRepositoryCountTests(unittest.TestCase):
         self.assertEqual(table.scan_calls[0]["Select"], "COUNT")
 
 
+def _tenant_item(
+    *,
+    id: str,  # noqa: A002
+    created_at: str = "2026-06-15T00:00:00+00:00",
+    sri_environment: str = "testing",
+    subscription_status: str | None = "active",
+    plan_id: str = "uuid-basic",
+) -> dict:
+    return {
+        "id": id,
+        "ruc": "1790012345001",
+        "email": "owner@example.com",
+        "created_at": created_at,
+        "updated_at": created_at,
+        "entity_type": "TENANT",
+        "deleted": False,
+        "sri_environment": sri_environment,
+        "subscription_status": subscription_status,
+        "plan_id": plan_id,
+    }
+
+
+class TenantRepositoryAggregateDashboardStatsTests(unittest.TestCase):
+    def test_tallies_environment_subscription_and_active_plan_counts(self) -> None:
+        from datetime import UTC, datetime
+
+        table = ScanTable(
+            scan_responses=[
+                {
+                    "Items": [
+                        _tenant_item(
+                            id="t-1",
+                            created_at="2026-06-15T00:00:00+00:00",
+                            sri_environment="production",
+                            subscription_status="active",
+                            plan_id="uuid-basic",
+                        ),
+                        _tenant_item(
+                            id="t-2",
+                            created_at="2026-01-01T00:00:00+00:00",
+                            sri_environment="testing",
+                            subscription_status="expired",
+                            plan_id="uuid-basic",
+                        ),
+                    ],
+                    "LastEvaluatedKey": {"id": "t-2"},
+                },
+                {
+                    "Items": [
+                        _tenant_item(
+                            id="t-3",
+                            created_at="2026-06-10T00:00:00+00:00",
+                            sri_environment="production",
+                            subscription_status="active",
+                            plan_id="uuid-pro",
+                        ),
+                        _tenant_item(
+                            id="t-4",
+                            created_at="2026-05-15T00:00:00+00:00",
+                            sri_environment="testing",
+                            subscription_status="payment_failed",
+                            plan_id="uuid-basic",
+                        ),
+                    ]
+                },
+            ]
+        )
+        repo = DynamoTenantRepository(table)
+
+        stats = repo.aggregate_dashboard_stats(datetime(2026, 6, 20, tzinfo=UTC))
+
+        self.assertEqual(stats.total, 4)
+        self.assertEqual(stats.new_this_month, 2)  # t-1 and t-3, not t-2 (January)
+        self.assertEqual(stats.new_previous_month, 1)  # t-4 (May)
+        self.assertEqual(stats.by_environment, {"production": 2, "testing": 2})
+        self.assertEqual(
+            stats.by_subscription_status, {"active": 2, "expired": 1, "payment_failed": 1}
+        )
+        self.assertEqual(stats.active_by_plan_id, {"uuid-basic": 1, "uuid-pro": 1})
+        self.assertEqual(len(table.scan_calls), 2)
+        # Top 5 mas recientes, orden descendente por created_at
+        self.assertEqual([t.id for t in stats.recent_tenants], ["t-1", "t-3", "t-4", "t-2"])
+
+
 class TenantRepositoryTests(unittest.TestCase):
     def test_create_ruc_condition_failure_keeps_tenant_conflict_mapping(self) -> None:
         repo = DynamoTenantRepository(

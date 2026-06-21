@@ -29,9 +29,32 @@ _log = get_logger(__name__)
 _BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 _SECRET_NAME = env("BREVO_SECRET_NAME")
 _SENDER_EMAIL = env("BREVO_SENDER_EMAIL", "noreply@codelabsecuador.com")
-_SENDER_NAME = env("BREVO_SENDER_NAME", "CodeLabs Billing")
+_SENDER_NAME = env("BREVO_SENDER_NAME", "Wali")
+_FRONTEND_URL = env("FRONTEND_URL", "")
+# Logotipo Wali servido por el frontend desplegado (frontend/public/wordmark-dark.png) —
+# evita duplicar el asset en el backend y los clientes de correo no renderizan SVG.
+_WORDMARK_URL = f"{_FRONTEND_URL}/wordmark-dark.png"
+_BRAND_INK = "#0D1126"
+_BRAND_DANGER = "#b91c1c"
 
 _http = urllib3.PoolManager()
+
+
+def _render_header(subtitle: str | None = None, *, danger: bool = False) -> str:
+    background = _BRAND_DANGER if danger else _BRAND_INK
+    safe_subtitle = (
+        f'<p style="margin:8px 0 0;color:#d1d5db;font-size:13px">{escape(subtitle, quote=True)}</p>'
+        if subtitle
+        else ""
+    )
+    return f"""
+          <tr>
+            <td style="background:{background};padding:28px 40px">
+              <img src="{_WORDMARK_URL}" alt="Wali" width="150" height="59"
+                   style="display:block;border:0;outline:none">
+              {safe_subtitle}
+            </td>
+          </tr>"""
 
 
 def _build_html(legal_rep_name: str, email: str, temp_password: str) -> str:
@@ -52,34 +75,28 @@ def _build_html(legal_rep_name: str, email: str, temp_password: str) -> str:
         <table width="600" cellpadding="0" cellspacing="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden">
 
-          <tr>
-            <td style="background:#1a1a2e;padding:32px 40px">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
-                CodeLabs Billing
-              </h1>
-            </td>
-          </tr>
+          {_render_header()}
 
           <tr>
             <td style="padding:40px">
-              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
                 Bienvenido, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
-                Tu cuenta en CodeLabs Billing ha sido creada exitosamente.
+                Tu cuenta en Wali ha sido creada exitosamente.
                 A continuación encontrarás tus credenciales de acceso inicial.
               </p>
 
-              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+              <div style="background:#f8f9fa;border-left:4px solid #0D1126;
                           border-radius:4px;padding:20px;margin:0 0 24px">
                 <p style="margin:0 0 8px;color:#666;font-size:13px;
                            text-transform:uppercase;letter-spacing:0.5px">
                   Credenciales de acceso
                 </p>
-                <p style="margin:0 0 6px;color:#1a1a2e">
+                <p style="margin:0 0 6px;color:#0D1126">
                   <strong>Usuario:</strong> {safe_email}
                 </p>
-                <p style="margin:0;color:#1a1a2e">
+                <p style="margin:0;color:#0D1126">
                   <strong>Contraseña temporal:</strong>
                   <code style="background:#e9ecef;padding:2px 6px;border-radius:3px;
                                font-size:15px">{safe_temp_password}</code>
@@ -101,7 +118,7 @@ def _build_html(legal_rep_name: str, email: str, temp_password: str) -> str:
             <td style="background:#f8f9fa;padding:20px 40px;
                        border-top:1px solid #e9ecef">
               <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
-                © CodeLabs Billing · Ecuador
+                © Wali · Ecuador
               </p>
             </td>
           </tr>
@@ -132,26 +149,20 @@ def _build_onboarding_otp_html(legal_rep_name: str, otp: str, expires_at: str) -
         <table width="600" cellpadding="0" cellspacing="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden">
 
-          <tr>
-            <td style="background:#1a1a2e;padding:32px 40px">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
-                CodeLabs Billing
-              </h1>
-            </td>
-          </tr>
+          {_render_header()}
 
           <tr>
             <td style="padding:40px">
-              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
                 Verifica tu correo, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
                 Usa este código para completar el registro de tu empresa.
               </p>
 
-              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+              <div style="background:#f8f9fa;border-left:4px solid #0D1126;
                           border-radius:4px;padding:20px;margin:0 0 24px;text-align:center">
-                <p style="margin:0;color:#1a1a2e;font-size:32px;font-weight:700;
+                <p style="margin:0;color:#0D1126;font-size:32px;font-weight:700;
                           letter-spacing:6px">{safe_otp}</p>
               </div>
 
@@ -166,7 +177,7 @@ def _build_onboarding_otp_html(legal_rep_name: str, otp: str, expires_at: str) -
             <td style="background:#f8f9fa;padding:20px 40px;
                        border-top:1px solid #e9ecef">
               <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
-                © CodeLabs Billing · Ecuador
+                © Wali · Ecuador
               </p>
             </td>
           </tr>
@@ -251,17 +262,11 @@ def _build_enterprise_lead_html(trade_name: str, ruc: str, email: str, plan_id: 
         <table width="600" cellpadding="0" cellspacing="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden">
 
-          <tr>
-            <td style="background:#1a1a2e;padding:32px 40px">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
-                CodeLabs Billing
-              </h1>
-            </td>
-          </tr>
+          {_render_header()}
 
           <tr>
             <td style="padding:40px">
-              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
                 Nuevo lead Enterprise
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
@@ -269,18 +274,18 @@ def _build_enterprise_lead_html(trade_name: str, ruc: str, email: str, plan_id: 
                 self-service. Contactar para continuar el proceso comercial.
               </p>
 
-              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+              <div style="background:#f8f9fa;border-left:4px solid #0D1126;
                           border-radius:4px;padding:20px;margin:0 0 24px">
-                <p style="margin:0 0 6px;color:#1a1a2e">
+                <p style="margin:0 0 6px;color:#0D1126">
                   <strong>Razón social:</strong> {safe_trade_name}
                 </p>
-                <p style="margin:0 0 6px;color:#1a1a2e">
+                <p style="margin:0 0 6px;color:#0D1126">
                   <strong>RUC:</strong> {safe_ruc}
                 </p>
-                <p style="margin:0 0 6px;color:#1a1a2e">
+                <p style="margin:0 0 6px;color:#0D1126">
                   <strong>Email de contacto:</strong> {safe_email}
                 </p>
-                <p style="margin:0;color:#1a1a2e">
+                <p style="margin:0;color:#0D1126">
                   <strong>Plan solicitado:</strong> {safe_plan_id}
                 </p>
               </div>
@@ -291,7 +296,7 @@ def _build_enterprise_lead_html(trade_name: str, ruc: str, email: str, plan_id: 
             <td style="background:#f8f9fa;padding:20px 40px;
                        border-top:1px solid #e9ecef">
               <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
-                © CodeLabs Billing · Ecuador
+                © Wali · Ecuador
               </p>
             </td>
           </tr>
@@ -329,17 +334,11 @@ def _build_subscription_renewal_reminder_html(
         <table width="600" cellpadding="0" cellspacing="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden">
 
-          <tr>
-            <td style="background:#1a1a2e;padding:32px 40px">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
-                CodeLabs Billing
-              </h1>
-            </td>
-          </tr>
+          {_render_header()}
 
           <tr>
             <td style="padding:40px">
-              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
                 Hola, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
@@ -348,15 +347,15 @@ def _build_subscription_renewal_reminder_html(
                 emitiendo comprobantes electrónicos sin interrupciones.
               </p>
 
-              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+              <div style="background:#f8f9fa;border-left:4px solid #0D1126;
                           border-radius:4px;padding:20px;margin:0 0 24px">
-                <p style="margin:0;color:#1a1a2e">
+                <p style="margin:0;color:#0D1126">
                   <strong>Vence el:</strong> {safe_ends_at}
                 </p>
               </div>
 
               <a href="{safe_url}"
-                 style="display:inline-block;background:#1a1a2e;color:#ffffff;
+                 style="display:inline-block;background:#0D1126;color:#ffffff;
                         text-decoration:none;padding:14px 28px;border-radius:6px;
                         font-size:15px;font-weight:700;margin:0 0 24px">
                 Renovar ahora &rarr;
@@ -364,7 +363,7 @@ def _build_subscription_renewal_reminder_html(
 
               <p style="margin:0;color:#888;font-size:13px">
                 Si el botón no funciona, copia este enlace en tu navegador:<br>
-                <a href="{safe_url}" style="color:#1a1a2e">{safe_url}</a>
+                <a href="{safe_url}" style="color:#0D1126">{safe_url}</a>
               </p>
             </td>
           </tr>
@@ -373,7 +372,7 @@ def _build_subscription_renewal_reminder_html(
             <td style="background:#f8f9fa;padding:20px 40px;
                        border-top:1px solid #e9ecef">
               <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
-                © CodeLabs Billing · Ecuador
+                © Wali · Ecuador
               </p>
             </td>
           </tr>
@@ -404,17 +403,11 @@ def _build_subscription_expired_html(legal_rep_name: str, trade_name: str, renew
         <table width="600" cellpadding="0" cellspacing="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden">
 
-          <tr>
-            <td style="background:#1a1a2e;padding:32px 40px">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
-                CodeLabs Billing
-              </h1>
-            </td>
-          </tr>
+          {_render_header()}
 
           <tr>
             <td style="padding:40px">
-              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
                 Hola, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
@@ -432,7 +425,7 @@ def _build_subscription_expired_html(legal_rep_name: str, trade_name: str, renew
 
               <p style="margin:0;color:#888;font-size:13px">
                 Si el botón no funciona, copia este enlace en tu navegador:<br>
-                <a href="{safe_url}" style="color:#1a1a2e">{safe_url}</a><br><br>
+                <a href="{safe_url}" style="color:#0D1126">{safe_url}</a><br><br>
                 Una vez registrado el pago, tu cuenta se reactivará de inmediato.
               </p>
             </td>
@@ -442,7 +435,7 @@ def _build_subscription_expired_html(legal_rep_name: str, trade_name: str, renew
             <td style="background:#f8f9fa;padding:20px 40px;
                        border-top:1px solid #e9ecef">
               <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
-                © CodeLabs Billing · Ecuador
+                © Wali · Ecuador
               </p>
             </td>
           </tr>
@@ -476,17 +469,11 @@ def _build_certificate_expiry_alert_html(
         <table width="600" cellpadding="0" cellspacing="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden">
 
-          <tr>
-            <td style="background:#1a1a2e;padding:32px 40px">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
-                CodeLabs Billing
-              </h1>
-            </td>
-          </tr>
+          {_render_header()}
 
           <tr>
             <td style="padding:40px">
-              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
                 Hola, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
@@ -495,12 +482,12 @@ def _build_certificate_expiry_alert_html(
                 no interrumpir la emisión de comprobantes electrónicos.
               </p>
 
-              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+              <div style="background:#f8f9fa;border-left:4px solid #0D1126;
                           border-radius:4px;padding:20px;margin:0 0 24px">
-                <p style="margin:0 0 6px;color:#1a1a2e">
+                <p style="margin:0 0 6px;color:#0D1126">
                   <strong>RUC:</strong> {safe_ruc}
                 </p>
-                <p style="margin:0;color:#1a1a2e">
+                <p style="margin:0;color:#0D1126">
                   <strong>Fecha de vencimiento:</strong> {safe_expires_at}
                 </p>
               </div>
@@ -516,7 +503,7 @@ def _build_certificate_expiry_alert_html(
             <td style="background:#f8f9fa;padding:20px 40px;
                        border-top:1px solid #e9ecef">
               <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
-                © CodeLabs Billing · Ecuador
+                © Wali · Ecuador
               </p>
             </td>
           </tr>
@@ -547,17 +534,11 @@ def _build_payment_failed_html(legal_rep_name: str, trade_name: str, renewal_url
         <table width="600" cellpadding="0" cellspacing="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden">
 
-          <tr>
-            <td style="background:#1a1a2e;padding:32px 40px">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
-                CodeLabs Billing
-              </h1>
-            </td>
-          </tr>
+          {_render_header()}
 
           <tr>
             <td style="padding:40px">
-              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
                 Hola, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
@@ -575,7 +556,7 @@ def _build_payment_failed_html(legal_rep_name: str, trade_name: str, renewal_url
 
               <p style="margin:0;color:#888;font-size:13px">
                 Si el botón no funciona, copia este enlace en tu navegador:<br>
-                <a href="{safe_url}" style="color:#1a1a2e">{safe_url}</a><br><br>
+                <a href="{safe_url}" style="color:#0D1126">{safe_url}</a><br><br>
                 Una vez registrado el pago, tu cuenta continuará activa sin interrupciones.
               </p>
             </td>
@@ -585,7 +566,7 @@ def _build_payment_failed_html(legal_rep_name: str, trade_name: str, renewal_url
             <td style="background:#f8f9fa;padding:20px 40px;
                        border-top:1px solid #e9ecef">
               <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
-                © CodeLabs Billing · Ecuador
+                © Wali · Ecuador
               </p>
             </td>
           </tr>
@@ -626,17 +607,11 @@ def _build_orphan_payment_alert_html(
         <table width="600" cellpadding="0" cellspacing="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden">
 
-          <tr>
-            <td style="background:#b91c1c;padding:32px 40px">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
-                CodeLabs Billing — Alerta operacional
-              </h1>
-            </td>
-          </tr>
+          {_render_header("Alerta operacional", danger=True)}
 
           <tr>
             <td style="padding:40px">
-              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
                 Pago sin cuenta asociada
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
@@ -647,19 +622,19 @@ def _build_orphan_payment_alert_html(
 
               <div style="background:#fff1f2;border-left:4px solid #b91c1c;
                           border-radius:4px;padding:20px;margin:0 0 24px">
-                <p style="margin:0 0 6px;color:#1a1a2e">
+                <p style="margin:0 0 6px;color:#0D1126">
                   <strong>Order ID (dLocal):</strong> {safe_order_id}
                 </p>
-                <p style="margin:0 0 6px;color:#1a1a2e">
+                <p style="margin:0 0 6px;color:#0D1126">
                   <strong>Email del pagador:</strong> {safe_payer_email}
                 </p>
-                <p style="margin:0 0 6px;color:#1a1a2e">
+                <p style="margin:0 0 6px;color:#0D1126">
                   <strong>Plan:</strong> {safe_plan_id}
                 </p>
-                <p style="margin:0 0 6px;color:#1a1a2e">
+                <p style="margin:0 0 6px;color:#0D1126">
                   <strong>Monto:</strong> {safe_amount} {safe_currency}
                 </p>
-                <p style="margin:0;color:#1a1a2e">
+                <p style="margin:0;color:#0D1126">
                   <strong>Confirmado el:</strong> {safe_confirmed_at}
                 </p>
               </div>
@@ -675,7 +650,7 @@ def _build_orphan_payment_alert_html(
             <td style="background:#f8f9fa;padding:20px 40px;
                        border-top:1px solid #e9ecef">
               <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
-                © CodeLabs Billing · Ecuador
+                © Wali · Ecuador
               </p>
             </td>
           </tr>
@@ -731,20 +706,11 @@ def _build_document_authorized_html(
         <table width="600" cellpadding="0" cellspacing="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden">
 
-          <tr>
-            <td style="background:#1a1a2e;padding:32px 40px">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
-                CodeLabs Billing
-              </h1>
-              <p style="margin:8px 0 0;color:#d1d5db;font-size:13px">
-                Documento tributario electrónico autorizado
-              </p>
-            </td>
-          </tr>
+          {_render_header("Documento tributario electrónico autorizado")}
 
           <tr>
             <td style="padding:40px">
-              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
                 Hola, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
@@ -759,9 +725,9 @@ def _build_document_authorized_html(
                 </p>
               </div>
 
-              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+              <div style="background:#f8f9fa;border-left:4px solid #0D1126;
                           border-radius:4px;padding:20px;margin:0 0 24px">
-                <p style="margin:0 0 10px;color:#1a1a2e;font-size:14px;font-weight:700">
+                <p style="margin:0 0 10px;color:#0D1126;font-size:14px;font-weight:700">
                   Resumen
                 </p>
                 <table width="100%" cellpadding="0" cellspacing="0">
@@ -774,7 +740,7 @@ def _build_document_authorized_html(
               </div>
 
               <div style="margin:0 0 24px">
-                <p style="margin:0 0 8px;color:#1a1a2e;font-size:14px;font-weight:700">
+                <p style="margin:0 0 8px;color:#0D1126;font-size:14px;font-weight:700">
                   Emisor
                 </p>
                 <p style="margin:0;color:#444;font-size:13px;line-height:1.6">
@@ -783,7 +749,7 @@ def _build_document_authorized_html(
               </div>
 
               <div style="margin:0 0 24px">
-                <p style="margin:0 0 8px;color:#1a1a2e;font-size:14px;font-weight:700">
+                <p style="margin:0 0 8px;color:#0D1126;font-size:14px;font-weight:700">
                   Comprador
                 </p>
                 <p style="margin:0;color:#444;font-size:13px;line-height:1.6">
@@ -806,7 +772,7 @@ def _build_document_authorized_html(
               </div>
 
               <p style="margin:0;color:#888;font-size:13px;line-height:1.6">
-                Puedes descargar el RIDE desde tu panel de CodeLabs Billing.
+                Puedes descargar el RIDE desde tu panel de Wali.
               </p>
             </td>
           </tr>
@@ -815,7 +781,7 @@ def _build_document_authorized_html(
             <td style="background:#f8f9fa;padding:20px 40px;
                        border-top:1px solid #e9ecef">
               <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
-                © CodeLabs Billing · Ecuador
+                © Wali · Ecuador
               </p>
             </td>
           </tr>
@@ -860,29 +826,20 @@ def _build_document_buyer_html(
         <table width="600" cellpadding="0" cellspacing="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden">
 
-          <tr>
-            <td style="background:#1a1a2e;padding:32px 40px">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
-                CodeLabs Billing
-              </h1>
-              <p style="margin:8px 0 0;color:#d1d5db;font-size:13px">
-                Notification Mailer
-              </p>
-            </td>
-          </tr>
+          {_render_header("Documento tributario electrónico autorizado")}
 
           <tr>
             <td style="padding:40px">
-              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
                 Estimado(a): {safe_name} ({safe_buyer_id})
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
                 Adjunto encontrará el Documento Tributario Electrónico autorizado por el SRI.
               </p>
 
-              <div style="background:#f8f9fa;border-left:4px solid #1a1a2e;
+              <div style="background:#f8f9fa;border-left:4px solid #0D1126;
                           border-radius:4px;padding:20px;margin:0 0 24px">
-                <p style="margin:0 0 10px;color:#1a1a2e;font-size:14px;font-weight:700">
+                <p style="margin:0 0 10px;color:#0D1126;font-size:14px;font-weight:700">
                   Documento tributario electrónico
                 </p>
                 <table width="100%" cellpadding="0" cellspacing="0">
@@ -921,7 +878,7 @@ def _build_document_buyer_html(
             <td style="background:#f8f9fa;padding:20px 40px;
                        border-top:1px solid #e9ecef">
               <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
-                © CodeLabs Billing · Ecuador
+                © Wali · Ecuador
               </p>
             </td>
           </tr>
@@ -940,9 +897,9 @@ def _build_document_rejected_html(
     safe_name = escape(legal_rep_name, quote=True)
     safe_access_key = escape(access_key, quote=True)
     errors_html = "".join(
-        f'<p style="margin:0 0 6px;color:#1a1a2e;font-size:13px">'
+        f'<p style="margin:0 0 6px;color:#0D1126;font-size:13px">'
         f"<strong>{escape(str(e.get('code', '')), quote=True)}:</strong> "
-        f"{escape(str(e.get('message', '')), quote=True)}</p>"
+        f"{escape(str(e.get('user_message') or e.get('message', '')), quote=True)}</p>"
         for e in sri_errors
     )
 
@@ -959,17 +916,11 @@ def _build_document_rejected_html(
         <table width="600" cellpadding="0" cellspacing="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden">
 
-          <tr>
-            <td style="background:#b91c1c;padding:32px 40px">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
-                CodeLabs Billing
-              </h1>
-            </td>
-          </tr>
+          {_render_header(danger=True)}
 
           <tr>
             <td style="padding:40px">
-              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
                 Hola, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
@@ -988,7 +939,7 @@ def _build_document_rejected_html(
             <td style="background:#f8f9fa;padding:20px 40px;
                        border-top:1px solid #e9ecef">
               <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
-                © CodeLabs Billing · Ecuador
+                © Wali · Ecuador
               </p>
             </td>
           </tr>
@@ -1018,17 +969,11 @@ def _build_document_failed_permanent_html(legal_rep_name: str, access_key: str) 
         <table width="600" cellpadding="0" cellspacing="0"
                style="background:#ffffff;border-radius:8px;overflow:hidden">
 
-          <tr>
-            <td style="background:#b91c1c;padding:32px 40px">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700">
-                CodeLabs Billing
-              </h1>
-            </td>
-          </tr>
+          {_render_header(danger=True)}
 
           <tr>
             <td style="padding:40px">
-              <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
                 Hola, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
@@ -1043,7 +988,7 @@ def _build_document_failed_permanent_html(legal_rep_name: str, access_key: str) 
             <td style="background:#f8f9fa;padding:20px 40px;
                        border-top:1px solid #e9ecef">
               <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
-                © CodeLabs Billing · Ecuador
+                © Wali · Ecuador
               </p>
             </td>
           </tr>
@@ -1069,7 +1014,7 @@ class BrevoEmailSender(EmailSender):
         payload = {
             "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
             "to": [{"email": email, "name": legal_rep_name}],
-            "subject": "Verifica tu correo — CodeLabs Billing",
+            "subject": "Verifica tu correo — Wali",
             "htmlContent": _build_onboarding_otp_html(legal_rep_name, otp, expires_at),
         }
         _send(api_key, payload, log_email=email)
@@ -1079,7 +1024,7 @@ class BrevoEmailSender(EmailSender):
         payload = {
             "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
             "to": [{"email": email, "name": legal_rep_name}],
-            "subject": "Bienvenido a CodeLabs Billing — tus credenciales de acceso",
+            "subject": "Bienvenido a Wali — tus credenciales de acceso",
             "htmlContent": _build_html(legal_rep_name, email, temp_password),
         }
         _send(api_key, payload, log_email=email)
@@ -1110,7 +1055,7 @@ class BrevoEmailSender(EmailSender):
         payload = {
             "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
             "to": [{"email": email, "name": legal_rep_name}],
-            "subject": f"Tu certificado digital vence en {days_remaining} días — CodeLabs Billing",
+            "subject": f"Tu certificado digital vence en {days_remaining} días — Wali",
             "htmlContent": _build_certificate_expiry_alert_html(
                 legal_rep_name, trade_name, ruc, cert_expires_at, days_remaining
             ),
@@ -1131,7 +1076,7 @@ class BrevoEmailSender(EmailSender):
         payload = {
             "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
             "to": [{"email": email, "name": legal_rep_name}],
-            "subject": f"Tu suscripción vence en {days_remaining} días — CodeLabs Billing",
+            "subject": f"Tu suscripción vence en {days_remaining} días — Wali",
             "htmlContent": _build_subscription_renewal_reminder_html(
                 legal_rep_name, trade_name, plan_cycle_ends_at, days_remaining, renewal_url
             ),
@@ -1150,7 +1095,7 @@ class BrevoEmailSender(EmailSender):
         payload = {
             "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
             "to": [{"email": email, "name": legal_rep_name}],
-            "subject": "Tu suscripción ha vencido — CodeLabs Billing",
+            "subject": "Tu suscripción ha vencido — Wali",
             "htmlContent": _build_subscription_expired_html(
                 legal_rep_name, trade_name, renewal_url
             ),
@@ -1197,7 +1142,7 @@ class BrevoEmailSender(EmailSender):
         payload = {
             "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
             "to": [{"email": email, "name": legal_rep_name}],
-            "subject": "Tu factura fue autorizada por el SRI — CodeLabs Billing",
+            "subject": "Tu factura fue autorizada por el SRI — Wali",
             "htmlContent": _build_document_authorized_html(
                 legal_rep_name,
                 document_id,
@@ -1230,7 +1175,7 @@ class BrevoEmailSender(EmailSender):
         payload = {
             "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
             "to": [{"email": email, "name": legal_rep_name}],
-            "subject": "El SRI rechazó tu factura — CodeLabs Billing",
+            "subject": "El SRI rechazó tu factura — Wali",
             "htmlContent": _build_document_rejected_html(legal_rep_name, access_key, sri_errors),
         }
         _send(api_key, payload, log_email=email)
@@ -1247,7 +1192,7 @@ class BrevoEmailSender(EmailSender):
         payload = {
             "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
             "to": [{"email": email, "name": legal_rep_name}],
-            "subject": "No pudimos confirmar tu factura con el SRI — CodeLabs Billing",
+            "subject": "No pudimos confirmar tu factura con el SRI — Wali",
             "htmlContent": _build_document_failed_permanent_html(legal_rep_name, access_key),
         }
         _send(api_key, payload, log_email=email)

@@ -4,19 +4,19 @@ import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { useTheme } from '@/lib/theme-context'
-import { typography, spacing, radius, shadow, sizes } from '@/constants/tokens'
+import { typography, spacing, radius } from '@/constants/tokens'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useNow } from '@/lib/hooks/useNow'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
+import { ecuadorDateTimeDisplay } from '@/lib/utils/ecuador-time'
 import { useAuthStore, selectUser } from '@/features/auth/store'
 import { Routes } from '@/constants/routes'
-import { RoleLabel, canWrite } from '@/constants/roles'
 import { useDocumentsSummary } from '@/features/documents/hooks/useDocumentsSummary'
-import { CertificateSection } from '../components/CertificateSection'
 import { useTenant } from '../hooks/useTenant'
 
 type MetricTone = 'primary' | 'secondary' | 'success' | 'error'
@@ -34,7 +34,7 @@ export function TenantDashboardScreen() {
   const router = useRouter()
   const user = useAuthStore(selectUser)
   const { semantic } = useTheme()
-  const roleLabel = user?.role ? RoleLabel[user.role] : 'Sin rol'
+  const now = useNow()
   const { tenant, loading: tenantLoading, refresh } = useTenant(user?.tenantId ?? null)
   const {
     summary,
@@ -42,8 +42,6 @@ export function TenantDashboardScreen() {
     error: summaryError,
     refresh: refreshSummary,
   } = useDocumentsSummary()
-  const tenantId = user?.tenantId ?? null
-  const canManageCertificate = canWrite(user?.role ?? null)
 
   useRefreshOnFocus(refresh)
   useRefreshOnFocus(refreshSummary)
@@ -52,7 +50,6 @@ export function TenantDashboardScreen() {
 
   const companyName = tenant?.trade_name ?? 'Mi Empresa'
 
-  const sriBadge = tenant?.sri_environment === 'production' ? 'Producción' : 'Pruebas'
   const issuedCount = summary?.issued_count ?? 0
   const authorizedCount = summary?.authorized_count ?? 0
   const rejectedCount = summary?.rejected_count ?? 0
@@ -110,77 +107,128 @@ export function TenantDashboardScreen() {
       <AppNavBar title={companyName} subtitle="Dashboard" />
 
       <ScrollView contentContainerStyle={staticStyles.scroll} showsVerticalScrollIndicator={false}>
-        <View
-          style={[
-            staticStyles.hero,
-            { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
-          ]}
-        >
-          <View style={[staticStyles.heroAccent, { backgroundColor: semantic.accent.default }]} />
-          <View style={staticStyles.heroTop}>
-            <View style={[staticStyles.avatar, { backgroundColor: semantic.accent.default }]}>
-              <Text style={[staticStyles.avatarText, { color: semantic.text.onDark }]}>
-                {user?.email?.charAt(0).toUpperCase() ?? '?'}
-              </Text>
-            </View>
-            <View style={staticStyles.identity}>
-              <Text style={[staticStyles.kicker, { color: semantic.accent.default }]}>
-                Cuenta activa
-              </Text>
-              <Text
-                style={[staticStyles.email, { color: semantic.text.primary }]}
-                numberOfLines={1}
-              >
-                {user?.email ?? ''}
-              </Text>
-            </View>
-            <View
-              style={[
-                staticStyles.rolePill,
-                { backgroundColor: semantic.accent.subtle, borderColor: semantic.border.default },
-              ]}
-            >
-              <Text
-                style={[staticStyles.roleText, { color: semantic.accent.default }]}
-                numberOfLines={1}
-              >
-                {roleLabel}
-              </Text>
-            </View>
-          </View>
-
-          <View style={staticStyles.heroCopy}>
-            <Text style={[staticStyles.heroTitle, { color: semantic.text.primary }]}>
-              Centro de facturación
-            </Text>
-            <Text style={[staticStyles.heroSubtitle, { color: semantic.text.secondary }]}>
-              Resumen operativo de documentos, autorizaciones y módulos disponibles.
-            </Text>
-          </View>
-
-          <View style={[staticStyles.heroFooter, { borderTopColor: semantic.border.default }]}>
-            <HeroSignal label="Estado" value="En línea" />
-            <HeroSignal
-              label="Periodo"
-              value={summary ? formatCivilDate(summary.period_end) : 'Actual'}
-            />
-            <HeroSignal label="Ambiente" value={sriBadge} />
-          </View>
+        <View style={staticStyles.welcomeRow}>
+          <Text style={[staticStyles.welcomeTitle, { color: semantic.text.primary }]}>
+            {user?.email ? `Bienvenido, ${user.email}` : 'Bienvenido'}
+          </Text>
+          <Text style={[staticStyles.welcomeDate, { color: semantic.text.secondary }]}>
+            {ecuadorDateTimeDisplay(now)}
+          </Text>
         </View>
 
-        <SectionHeader title="Resumen operativo" caption="Actividad del periodo" />
-        {summaryError ? <ApiErrorBanner error={summaryError} /> : null}
-        <View style={staticStyles.metricGrid}>
-          {dashboardMetrics.map((metric) => (
-            <MetricCard
-              key={metric.label}
-              icon={metric.icon}
-              label={metric.label}
-              value={metric.value}
-              detail={metric.detail}
-              tone={metric.tone}
-            />
-          ))}
+        <View style={staticStyles.topRow}>
+          <View style={staticStyles.topColumn}>
+            <SectionHeader title="Resumen operativo" caption="Actividad del periodo" />
+            {summaryError ? <ApiErrorBanner error={summaryError} /> : null}
+            <View style={staticStyles.metricGrid}>
+              <View style={staticStyles.metricRow}>
+                {dashboardMetrics.slice(0, 2).map((metric) => (
+                  <MetricCard
+                    key={metric.label}
+                    icon={metric.icon}
+                    label={metric.label}
+                    value={metric.value}
+                    detail={metric.detail}
+                    tone={metric.tone}
+                  />
+                ))}
+              </View>
+              <View style={staticStyles.metricRow}>
+                {dashboardMetrics.slice(2, 4).map((metric) => (
+                  <MetricCard
+                    key={metric.label}
+                    icon={metric.icon}
+                    label={metric.label}
+                    value={metric.value}
+                    detail={metric.detail}
+                    tone={metric.tone}
+                  />
+                ))}
+              </View>
+            </View>
+          </View>
+
+          <View style={staticStyles.topColumn}>
+            <SectionHeader title="Módulos" caption="Suite fiscal" />
+            <Card variant="elevated" elevated style={staticStyles.modulesCard}>
+              <View
+                style={[staticStyles.moduleRow, { borderBottomColor: semantic.border.default }]}
+              >
+                <View
+                  style={[staticStyles.moduleIcon, { backgroundColor: semantic.accent.subtle }]}
+                >
+                  <Ionicons name="receipt-outline" size={18} color={semantic.accent.default} />
+                </View>
+                <View style={staticStyles.moduleCopy}>
+                  <Text style={[staticStyles.moduleTitle, { color: semantic.text.primary }]}>
+                    Facturas
+                  </Text>
+                  <Text style={[staticStyles.moduleSubtitle, { color: semantic.text.secondary }]}>
+                    Emisión SRI habilitada
+                  </Text>
+                  <View style={staticStyles.moduleActions}>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onPress={() => router.push(Routes.tenant.documentNew as Href)}
+                    >
+                      Emitir
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onPress={() => router.push(Routes.tenant.documents as Href)}
+                    >
+                      Ver documentos
+                    </Button>
+                  </View>
+                </View>
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={18}
+                  color={semantic.status.success}
+                />
+              </View>
+              {modulePreview.map((module) => (
+                <View
+                  key={module.title}
+                  style={[staticStyles.moduleRow, { borderBottomColor: semantic.border.default }]}
+                >
+                  <View
+                    style={[
+                      staticStyles.moduleIcon,
+                      { backgroundColor: semantic.accent.altSubtle },
+                    ]}
+                  >
+                    <Ionicons name={module.icon} size={18} color={semantic.accent.alt} />
+                  </View>
+                  <View style={staticStyles.moduleCopy}>
+                    <Text style={[staticStyles.moduleTitle, { color: semantic.text.primary }]}>
+                      {module.title}
+                    </Text>
+                    <Text style={[staticStyles.moduleSubtitle, { color: semantic.text.secondary }]}>
+                      {module.subtitle}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      staticStyles.comingSoonPill,
+                      { backgroundColor: semantic.bg.muted, borderColor: semantic.border.default },
+                    ]}
+                  >
+                    <Text style={[staticStyles.comingSoonText, { color: semantic.text.tertiary }]}>
+                      Próximo
+                    </Text>
+                  </View>
+                </View>
+              ))}
+              <View style={staticStyles.moduleFooter}>
+                <Text style={[staticStyles.moduleFooterText, { color: semantic.text.secondary }]}>
+                  Emisión de facturas, notas de crédito, retenciones y guías.
+                </Text>
+              </View>
+            </Card>
+          </View>
         </View>
 
         <Card variant="elevated" elevated style={staticStyles.insightCard}>
@@ -258,93 +306,7 @@ export function TenantDashboardScreen() {
             </View>
           </Card>
         ) : null}
-
-        <SectionHeader title="Módulos" caption="Suite fiscal" />
-        <Card variant="elevated" elevated style={staticStyles.modulesCard}>
-          <View style={[staticStyles.moduleRow, { borderBottomColor: semantic.border.default }]}>
-            <View style={[staticStyles.moduleIcon, { backgroundColor: semantic.accent.subtle }]}>
-              <Ionicons name="receipt-outline" size={18} color={semantic.accent.default} />
-            </View>
-            <View style={staticStyles.moduleCopy}>
-              <Text style={[staticStyles.moduleTitle, { color: semantic.text.primary }]}>
-                Facturas
-              </Text>
-              <Text style={[staticStyles.moduleSubtitle, { color: semantic.text.secondary }]}>
-                Emisión SRI habilitada
-              </Text>
-              <View style={staticStyles.moduleActions}>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onPress={() => router.push(Routes.tenant.documentNew as Href)}
-                >
-                  Emitir
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onPress={() => router.push(Routes.tenant.documents as Href)}
-                >
-                  Ver documentos
-                </Button>
-              </View>
-            </View>
-            <Ionicons name="checkmark-circle-outline" size={18} color={semantic.status.success} />
-          </View>
-          {modulePreview.map((module) => (
-            <View
-              key={module.title}
-              style={[staticStyles.moduleRow, { borderBottomColor: semantic.border.default }]}
-            >
-              <View
-                style={[staticStyles.moduleIcon, { backgroundColor: semantic.accent.altSubtle }]}
-              >
-                <Ionicons name={module.icon} size={18} color={semantic.accent.alt} />
-              </View>
-              <View style={staticStyles.moduleCopy}>
-                <Text style={[staticStyles.moduleTitle, { color: semantic.text.primary }]}>
-                  {module.title}
-                </Text>
-                <Text style={[staticStyles.moduleSubtitle, { color: semantic.text.secondary }]}>
-                  {module.subtitle}
-                </Text>
-              </View>
-              <View
-                style={[
-                  staticStyles.comingSoonPill,
-                  { backgroundColor: semantic.bg.muted, borderColor: semantic.border.default },
-                ]}
-              >
-                <Text style={[staticStyles.comingSoonText, { color: semantic.text.tertiary }]}>
-                  Próximo
-                </Text>
-              </View>
-            </View>
-          ))}
-          <View style={staticStyles.moduleFooter}>
-            <Text style={[staticStyles.moduleFooterText, { color: semantic.text.secondary }]}>
-              Emisión de facturas, notas de crédito, retenciones y guías.
-            </Text>
-          </View>
-        </Card>
-
-        {tenantId ? (
-          <CertificateSection tenantId={tenantId} canManage={canManageCertificate} />
-        ) : null}
       </ScrollView>
-    </View>
-  )
-}
-
-function HeroSignal({ label, value }: { label: string; value: string }) {
-  const { semantic } = useTheme()
-
-  return (
-    <View style={staticStyles.heroSignal}>
-      <Text style={[staticStyles.heroSignalLabel, { color: semantic.text.secondary }]}>
-        {label}
-      </Text>
-      <Text style={[staticStyles.heroSignalValue, { color: semantic.text.primary }]}>{value}</Text>
     </View>
   )
 }
@@ -390,13 +352,13 @@ function MetricCard({
         <Ionicons name={icon} size={20} color={palette.color} />
       </View>
       <View style={staticStyles.metricCopy}>
-        <Text style={[staticStyles.metricValue, { color: semantic.text.primary }]}>{value}</Text>
         <Text
-          style={[staticStyles.metricLabel, { color: semantic.text.primary }]}
+          style={[staticStyles.metricLabel, { color: semantic.text.secondary }]}
           numberOfLines={2}
         >
           {label}
         </Text>
+        <Text style={[staticStyles.metricValue, { color: semantic.text.primary }]}>{value}</Text>
         <Text style={[staticStyles.metricDetail, { color: semantic.text.secondary }]}>
           {detail}
         </Text>
@@ -427,58 +389,31 @@ function formatCivilDate(value: string): string {
 const staticStyles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { padding: spacing[5], gap: spacing[5], paddingBottom: spacing[12] },
-  hero: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    padding: spacing[5],
-    gap: spacing[6],
-    overflow: 'hidden',
-    ...shadow.md,
+  welcomeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: spacing[2],
   },
-  heroAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
-  heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
-  avatar: {
-    width: sizes.avatarMd,
-    height: sizes.avatarMd,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { fontSize: typography.size.xl, fontWeight: typography.weight.bold },
-  identity: { flex: 1, minWidth: 0, gap: spacing[1] },
-  kicker: {
-    fontSize: typography.size.xs,
-    fontWeight: typography.weight.semibold,
-    textTransform: 'uppercase',
-  },
-  email: { fontSize: typography.size.base, fontWeight: typography.weight.semibold },
-  rolePill: {
-    maxWidth: 118,
-    borderWidth: 1,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[1],
-  },
-  roleText: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
-  heroCopy: { gap: spacing[2] },
-  heroTitle: {
-    fontSize: typography.size['3xl'],
-    fontWeight: typography.weight.bold,
-    lineHeight: typography.size['3xl'] * typography.lineHeight.tight,
-  },
-  heroSubtitle: {
-    fontSize: typography.size.base,
-    lineHeight: typography.size.base * typography.lineHeight.normal,
-  },
-  heroFooter: { borderTopWidth: 1, flexDirection: 'row', paddingTop: spacing[4], gap: spacing[3] },
-  heroSignal: { flex: 1, gap: spacing[1] },
-  heroSignalLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
-  heroSignalValue: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  welcomeTitle: { fontSize: typography.size.xl, fontWeight: typography.weight.bold },
+  welcomeDate: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
+  topRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
+  topColumn: { flexGrow: 1, flexBasis: 420, minWidth: 320, gap: spacing[4] },
   sectionHeader: { gap: spacing[1] },
   sectionTitle: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
   sectionCaption: { fontSize: typography.size.sm },
-  metricGrid: { gap: spacing[3] },
-  metricCard: { flexDirection: 'row', alignItems: 'center', gap: spacing[4] },
+  // flex:1 hace que el grid llene el alto que `topRow` ya estira para igualar la columna
+  // de Modulos (stretch por defecto en un contenedor row); cada fila/card tambien usa
+  // flex:1 para repartir ese alto, asi las 4 cards terminan a la misma altura que Modulos.
+  metricGrid: { flex: 1, gap: spacing[3] },
+  metricRow: { flex: 1, flexDirection: 'row', gap: spacing[3] },
+  metricCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+  },
   metricIcon: {
     width: 44,
     height: 44,
@@ -486,13 +421,17 @@ const staticStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  metricCopy: { flex: 1, gap: spacing[1] },
+  metricCopy: { flex: 1, minWidth: 0, gap: spacing[1] },
+  metricLabel: {
+    fontSize: typography.size.xs,
+    fontWeight: typography.weight.semibold,
+    textTransform: 'uppercase',
+  },
   metricValue: {
     fontSize: typography.size['2xl'],
     fontWeight: typography.weight.bold,
     lineHeight: typography.size['2xl'] * typography.lineHeight.tight,
   },
-  metricLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
   metricDetail: { fontSize: typography.size.xs },
   insightCard: { gap: spacing[4] },
   insightHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },

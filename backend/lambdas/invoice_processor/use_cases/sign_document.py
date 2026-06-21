@@ -71,7 +71,7 @@ class SignDocumentUseCase:
 
         first_error = result.errors[0] if result.errors else None
         classification = sri_error_classifier.classify(first_error.code if first_error else "")
-        sri_errors = [{"code": e.code, "message": e.message} for e in result.errors]
+        sri_errors = [e.to_dict() for e in result.errors]
 
         if classification == sri_error_classifier.PERMANENT:
             self._documents_repo.update_status(

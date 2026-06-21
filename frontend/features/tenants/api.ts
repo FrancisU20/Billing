@@ -6,6 +6,7 @@ import {
   certificateUpdateSchema,
   createTenantSchema,
   retryTenantOnboardingSchema,
+  superadminDashboardSummarySchema,
   tenantSchema,
   tenantsPageSchema,
   toggleTenantStatusSchema,
@@ -82,4 +83,6 @@ export const tenantsApi = {
       certificateMetadataSchema,
       { idempotencyKey },
     ),
+
+  dashboardSummary: () => api.get('/superadmin/dashboard', superadminDashboardSummarySchema),
 }

@@ -12,7 +12,7 @@ export default function Index() {
   }
 
   if (isSuperadmin) {
-    return <Redirect href={Routes.superadmin.tenants} />
+    return <Redirect href={Routes.superadmin.dashboard} />
   }
 
   return <Redirect href={Routes.tenant.dashboard} />

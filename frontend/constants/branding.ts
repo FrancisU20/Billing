@@ -1,4 +1,4 @@
-const FAVICON_VERSION = '20260613-3'
+const FAVICON_VERSION = '20260620-1'
 
 export const faviconAssets = {
   png: `/favicon.png?v=${FAVICON_VERSION}`,

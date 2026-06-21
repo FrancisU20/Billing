@@ -15,10 +15,10 @@ export const Routes = {
     legalRefund: '/(public)/legal/refund' as const,
   },
   app: {
-    profile: '/(app)/profile' as const,
     activateSubscription: '/(app)/activate-subscription' as const,
   },
   superadmin: {
+    dashboard: '/(app)/(superadmin)/dashboard' as const,
     tenants: '/(app)/(superadmin)/tenants' as const,
     tenantNew: '/(app)/(superadmin)/tenants/new' as const,
     tenantDetail: (id: string) => `/(app)/(superadmin)/tenants/${id}` as const,

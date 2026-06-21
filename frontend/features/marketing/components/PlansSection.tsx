@@ -11,13 +11,13 @@ import type { Plan } from '@/features/plans/types'
 import { useOnboardingStore } from '@/features/onboarding/store'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { layout, radius, spacing, typography } from '@/constants/tokens'
 
 interface PlansSectionProps {
   onLayout?: (event: LayoutChangeEvent) => void
 }
 
-const MAX_GRID_WIDTH = 1180
+const MAX_GRID_WIDTH = layout.contentMaxWidth
 const THREE_COLUMN_MIN_WIDTH = 940
 const TWO_COLUMN_MIN_WIDTH = 620
 
@@ -57,7 +57,7 @@ export const PlansSection = forwardRef<View, PlansSectionProps>(function PlansSe
       onLayout={handleLayout}
       style={[styles.container, { backgroundColor: semantic.bg.tertiary }]}
     >
-      <View style={styles.heading}>
+      <View style={styles.headingWrap}>
         <Text style={[styles.title, { color: semantic.text.primary }]}>
           Elige tu plan y crea tu cuenta
         </Text>
@@ -96,7 +96,12 @@ export const PlansSection = forwardRef<View, PlansSectionProps>(function PlansSe
 
 const styles = StyleSheet.create({
   container: { gap: spacing[5], paddingHorizontal: spacing[5], paddingVertical: spacing[6] },
-  heading: { gap: spacing[2] },
+  headingWrap: {
+    alignSelf: 'center',
+    gap: spacing[2],
+    maxWidth: layout.contentMaxWidth,
+    width: '100%',
+  },
   title: {
     fontSize: typography.size['2xl'],
     fontWeight: typography.weight.bold,

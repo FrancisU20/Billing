@@ -1,9 +1,17 @@
-# CodeLabs Billing Cloud
+# Wali
 
 Indice y reglas no negociables. Patrones de construccion y reglas de negocio viven en
 `context/` (ver tablas abajo) — leerlos segun la tarea.
 
-Ultima actualizacion: 2026-06-19.
+Marca de producto: **Wali**. La entidad legal operadora sigue siendo CodeLabs Ecuador
+(ver textos legales en `frontend/features/marketing/content/legal.ts`). Los identificadores
+internos de infra (stacks CDK, tablas, buckets, secrets, Cognito, perfil AWS `codelabs`,
+dominio `codelabsecuador.com`) siguen con el prefijo `codelabs-billing` / `CodeLabsBilling`
+a proposito: son recursos AWS ya desplegados y renombrarlos implicaria recrearlos
+(ver `context/BACKEND.md` y `context/INVOICES.md` para el detalle de cada recurso). No
+renombrar esos identificadores sin antes planear una migracion de datos/DNS/secrets.
+
+Ultima actualizacion: 2026-06-20.
 
 ## Objetivo Del Producto
 
@@ -83,23 +91,27 @@ de emision en `/settings/estab`. Fixes reales contra SRI testing confirmados:
 `SOAPAction=""`, `dirEstablecimiento` obligatorio, declaracion XML con comillas dobles
 y digito de ambiente `1=pruebas`/`2=produccion` tanto en XML como en clave de acceso.
 
-Proximo hito de producto: **UX Refactor & Operability Roadmap** por sprints
-(`context/UX_REFACTOR.md`): freshness de listados, paginacion por pagina, busqueda
-reactiva, filtros minimalistas, calendario, validacion en vivo, dashboard real,
-acciones rapidas `active/inactive`, formularios de creacion/edicion amigables,
-consistencia visual de descuentos, reorganizacion de modulos y centralizacion de
-componentes. Aplica a toda la app: tenant (`owner/admin/viewer`), superadmin,
-auth/onboarding y modulos futuros; no solo al dashboard tenant. Nota de Credito (04),
-auto-provision de colas enterprise y batch masivo quedan despues salvo cambio de prioridad.
+**UX Refactor & Operability Roadmap completado** (sprints 0-7): freshness de listados,
+paginacion por pagina, busqueda reactiva, filtros minimalistas, calendario, validacion en
+vivo, dashboard real, acciones rapidas `active/inactive`, formularios de creacion/edicion
+amigables, consistencia visual de descuentos, reorganizacion de modulos y centralizacion
+final de componentes (`StatMetric`, `ListScreenHeader`, `ListCell`, `EntityAvatar`,
+`PickerModal` — ver tabla de `FRONTEND.md`). Aplico a toda la app: tenant
+(`owner/admin/viewer`), superadmin, auth/onboarding y modulos futuros; no solo al
+dashboard tenant. Nota de Credito (04), auto-provision de colas enterprise y batch masivo
+quedan pendientes salvo cambio de prioridad (no eran parte de este roadmap).
 Dashboard tenant real implementado via `GET /documents/summary` (conteos del mes, total
-autorizado y consumo del limite mensual del plan con barra de progreso). Sprint 6
-implementado: hub "Mi empresa" (`/settings/company`) agrupa datos de empresa (self-edit),
-certificado digital y accesos a establecimientos/descuento global/facturacion; menu
-principal tenant quedo con un solo item de configuracion en vez de tres; `BillingScreen`
-ya no permite pago manual cuando la suscripcion esta `active` (muestra card "todo bien" en
-su lugar). Sprint 5 completo para este roadmap. Dashboard superadmin (metricas globales:
-tenants por estado/plan, ingresos estimados) es un sprint de producto aparte, no parte de
-`UX_REFACTOR.md` — ver `TENANTS.md` seccion "Dashboard Superadmin — Pendiente".
+autorizado y consumo del limite mensual del plan con barra de progreso). Hub "Mi empresa"
+(`/settings/company`) agrupa datos de empresa (self-edit), certificado digital y accesos a
+establecimientos/descuento global/facturacion; menu principal tenant quedo con un solo
+item de configuracion en vez de tres; `BillingScreen` ya no permite pago manual cuando la
+suscripcion esta `active` (muestra card "todo bien" en su lugar). Dashboard superadmin
+implementado (`GET /superadmin/dashboard`): ingresos del mes/año, MRR estimado,
+membresias activas/inactivas, tenants nuevos del mes, tenants por ambiente SRI y plan mas
+vendido, con tendencias % vs periodo anterior (solo donde es honesto sin snapshot
+historico), grafico de evolucion de ingresos de 30 dias (SVG propio), barras de
+distribucion y card de tenants recientes — ver `TENANTS.md` seccion "Dashboard
+Superadmin — Implementado".
 
 ## Memorias Base
 
@@ -109,7 +121,6 @@ Patrones de construccion transversales. Leer **siempre** antes de tocar codigo d
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `context/BACKEND.md`     | Clean Architecture, `_base`/`shared`, contrato HTTP, DynamoDB, idempotencia, outbox, migraciones                                          |
 | `context/FRONTEND.md`    | Estructura, design system, componentes compartidos, routing, patrones de pantalla                                                         |
-| `context/UX_REFACTOR.md` | Roadmap transversal de UX/operabilidad para toda la app y todos los roles: listados, busquedas, filtros, formularios, dashboard y modulos |
 
 ## Memorias Por Dominio
 
@@ -126,7 +137,6 @@ Reglas de negocio, flujos y DynamoDB especificos de cada dominio (incluye su sec
 | `context/CERTIFICATES.md`  | Validacion, almacenamiento y ciclo de vida de certificados digitales p12                                                                    |
 | `context/INVOICES.md`      | Emision documentos SRI, secuenciales, XAdES-BES, invoice_processor, S3 WORM, frontend y emails al comprador (**MVP completo, Sprints 1-6**) |
 | `context/SUBSCRIPTIONS.md` | Suscripcion SaaS via dLocal Go SmartFields, modelo Netflix, webhooks, 3DS, reembolso, resiliencia 4 capas (**completo**)                    |
-| `context/UX_REFACTOR.md`   | Plan de sprints para bugs UX transversales, paginacion, busqueda, filtros, calendario, dashboard y componentes compartidos                  |
 
 ## Mapa De Deuda Tecnica
 
@@ -135,16 +145,16 @@ corresponda. Estado actual por capa/dominio:
 
 | Archivo                    | Deuda relevante                                                                                                                                                                                                                                                                                                                                 |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `context/FRONTEND.md`      | `SelectField` sin construir; tests de render de componentes bloqueados por infra (`vitest` no parsea `react-native`); busquedas backend a escala (`q` in-memory en products/documents, sin GSI) pendientes                                                                                                                                     |
 | `context/AUTH.md`          | Sin tests de integracion Cognito real; evaluar rotacion de refresh token                                                                                                                                                                                                                                                                        |
-| `context/TENANTS.md`       | Listado admin con scan para alta cardinalidad/dashboard                                                                                                                                                                                                                                                                                         |
+| `context/TENANTS.md`       | Listado admin con scan para alta cardinalidad/dashboard; Scan completo de `payments` para ingresos del dashboard superadmin sin techo (a diferencia de `tenants`, catalogo chico) — revisar si el volumen de pagos crece mucho                                                                                                                  |
 | `context/PLANS.md`         | `list()` con scan completo aceptable solo para catalogo chico                                                                                                                                                                                                                                                                                   |
 | `context/CLIENTS.md`       | Busqueda `q` y validacion batch no escalan para cargas masivas                                                                                                                                                                                                                                                                                  |
 | `context/PRODUCTS.md`      | Inventario avanzado con movimientos/reservas queda para sprint futuro                                                                                                                                                                                                                                                                           |
 | `context/ONBOARDING.md`    | Queue dedicada Enterprise automatica es alcance futuro                                                                                                                                                                                                                                                                                          |
 | `context/CERTIFICATES.md`  | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras                                                                                                                                                                                                                                                                         |
-| `context/INVOICES.md`      | Literal SOAP de rechazo sin verificar contra SRI real; RIDE sin barcode/logo; clasificacion de errores SRI parcial; colas dedicadas enterprise sin auto-provision; `ClientPickerModal` aun no extraido a `components/ui/`; `invoice_processor` sin concurrencia reservada (cuenta AWS limitada a 10 ejecuciones concurrentes en `sa-east-1`)    |
+| `context/INVOICES.md`      | Literal SOAP de rechazo sin verificar contra SRI real; RIDE sin barcode/logo; clasificacion de errores SRI parcial; colas dedicadas enterprise sin auto-provision; `invoice_processor` sin concurrencia reservada (cuenta AWS limitada a 10 ejecuciones concurrentes en `sa-east-1`)    |
 | `context/SUBSCRIPTIONS.md` | Scans en workers (aceptable hasta ~10 K); webhook sin DLQ; orders PENDING (3DS) sin limpieza automatica                                                                                                                                                                                                                                         |
-| `context/UX_REFACTOR.md`   | Salto a pagina arbitraria (no solo Anterior/Siguiente) sin resolver; busquedas backend a escala (`q` in-memory en clients/products/documents) pendientes; Sprint 4 sin `SelectField` ni rediseno "experiencia guiada" de pantallas crear/editar; tests de render de componentes bloqueados por infra (`vitest` no parsea `react-native`; alias a `react-native-web` necesitaria `@vitejs/plugin-react` + mas config, requiere sesion dedicada); Sprint 7 (centralizacion final de componentes) sin empezar |
 
 ## Stack
 

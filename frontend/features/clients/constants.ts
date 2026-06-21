@@ -27,13 +27,21 @@ export const CLIENT_STATUS_OPTIONS: Array<{ value: ClientStatus | 'all'; label: 
 
 export const CLIENT_SEARCH_MODE_OPTIONS = [
   { value: 'q', label: 'General' },
-  { value: 'identification', label: 'Identificación exacta' },
+  { value: 'identification', label: 'Identificación' },
 ] as const
 
 export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
   active: 'Activo',
   inactive: 'Inactivo',
 }
+
+/** Singular — para el selector de Estado de UN cliente en `ClientForm`. No reusar
+ * `CLIENT_STATUS_OPTIONS` ahí: ese es plural porque describe un filtro de listado
+ * ("Mostrar: Activos"), no el estado de un registro puntual. */
+export const CLIENT_FORM_STATUS_OPTIONS: Array<{ value: ClientStatus; label: string }> = [
+  { value: 'active', label: CLIENT_STATUS_LABELS.active },
+  { value: 'inactive', label: CLIENT_STATUS_LABELS.inactive },
+]
 
 export const CLIENT_IDENTIFICATION_LABELS: Record<IdentificationType, string> = {
   ruc: 'RUC',

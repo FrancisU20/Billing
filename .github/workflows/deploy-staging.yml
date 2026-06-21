@@ -1,5 +1,5 @@
 ##############################################################################
-# Deploy Staging — CodeLabs Billing Cloud
+# Deploy Staging — Wali (infra: codelabs-billing)
 #
 # Pipeline de despliegue para el ambiente de staging.
 # Igual que dev en estructura, pero con:

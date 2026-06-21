@@ -1,9 +1,8 @@
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { Button } from '@/components/ui/Button'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { FilterBar } from '@/components/ui/FilterBar'
-import { FilterBlock, FilterPill } from '@/components/ui/FilterBlock'
+import { FilterBlock } from '@/components/ui/FilterBlock'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useTheme } from '@/lib/theme-context'
@@ -45,20 +44,35 @@ export function TenantsFilters({
     <FilterBar
       chips={chips}
       activeSecondaryCount={chips.length}
+      onApply={onApply}
       onReset={onReset}
       secondaryContent={
         <>
-          <FilterBlock label="Estado">
-            <SegmentedControl
-              options={TENANT_STATUS_OPTIONS}
-              value={value.status}
-              onChange={(status) => onChange({ ...value, status })}
-            />
-          </FilterBlock>
+          <View style={styles.grid}>
+            <FilterBlock label="Estado">
+              <SegmentedControl
+                stretch
+                options={TENANT_STATUS_OPTIONS}
+                value={value.status}
+                onChange={(status) => onChange({ ...value, status })}
+              />
+            </FilterBlock>
+
+            <FilterBlock label="Creación">
+              <DateRangePicker
+                from={value.createdFrom}
+                to={value.createdTo}
+                onChange={({ from, to }) =>
+                  onChange({ ...value, createdFrom: from, createdTo: to })
+                }
+              />
+            </FilterBlock>
+          </View>
 
           <View style={styles.grid}>
             <FilterBlock label="Entorno SRI">
               <SegmentedControl
+                stretch
                 options={TENANT_ENVIRONMENT_OPTIONS}
                 value={value.sriEnvironment}
                 onChange={(sriEnvironment) => onChange({ ...value, sriEnvironment })}
@@ -66,31 +80,13 @@ export function TenantsFilters({
             </FilterBlock>
 
             <FilterBlock label="Plan">
-              <View style={styles.pillGrid}>
-                {TENANT_PLAN_STATUS_OPTIONS.map((option) => (
-                  <FilterPill
-                    key={option.value}
-                    label={option.label}
-                    selected={value.planStatus === option.value}
-                    onPress={() => onChange({ ...value, planStatus: option.value })}
-                  />
-                ))}
-              </View>
+              <SegmentedControl
+                stretch
+                options={TENANT_PLAN_STATUS_OPTIONS}
+                value={value.planStatus}
+                onChange={(planStatus) => onChange({ ...value, planStatus })}
+              />
             </FilterBlock>
-          </View>
-
-          <FilterBlock label="Creación">
-            <DateRangePicker
-              from={value.createdFrom}
-              to={value.createdTo}
-              onChange={({ from, to }) => onChange({ ...value, createdFrom: from, createdTo: to })}
-            />
-          </FilterBlock>
-
-          <View style={styles.actions}>
-            <Button variant="primary" size="md" onPress={onApply}>
-              Aplicar filtros
-            </Button>
           </View>
         </>
       }
@@ -126,6 +122,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
-  pillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
-  actions: { alignItems: 'flex-start' },
 })

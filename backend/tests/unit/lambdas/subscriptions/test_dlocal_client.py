@@ -52,7 +52,7 @@ class DLocalClientTests(unittest.TestCase):
         )
         self.assertEqual(captured["request"].get_header("Accept"), "application/json")
         self.assertEqual(captured["request"].get_header("Content-type"), "application/json")
-        self.assertEqual(captured["request"].get_header("User-agent"), "CodeLabsBillingCloud/1.0")
+        self.assertEqual(captured["request"].get_header("User-agent"), "WaliBilling/1.0")
         self.assertNotIn("payment_method_id", body)
         self.assertNotIn("payment_method_flow", body)
 

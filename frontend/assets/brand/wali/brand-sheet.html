@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>wali · sistema de marca</title>
+    <style>
+      :root {
+        --indigo: #4f46ff;
+        --ink: #0d1126;
+        --light: #f7f8fc;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #fff;
+        color: var(--ink);
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 64px 32px 96px;
+      }
+      header {
+        margin-bottom: 56px;
+      }
+      .ey {
+        font-size: 12px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--indigo);
+        font-weight: 700;
+        margin-bottom: 14px;
+      }
+      h1 {
+        font-size: 34px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      h1 b {
+        color: var(--indigo);
+      }
+      p.sub {
+        color: #5a6075;
+        margin-top: 10px;
+        max-width: 560px;
+      }
+      .swatches {
+        display: flex;
+        gap: 14px;
+        margin: 40px 0 8px;
+        flex-wrap: wrap;
+      }
+      .sw {
+        border-radius: 14px;
+        padding: 16px 18px;
+        min-width: 150px;
+        border: 1px solid #eceef5;
+      }
+      .chip {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+      }
+      .sw .name {
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .sw .hex {
+        font-size: 12px;
+        color: #7b8194;
+        font-family: ui-monospace, monospace;
+        margin-top: 2px;
+      }
+      section {
+        margin-top: 56px;
+      }
+      h2 {
+        font-size: 13px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #9298ab;
+        font-weight: 700;
+        margin-bottom: 20px;
+        border-top: 1px solid #eef0f6;
+        padding-top: 22px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+      }
+      .card {
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid #eceef5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 200px;
+        padding: 28px;
+      }
+      .card.dark {
+        background: var(--ink);
+      }
+      .card.light {
+        background: var(--light);
+      }
+      .card img {
+        max-width: 100%;
+        max-height: 150px;
+      }
+      .iconrow {
+        display: flex;
+        gap: 22px;
+        flex-wrap: wrap;
+      }
+      .iconcard {
+        border-radius: 18px;
+        border: 1px solid #eceef5;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+      }
+      .iconcard img {
+        width: 128px;
+        height: 128px;
+        border-radius: 28px;
+      }
+      .iconcard span {
+        font-size: 12px;
+        color: #7b8194;
+      }
+      .lbl {
+        font-size: 11px;
+        color: #9298ab;
+        margin-top: 10px;
+        text-align: center;
+      }
+      footer {
+        margin-top: 64px;
+        font-size: 12px;
+        color: #9298ab;
+        border-top: 1px solid #eef0f6;
+        padding-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div class="ey">Sistema de marca</div>
+        <h1><b>wali</b> · identidad visual</h1>
+        <p class="sub">
+          Wordmark para web y producto, ícono “w” para app móvil. Versiones dark y light, con y sin
+          fondo. Geometría vectorial limpia, lista para cualquier escala.
+        </p>
+        <div class="swatches">
+          <div class="sw">
+            <div class="chip" style="background: #4f46ff"></div>
+            <div class="name">Indigo</div>
+            <div class="hex">#4F46FF</div>
+          </div>
+          <div class="sw">
+            <div class="chip" style="background: #0d1126"></div>
+            <div class="name">Ink</div>
+            <div class="hex">#0D1126</div>
+          </div>
+          <div class="sw">
+            <div class="chip" style="background: #ffffff"></div>
+            <div class="name">White</div>
+            <div class="hex">#FFFFFF</div>
+          </div>
+          <div class="sw">
+            <div class="chip" style="background: #f7f8fc"></div>
+            <div class="name">Mist</div>
+            <div class="hex">#F7F8FC</div>
+          </div>
+        </div>
+      </header>
+
+      <section>
+        <h2>Wordmark · para web</h2>
+        <div class="grid">
+          <div>
+            <div class="card light">
+              <img src="wordmark-light-transparent.png" alt="wordmark light" />
+            </div>
+            <div class="lbl">Light · sin fondo</div>
+          </div>
+          <div>
+            <div class="card dark">
+              <img src="wordmark-dark-transparent.png" alt="wordmark dark" />
+            </div>
+            <div class="lbl">Dark · sin fondo</div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Ícono “w” · para app móvil</h2>
+        <div class="iconrow">
+          <div class="iconcard">
+            <img src="icon-app-dark.png" alt="app icon dark" /><span>App icon · Dark</span>
+          </div>
+          <div class="iconcard">
+            <img src="icon-app-light.png" alt="app icon light" /><span>App icon · Light</span>
+          </div>
+          <div class="iconcard">
+            <div
+              style="
+                width: 128px;
+                height: 128px;
+                border-radius: 28px;
+                background: var(--ink);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              "
+            >
+              <img
+                src="icon-w-on-dark-transparent.png"
+                style="width: 96px; height: 96px; border-radius: 0"
+                alt="w on dark"
+              />
+            </div>
+            <span>Solo w · sobre dark</span>
+          </div>
+          <div class="iconcard">
+            <div
+              style="
+                width: 128px;
+                height: 128px;
+                border-radius: 28px;
+                background: var(--light);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              "
+            >
+              <img
+                src="icon-w-on-light-transparent.png"
+                style="width: 96px; height: 96px; border-radius: 0"
+                alt="w on light"
+              />
+            </div>
+            <span>Solo w · sobre light</span>
+          </div>
+        </div>
+      </section>
+
+      <footer>
+        wali — paleta indigo / ink / mist · todos los assets entregados en SVG vectorial escalable.
+      </footer>
+    </div>
+  </body>
+</html>

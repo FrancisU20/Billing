@@ -1,6 +1,8 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { ListItemAction, ListItemMeta } from '@/components/ui/ListItemPrimitives'
+import { StyleSheet, Text, View } from 'react-native'
+import { ListCell, ListItemAction, ListItemMeta } from '@/components/ui/ListItemPrimitives'
+import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu'
+import { useIsDesktopLayout } from '@/lib/hooks/useIsDesktopLayout'
 import { useTheme } from '@/lib/theme-context'
 import { formatDate } from '@/lib/utils/format'
 import { radius, spacing, typography } from '@/constants/tokens'
@@ -10,22 +12,70 @@ import type { Document } from '../types'
 interface DocumentListItemProps {
   document: Document
   onView: () => void
+  onDownloadRide: () => void
 }
 
-export function DocumentListItem({ document, onView }: DocumentListItemProps) {
+export function DocumentListItem({ document, onView, onDownloadRide }: DocumentListItemProps) {
   const { semantic } = useTheme()
+  const isDesktop = useIsDesktopLayout()
+
+  const rowActions: RowAction[] =
+    document.status === 'AUTHORIZED'
+      ? [
+          {
+            key: 'download-ride',
+            icon: 'download-outline',
+            label: 'Descargar RIDE',
+            onPress: onDownloadRide,
+          },
+        ]
+      : []
+
   return (
-    <Pressable
-      onPress={onView}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.container,
-        {
-          backgroundColor: pressed ? semantic.bg.secondary : semantic.bg.card,
-          borderColor: semantic.border.default,
-        },
+        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
       ]}
     >
       <View style={styles.main}>
+        {isDesktop ? <DesktopRow document={document} /> : <MobileRow document={document} />}
+      </View>
+      <View style={styles.actions}>
+        <ListItemAction icon="eye-outline" label="Ver documento" onPress={onView} />
+        <RowActionsMenu actions={rowActions} triggerLabel="Más acciones de documento" />
+      </View>
+    </View>
+  )
+}
+
+function MobileRow({ document }: { document: Document }) {
+  const { semantic } = useTheme()
+  return (
+    <>
+      <View style={styles.nameRow}>
+        <Text style={[styles.sequential, { color: semantic.text.primary }]} numberOfLines={1}>
+          {document.sequential_display}
+        </Text>
+        <DocumentStatusBadge status={document.status} />
+      </View>
+      <Text style={[styles.buyer, { color: semantic.text.secondary }]} numberOfLines={1}>
+        {document.buyer_name}
+      </Text>
+      <View style={styles.metaRow}>
+        <ListItemMeta icon="calendar-outline" text={formatDate(document.issued_at)} />
+        <ListItemMeta icon="cash-outline" text={`$${document.total}`} />
+        <ListItemMeta icon="key-outline" text={document.access_key} mono />
+      </View>
+    </>
+  )
+}
+
+function DesktopRow({ document }: { document: Document }) {
+  const { semantic } = useTheme()
+  return (
+    <View style={styles.desktopRow}>
+      <View style={styles.colDoc}>
         <View style={styles.nameRow}>
           <Text style={[styles.sequential, { color: semantic.text.primary }]} numberOfLines={1}>
             {document.sequential_display}
@@ -35,16 +85,11 @@ export function DocumentListItem({ document, onView }: DocumentListItemProps) {
         <Text style={[styles.buyer, { color: semantic.text.secondary }]} numberOfLines={1}>
           {document.buyer_name}
         </Text>
-        <View style={styles.metaRow}>
-          <ListItemMeta icon="calendar-outline" text={formatDate(document.issued_at)} />
-          <ListItemMeta icon="cash-outline" text={`$${document.total}`} />
-          <ListItemMeta icon="key-outline" text={document.access_key} mono />
-        </View>
       </View>
-      <View style={styles.actions}>
-        <ListItemAction icon="eye-outline" label="Ver documento" onPress={onView} />
-      </View>
-    </Pressable>
+      <ListCell label="Fecha" value={formatDate(document.issued_at)} style={styles.colDate} />
+      <ListCell label="Total" value={`$${document.total}`} style={styles.colTotal} />
+      <ListCell label="Clave de acceso" value={document.access_key} mono style={styles.colKey} />
+    </View>
   )
 }
 
@@ -68,4 +113,9 @@ const styles = StyleSheet.create({
   buyer: { fontSize: typography.size.sm },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   actions: { flexDirection: 'row', gap: spacing[2] },
+  desktopRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[5] },
+  colDoc: { flexBasis: 260, gap: spacing[1], minWidth: 200 },
+  colDate: { flexBasis: 120 },
+  colTotal: { flexBasis: 110 },
+  colKey: { flex: 1, minWidth: 200 },
 })

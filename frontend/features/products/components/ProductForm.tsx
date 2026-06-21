@@ -131,39 +131,6 @@ export function ProductForm({ mode, product, onSubmit, isLoading, apiError }: Pr
         <View style={styles.col}>
           <Controller
             control={control}
-            name="unit"
-            render={({ field: { onChange, value } }) => (
-              <PickerRow
-                label="Unidad"
-                options={PRODUCT_UNIT_OPTIONS}
-                value={value}
-                onChange={onChange}
-              />
-            )}
-          />
-        </View>
-        <View style={styles.col}>
-          <Controller
-            control={control}
-            name="iva_rate"
-            render={({ field: { onChange, value } }) => (
-              <PickerRow
-                label="IVA"
-                options={[
-                  { value: '15', label: '15%' },
-                  { value: '5', label: '5%' },
-                  { value: '0', label: '0%' },
-                  { value: 'EXENTO', label: 'Exento' },
-                ]}
-                value={value}
-                onChange={onChange}
-              />
-            )}
-          />
-        </View>
-        <View style={styles.col}>
-          <Controller
-            control={control}
             name="discount_percentage"
             render={({ field: { onChange, onBlur, value } }) => (
               <PercentField
@@ -178,6 +145,43 @@ export function ProductForm({ mode, product, onSubmit, isLoading, apiError }: Pr
           />
         </View>
       </View>
+
+      <FormBlock title="Unidad">
+        <Controller
+          control={control}
+          name="unit"
+          render={({ field: { onChange, value } }) => (
+            <SegmentedControl
+              stretch
+              columns={6}
+              value={value}
+              options={PRODUCT_UNIT_OPTIONS}
+              onChange={onChange}
+            />
+          )}
+        />
+      </FormBlock>
+
+      <FormBlock title="IVA">
+        <Controller
+          control={control}
+          name="iva_rate"
+          render={({ field: { onChange, value } }) => (
+            <SegmentedControl
+              stretch
+              columns={4}
+              value={value}
+              options={[
+                { value: '15', label: '15%' },
+                { value: '5', label: '5%' },
+                { value: '0', label: '0%' },
+                { value: 'EXENTO', label: 'Exento' },
+              ]}
+              onChange={onChange}
+            />
+          )}
+        />
+      </FormBlock>
 
       <FormBlock title="Stock">
         <Controller
@@ -282,30 +286,6 @@ function FormBlock({ title, children }: { title: string; children: React.ReactNo
   )
 }
 
-function PickerRow<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string
-  options: ReadonlyArray<{ value: T; label: string }>
-  value: T
-  onChange: (value: T) => void
-}) {
-  const { semantic } = useTheme()
-  return (
-    <View style={styles.block}>
-      <Text style={[styles.fieldLabel, { color: semantic.text.secondary }]}>{label}</Text>
-      <SegmentedControl
-        value={value}
-        options={options.map((option) => ({ label: option.label, value: option.value }))}
-        onChange={(next) => onChange(next as T)}
-      />
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
   container: { gap: spacing[4] },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
@@ -313,6 +293,5 @@ const styles = StyleSheet.create({
   colWide: { flex: 2, minWidth: 260 },
   block: { gap: spacing[2] },
   blockTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
-  fieldLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
   note: { fontSize: typography.size.xs, lineHeight: typography.size.xs * 1.5 },
 })

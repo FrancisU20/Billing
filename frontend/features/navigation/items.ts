@@ -19,6 +19,12 @@ function segment(route: string): string {
 
 const superadminNavigation: AppNavigationItem[] = [
   {
+    label: 'Dashboard',
+    icon: 'analytics-outline',
+    href: Routes.superadmin.dashboard,
+    activeWhen: segment(Routes.superadmin.dashboard),
+  },
+  {
     label: 'Empresas',
     icon: 'business-outline',
     href: Routes.superadmin.tenants,
@@ -56,12 +62,6 @@ const tenantNavigation: AppNavigationItem[] = [
     icon: 'document-text-outline',
     href: Routes.tenant.documents as Href,
     activeWhen: segment(Routes.tenant.documents),
-  },
-  {
-    label: 'Mi empresa',
-    icon: 'business-outline',
-    href: Routes.tenant.company as Href,
-    activeWhen: segment(Routes.tenant.company),
   },
 ]
 

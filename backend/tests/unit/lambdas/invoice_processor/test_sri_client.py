@@ -81,6 +81,7 @@ class SriSoapClientTests(unittest.TestCase):
             "<RespuestaRecepcionComprobante><estado>DEVUELTA</estado>"
             "<comprobantes><comprobante><mensajes><mensaje>"
             "<identificador>35</identificador><mensaje>ARCHIVO NO CUMPLE ESTRUCTURA XML</mensaje>"
+            "<informacionAdicional>Linea 1</informacionAdicional>"
             "</mensaje></mensajes></comprobante></comprobantes>"
             "</RespuestaRecepcionComprobante></ns2:validarComprobanteResponse>"
         )
@@ -89,7 +90,27 @@ class SriSoapClientTests(unittest.TestCase):
         result = client.recepcion(environment="testing", xmls=["<factura/>"])
 
         self.assertFalse(result.received)
+        self.assertEqual(len(result.errors), 1)
         self.assertEqual(result.errors[0].code, "35")
+        self.assertEqual(result.errors[0].additional_info, "Linea 1")
+
+    def test_autorizacion_rechazado_normalizes_error_nodes_once(self) -> None:
+        body = _envelope(
+            '<ns2:autorizacionComprobanteResponse xmlns:ns2="http://ec.gob.sri.ws.autorizacion">'
+            "<RespuestaAutorizacionComprobante><autorizaciones><autorizacion>"
+            "<estado>NO AUTORIZADO</estado><mensajes><mensaje>"
+            "<identificador>69</identificador>"
+            "<mensaje>ERROR EN LA IDENTIFICACION DEL RECEPTOR</mensaje>"
+            "</mensaje></mensajes></autorizacion></autorizaciones></RespuestaAutorizacionComprobante>"
+            "</ns2:autorizacionComprobanteResponse>"
+        )
+        client = SriSoapClient(http=FakeHttp(FakeResponse(200, body)))
+
+        result = client.autorizacion(environment="testing", access_key="1" * 49)
+
+        self.assertEqual(result.status, "RECHAZADO")
+        self.assertEqual(len(result.errors or []), 1)
+        self.assertEqual((result.errors or [])[0].code, "69")
 
     def test_autorizacion_autorizado(self) -> None:
         body = _envelope(

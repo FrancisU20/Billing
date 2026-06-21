@@ -1,7 +1,7 @@
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Button } from '@/components/ui/Button'
-import { colors, overlay, spacing, typography } from '@/constants/tokens'
+import { colors, layout, overlay, spacing, typography } from '@/constants/tokens'
 
 interface FinalCtaSectionProps {
   onCreateAccount: () => void
@@ -10,25 +10,32 @@ interface FinalCtaSectionProps {
 export function FinalCtaSection({ onCreateAccount }: FinalCtaSectionProps) {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Empieza a facturar sin complicaciones</Text>
-      <Text style={styles.subtitle}>
-        Crea tu cuenta gratis y emite tus primeros comprobantes electrónicos en el ambiente de
-        pruebas del SRI hoy mismo.
-      </Text>
-      <Button variant="primary" size="lg" onPress={onCreateAccount}>
-        Crear mi cuenta gratis
-      </Button>
+      <View style={styles.content}>
+        <Text style={styles.title}>Empieza a facturar sin complicaciones</Text>
+        <Text style={styles.subtitle}>
+          Crea tu cuenta gratis y emite tus primeros comprobantes electrónicos en el ambiente de
+          pruebas del SRI hoy mismo.
+        </Text>
+        <Button variant="primary" size="lg" onPress={onCreateAccount}>
+          Crear mi cuenta gratis
+        </Button>
+      </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
     backgroundColor: colors.nav,
-    gap: spacing[4],
     paddingHorizontal: spacing[5],
     paddingVertical: spacing[10],
+  },
+  content: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: spacing[4],
+    maxWidth: layout.contentMaxWidth,
+    width: '100%',
   },
   title: {
     color: overlay.text.primary,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -22,7 +22,11 @@ import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { tenantsApi } from '../api'
 import { CertificateSection } from '../components/CertificateSection'
 import { TenantStatusBadge } from '../components/TenantStatusBadge'
-import { TENANT_ENVIRONMENT_LABELS, TENANT_PLAN_STATUS_LABELS } from '../constants'
+import {
+  TENANT_ENVIRONMENT_BADGE_VARIANT,
+  TENANT_ENVIRONMENT_LABELS,
+  TENANT_PLAN_STATUS_LABELS,
+} from '../constants'
 import { useTenant } from '../hooks/useTenant'
 import type { Tenant } from '../types'
 
@@ -113,7 +117,7 @@ export function TenantDetailScreen() {
                     <View style={styles.badgeRow}>
                       <TenantStatusBadge status={tenant.status} />
                       <Badge
-                        variant="accent"
+                        variant={TENANT_ENVIRONMENT_BADGE_VARIANT[tenant.sri_environment]}
                         size="sm"
                         label={TENANT_ENVIRONMENT_LABELS[tenant.sri_environment]}
                       />
@@ -135,47 +139,62 @@ export function TenantDetailScreen() {
                   </View>
                 </View>
 
-                <DetailSection title="Información fiscal" icon="card-outline">
-                  <DetailField label="RUC" value={formatRuc(tenant.ruc)} mono />
-                  <DetailField label="Razón social" value={tenant.legal_name} />
-                  <DetailField
-                    label="Obligado a llevar contabilidad"
-                    value={tenant.accounting_required ? 'Sí' : 'No'}
+                <View style={styles.infoGrid}>
+                  <DetailSection
+                    title="Información fiscal"
+                    icon="card-outline"
+                    style={styles.infoCard}
+                  >
+                    <DetailField label="RUC" value={formatRuc(tenant.ruc)} mono />
+                    <DetailField label="Razón social" value={tenant.legal_name} />
+                    <DetailField
+                      label="Obligado a llevar contabilidad"
+                      value={tenant.accounting_required ? 'Sí' : 'No'}
+                    />
+                    <DetailField
+                      label="Entorno SRI"
+                      value={TENANT_ENVIRONMENT_LABELS[tenant.sri_environment]}
+                    />
+                    <DetailField
+                      label="Estado plan"
+                      value={TENANT_PLAN_STATUS_LABELS[tenant.plan_status]}
+                    />
+                    <DetailField label="Plan ID" value={tenant.plan_id} mono />
+                  </DetailSection>
+
+                  <DetailSection title="Contacto" icon="mail-outline" style={styles.infoCard}>
+                    <DetailField label="Email" value={tenant.email} />
+                    <DetailField label="Teléfono" value={tenant.phone} />
+                    <DetailField label="Dirección" value={tenant.address} />
+                    <DetailField label="Creado" value={formatDateTime(tenant.created_at)} />
+                    <DetailField label="Actualizado" value={formatDateTime(tenant.updated_at)} />
+                  </DetailSection>
+                </View>
+
+                <View style={styles.operationsGrid}>
+                  <CertificateSection
+                    tenantId={tenant.id}
+                    canManage
+                    actionSize="md"
+                    style={styles.operationCard}
                   />
-                  <DetailField
-                    label="Entorno SRI"
-                    value={TENANT_ENVIRONMENT_LABELS[tenant.sri_environment]}
+
+                  <OwnerAccessSection
+                    tenant={tenant}
+                    actionPending={retryOnboardingPending}
+                    onRetry={() => setRetryOnboardingOpen(true)}
+                    style={styles.operationCard}
                   />
-                  <DetailField
-                    label="Estado plan"
-                    value={TENANT_PLAN_STATUS_LABELS[tenant.plan_status]}
+
+                  <StatusSection
+                    tenant={tenant}
+                    actionPending={actionPending}
+                    onSuspend={() => setSuspendOpen(true)}
+                    onInactivate={() => setInactivateOpen(true)}
+                    onReactivate={() => setReactivateOpen(true)}
+                    style={styles.operationCard}
                   />
-                  <DetailField label="Plan ID" value={tenant.plan_id} mono />
-                </DetailSection>
-
-                <DetailSection title="Contacto" icon="mail-outline">
-                  <DetailField label="Email" value={tenant.email} />
-                  <DetailField label="Teléfono" value={tenant.phone} />
-                  <DetailField label="Dirección" value={tenant.address} />
-                  <DetailField label="Creado" value={formatDateTime(tenant.created_at)} />
-                  <DetailField label="Actualizado" value={formatDateTime(tenant.updated_at)} />
-                </DetailSection>
-
-                <CertificateSection tenantId={tenant.id} canManage />
-
-                <OwnerAccessSection
-                  tenant={tenant}
-                  actionPending={retryOnboardingPending}
-                  onRetry={() => setRetryOnboardingOpen(true)}
-                />
-
-                <StatusSection
-                  tenant={tenant}
-                  actionPending={actionPending}
-                  onSuspend={() => setSuspendOpen(true)}
-                  onInactivate={() => setInactivateOpen(true)}
-                  onReactivate={() => setReactivateOpen(true)}
-                />
+                </View>
               </>
             ) : null}
           </>
@@ -237,23 +256,35 @@ function OwnerAccessSection({
   tenant,
   actionPending,
   onRetry,
+  style,
 }: {
   tenant: Tenant
   actionPending: boolean
   onRetry: () => void
+  style?: StyleProp<ViewStyle>
 }) {
   return (
-    <DetailSection title="Acceso owner" icon="person-add-outline" layout="stack">
-      <DetailField label="Email owner" value={tenant.email} />
-      <DetailField
-        label="Onboarding completado"
-        value={
-          tenant.onboarding_completed_at ? formatDateTime(tenant.onboarding_completed_at) : '-'
-        }
-      />
-      <Button variant="outline" size="md" fullWidth isDisabled={actionPending} onPress={onRetry}>
-        Reintentar acceso inicial
-      </Button>
+    <DetailSection
+      title="Acceso owner"
+      icon="person-add-outline"
+      layout="stack"
+      style={style}
+      contentStyle={styles.operationContent}
+    >
+      <View style={styles.compactFields}>
+        <DetailField label="Email owner" value={tenant.email} />
+        <DetailField
+          label="Onboarding completado"
+          value={
+            tenant.onboarding_completed_at ? formatDateTime(tenant.onboarding_completed_at) : '-'
+          }
+        />
+      </View>
+      <View style={styles.sectionActions}>
+        <Button variant="outline" size="md" fullWidth isDisabled={actionPending} onPress={onRetry}>
+          Reintentar acceso inicial
+        </Button>
+      </View>
     </DetailSection>
   )
 }
@@ -264,18 +295,26 @@ function StatusSection({
   onSuspend,
   onInactivate,
   onReactivate,
+  style,
 }: {
   tenant: Tenant
   actionPending: boolean
   onSuspend: () => void
   onInactivate: () => void
   onReactivate: () => void
+  style?: StyleProp<ViewStyle>
 }) {
   const { semantic } = useTheme()
   const { status } = tenant
 
   return (
-    <DetailSection title="Gestión de estado" icon="shield-outline" layout="stack">
+    <DetailSection
+      title="Gestión de estado"
+      icon="shield-outline"
+      layout="stack"
+      style={style}
+      contentStyle={styles.operationContent}
+    >
       <View style={styles.statusCurrentRow}>
         <Text style={[styles.statusCurrentLabel, { color: semantic.text.secondary }]}>
           Estado actual:
@@ -297,62 +336,63 @@ function StatusSection({
               cuando el contrato vuelva a estar vigente.
             </Text>
           </View>
-          <Button
-            variant="primary"
-            size="md"
-            fullWidth
-            isDisabled={actionPending}
-            onPress={onReactivate}
-          >
-            Reactivar empresa
-          </Button>
+          <View style={styles.statusFooter}>
+            <Button
+              variant="primary"
+              size="md"
+              fullWidth
+              isDisabled={actionPending}
+              onPress={onReactivate}
+            >
+              Reactivar empresa
+            </Button>
+          </View>
         </>
       ) : (
         <>
           {status === 'active' ? (
-            <>
-              <Text style={[styles.statusDescription, { color: semantic.text.secondary }]}>
-                La empresa está activa y puede emitir comprobantes electrónicos.
-              </Text>
-              <Button
-                variant="warning"
-                size="md"
-                fullWidth
-                isDisabled={actionPending}
-                onPress={onSuspend}
-              >
-                Suspender empresa
-              </Button>
-            </>
+            <Text style={[styles.statusDescription, { color: semantic.text.secondary }]}>
+              La empresa está activa y puede emitir comprobantes electrónicos.
+            </Text>
           ) : (
-            <>
-              <Text style={[styles.statusDescription, { color: semantic.text.secondary }]}>
-                La empresa está suspendida temporalmente y no puede emitir comprobantes.
-              </Text>
-              <Button
-                variant="primary"
-                size="md"
-                fullWidth
-                isDisabled={actionPending}
-                onPress={onReactivate}
-              >
-                Reactivar empresa
-              </Button>
-            </>
+            <Text style={[styles.statusDescription, { color: semantic.text.secondary }]}>
+              La empresa está suspendida temporalmente y no puede emitir comprobantes.
+            </Text>
           )}
 
-          <View style={[styles.separator, { borderTopColor: semantic.border.default }]} />
-
-          <View style={styles.dangerBlock}>
-            <Button
-              variant="danger"
-              size="md"
-              fullWidth
-              isDisabled={actionPending}
-              onPress={onInactivate}
-            >
-              Inactivar empresa
-            </Button>
+          <View style={styles.statusFooter}>
+            <View style={styles.statusActionsRow}>
+              {status === 'active' ? (
+                <Button
+                  variant="warningSubtle"
+                  size="md"
+                  fullWidth
+                  isDisabled={actionPending}
+                  onPress={onSuspend}
+                >
+                  Suspender empresa
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="md"
+                  fullWidth
+                  isDisabled={actionPending}
+                  onPress={onReactivate}
+                >
+                  Reactivar empresa
+                </Button>
+              )}
+              <Button
+                variant="dangerSubtle"
+                size="md"
+                fullWidth
+                isDisabled={actionPending}
+                onPress={onInactivate}
+              >
+                Inactivar empresa
+              </Button>
+            </View>
             <View style={styles.irreversibleNote}>
               <Ionicons name="ban-outline" size={12} color={semantic.status.error} />
               <Text style={[styles.irreversibleText, { color: semantic.status.error }]}>
@@ -369,6 +409,15 @@ function StatusSection({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { gap: spacing[4], padding: spacing[5], paddingBottom: spacing[12] },
+  infoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
+  infoCard: { flex: 1, minWidth: 280 },
+  operationsGrid: {
+    alignItems: 'stretch',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[4],
+  },
+  operationCard: { flex: 1, minWidth: 280 },
   profile: {
     alignItems: 'center',
     borderRadius: radius.md,
@@ -391,11 +440,21 @@ const styles = StyleSheet.create({
   subtle: { fontSize: typography.size.sm },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], marginTop: spacing[1] },
   profileActions: { flexDirection: 'row', gap: spacing[2] },
+  operationContent: { flex: 1 },
+  compactFields: { gap: spacing[4] },
+  sectionActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: 'auto',
+    width: '100%',
+  },
   statusCurrentRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
   statusCurrentLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
   statusDescription: { fontSize: typography.size.sm, lineHeight: typography.size.sm * 1.6 },
-  separator: { borderTopWidth: 1 },
-  dangerBlock: { gap: spacing[2] },
+  statusFooter: { alignItems: 'center', gap: spacing[3], marginTop: 'auto', width: '100%' },
+  statusActionsRow: { gap: spacing[2], width: '100%' },
   irreversibleNote: { alignItems: 'center', flexDirection: 'row', gap: spacing[1] },
   irreversibleText: {
     fontSize: typography.size.xs,

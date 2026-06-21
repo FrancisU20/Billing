@@ -365,7 +365,8 @@ class ApiStack(Stack):
                 **_common_env,
                 "BREVO_SECRET_NAME":  f"codelabs-billing-{env}/brevo-api-key",
                 "BREVO_SENDER_EMAIL": "noreply@codelabsecuador.com",
-                "BREVO_SENDER_NAME":  "CodeLabs Billing",
+                "BREVO_SENDER_NAME":  "Wali",
+                "FRONTEND_URL":       frontend_url,
                 "SUPERADMIN_EMAIL":   config.get("superadmin_email", ""),
                 "DOCUMENTS_TABLE":     database.documents_table.table_name,
                 "DOCUMENTS_BUCKET":    storage.documents_bucket.bucket_name,
@@ -429,7 +430,7 @@ class ApiStack(Stack):
                 "AUDIT_LOG_TABLE":    database.audit_table.table_name,
                 "BREVO_SECRET_NAME":  f"codelabs-billing-{env}/brevo-api-key",
                 "BREVO_SENDER_EMAIL": "noreply@codelabsecuador.com",
-                "BREVO_SENDER_NAME":  "CodeLabs Billing",
+                "BREVO_SENDER_NAME":  "Wali",
             },
         )
         database.tenants_table.grant_read_write_data(certificate_expiry_notifier_fn)
@@ -467,7 +468,7 @@ class ApiStack(Stack):
                 "PAYMENTS_TABLE":            database.payments_table.table_name,
                 "BREVO_SECRET_NAME":         f"codelabs-billing-{env}/brevo-api-key",
                 "BREVO_SENDER_EMAIL":        "noreply@codelabsecuador.com",
-                "BREVO_SENDER_NAME":         "CodeLabs Billing",
+                "BREVO_SENDER_NAME":         "Wali",
                 "FRONTEND_URL":              frontend_url,
                 "DLOCALGO_CREDENTIALS_NAME": f"codelabs-billing-{env}/dlocalgo-credentials",
                 "DLOCALGO_API_URL":          "https://api.dlocalgo.com" if env == "prod" else "https://api-sbx.dlocalgo.com",
@@ -508,7 +509,7 @@ class ApiStack(Stack):
                 "PAYMENTS_TABLE":               database.payments_table.table_name,
                 "BREVO_SECRET_NAME":            f"codelabs-billing-{env}/brevo-api-key",
                 "BREVO_SENDER_EMAIL":           "noreply@codelabsecuador.com",
-                "BREVO_SENDER_NAME":            "CodeLabs Billing",
+                "BREVO_SENDER_NAME":            "Wali",
                 "SUPERADMIN_EMAIL":             config.get("superadmin_email", ""),
                 "ORPHAN_PAYMENT_GRACE_MINUTES": "30",
             },
@@ -628,6 +629,7 @@ class ApiStack(Stack):
             (apigwv2.HttpMethod.POST,   "/tenants/{id}/subscription/renew"),
             (apigwv2.HttpMethod.POST,   "/tenants/{id}/subscription/retry-payment"),
             (apigwv2.HttpMethod.DELETE, "/tenants/{id}"),
+            (apigwv2.HttpMethod.GET,    "/superadmin/dashboard"),
         ]:
             api.add_routes(
                 path        = route,

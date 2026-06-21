@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -36,9 +36,16 @@ function expiryBadge(expiresAt: string): { label: string; variant: ExpiryVariant
 interface CertificateSectionProps {
   tenantId: string
   canManage: boolean
+  style?: StyleProp<ViewStyle>
+  actionSize?: 'sm' | 'md'
 }
 
-export function CertificateSection({ tenantId, canManage }: CertificateSectionProps) {
+export function CertificateSection({
+  tenantId,
+  canManage,
+  style,
+  actionSize = 'sm',
+}: CertificateSectionProps) {
   const { semantic } = useTheme()
   const toast = useToast()
   const { certificate, loading, error, refresh } = useTenantCertificate(tenantId)
@@ -82,7 +89,13 @@ export function CertificateSection({ tenantId, canManage }: CertificateSectionPr
 
   if (loading && !certificate) {
     return (
-      <DetailSection title="Certificado digital" icon="ribbon-outline" layout="stack">
+      <DetailSection
+        title="Certificado digital"
+        icon="ribbon-outline"
+        layout="stack"
+        style={style}
+        contentStyle={styles.sectionBody}
+      >
         <LoadingSpinner size="small" compact />
       </DetailSection>
     )
@@ -90,11 +103,19 @@ export function CertificateSection({ tenantId, canManage }: CertificateSectionPr
 
   if (error) {
     return (
-      <DetailSection title="Certificado digital" icon="ribbon-outline" layout="stack">
+      <DetailSection
+        title="Certificado digital"
+        icon="ribbon-outline"
+        layout="stack"
+        style={style}
+        contentStyle={styles.sectionBody}
+      >
         <ApiErrorBanner error={error} />
-        <Button variant="outline" size="sm" onPress={refresh}>
-          Reintentar
-        </Button>
+        <View style={styles.actionFooter}>
+          <Button variant="outline" size="sm" onPress={refresh}>
+            Reintentar
+          </Button>
+        </View>
       </DetailSection>
     )
   }
@@ -104,32 +125,40 @@ export function CertificateSection({ tenantId, canManage }: CertificateSectionPr
     hasCertificate && certificate?.cert_expires_at ? expiryBadge(certificate.cert_expires_at) : null
 
   return (
-    <DetailSection title="Certificado digital" icon="ribbon-outline" layout="stack">
-      {hasCertificate && certificate ? (
-        <>
-          {status ? <Badge label={status.label} variant={status.variant} /> : null}
-          <DetailField
-            label="RUC titular"
-            value={certificate.cert_subject_ruc ? formatRuc(certificate.cert_subject_ruc) : '-'}
-            mono
-          />
-          <DetailField label="Emisor" value={certificate.cert_issuer ?? '-'} />
-          <DetailField
-            label="Vence el"
-            value={certificate.cert_expires_at ? formatDate(certificate.cert_expires_at) : '-'}
-          />
-          <DetailField
-            label="Subido el"
-            value={
-              certificate.cert_uploaded_at ? formatDateTime(certificate.cert_uploaded_at) : '-'
-            }
-          />
-        </>
-      ) : (
-        <Text style={[styles.message, { color: semantic.text.secondary }]}>
-          Aún no se ha registrado un certificado digital.
-        </Text>
-      )}
+    <DetailSection
+      title="Certificado digital"
+      icon="ribbon-outline"
+      layout="stack"
+      style={style}
+      contentStyle={styles.sectionBody}
+    >
+      <View style={styles.details}>
+        {hasCertificate && certificate ? (
+          <>
+            {status ? <Badge label={status.label} variant={status.variant} /> : null}
+            <DetailField
+              label="RUC titular"
+              value={certificate.cert_subject_ruc ? formatRuc(certificate.cert_subject_ruc) : '-'}
+              mono
+            />
+            <DetailField label="Emisor" value={certificate.cert_issuer ?? '-'} />
+            <DetailField
+              label="Vence el"
+              value={certificate.cert_expires_at ? formatDate(certificate.cert_expires_at) : '-'}
+            />
+            <DetailField
+              label="Subido el"
+              value={
+                certificate.cert_uploaded_at ? formatDateTime(certificate.cert_uploaded_at) : '-'
+              }
+            />
+          </>
+        ) : (
+          <Text style={[styles.message, { color: semantic.text.secondary }]}>
+            Aún no se ha registrado un certificado digital.
+          </Text>
+        )}
+      </View>
 
       {canManage ? (
         replacing ? (
@@ -163,9 +192,16 @@ export function CertificateSection({ tenantId, canManage }: CertificateSectionPr
             </View>
           </View>
         ) : (
-          <Button variant="outline" size="sm" onPress={() => setReplacing(true)}>
-            {hasCertificate ? 'Reemplazar certificado' : 'Subir certificado'}
-          </Button>
+          <View style={styles.actionFooter}>
+            <Button
+              variant="outline"
+              size={actionSize}
+              fullWidth
+              onPress={() => setReplacing(true)}
+            >
+              {hasCertificate ? 'Reemplazar certificado' : 'Subir certificado'}
+            </Button>
+          </View>
         )
       ) : null}
     </DetailSection>
@@ -173,7 +209,16 @@ export function CertificateSection({ tenantId, canManage }: CertificateSectionPr
 }
 
 const styles = StyleSheet.create({
+  sectionBody: { flex: 1 },
+  details: { gap: spacing[4] },
   message: { fontSize: typography.size.base, lineHeight: typography.size.base * 1.5 },
-  form: { gap: spacing[4] },
-  actions: { flexDirection: 'row', gap: spacing[2] },
+  actionFooter: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 'auto',
+    width: '100%',
+  },
+  form: { gap: spacing[4], marginTop: 'auto' },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], justifyContent: 'center' },
 })

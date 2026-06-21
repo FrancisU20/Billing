@@ -118,7 +118,7 @@ class ClientsHandlerTests(unittest.TestCase):
         body = decode_response(response)
         self.assertNotIn("total", body["data"])
 
-    def test_list_passes_exact_identification_filter(self) -> None:
+    def test_list_passes_identification_filter(self) -> None:
         repo = FakeClientRepository()
         repo.list_result = ([make_client(id="client-1")], None)
         event = api_event(

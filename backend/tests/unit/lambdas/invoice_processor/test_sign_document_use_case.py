@@ -105,6 +105,7 @@ class SignDocumentUseCaseTests(unittest.TestCase):
         repo, publisher = self._execute(sri_client)
 
         self.assertEqual(repo.update_calls[0]["new_status"], DocumentStatus.REJECTED)
+        self.assertEqual(repo.update_calls[0]["sri_errors"][0]["category"], "FIRMA")
         self.assertEqual(publisher.polls_enqueued, [])
 
     def test_devuelta_with_retryable_error_marks_failed_and_raises(self) -> None:

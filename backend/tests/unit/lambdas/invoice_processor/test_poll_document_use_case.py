@@ -113,7 +113,7 @@ class PollDocumentUseCaseTests(unittest.TestCase):
         authorized_event = publisher.events_published[0]
         self.assertEqual(authorized_event.issuer_name, "CodeLabs Test S.A.")
         self.assertEqual(authorized_event.issuer_ruc, "1792146739001")
-        self.assertEqual(authorized_event.buyer_name, "Consumidor Final")
+        self.assertEqual(authorized_event.buyer_name, "CONSUMIDOR FINAL")
         self.assertEqual(authorized_event.buyer_id, "9999999999999")
         self.assertEqual(authorized_event.sequential_display, "001-001-000000001")
         self.assertEqual(authorized_event.total, "23.00")
@@ -156,7 +156,8 @@ class PollDocumentUseCaseTests(unittest.TestCase):
 
     def test_rechazado_marks_rejected_and_publishes_event(self) -> None:
         result = AutorizacionResult(
-            status="RECHAZADO", errors=[SriErrorDetail(code="44", message="RUC no autorizado")]
+            status="RECHAZADO",
+            errors=[SriErrorDetail(code="69", message="ERROR EN LA IDENTIFICACION DEL RECEPTOR")],
         )
         use_case, repo, storage, publisher = self._build(result)
 
@@ -168,6 +169,8 @@ class PollDocumentUseCaseTests(unittest.TestCase):
         )
 
         self.assertEqual(repo.update_calls[0]["new_status"], DocumentStatus.REJECTED)
+        self.assertEqual(repo.update_calls[0]["sri_errors"][0]["category"], "RECEPTOR")
+        self.assertIn("tipo 07", repo.update_calls[0]["sri_errors"][0]["user_message"])
         self.assertIsInstance(publisher.events_published[0], DocumentRejectedEvent)
 
     def test_ignores_message_when_document_is_not_processing(self) -> None:

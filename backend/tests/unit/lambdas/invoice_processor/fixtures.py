@@ -37,7 +37,7 @@ def make_document(**overrides) -> Document:
         client_id=None,
         buyer_id_type="07",
         buyer_id="9999999999999",
-        buyer_name="Consumidor Final",
+        buyer_name="CONSUMIDOR FINAL",
         buyer_email=None,
         issued_at=date(2026, 6, 17),
         sri_environment="testing",

@@ -11,7 +11,15 @@ import { LoadingLogo } from '@/components/branding/LoadingScreen'
 import { useTheme } from '@/lib/theme-context'
 import { overlay, radius, spacing, typography } from '@/constants/tokens'
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'warning' | 'ghost' | 'outline'
+type Variant =
+  | 'primary'
+  | 'secondary'
+  | 'danger'
+  | 'warning'
+  | 'dangerSubtle'
+  | 'warningSubtle'
+  | 'ghost'
+  | 'outline'
 type Size = 'sm' | 'md' | 'lg'
 
 const loadingLogoSize: Record<Size, number> = {
@@ -48,6 +56,8 @@ export function Button({
     secondary: semantic.bg.tertiary,
     danger: semantic.status.error,
     warning: semantic.status.warning,
+    dangerSubtle: semantic.status.errorBg,
+    warningSubtle: semantic.status.warningBg,
     ghost: 'transparent',
     outline: 'transparent',
   }
@@ -56,6 +66,8 @@ export function Button({
     secondary: semantic.border.default,
     danger: semantic.status.error,
     warning: semantic.status.warning,
+    dangerSubtle: semantic.status.errorBg,
+    warningSubtle: semantic.status.warningBg,
     ghost: semantic.bg.secondary,
     outline: semantic.bg.secondary,
   }
@@ -64,13 +76,27 @@ export function Button({
     secondary: semantic.text.primary,
     danger: overlay.text.primary,
     warning: overlay.text.primary,
+    dangerSubtle: semantic.status.error,
+    warningSubtle: semantic.status.warning,
     ghost: semantic.accent.default,
     outline: semantic.text.primary,
+  }
+  const variantBorder: Record<Variant, string | undefined> = {
+    primary: undefined,
+    secondary: undefined,
+    danger: undefined,
+    warning: undefined,
+    dangerSubtle: semantic.status.errorBorder,
+    warningSubtle: semantic.status.warningBorder,
+    ghost: undefined,
+    outline: semantic.border.default,
   }
   const loadingColor =
     variant === 'primary' || variant === 'danger' || variant === 'warning'
       ? overlay.text.primary
-      : semantic.accent.default
+      : variantText[variant]
+  const hasBorder =
+    variant === 'outline' || variant === 'dangerSubtle' || variant === 'warningSubtle'
 
   return (
     <Pressable
@@ -82,8 +108,8 @@ export function Button({
         fullWidth && staticStyles.fullWidth,
         {
           backgroundColor: pressed && !disabled ? variantBgPressed[variant] : variantBg[variant],
-          borderWidth: variant === 'outline' ? 1.5 : 0,
-          borderColor: variant === 'outline' ? semantic.border.default : undefined,
+          borderWidth: hasBorder ? 1.5 : 0,
+          borderColor: variantBorder[variant],
           borderRadius: radius.sm,
           opacity: disabled ? 0.45 : 1,
         },
@@ -91,13 +117,7 @@ export function Button({
       ]}
     >
       {isLoading ? (
-        <LoadingLogo
-          size={loadingLogoSize[size]}
-          showBackdrop={false}
-          markColor={loadingColor}
-          particleColor={loadingColor}
-          orbitScale={1.16}
-        />
+        <LoadingLogo size={loadingLogoSize[size]} showBackdrop={false} markColor={loadingColor} />
       ) : null}
       <Text
         style={[

@@ -1,5 +1,5 @@
 import React from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/lib/theme-context'
 import { radius, spacing, typography } from '@/constants/tokens'
@@ -10,22 +10,34 @@ interface DetailSectionProps {
   children: React.ReactNode
   /** `grid` (default) wraps fields in a responsive row; `stack` lays children out as a column. */
   layout?: 'grid' | 'stack'
+  style?: StyleProp<ViewStyle>
+  contentStyle?: StyleProp<ViewStyle>
 }
 
-export function DetailSection({ title, icon, children, layout = 'grid' }: DetailSectionProps) {
+export function DetailSection({
+  title,
+  icon,
+  children,
+  layout = 'grid',
+  style,
+  contentStyle,
+}: DetailSectionProps) {
   const { semantic } = useTheme()
   return (
     <View
       style={[
         styles.section,
         { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
+        style,
       ]}
     >
       <View style={styles.sectionTitleRow}>
         <Ionicons name={icon} size={17} color={semantic.accent.default} />
         <Text style={[styles.sectionTitle, { color: semantic.text.primary }]}>{title}</Text>
       </View>
-      <View style={layout === 'grid' ? styles.fieldGrid : styles.stack}>{children}</View>
+      <View style={[layout === 'grid' ? styles.fieldGrid : styles.stack, contentStyle]}>
+        {children}
+      </View>
     </View>
   )
 }

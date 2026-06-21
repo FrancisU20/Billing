@@ -1,17 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { FormField } from '@/components/ui/FormField'
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { SearchInput } from '@/components/ui/SearchInput'
+import { PickerModal, PickerResultRow } from '@/components/ui/PickerModal'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { MoneyField } from '@/components/ui/SpecializedFields'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { ApiError, toApiError, type ApiError as ApiErrorType } from '@/lib/api/errors'
 import { useTheme } from '@/lib/theme-context'
-import { overlay, radius, spacing, typography } from '@/constants/tokens'
+import { radius, spacing, typography } from '@/constants/tokens'
 import { productsApi } from '../api'
 import type { Product, ProductIvaRate } from '../types'
 
@@ -28,7 +26,6 @@ export function ProductPickerModal({
   onSelect,
   campaign = null,
 }: ProductPickerModalProps) {
-  const { semantic } = useTheme()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Product[]>([])
   const [searched, setSearched] = useState(false)
@@ -144,189 +141,192 @@ export function ProductPickerModal({
   }
 
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={close}>
-      <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} />
-        <View
-          style={[
-            styles.dialog,
-            { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-          ]}
+    <PickerModal
+      visible={visible}
+      onClose={close}
+      title="Producto o servicio"
+      searchPlaceholder="SKU, nombre o descripción"
+      searchValue={query}
+      onSearchChangeText={setQuery}
+      onSearchChange={(nextQuery) => {
+        if (!nextQuery) {
+          setResults([])
+          setSearched(false)
+          return
+        }
+        void search(nextQuery)
+      }}
+      onSearchSubmit={() => search()}
+      searchLoading={loading}
+      headerActions={
+        <Button
+          variant="primary"
+          size="md"
+          onPress={() => {
+            setError(null)
+            setShowQuickCreate((current) => !current)
+          }}
         >
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: semantic.text.primary }]}>
-              Producto o servicio
-            </Text>
-            <Pressable onPress={close} hitSlop={8} accessibilityLabel="Cerrar">
-              <Ionicons name="close-outline" size={22} color={semantic.text.secondary} />
-            </Pressable>
-          </View>
+          {showQuickCreate ? 'Ocultar' : 'Añadir'}
+        </Button>
+      }
+      error={error}
+      results={results}
+      keyExtractor={(product) => product.id}
+      maxDialogWidth={640}
+      maxDialogHeightPct={92}
+      listMaxHeight={220}
+      emptyState={<EmptyResults searched={searched} />}
+      renderItem={(product) => (
+        <PickerResultRow onPress={() => onSelect(product)}>
+          <ProductResult product={product} campaign={campaign} />
+        </PickerResultRow>
+      )}
+      footer={
+        showQuickCreate ? (
+          <QuickCreateForm
+            sku={quickSku}
+            onSkuChange={setQuickSku}
+            name={quickName}
+            onNameChange={setQuickName}
+            price={quickPrice}
+            onPriceChange={setQuickPrice}
+            iva={quickIva}
+            onIvaChange={setQuickIva}
+            creating={creating}
+            onSubmit={createQuick}
+          />
+        ) : null
+      }
+    />
+  )
+}
 
-          <View style={styles.searchRow}>
-            <View style={styles.searchInput}>
-              <SearchInput
-                placeholder="SKU, nombre o descripción"
-                value={query}
-                onChangeText={setQuery}
-                onSearchChange={(nextQuery) => {
-                  if (!nextQuery) {
-                    setResults([])
-                    setSearched(false)
-                    return
-                  }
-                  void search(nextQuery)
-                }}
-                onSubmitEditing={() => search()}
-                autoFocus
-              />
-            </View>
-            <Button
-              variant="primary"
-              size="md"
-              isLoading={loading}
-              isDisabled={query.trim().length < 3}
-              onPress={() => search()}
-            >
-              Buscar
-            </Button>
-            <Button
-              variant="outline"
-              size="md"
-              onPress={() => {
-                setError(null)
-                setShowQuickCreate((current) => !current)
-              }}
-            >
-              {showQuickCreate ? 'Ocultar' : 'Añadir'}
-            </Button>
-          </View>
+function EmptyResults({ searched }: { searched: boolean }) {
+  const { semantic } = useTheme()
+  return (
+    <View style={styles.emptyState}>
+      <Ionicons
+        name={searched ? 'search-outline' : 'cube-outline'}
+        size={28}
+        color={semantic.text.tertiary}
+      />
+      <Text style={[styles.emptyTitle, { color: semantic.text.primary }]}>
+        {searched ? 'Sin resultados' : 'Busca en tu catálogo'}
+      </Text>
+      <Text style={[styles.empty, { color: semantic.text.secondary }]}>
+        {searched
+          ? 'Intenta con otro SKU, nombre o descripción. También puedes añadir un producto nuevo.'
+          : 'Escribe SKU, nombre o descripción y presiona Buscar. Si todavía no existe, usa Añadir.'}
+      </Text>
+    </View>
+  )
+}
 
-          {error ? <ApiErrorBanner error={error} /> : null}
+function ProductResult({
+  product,
+  campaign,
+}: {
+  product: Product
+  campaign: { active: boolean; percentage: string } | null
+}) {
+  const { semantic } = useTheme()
+  const discount = resolvePickerDiscount(product, campaign)
+  return (
+    <>
+      <Text style={[styles.resultName, { color: semantic.text.primary }]} numberOfLines={1}>
+        {product.name}
+      </Text>
+      <Text style={[styles.resultMeta, { color: semantic.text.secondary }]} numberOfLines={1}>
+        {product.sku} · IVA {product.iva_rate} · ${Number(product.unit_price).toFixed(2)}
+      </Text>
+      {discount ? (
+        <Text style={[styles.discountMeta, { color: semantic.accent.default }]} numberOfLines={1}>
+          {discount}
+        </Text>
+      ) : null}
+    </>
+  )
+}
 
-          {loading ? (
-            <LoadingSpinner compact label="Buscando..." />
-          ) : (
-            <FlatList
-              data={results}
-              keyExtractor={(product) => product.id}
-              style={styles.list}
-              ListEmptyComponent={
-                <View style={styles.emptyState}>
-                  <Ionicons
-                    name={searched ? 'search-outline' : 'cube-outline'}
-                    size={28}
-                    color={semantic.text.tertiary}
-                  />
-                  <Text style={[styles.emptyTitle, { color: semantic.text.primary }]}>
-                    {searched ? 'Sin resultados' : 'Busca en tu catálogo'}
-                  </Text>
-                  <Text style={[styles.empty, { color: semantic.text.secondary }]}>
-                    {searched
-                      ? 'Intenta con otro SKU, nombre o descripción. También puedes añadir un producto nuevo.'
-                      : 'Escribe SKU, nombre o descripción y presiona Buscar. Si todavía no existe, usa Añadir.'}
-                  </Text>
-                </View>
-              }
-              renderItem={({ item }) => {
-                const discount = resolvePickerDiscount(item, campaign)
-
-                return (
-                  <Pressable
-                    onPress={() => onSelect(item)}
-                    style={({ pressed }) => [
-                      styles.resultRow,
-                      {
-                        backgroundColor: pressed ? semantic.bg.secondary : 'transparent',
-                        borderColor: semantic.border.default,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.resultName, { color: semantic.text.primary }]}
-                      numberOfLines={1}
-                    >
-                      {item.name}
-                    </Text>
-                    <Text
-                      style={[styles.resultMeta, { color: semantic.text.secondary }]}
-                      numberOfLines={1}
-                    >
-                      {item.sku} · IVA {item.iva_rate} · ${Number(item.unit_price).toFixed(2)}
-                    </Text>
-                    {discount ? (
-                      <Text
-                        style={[styles.discountMeta, { color: semantic.accent.default }]}
-                        numberOfLines={1}
-                      >
-                        {discount}
-                      </Text>
-                    ) : null}
-                  </Pressable>
-                )
-              }}
-            />
-          )}
-
-          {showQuickCreate ? (
-            <View style={[styles.quickBox, { borderColor: semantic.border.default }]}>
-              <Text style={[styles.quickTitle, { color: semantic.text.primary }]}>
-                Creación rápida
-              </Text>
-              <View style={styles.quickGrid}>
-                <View style={styles.quickCol}>
-                  <FormField
-                    label="SKU"
-                    placeholder="PROD-001"
-                    leftIcon="barcode-outline"
-                    value={quickSku}
-                    onChangeText={setQuickSku}
-                    required
-                  />
-                </View>
-                <View style={styles.quickWide}>
-                  <FormField
-                    label="Nombre"
-                    placeholder="Producto o servicio"
-                    leftIcon="cube-outline"
-                    value={quickName}
-                    onChangeText={setQuickName}
-                    required
-                  />
-                </View>
-                <View style={styles.quickCol}>
-                  <MoneyField
-                    label="Precio"
-                    placeholder="0.00"
-                    value={quickPrice}
-                    onChangeText={setQuickPrice}
-                    required
-                  />
-                </View>
-              </View>
-              <SegmentedControl
-                value={quickIva}
-                options={[
-                  { value: '15', label: 'IVA 15%' },
-                  { value: '5', label: 'IVA 5%' },
-                  { value: '0', label: 'IVA 0%' },
-                  { value: 'EXENTO', label: 'Exento' },
-                ]}
-                onChange={setQuickIva}
-              />
-              <Button
-                variant="secondary"
-                size="md"
-                isLoading={creating}
-                isDisabled={!quickSku.trim() || !quickName.trim() || Number(quickPrice) <= 0}
-                onPress={createQuick}
-              >
-                Crear y usar
-              </Button>
-            </View>
-          ) : null}
+function QuickCreateForm({
+  sku,
+  onSkuChange,
+  name,
+  onNameChange,
+  price,
+  onPriceChange,
+  iva,
+  onIvaChange,
+  creating,
+  onSubmit,
+}: {
+  sku: string
+  onSkuChange: (value: string) => void
+  name: string
+  onNameChange: (value: string) => void
+  price: string
+  onPriceChange: (value: string) => void
+  iva: ProductIvaRate
+  onIvaChange: (value: ProductIvaRate) => void
+  creating: boolean
+  onSubmit: () => void
+}) {
+  const { semantic } = useTheme()
+  return (
+    <View style={[styles.quickBox, { borderColor: semantic.border.default }]}>
+      <Text style={[styles.quickTitle, { color: semantic.text.primary }]}>Creación rápida</Text>
+      <View style={styles.quickGrid}>
+        <View style={styles.quickCol}>
+          <FormField
+            label="SKU"
+            placeholder="PROD-001"
+            leftIcon="barcode-outline"
+            value={sku}
+            onChangeText={onSkuChange}
+            required
+          />
+        </View>
+        <View style={styles.quickWide}>
+          <FormField
+            label="Nombre"
+            placeholder="Producto o servicio"
+            leftIcon="cube-outline"
+            value={name}
+            onChangeText={onNameChange}
+            required
+          />
+        </View>
+        <View style={styles.quickCol}>
+          <MoneyField
+            label="Precio"
+            placeholder="0.00"
+            value={price}
+            onChangeText={onPriceChange}
+            required
+          />
         </View>
       </View>
-    </Modal>
+      <SegmentedControl
+        value={iva}
+        options={[
+          { value: '15', label: 'IVA 15%' },
+          { value: '5', label: 'IVA 5%' },
+          { value: '0', label: 'IVA 0%' },
+          { value: 'EXENTO', label: 'Exento' },
+        ]}
+        onChange={onIvaChange}
+      />
+      <Button
+        variant="secondary"
+        size="md"
+        isLoading={creating}
+        isDisabled={!sku.trim() || !name.trim() || Number(price) <= 0}
+        onPress={onSubmit}
+      >
+        Crear y usar
+      </Button>
+    </View>
   )
 }
 
@@ -349,31 +349,9 @@ function resolvePickerDiscount(
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    alignItems: 'center',
-    backgroundColor: overlay.surface.backdrop,
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing[5],
-  },
-  dialog: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: spacing[4],
-    maxHeight: '92%',
-    maxWidth: 640,
-    padding: spacing[5],
-    width: '100%',
-  },
-  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  title: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
-  searchRow: { flexDirection: 'row', gap: spacing[2] },
-  searchInput: { flex: 1 },
-  list: { maxHeight: 220 },
   emptyState: { alignItems: 'center', gap: spacing[2], padding: spacing[5] },
   emptyTitle: { fontSize: typography.size.base, fontWeight: typography.weight.bold },
   empty: { fontSize: typography.size.sm, lineHeight: 20, textAlign: 'center' },
-  resultRow: { borderBottomWidth: 1, gap: spacing[1] - 2, padding: spacing[3] },
   resultName: { fontSize: typography.size.base, fontWeight: typography.weight.semibold },
   resultMeta: { fontFamily: typography.fontFamily.mono, fontSize: typography.size.xs },
   discountMeta: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },

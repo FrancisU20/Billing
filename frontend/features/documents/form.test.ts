@@ -113,7 +113,7 @@ describe('computeLineTotals', () => {
 })
 
 describe('defaultEmitDocumentFormValues', () => {
-  it('defaults to Consumidor Final with one empty line', () => {
+  it('defaults to Consumidor Final with no lines until a product is scanned or picked', () => {
     const values = defaultEmitDocumentFormValues('001', '001')
 
     expect(values.establishment_code).toBe('001')
@@ -121,9 +121,9 @@ describe('defaultEmitDocumentFormValues', () => {
     expect(values.buyer_mode).toBe('consumidor_final')
     expect(values.buyer_id_type).toBe('07')
     expect(values.buyer_id).toBe('9999999999999')
-    expect(values.buyer_name).toBe('Consumidor Final')
+    expect(values.buyer_name).toBe('CONSUMIDOR FINAL')
     expect(values.client_id).toBeNull()
-    expect(values.lines).toHaveLength(1)
+    expect(values.lines).toHaveLength(0)
     expect(values.override_discount_ceiling).toBe(false)
     expect(values.override_reason).toBe('')
   })

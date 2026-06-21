@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 
 _CONSUMIDOR_FINAL_ID_TYPE = "07"
 _CONSUMIDOR_FINAL_ID = "9999999999999"
-_CONSUMIDOR_FINAL_NAME = "Consumidor Final"
+_CONSUMIDOR_FINAL_NAME = "CONSUMIDOR FINAL"
 
 
 class EmitDocumentLineRequest(BaseModel):

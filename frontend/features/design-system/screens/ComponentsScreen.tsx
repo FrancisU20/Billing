@@ -16,8 +16,17 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Divider } from '@/components/ui/Divider'
 import { DetailField, DetailSection } from '@/components/ui/DetailSection'
 import { StatMetric } from '@/components/ui/StatMetric'
-import { ListItemAction, ListItemMeta } from '@/components/ui/ListItemPrimitives'
+import {
+  EntityAvatar,
+  ListCell,
+  ListItemAction,
+  ListItemMeta,
+} from '@/components/ui/ListItemPrimitives'
+import { ListScreenHeader } from '@/components/layout/ListScreenHeader'
+import { PickerModal, PickerResultRow } from '@/components/ui/PickerModal'
 import { colors, radius, spacing, typography } from '@/constants/tokens'
+
+const pickerMockResults = ['Resultado A', 'Resultado B', 'Resultado C']
 
 const buttonVariants = ['primary', 'secondary', 'outline', 'ghost', 'warning', 'danger'] as const
 const badgeVariants = ['success', 'warning', 'error', 'neutral', 'primary', 'accent'] as const
@@ -31,8 +40,7 @@ const semanticSwatches = [
 ] as const
 const rawSwatches = [
   { label: 'Primary', color: colors.primary[500] },
-  { label: 'Cyan', color: colors.cyan[500] },
-  { label: 'Teal', color: colors.teal[500] },
+  { label: 'Info', color: colors.cyan[500] },
   { label: 'Neutral', color: colors.neutral[700] },
   { label: 'Success', color: colors.success[500] },
   { label: 'Warning', color: colors.warning[500] },
@@ -44,6 +52,8 @@ type ThemeMode = 'base' | 'form' | 'states'
 export function ComponentsScreen() {
   const { semantic, colorScheme } = useTheme()
   const [segment, setSegment] = useState<ThemeMode>('base')
+  const [pickerVisible, setPickerVisible] = useState(false)
+  const [pickerQuery, setPickerQuery] = useState('')
   const error = new ApiError('NETWORK_ERROR', 'No se pudo conectar con el API.', 0)
 
   const semanticColor = (key: (typeof semanticSwatches)[number]['key']) => {
@@ -173,10 +183,53 @@ export function ComponentsScreen() {
                 </Card>
               </View>
               <DetailSection title="Tenant" icon="business-outline">
-                <DetailField label="Empresa" value="CodeLabs Ecuador" />
+                <DetailField label="Empresa" value="Wali" />
                 <DetailField label="RUC" value="1790012345001" mono />
                 <DetailField label="Plan" value="Profesional" />
               </DetailSection>
+            </Section>
+
+            <Section title="Listados">
+              <ListScreenHeader
+                icon="people-outline"
+                kicker="Cartera de clientes"
+                heading="Encabezado compartido de listados"
+                action={{ label: 'Nuevo', onPress: () => undefined }}
+              />
+              <View style={styles.metaRow}>
+                <EntityAvatar initials="CL" />
+                <EntityAvatar icon="pricetag-outline" />
+              </View>
+              <View style={styles.componentRow}>
+                <ListCell label="Fecha" value="13/06/2026" style={styles.listCellDemo} />
+                <ListCell label="Clave" value="1234567890" mono style={styles.listCellDemo} />
+              </View>
+            </Section>
+
+            <Section title="Selector con búsqueda">
+              <Button variant="outline" onPress={() => setPickerVisible(true)}>
+                Abrir selector
+              </Button>
+              <PickerModal
+                visible={pickerVisible}
+                onClose={() => setPickerVisible(false)}
+                title="Elegir un item"
+                searchPlaceholder="Buscar..."
+                searchValue={pickerQuery}
+                onSearchChangeText={setPickerQuery}
+                onSearchChange={() => undefined}
+                onSearchSubmit={() => undefined}
+                searchLoading={false}
+                error={null}
+                results={pickerMockResults}
+                keyExtractor={(item) => item}
+                emptyState={<Text>Sin resultados</Text>}
+                renderItem={(item) => (
+                  <PickerResultRow onPress={() => setPickerVisible(false)}>
+                    <Text style={{ color: semantic.text.primary }}>{item}</Text>
+                  </PickerResultRow>
+                )}
+              />
             </Section>
 
             <Section title="Escalas">
@@ -370,6 +423,7 @@ const styles = StyleSheet.create({
   body: { fontSize: typography.size.sm, lineHeight: typography.size.sm * 1.6 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
   actionRow: { flexDirection: 'row', gap: spacing[2] },
+  listCellDemo: { flexBasis: 160 },
   scaleRow: { alignItems: 'flex-end', flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
   scaleItem: { alignItems: 'center', gap: spacing[2] },
   scaleBlock: { borderRadius: radius.xs, height: 36 },

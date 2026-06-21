@@ -6,6 +6,7 @@ import { spacing, radius } from '@/constants/tokens'
 import { NavBar, NavIconButton } from '@/components/layout/NavBar'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import type { AuthUser } from '@/features/auth/types'
+import { useIsDesktopLayout } from '@/lib/hooks/useIsDesktopLayout'
 import { AccountMenu } from './AccountMenu'
 import { NavigationMenu } from './NavigationMenu'
 import { UserAvatar } from './UserAvatar'
@@ -18,11 +19,14 @@ interface AppNavBarProps {
 
 export function AppNavBar({ title, subtitle, canGoBack }: AppNavBarProps) {
   const user = useAuthStore(selectUser)
+  const isDesktop = useIsDesktopLayout()
   const [navigationOpen, setNavigationOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
 
+  // En desktop la navegacion ya esta siempre visible en SidebarNav; el boton hamburguesa
+  // (y su drawer) solo aplica a mobile/web angosto.
   const leftContent =
-    user && !canGoBack ? (
+    user && !canGoBack && !isDesktop ? (
       <NavIconButton
         icon="menu-outline"
         accessibilityLabel="Abrir menú"
@@ -46,11 +50,13 @@ export function AppNavBar({ title, subtitle, canGoBack }: AppNavBarProps) {
 
       {user ? (
         <>
-          <NavigationMenu
-            user={user}
-            visible={navigationOpen}
-            onClose={() => setNavigationOpen(false)}
-          />
+          {isDesktop ? null : (
+            <NavigationMenu
+              user={user}
+              visible={navigationOpen}
+              onClose={() => setNavigationOpen(false)}
+            />
+          )}
           <AccountMenu user={user} visible={accountOpen} onClose={() => setAccountOpen(false)} />
         </>
       ) : null}

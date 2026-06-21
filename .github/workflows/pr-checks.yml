@@ -1,5 +1,5 @@
 ##############################################################################
-# PR Checks — CodeLabs Billing Cloud
+# PR Checks — Wali (infra: codelabs-billing)
 #
 # Ejecuta en cada PR abierto o actualizado contra develop o master.
 # Todos los jobs corren en paralelo para feedback rápido.

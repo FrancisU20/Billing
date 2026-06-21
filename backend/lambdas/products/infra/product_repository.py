@@ -282,6 +282,11 @@ class DynamoProductRepository(BaseRepository, IProductRepository):
             "kind": product.kind.value,
             "unit": product.unit,
             "unit_price": str(product.unit_price),
+            "discount_percentage": (
+                str(product.discount_percentage)
+                if product.discount_percentage is not None
+                else None
+            ),
             "iva_rate": product.iva_rate,
             "stock_enabled": product.stock_enabled,
             "stock_quantity": (
@@ -316,6 +321,11 @@ class DynamoProductRepository(BaseRepository, IProductRepository):
             kind=ProductKind(item.get("kind", "PRODUCT")),
             unit=item.get("unit", "unit"),
             unit_price=Decimal(str(item["unit_price"])),
+            discount_percentage=(
+                Decimal(str(item["discount_percentage"]))
+                if item.get("discount_percentage") is not None
+                else None
+            ),
             iva_rate=item.get("iva_rate", "15"),
             stock_enabled=bool(item.get("stock_enabled", False)),
             stock_quantity=(

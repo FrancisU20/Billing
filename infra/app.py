@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-CDK App — CodeLabs Billing Cloud.
+CDK App — Wali (infra interna sigue con el prefijo CodeLabsBilling: los stacks
+ya estan desplegados y renombrarlos implicaria recrear recursos, ver CLAUDE.md).
 
 Reglas:
 - Solo dev por ahora. Prod no se toca hasta tener clientes.
@@ -62,7 +63,7 @@ frontend    = FrontendStack(app, f"{prefix}-Frontend", config=config,
                             env=sa_env, certificate=certificate,
                             cross_region_references=True)
 
-cdk.Tags.of(app).add("Project",     "CodeLabsBillingCloud")
+cdk.Tags.of(app).add("Project",     "Wali")
 cdk.Tags.of(app).add("Environment", env_name)
 cdk.Tags.of(app).add("ManagedBy",   "CDK")
 

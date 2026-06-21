@@ -73,7 +73,7 @@ export function RegistrationForm({
           render={({ field: { onChange, onBlur, value } }) => (
             <FormField
               label="Nombre comercial"
-              placeholder="CodeLabs"
+              placeholder="Wali"
               leftIcon="business-outline"
               error={errors.trade_name?.message}
               onChangeText={onChange}
@@ -90,7 +90,7 @@ export function RegistrationForm({
           render={({ field: { onChange, onBlur, value } }) => (
             <FormField
               label="Razón social"
-              placeholder="CodeLabs S.A."
+              placeholder="Wali S.A."
               leftIcon="document-text-outline"
               error={errors.legal_name?.message}
               onChangeText={onChange}

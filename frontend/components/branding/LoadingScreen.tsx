@@ -11,7 +11,7 @@ import {
 } from 'react-native'
 import { useTheme } from '@/lib/theme-context'
 import { spacing, typography } from '@/constants/tokens'
-import { LogoBackdrop, LogoMark, LogoParticles } from './Logo'
+import { LogoBackdrop, LogoMark } from './Logo'
 
 interface LoadingScreenProps {
   label?: string
@@ -22,43 +22,47 @@ interface LoadingLogoProps {
   size?: number
   showBackdrop?: boolean
   markColor?: string
-  particleColor?: string
-  orbitScale?: number
   style?: StyleProp<ViewStyle>
 }
 
 const AnimatedView = Animated.View
 const useNativeDriver = Platform.OS !== 'web'
-const PARTICLE_ROTATION_DURATION_MS = 6000
-const PARTICLE_ORBIT_SCALE = 1.08
+const PULSE_DURATION_MS = 1200
 
 export function LoadingLogo({
   size = 72,
   showBackdrop = true,
   markColor,
-  particleColor,
-  orbitScale = PARTICLE_ORBIT_SCALE,
   style,
 }: LoadingLogoProps) {
   const { isDark } = useTheme()
-  const rotation = useRef(new Animated.Value(0)).current
+  const pulse = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
-    const spin = Animated.loop(
-      Animated.timing(rotation, {
-        toValue: 1,
-        duration: PARTICLE_ROTATION_DURATION_MS,
-        easing: Easing.linear,
-        useNativeDriver,
-      }),
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: PULSE_DURATION_MS / 2,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: PULSE_DURATION_MS / 2,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver,
+        }),
+      ]),
     )
-    spin.start()
+    loop.start()
     return () => {
-      spin.stop()
+      loop.stop()
     }
-  }, [rotation])
+  }, [pulse])
 
-  const spin = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] })
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] })
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] })
 
   return (
     <View style={[styles.logo, { width: size, height: size }, style]}>
@@ -66,20 +70,14 @@ export function LoadingLogo({
         <LogoBackdrop isDark={isDark} size={size} style={StyleSheet.absoluteFill} />
       ) : null}
 
-      <View style={StyleSheet.absoluteFill}>
+      <AnimatedView style={[StyleSheet.absoluteFill, { transform: [{ scale }], opacity }]}>
         <LogoMark isDark={isDark} size={size} color={markColor} />
-      </View>
-
-      <AnimatedView
-        style={[StyleSheet.absoluteFill, { transform: [{ rotate: spin }, { scale: orbitScale }] }]}
-      >
-        <LogoParticles isDark={isDark} size={size} color={particleColor} />
       </AnimatedView>
     </View>
   )
 }
 
-/** Pantalla de carga animada con la C fija y particulas orbitando. */
+/** Pantalla de carga con la marca Wali pulsando suavemente. */
 export function LoadingScreen({ label, size = 120 }: LoadingScreenProps) {
   const { semantic } = useTheme()
 

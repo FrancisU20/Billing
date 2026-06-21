@@ -1,7 +1,8 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { PAGE_SIZE_OPTIONS, type PageSize } from '@/constants/pagination'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { useTheme } from '@/lib/theme-context'
@@ -18,6 +19,9 @@ interface ListPaginationControlsProps {
   onPageSizeChange: (pageSize: PageSize) => void
   totalItems?: number | null
   totalPages?: number | null
+  /** Cuando se provee, habilita "Ir a página" — solo disponible para listados que ya
+   * tienen el set completo en memoria (`useEagerPagedList`/`useLocalPagedItems`). */
+  onGoToPage?: (page: number) => void
 }
 
 export function ListPaginationControls({
@@ -32,9 +36,11 @@ export function ListPaginationControls({
   onPageSizeChange,
   totalItems,
   totalPages,
+  onGoToPage,
 }: ListPaginationControlsProps) {
   const { semantic } = useTheme()
   const hasTotal = totalItems != null && totalPages != null
+  const canJump = Boolean(onGoToPage) && hasTotal && (totalPages ?? 0) > 2
 
   return (
     <View
@@ -56,6 +62,9 @@ export function ListPaginationControls({
 
       <View style={styles.controls}>
         <PageSizeSelector value={pageSize} onChange={onPageSizeChange} />
+        {canJump ? (
+          <PageJumpControl page={page} totalPages={totalPages as number} onGoToPage={onGoToPage!} />
+        ) : null}
         <View style={styles.pageButtons}>
           <Button
             variant="outline"
@@ -70,6 +79,57 @@ export function ListPaginationControls({
           </Button>
         </View>
       </View>
+    </View>
+  )
+}
+
+function PageJumpControl({
+  page,
+  totalPages,
+  onGoToPage,
+}: {
+  page: number
+  totalPages: number
+  onGoToPage: (page: number) => void
+}) {
+  const { semantic } = useTheme()
+  const [draft, setDraft] = useState('')
+
+  function submit() {
+    const target = Number(draft)
+    if (Number.isFinite(target) && target >= 1) {
+      onGoToPage(target)
+    }
+    setDraft('')
+  }
+
+  return (
+    <View style={styles.jumpGroup}>
+      <Text style={[styles.pageSizeLabel, { color: semantic.text.secondary }]}>Ir a página</Text>
+      <View style={styles.jumpInput}>
+        <Input
+          value={draft}
+          onChangeText={setDraft}
+          placeholder={String(page)}
+          keyboardType="number-pad"
+          onSubmitEditing={submit}
+        />
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Ir a la página (1-${totalPages})`}
+        hitSlop={8}
+        onPress={submit}
+        style={({ pressed }) => [
+          styles.jumpButton,
+          {
+            backgroundColor: pressed ? semantic.bg.secondary : semantic.bg.primary,
+            borderColor: semantic.border.default,
+          },
+        ]}
+      >
+        <Ionicons name="arrow-forward-outline" size={16} color={semantic.accent.default} />
+      </Pressable>
     </View>
   )
 }
@@ -146,6 +206,16 @@ const styles = StyleSheet.create({
   },
   pageButtons: { flexDirection: 'row', gap: spacing[2] },
   pageSizeGroup: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
+  jumpGroup: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
+  jumpInput: { width: 64 },
+  jumpButton: {
+    alignItems: 'center',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
   pageSizeLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
   pageSizeOptions: { flexDirection: 'row', gap: spacing[1] },
   pageSizeOption: {

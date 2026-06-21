@@ -1,9 +1,8 @@
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { Button } from '@/components/ui/Button'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { FilterBar } from '@/components/ui/FilterBar'
-import { FilterBlock, FilterPill } from '@/components/ui/FilterBlock'
+import { FilterBlock } from '@/components/ui/FilterBlock'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useTheme } from '@/lib/theme-context'
@@ -14,6 +13,8 @@ import {
   PLAN_STATUS_OPTIONS,
 } from '../constants'
 import { clearPlanFilterField, planFilterChips, type PlanFilterDraft } from '../filters'
+
+const LIMIT_CYCLE_OPTIONS = [{ value: 'all' as const, label: 'Todos' }, ...PLAN_LIMIT_CYCLE_OPTIONS]
 
 interface PlansFiltersProps {
   value: PlanFilterDraft
@@ -44,12 +45,14 @@ export function PlansFilters({
     <FilterBar
       chips={chips}
       activeSecondaryCount={chips.length}
+      onApply={onApply}
       onReset={onReset}
       secondaryContent={
         <>
           <View style={styles.grid}>
             <FilterBlock label="Estado">
               <SegmentedControl
+                stretch
                 options={PLAN_STATUS_OPTIONS}
                 value={value.status}
                 onChange={(status) => onChange({ ...value, status })}
@@ -57,21 +60,12 @@ export function PlansFilters({
             </FilterBlock>
 
             <FilterBlock label="Ciclo">
-              <View style={styles.pillGrid}>
-                <FilterPill
-                  label="Todos"
-                  selected={value.limitCycle === 'all'}
-                  onPress={() => onChange({ ...value, limitCycle: 'all' })}
-                />
-                {PLAN_LIMIT_CYCLE_OPTIONS.map((option) => (
-                  <FilterPill
-                    key={option.value}
-                    label={option.label}
-                    selected={value.limitCycle === option.value}
-                    onPress={() => onChange({ ...value, limitCycle: option.value })}
-                  />
-                ))}
-              </View>
+              <SegmentedControl
+                stretch
+                options={LIMIT_CYCLE_OPTIONS}
+                value={value.limitCycle}
+                onChange={(limitCycle) => onChange({ ...value, limitCycle })}
+              />
             </FilterBlock>
 
             <FilterBlock label="Creación">
@@ -83,12 +77,6 @@ export function PlansFilters({
                 }
               />
             </FilterBlock>
-          </View>
-
-          <View style={styles.actions}>
-            <Button variant="primary" size="md" onPress={onApply}>
-              Aplicar filtros
-            </Button>
           </View>
         </>
       }
@@ -122,6 +110,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
-  pillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
-  actions: { alignItems: 'flex-start' },
 })

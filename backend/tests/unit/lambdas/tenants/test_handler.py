@@ -33,6 +33,11 @@ class FakePaymentReader(IPaymentReader):
     def mark_applied_to_tenant(self, order_id: str, tenant_id: str) -> dict:
         return {"ConditionCheck": {"TableName": "payments", "Key": {"id": f"PAYMENT#{order_id}"}}}
 
+    def aggregate_revenue(self, now):
+        from lambdas.tenants.domain.dashboard_summary import PaymentRevenueStats
+
+        return PaymentRevenueStats.empty()
+
 
 def _captured_payment(plan_id: str = "uuid-basic") -> PaymentRecord:
     return PaymentRecord(

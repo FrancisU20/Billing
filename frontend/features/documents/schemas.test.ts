@@ -21,7 +21,7 @@ const document = {
   client_id: null,
   buyer_id_type: '07',
   buyer_id: '9999999999999',
-  buyer_name: 'Consumidor Final',
+  buyer_name: 'CONSUMIDOR FINAL',
   buyer_email: null,
   issued_at: '2026-06-18',
   sri_environment: 'testing',
@@ -60,6 +60,27 @@ const document = {
 describe('document contract schemas', () => {
   it('accepts the backend document shape', () => {
     expect(documentSchema.parse(document)).toEqual(document)
+  })
+
+  it('accepts normalized SRI errors', () => {
+    const parsed = documentSchema.parse({
+      ...document,
+      status: 'REJECTED',
+      sri_errors: [
+        {
+          code: '69',
+          message: 'Identificación del receptor',
+          user_message:
+            'El SRI no reconoce la identificación del comprador. Para Consumidor Final debe usarse tipo 07 e identificación 9999999999999.',
+          category: 'RECEPTOR',
+          classification: 'PERMANENT',
+          raw_message: 'ERROR EN LA IDENTIFICACION DEL RECEPTOR',
+          additional_info: null,
+        },
+      ],
+    })
+
+    expect(parsed.sri_errors?.[0].user_message).toContain('tipo 07')
   })
 
   it('matches paginated GET /documents response', () => {
@@ -125,7 +146,7 @@ describe('document contract schemas', () => {
       client_id: null,
       buyer_id_type: '07',
       buyer_id: '9999999999999',
-      buyer_name: 'Consumidor Final',
+      buyer_name: 'CONSUMIDOR FINAL',
       buyer_email: '',
       payment_method: '01',
       lines: [
@@ -150,7 +171,7 @@ describe('document contract schemas', () => {
       client_id: null,
       buyer_id_type: '07',
       buyer_id: '9999999999999',
-      buyer_name: 'Consumidor Final',
+      buyer_name: 'CONSUMIDOR FINAL',
       buyer_email: null,
       payment_method: '01',
       lines: values.lines,
@@ -189,7 +210,7 @@ describe('document contract schemas', () => {
       client_id: null,
       buyer_id_type: '07',
       buyer_id: '9999999999999',
-      buyer_name: 'Consumidor Final',
+      buyer_name: 'CONSUMIDOR FINAL',
       buyer_email: null,
     })
   })
@@ -223,7 +244,7 @@ describe('document contract schemas', () => {
         issued_at: '2026-06-18',
         buyer_id_type: '07',
         buyer_id: '9999999999999',
-        buyer_name: 'Consumidor Final',
+        buyer_name: 'CONSUMIDOR FINAL',
         payment_method: '01',
         lines: [],
       }),
@@ -239,7 +260,7 @@ describe('document contract schemas', () => {
         issued_at: '2026-06-18',
         buyer_id_type: '07',
         buyer_id: '9999999999999',
-        buyer_name: 'Consumidor Final',
+        buyer_name: 'CONSUMIDOR FINAL',
         payment_method: '01',
         lines: [
           {
@@ -264,7 +285,7 @@ describe('document contract schemas', () => {
         issued_at: '2026-06-18',
         buyer_id_type: '07',
         buyer_id: '9999999999999',
-        buyer_name: 'Consumidor Final',
+        buyer_name: 'CONSUMIDOR FINAL',
         payment_method: '01',
         lines: [
           {

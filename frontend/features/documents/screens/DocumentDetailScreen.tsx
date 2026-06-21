@@ -108,7 +108,7 @@ export function DocumentDetailScreen() {
                     key={`${e.code}-${i}`}
                     style={[styles.infoBannerText, { color: semantic.status.error }]}
                   >
-                    {e.code}: {e.message}
+                    {e.code}: {e.user_message ?? e.message}
                   </Text>
                 ))}
               </View>

@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "CodeLabs Billing",
-    "slug": "codelabs-billing-cloud",
+    "name": "Wali",
+    "slug": "wali-billing",
     "version": "1.0.0",
-    "scheme": "codelabs-billing",
+    "scheme": "wali-billing",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -12,7 +12,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F7F8FC",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

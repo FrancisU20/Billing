@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from uuid import uuid4
@@ -23,6 +24,10 @@ from lambdas.documents.domain.repositories.i_product_catalog import IProductCata
 from lambdas.documents.domain.repositories.i_sequences_port import ISequencesPort
 from shared.dates import today_ecuador
 from shared.errors import ValidationError
+
+_CONSUMIDOR_FINAL_ID_TYPE = "07"
+_CONSUMIDOR_FINAL_ID = "9999999999999"
+_CONSUMIDOR_FINAL_NAME = "CONSUMIDOR FINAL"
 
 
 def _compute_totals(
@@ -153,6 +158,18 @@ class EmitDocumentUseCase:
 
         if cmd.override_discount_ceiling and not (cmd.override_reason or "").strip():
             raise ValidationError("Debes indicar el motivo para anular el techo de descuento.")
+
+        if cmd.buyer_id_type == _CONSUMIDOR_FINAL_ID_TYPE:
+            cmd = replace(
+                cmd,
+                client_id=None,
+                buyer_id_type=_CONSUMIDOR_FINAL_ID_TYPE,
+                buyer_id=_CONSUMIDOR_FINAL_ID,
+                buyer_name=_CONSUMIDOR_FINAL_NAME,
+                buyer_email=None,
+            )
+        elif cmd.buyer_id.strip() == _CONSUMIDOR_FINAL_ID:
+            raise ValidationError("Consumidor Final debe usar tipo de identificación 07.")
 
         if cmd.monthly_limit != -1:
             count = self._docs_repo.count_this_month(cmd.tenant_id, cmd.sri_environment)

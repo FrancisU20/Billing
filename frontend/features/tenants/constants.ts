@@ -1,3 +1,4 @@
+import type { BadgeVariant } from '@/components/ui/Badge'
 import type { PlanStatus, SriEnvironment, TenantStatus } from './types'
 
 export const TENANTS_PAGE_SIZE = 30
@@ -43,6 +44,14 @@ export const TENANT_STATUS_LABELS: Record<TenantStatus, string> = {
 export const TENANT_ENVIRONMENT_LABELS: Record<SriEnvironment, string> = {
   testing: 'Pruebas',
   production: 'Producción',
+}
+
+/** Produccion = ambiente real con el SRI (success); pruebas = ambiente de prueba, sin
+ * efecto legal (warning) — mismo vocabulario de color que el resto de la app usa para
+ * estados binarios (ver `TenantStatusBadge`/`BillingScreen`), no un color sin significado. */
+export const TENANT_ENVIRONMENT_BADGE_VARIANT: Record<SriEnvironment, BadgeVariant> = {
+  testing: 'warning',
+  production: 'success',
 }
 
 export const TENANT_PLAN_STATUS_LABELS: Record<PlanStatus, string> = {

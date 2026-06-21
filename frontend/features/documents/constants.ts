@@ -1,4 +1,3 @@
-import type { Ionicons } from '@expo/vector-icons'
 import type { BadgeVariant } from '@/components/ui/Badge'
 import type { BuyerIdType, BuyerMode, DocumentStatus, IvaRate, PaymentMethod } from './types'
 
@@ -6,7 +5,7 @@ export const DOCUMENTS_PAGE_SIZE = 30
 
 export const CONSUMIDOR_FINAL_ID_TYPE: BuyerIdType = '07'
 export const CONSUMIDOR_FINAL_ID = '9999999999999'
-export const CONSUMIDOR_FINAL_NAME = 'Consumidor Final'
+export const CONSUMIDOR_FINAL_NAME = 'CONSUMIDOR FINAL'
 
 export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
   PENDING: 'Pendiente',
@@ -43,17 +42,6 @@ export const IVA_RATE_OPTIONS: Array<{ value: IvaRate; label: string }> = [
   { value: 'EXENTO', label: 'Exento' },
 ]
 
-export const BUYER_ID_TYPE_OPTIONS: Array<{
-  value: BuyerIdType
-  label: string
-  icon: keyof typeof Ionicons.glyphMap
-}> = [
-  { value: '04', label: 'RUC', icon: 'business-outline' },
-  { value: '05', label: 'Cédula', icon: 'person-outline' },
-  { value: '06', label: 'Pasaporte', icon: 'airplane-outline' },
-  { value: '08', label: 'Exterior', icon: 'earth-outline' },
-]
-
 export const BUYER_ID_TYPE_LABELS: Record<BuyerIdType, string> = {
   '04': 'RUC',
   '05': 'Cédula',
@@ -76,5 +64,4 @@ export const PAYMENT_METHOD_OPTIONS: Array<{ value: PaymentMethod; label: string
 export const BUYER_MODE_OPTIONS: Array<{ value: BuyerMode; label: string }> = [
   { value: 'consumidor_final', label: 'Consumidor Final' },
   { value: 'cliente', label: 'Cliente existente' },
-  { value: 'manual', label: 'Manual' },
 ]

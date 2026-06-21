@@ -8,8 +8,3 @@ export function getUserInitial(user: Pick<AuthUser, 'email'> | null): string {
 export function getUserRoleLabel(user: Pick<AuthUser, 'role'> | null): string {
   return user ? RoleLabel[user.role] : 'Usuario'
 }
-
-export function getUserAccessLabel(user: Pick<AuthUser, 'isSuperadmin'> | null): string {
-  if (!user) return 'Sin acceso'
-  return user.isSuperadmin ? 'Superadministrador' : 'Empresa'
-}

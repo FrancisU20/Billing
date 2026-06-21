@@ -1,20 +1,23 @@
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { Button } from '@/components/ui/Button'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { FilterBar } from '@/components/ui/FilterBar'
-import { FilterBlock, FilterPill } from '@/components/ui/FilterBlock'
+import { FilterBlock } from '@/components/ui/FilterBlock'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useTheme } from '@/lib/theme-context'
 import { spacing, typography } from '@/constants/tokens'
 import {
-  CLIENT_IDENTIFICATION_LABELS,
   CLIENT_IDENTIFICATION_OPTIONS,
   CLIENT_SEARCH_MODE_OPTIONS,
   CLIENT_STATUS_OPTIONS,
 } from '../constants'
 import { clearClientFilterField, clientFilterChips, type ClientFilterDraft } from '../filters'
+
+const IDENTIFICATION_TYPE_OPTIONS = [
+  { value: 'all' as const, label: 'Todos' },
+  ...CLIENT_IDENTIFICATION_OPTIONS,
+]
 
 interface ClientsFiltersProps {
   value: ClientFilterDraft
@@ -45,6 +48,7 @@ export function ClientsFilters({
     <FilterBar
       chips={chips}
       activeSecondaryCount={chips.length}
+      onApply={onApply}
       onReset={onReset}
       secondaryContent={
         <>
@@ -58,21 +62,11 @@ export function ClientsFilters({
             </FilterBlock>
 
             <FilterBlock label="Tipo">
-              <View style={styles.pillGrid}>
-                <FilterPill
-                  label="Todos"
-                  selected={value.identificationType === 'all'}
-                  onPress={() => onChange({ ...value, identificationType: 'all' })}
-                />
-                {CLIENT_IDENTIFICATION_OPTIONS.map((option) => (
-                  <FilterPill
-                    key={option.value}
-                    label={CLIENT_IDENTIFICATION_LABELS[option.value]}
-                    selected={value.identificationType === option.value}
-                    onPress={() => onChange({ ...value, identificationType: option.value })}
-                  />
-                ))}
-              </View>
+              <SegmentedControl
+                options={IDENTIFICATION_TYPE_OPTIONS}
+                value={value.identificationType}
+                onChange={(identificationType) => onChange({ ...value, identificationType })}
+              />
             </FilterBlock>
 
             <FilterBlock label="Creación">
@@ -84,12 +78,6 @@ export function ClientsFilters({
                 }
               />
             </FilterBlock>
-          </View>
-
-          <View style={styles.actions}>
-            <Button variant="primary" size="md" onPress={onApply}>
-              Aplicar filtros
-            </Button>
           </View>
         </>
       }
@@ -127,6 +115,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
-  pillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
-  actions: { alignItems: 'flex-start' },
 })

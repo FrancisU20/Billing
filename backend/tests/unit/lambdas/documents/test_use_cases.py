@@ -265,6 +265,7 @@ class EmitDocumentUseCaseTests(unittest.TestCase):
         )
         self.assertIsNone(doc.client_id)
         self.assertEqual(doc.buyer_id, "9999999999999")
+        self.assertEqual(doc.buyer_name, "CONSUMIDOR FINAL")
 
     def test_exento_line_no_iva(self) -> None:
         lines = [

@@ -11,18 +11,6 @@ export function ecuadorIssuedAtDisplay(now?: Date): string {
   return ecuadorDateTimeDisplay(now)
 }
 
-export function defaultEmitDocumentLine(): EmitDocumentLineInput {
-  return {
-    product_id: null,
-    code: '',
-    description: '',
-    quantity: '1',
-    unit_price: '0.00',
-    discount: '0.00',
-    iva_rate: '15',
-  }
-}
-
 export function defaultEmitDocumentFormValues(
   establishmentCode: string,
   emissionPointCode: string,
@@ -39,7 +27,9 @@ export function defaultEmitDocumentFormValues(
     buyer_name: CONSUMIDOR_FINAL_NAME,
     buyer_email: '',
     payment_method: '01',
-    lines: [defaultEmitDocumentLine()],
+    // Sin línea inicial en blanco: cada producto se agrega escaneando o eligiendo del
+    // catálogo (ver EmitDocumentScreen), nunca como una fila vacía para tipear a mano.
+    lines: [],
     override_discount_ceiling: false,
     override_reason: '',
   }

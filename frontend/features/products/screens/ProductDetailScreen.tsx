@@ -1,18 +1,26 @@
-import React from 'react'
-import { ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
+import React, { useState } from 'react'
+import { ScrollView, StyleSheet, View } from 'react-native'
 import type { Href } from 'expo-router'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
+import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DetailField, DetailSection } from '@/components/ui/DetailSection'
+import { DetailHeader } from '@/components/ui/DetailHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useToast } from '@/components/feedback/Toast'
+import { createIdempotencyKey } from '@/lib/api/idempotency'
+import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { formatDateTime } from '@/lib/utils/format'
 import { Routes } from '@/constants/routes'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { canWrite } from '@/constants/roles'
+import { spacing } from '@/constants/tokens'
+import { selectUser, useAuthStore } from '@/features/auth/store'
+import { productsApi } from '../api'
 import { productKindLabel } from '../constants'
 import { ProductStatusBadge } from '../components/ProductStatusBadge'
 import { useProduct } from '../hooks/useProduct'
@@ -20,10 +28,25 @@ import { useProduct } from '../hooks/useProduct'
 export function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
+  const toast = useToast()
   const { semantic } = useTheme()
+  const role = useAuthStore((state) => selectUser(state)?.role ?? null)
+  const canManage = canWrite(role)
   const { product, loading, error, refresh } = useProduct(id ?? null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   useRefreshOnFocus(refresh)
+
+  const {
+    submitting: deleting,
+    error: actionError,
+    submit: confirmDelete,
+  } = useFormSubmit(async () => {
+    if (!id) return
+    await productsApi.delete(id, createIdempotencyKey('product_delete'))
+    toast.success('Producto eliminado')
+    router.replace(Routes.tenant.products as Href)
+  })
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando producto..." />
 
@@ -39,28 +62,32 @@ export function ProductDetailScreen() {
         />
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <View
-            style={[
-              styles.header,
-              { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-            ]}
-          >
-            <View style={[styles.icon, { backgroundColor: semantic.accent.subtle }]}>
-              <Ionicons name="cube-outline" size={22} color={semantic.accent.default} />
-            </View>
-            <View style={styles.headerCopy}>
-              <Text style={[styles.sku, { color: semantic.text.tertiary }]}>{product.sku}</Text>
-              <Text style={[styles.title, { color: semantic.text.primary }]}>{product.name}</Text>
-              <ProductStatusBadge status={product.status} />
-            </View>
-            <Button
-              variant="secondary"
-              size="sm"
-              onPress={() => router.push(Routes.tenant.productEdit(product.id) as Href)}
-            >
-              Editar
-            </Button>
-          </View>
+          {actionError ? <ApiErrorBanner error={actionError} /> : null}
+
+          <DetailHeader
+            title={product.name}
+            eyebrow={product.sku}
+            icon="cube-outline"
+            badges={<ProductStatusBadge status={product.status} />}
+            actions={
+              canManage ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onPress={() => router.push(Routes.tenant.productEdit(product.id) as Href)}
+                  >
+                    Editar
+                  </Button>
+                  {product.status === 'ACTIVE' ? (
+                    <Button variant="danger" size="sm" onPress={() => setConfirmOpen(true)}>
+                      Eliminar
+                    </Button>
+                  ) : null}
+                </>
+              ) : null
+            }
+          />
 
           <DetailSection title="Datos fiscales" icon="receipt-outline">
             <DetailField label="Tipo" value={productKindLabel(product.kind)} />
@@ -93,6 +120,16 @@ export function ProductDetailScreen() {
           </DetailSection>
         </ScrollView>
       )}
+
+      <ConfirmDialog
+        visible={confirmOpen}
+        title="Eliminar producto"
+        message={`Se desactivará ${product?.name ?? 'este producto'} y su SKU podrá reutilizarse.`}
+        confirmLabel="Eliminar"
+        isLoading={deleting}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={confirmDelete}
+      />
     </View>
   )
 }
@@ -100,23 +137,4 @@ export function ProductDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { gap: spacing[4], padding: spacing[5], paddingBottom: spacing[12] },
-  header: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing[3],
-    padding: spacing[4],
-  },
-  icon: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    height: 48,
-    justifyContent: 'center',
-    width: 48,
-  },
-  headerCopy: { flex: 1, gap: spacing[1], minWidth: 220 },
-  sku: { fontSize: typography.size.xs, fontWeight: typography.weight.bold },
-  title: { fontSize: typography.size.xl, fontWeight: typography.weight.bold },
 })

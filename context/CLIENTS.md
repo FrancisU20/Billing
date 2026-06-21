@@ -33,7 +33,7 @@ de tenant B. "Consumidor Final" no es un `Client` — es un modo tributario espe
   Activar si `inactive`, via `clientsApi.setStatus`); `viewer` solo ve "Ver" (gated por
   `canWrite(role)` de `constants/roles.ts`). Listado, filtros (`ClientsFilters` con
   `FilterBar` compartido, ver `FRONTEND.md`) y paginacion (`ListPaginationControls` con
-  total real cuando no hay `q`/`identification` activo) — ver `UX_REFACTOR.md` Sprints 1/1.5/2.
+  total real cuando no hay `q`/`identification` activo).
 
 ## Entidades
 
@@ -61,6 +61,7 @@ Para facturas a consumidor final, el SRI define un modo tributario especial:
 ```
 tipoIdentificacionComprador = "07"
 identificacionComprador     = "9999999999999"
+razonSocialComprador        = "CONSUMIDOR FINAL"
 client_id                   = null
 ```
 
@@ -114,22 +115,40 @@ Identification lock:
   client_id = "{uuid}"
 ```
 
-GSI `identification-index`: permite busqueda exacta por `identification` sin scan.
+GSI `identification-index`: `PK=tenant_id, SK=identification` — permite busqueda exacta Y
+por prefijo de `identification` sin scan (ver abajo).
 
 ### Busqueda
 
-- Exacta por `identification`: usa GSI `identification-index` directamente.
-- Busqueda `q` (general): v1 simple — camina paginas DynamoDB hasta llenar `limit` o agotar
-  resultados. No usa full-text search. Para volumenes grandes esto es costoso; documentado
-  como deuda tecnica.
+- Por `identification`: `DynamoClientRepository._identification_prefix_raw()` hace Query
+  sobre `identification-index` con `begins_with()` — escribir "1003" encuentra
+  "1003368725" sin caminar la tabla. El metodo `get_by_identification`
+  (exacto) sigue existiendo para el caso que sea, pero `list()` ya no lo usa — usa el
+  prefix Query incluso cuando el usuario tipea la identificacion completa (un prefix igual
+  a la cadena completa es equivalente a exacto).
+- Busqueda `q` (general, nombre/razon social/identificacion por substring): v1 simple —
+  camina paginas DynamoDB hasta llenar `limit` o agotar resultados. No usa full-text
+  search. Para volumenes grandes esto es costoso; documentado como deuda tecnica. A
+  diferencia del modo por `identification`, este SI matchea texto en cualquier posicion,
+  no solo prefijo — son modos complementarios, no se reemplazan entre si.
 
 ### Total De Resultados (v2 Paginacion)
 
 `GET /clients` devuelve `total` en el envelope (`ApiResponse.paginated(..., total=...)`) via
 `DynamoClientRepository.count()` — Query tenant-scoped + `Select=COUNT`, sin transferir items.
-`total` es `None`/omitido cuando `q` o `identification` estan activos: esos filtros se resuelven
-en Python (`_ClientListFilters.matches()`), no en DynamoDB, asi que un conteo DB-side no
-reflejaria el resultado filtrado real. Ver `BACKEND.md` para el patron general.
+`total` es `None`/omitido solo cuando `q` esta activo: ese filtro se resuelve en Python
+(`_ClientListFilters.matches()`), no en DynamoDB, asi que un conteo DB-side no reflejaria
+el resultado filtrado real. `identification` SI mantiene `total` exacto (es un prefix Query
+sobre la GSI, `_identification_prefix_count()` con `Select=COUNT`) — ya no esta en la lista
+de filtros que lo omiten. Ver `BACKEND.md` para el patron general.
+
+### Salto De Pagina (v2 Paginacion)
+
+`ClientsListScreen` usa `useEagerPagedList` (no `useCursorPagedList`): el frontend camina
+TODAS las paginas de `GET /clients` para el filtro activo (acotado, catalogo por tenant) y
+pagina localmente con salto real a cualquier pagina — ver `FRONTEND.md` para el detalle
+del hook. No es un endpoint nuevo, es composicion del
+endpoint cursor-paginado existente.
 
 ## Errores De Dominio
 

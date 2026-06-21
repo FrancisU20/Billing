@@ -75,8 +75,16 @@ SK = sku_normalized
 
 Usos:
 
-- `GET /products?sku=...` lookup exacto.
+- `GET /products?sku=...` lookup exacto. **No convertido a prefix search** (a diferencia de
+  `clients.identification`, ver `CLIENTS.md`/`BACKEND.md`): `get_by_sku()` lo usa tambien
+  `ProductPickerModal` para chequear SKU duplicado antes de crear — un prefix ahi daria
+  falsos positivos (buscar "ABC" matchearia "ABC-123" al crear). Haria falta separar
+  "duplicado exacto" de "busqueda prefix" en dos metodos, mas una UI de modo de busqueda
+  por SKU que hoy no existe (`ProductsListScreen` solo tiene `q` general). No incluido.
 - `GET /products?q=...` lista por tenant con filtro in-memory sobre SKU/nombre/descripcion.
+- Paginacion: `ProductsListScreen` usa `useEagerPagedList` (camina todas las paginas
+  acotadas del tenant y pagina local con salto real) en vez de `useCursorPagedList` — ver
+  `FRONTEND.md`.
 
 ## HTTP
 
@@ -133,8 +141,7 @@ Rutas tenant:
 Activar si `INACTIVE`, via `productsApi.setStatus` — mismo PATCH parcial existente, sin
 endpoint nuevo); `viewer` no ve esas acciones ni "Nuevo producto" (gated por
 `canWrite(role)`). `GET /products` devuelve `total` en el envelope (`Select=COUNT` Query
-tenant-scoped) salvo que `q`/`sku` esten activos — ver `BACKEND.md` y `UX_REFACTOR.md`
-Sprints 1/1.5.
+tenant-scoped) salvo que `q`/`sku` esten activos — ver `BACKEND.md`.
 
 `DiscountCampaignScreen` (`/settings/discount-campaign`): toggle activa/inactiva +
 porcentaje, mismo patron de pantalla "singleton de ajustes" que `EstablishmentsScreen`.

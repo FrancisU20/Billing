@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 from lambdas._base.idempotency import IdempotencyContext
+from lambdas.tenants.domain.dashboard_summary import TenantAggregateStats
 from lambdas.tenants.domain.tenant import Tenant
 from shared.domain.events.domain_event import DomainEvent
 
@@ -46,6 +47,13 @@ class ITenantRepository(ABC):
     ) -> int:
         """Count matching `list()` filters, excluding `q`/`plan_status` (matched
         in Python — `plan_status` is computed at read time, never stored)."""
+
+    @abstractmethod
+    def aggregate_dashboard_stats(self, now: datetime) -> TenantAggregateStats:
+        """Single Scan (same cost class as `count()`/`list()` — small B2B catalog) used
+        by the superadmin dashboard: total, new this month, by sri_environment, by
+        subscription_status, and by plan_id restricted to subscription_status='active'
+        tenants (serves both "top plan" and the MRR base)."""
 
     @abstractmethod
     def list_with_certificate_expiry_due(self, before: datetime) -> list[Tenant]:

@@ -108,13 +108,7 @@ class SriSoapClient(ISriClient):
     def _parse_recepcion(self, body: bytes) -> RecepcionResult:
         root = self._parse_body(body)
         estado = root.findtext(".//estado") or ""
-        errors = [
-            SriErrorDetail(
-                code=msg.findtext("identificador") or "",
-                message=msg.findtext("mensaje") or "",
-            )
-            for msg in root.iter("mensaje")
-        ]
+        errors = self._parse_errors(root)
         return RecepcionResult(received=(estado == "RECIBIDA"), errors=errors)
 
     def _parse_autorizacion(self, body: bytes) -> AutorizacionResult:
@@ -129,14 +123,21 @@ class SriSoapClient(ISriClient):
             )
         if estado == "EN PROCESO":
             return AutorizacionResult(status="EN_PROCESO")
-        errors = [
-            SriErrorDetail(
-                code=msg.findtext("identificador") or "",
-                message=msg.findtext("mensaje") or "",
-            )
-            for msg in root.iter("mensaje")
-        ]
+        errors = self._parse_errors(root)
         return AutorizacionResult(status="RECHAZADO", errors=errors)
+
+    def _parse_errors(self, root: etree._Element) -> list[SriErrorDetail]:
+        errors: list[SriErrorDetail] = []
+        nodes = root.xpath(".//*[local-name()='mensaje'][*[local-name()='identificador']]")
+        for node in nodes:
+            errors.append(
+                SriErrorDetail(
+                    code=_child_text(node, "identificador"),
+                    message=_child_text(node, "mensaje"),
+                    additional_info=_child_text(node, "informacionAdicional") or None,
+                )
+            )
+        return errors
 
     def _parse_body(self, body: bytes) -> etree._Element:
         try:
@@ -156,3 +157,8 @@ class SriSoapClient(ISriClient):
             _log.error("SRI SOAP fault", faultstring=faultstring)
             raise ExternalServiceError(f"el SRI devolvió un fault: {faultstring}")
         return content
+
+
+def _child_text(parent: etree._Element, name: str) -> str:
+    values = parent.xpath(f"./*[local-name()='{name}']/text()")
+    return str(values[0]).strip() if values else ""

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Button } from '@/components/ui/Button'
-import { radius, spacing, typography } from '@/constants/tokens'
+import { overlay, radius, spacing, typography } from '@/constants/tokens'
 import { useTheme } from '@/lib/theme-context'
 import { ecuadorTodayISO } from '@/lib/utils/ecuador-time'
 import { formatDateRangeLabel } from '@/lib/utils/format'
@@ -133,7 +133,15 @@ export function DateRangePicker({
               <PresetButton label="Hoy" onPress={() => selectPreset(todayRange())} />
               <PresetButton label="Esta semana" onPress={() => selectPreset(weekRange())} />
               <PresetButton label="Este mes" onPress={() => selectPreset(monthRange())} />
-              <PresetButton label="Limpiar" onPress={() => selectPreset({ from: '', to: '' })} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Limpiar fechas"
+                hitSlop={8}
+                style={styles.clearAction}
+                onPress={() => selectPreset({ from: '', to: '' })}
+              >
+                <Ionicons name="trash-outline" size={20} color={semantic.text.secondary} />
+              </Pressable>
             </View>
 
             <View style={styles.rangeRow}>
@@ -178,8 +186,8 @@ export function DateRangePicker({
             </View>
 
             <View style={styles.weekHeader}>
-              {WEEKDAYS.map((day) => (
-                <Text key={day} style={[styles.weekday, { color: semantic.text.tertiary }]}>
+              {WEEKDAYS.map((day, index) => (
+                <Text key={index} style={[styles.weekday, { color: semantic.text.tertiary }]}>
                   {day}
                 </Text>
               ))}
@@ -324,7 +332,7 @@ const styles = StyleSheet.create({
   },
   overlay: {
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.46)',
+    backgroundColor: overlay.surface.backdrop,
     flex: 1,
     justifyContent: 'center',
     padding: spacing[4],
@@ -345,7 +353,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
   subtitle: { fontSize: typography.size.sm, lineHeight: typography.size.sm * 1.4, marginTop: 2 },
-  presets: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
+  presets: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   preset: {
     borderRadius: radius.sm,
     borderWidth: 1,
@@ -353,6 +361,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[2],
   },
   presetText: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  clearAction: { marginLeft: 'auto', padding: spacing[1] },
   rangeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   rangeSide: {
     borderRadius: radius.md,

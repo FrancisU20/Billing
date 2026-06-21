@@ -30,4 +30,28 @@ describe('useLocalPagedItems', () => {
     expect(result.current.pageSize).toBe(25)
     expect(result.current.pageItems).toHaveLength(25)
   })
+
+  it('jumps to an arbitrary page within range', () => {
+    const items = Array.from({ length: 95 }, (_, index) => index + 1)
+    const { result } = renderHook(() => useLocalPagedItems(items, 10))
+
+    act(() => result.current.goToPage(7))
+
+    expect(result.current.page).toBe(7)
+    expect(result.current.pageItems).toEqual([61, 62, 63, 64, 65, 66, 67, 68, 69, 70])
+  })
+
+  it('clamps goToPage to the valid range', () => {
+    const items = Array.from({ length: 25 }, (_, index) => index + 1)
+    const { result } = renderHook(() => useLocalPagedItems(items, 10))
+
+    act(() => result.current.goToPage(999))
+    expect(result.current.page).toBe(3)
+
+    act(() => result.current.goToPage(-5))
+    expect(result.current.page).toBe(1)
+
+    act(() => result.current.goToPage(Number.NaN))
+    expect(result.current.page).toBe(1)
+  })
 })

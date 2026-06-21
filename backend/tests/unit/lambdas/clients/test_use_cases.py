@@ -181,16 +181,16 @@ class ClientMutationUseCaseTests(unittest.TestCase):
         self.assertIsNone(total)
         self.assertEqual(repo.count_calls, [])
 
-    def test_count_is_none_when_identification_filter_is_active(self) -> None:
+    def test_count_stays_accurate_when_identification_filter_is_active(self) -> None:
+        """`identification` is a GSI prefix Query (Select=COUNT), unlike `q` — it composes
+        with the other DynamoDB-side filters, so the use case does not need to suppress it."""
         repo = FakeClientRepository()
         repo.count_result = 42
 
-        total = ListClientsUseCase(repo).count(
-            ListClientsQuery(limit=10, identification="1792146739001")
-        )
+        total = ListClientsUseCase(repo).count(ListClientsQuery(limit=10, identification="179214"))
 
-        self.assertIsNone(total)
-        self.assertEqual(repo.count_calls, [])
+        self.assertEqual(total, 42)
+        self.assertEqual(repo.count_calls[0]["identification"], "179214")
 
 
 if __name__ == "__main__":

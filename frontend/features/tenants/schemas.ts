@@ -165,6 +165,41 @@ export const retryTenantOnboardingSchema = z.object({
   status: z.literal('queued'),
 })
 
+export const topPlanSummarySchema = z.object({
+  plan_id: z.string().min(1),
+  name: z.string().min(1),
+  tenant_count: z.coerce.number(),
+})
+
+export const dailyRevenuePointSchema = z.object({
+  date: z.string().min(1),
+  amount: z.string().min(1),
+})
+
+export const recentTenantSchema = z.object({
+  id: z.string().min(1),
+  trade_name: z.string().min(1),
+  created_at: z.string().min(1),
+})
+
+export const superadminDashboardSummarySchema = z.object({
+  generated_at: z.string().min(1),
+  tenants_total: z.coerce.number(),
+  tenants_new_this_month: z.coerce.number(),
+  tenants_new_this_month_trend_pct: z.coerce.number().nullable(),
+  tenants_by_environment: z.record(z.string(), z.coerce.number()),
+  memberships_active: z.coerce.number(),
+  memberships_inactive: z.coerce.number(),
+  revenue_this_month: z.string().min(1),
+  revenue_this_month_trend_pct: z.coerce.number().nullable(),
+  revenue_this_year: z.string().min(1),
+  revenue_this_year_trend_pct: z.coerce.number().nullable(),
+  mrr_estimate: z.string().min(1),
+  top_plan: topPlanSummarySchema.nullable(),
+  daily_revenue: z.array(dailyRevenuePointSchema),
+  recent_tenants: z.array(recentTenantSchema),
+})
+
 export type Tenant = z.infer<typeof tenantSchema>
 export type TenantStatus = z.infer<typeof tenantStatusSchema>
 export type SriEnvironment = z.infer<typeof sriEnvironmentSchema>
@@ -178,3 +213,7 @@ export type CertificateMetadata = z.infer<typeof certificateMetadataSchema>
 export type Certificate = z.infer<typeof certificateSchema>
 export type CertificateUpdateInput = z.infer<typeof certificateUpdateSchema>
 export type RetryTenantOnboardingResult = z.infer<typeof retryTenantOnboardingSchema>
+export type TopPlanSummary = z.infer<typeof topPlanSummarySchema>
+export type DailyRevenuePoint = z.infer<typeof dailyRevenuePointSchema>
+export type RecentTenant = z.infer<typeof recentTenantSchema>
+export type SuperadminDashboardSummary = z.infer<typeof superadminDashboardSummarySchema>

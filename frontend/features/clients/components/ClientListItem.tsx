@@ -1,10 +1,16 @@
 import React from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { ListItemAction, ListItemMeta } from '@/components/ui/ListItemPrimitives'
+import { StyleSheet, Text, View } from 'react-native'
+import {
+  EntityAvatar,
+  ListCell,
+  ListItemAction,
+  ListItemMeta,
+} from '@/components/ui/ListItemPrimitives'
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu'
+import { useIsDesktopLayout } from '@/lib/hooks/useIsDesktopLayout'
 import { useTheme } from '@/lib/theme-context'
 import { formatDate, initials } from '@/lib/utils/format'
-import { radius, sizes, spacing, typography } from '@/constants/tokens'
+import { radius, spacing, typography } from '@/constants/tokens'
 import { CLIENT_IDENTIFICATION_LABELS, CLIENT_PERSON_LABELS } from '../constants'
 import { ClientStatusBadge } from './ClientStatusBadge'
 import type { Client } from '../types'
@@ -27,6 +33,7 @@ export function ClientListItem({
   onToggleStatus,
 }: ClientListItemProps) {
   const { semantic } = useTheme()
+  const isDesktop = useIsDesktopLayout()
   const displayName = client.trade_name || client.legal_name
   const email = client.emails[0] ?? 'Sin email'
 
@@ -51,23 +58,78 @@ export function ClientListItem({
     : []
 
   return (
-    <Pressable
-      onPress={onView}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.container,
-        {
-          backgroundColor: pressed ? semantic.bg.secondary : semantic.bg.card,
-          borderColor: semantic.border.default,
-        },
+        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
       ]}
     >
-      <View style={[styles.avatar, { backgroundColor: semantic.accent.subtle }]}>
-        <Text style={[styles.avatarText, { color: semantic.accent.default }]}>
-          {initials(displayName || client.identification)}
-        </Text>
-      </View>
+      <EntityAvatar initials={initials(displayName || client.identification)} />
 
       <View style={styles.main}>
+        {isDesktop ? (
+          <DesktopRow client={client} displayName={displayName} email={email} />
+        ) : (
+          <MobileRow client={client} displayName={displayName} email={email} />
+        )}
+      </View>
+
+      <View style={styles.actions}>
+        <ListItemAction icon="eye-outline" label="Ver cliente" onPress={onView} />
+        <RowActionsMenu actions={rowActions} triggerLabel="Más acciones de cliente" />
+      </View>
+    </View>
+  )
+}
+
+function MobileRow({
+  client,
+  displayName,
+  email,
+}: {
+  client: Client
+  displayName: string
+  email: string
+}) {
+  const { semantic } = useTheme()
+  return (
+    <>
+      <View style={styles.nameRow}>
+        <Text style={[styles.name, { color: semantic.text.primary }]} numberOfLines={1}>
+          {displayName}
+        </Text>
+        <ClientStatusBadge status={client.status} />
+      </View>
+      <Text style={[styles.legalName, { color: semantic.text.secondary }]} numberOfLines={1}>
+        {client.legal_name}
+      </Text>
+      <View style={styles.metaRow}>
+        <ListItemMeta
+          icon="card-outline"
+          text={`${CLIENT_IDENTIFICATION_LABELS[client.identification_type]} ${client.identification}`}
+          mono
+        />
+        <ListItemMeta icon="people-outline" text={CLIENT_PERSON_LABELS[client.person_type]} />
+        <ListItemMeta icon="mail-outline" text={email} />
+        <ListItemMeta icon="calendar-outline" text={formatDate(client.created_at)} />
+      </View>
+    </>
+  )
+}
+
+function DesktopRow({
+  client,
+  displayName,
+  email,
+}: {
+  client: Client
+  displayName: string
+  email: string
+}) {
+  const { semantic } = useTheme()
+  return (
+    <View style={styles.desktopRow}>
+      <View style={styles.colClient}>
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: semantic.text.primary }]} numberOfLines={1}>
             {displayName}
@@ -77,23 +139,21 @@ export function ClientListItem({
         <Text style={[styles.legalName, { color: semantic.text.secondary }]} numberOfLines={1}>
           {client.legal_name}
         </Text>
-        <View style={styles.metaRow}>
-          <ListItemMeta
-            icon="card-outline"
-            text={`${CLIENT_IDENTIFICATION_LABELS[client.identification_type]} ${client.identification}`}
-            mono
-          />
-          <ListItemMeta icon="people-outline" text={CLIENT_PERSON_LABELS[client.person_type]} />
-          <ListItemMeta icon="mail-outline" text={email} />
-          <ListItemMeta icon="calendar-outline" text={formatDate(client.created_at)} />
-        </View>
       </View>
-
-      <View style={styles.actions}>
-        <ListItemAction icon="eye-outline" label="Ver cliente" onPress={onView} />
-        <RowActionsMenu actions={rowActions} triggerLabel="Más acciones de cliente" />
-      </View>
-    </Pressable>
+      <ListCell
+        label="Identificación"
+        value={`${CLIENT_IDENTIFICATION_LABELS[client.identification_type]} ${client.identification}`}
+        mono
+        style={styles.colIdentification}
+      />
+      <ListCell
+        label="Tipo"
+        value={CLIENT_PERSON_LABELS[client.person_type]}
+        style={styles.colPerson}
+      />
+      <ListCell label="Email" value={email} style={styles.colEmail} />
+      <ListCell label="Creado" value={formatDate(client.created_at)} style={styles.colDate} />
+    </View>
   )
 }
 
@@ -106,18 +166,16 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     padding: spacing[4],
   },
-  avatar: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    height: sizes.avatarSm,
-    justifyContent: 'center',
-    width: sizes.avatarSm,
-  },
-  avatarText: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
   main: { flex: 1, minWidth: 0, gap: spacing[1] },
   nameRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
   name: { flex: 1, fontSize: typography.size.base, fontWeight: typography.weight.bold },
   legalName: { fontSize: typography.size.sm },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   actions: { flexDirection: 'row', gap: spacing[2] },
+  desktopRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[5] },
+  colClient: { flexBasis: 240, gap: spacing[1], minWidth: 200 },
+  colIdentification: { flexBasis: 170 },
+  colPerson: { flexBasis: 110 },
+  colEmail: { flex: 1, minWidth: 160 },
+  colDate: { flexBasis: 110 },
 })

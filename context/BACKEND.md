@@ -136,16 +136,38 @@ Reglas:
 - `next_token` es opaco. El frontend no lo decodifica.
 - Los filtros via query params se validan en handler y se aplican en repositorio.
 - Si se agregan listas nuevas, usar `DEFAULT_LIST_LIMIT` y `clamp_list_limit()` en backend.
-- `total` (campo `total_items`/`total_pages` v2, ver `UX_REFACTOR.md` Sprint 1): viene de
+- `total` (campo `total_items`/`total_pages` v2): viene de
   `ApiResponse.paginated(..., total=...)`. Se calcula con `BaseRepository._count_raw()`
   (Query tenant-scoped + `Select=COUNT`, sin transferir items) en `clients`/`products`,
   con `DynamoDocumentsRepository.count()` (mismo patron sobre el GSI) en `documents`, y
   con un Scan + `Select=COUNT` en `tenants` (aceptable solo por ser catalogo B2B chico,
   igual que `list()`). `total` es `None`/omitido cuando el filtro activo se resuelve en
-  Python y no en DynamoDB (`q`, `identification`, `sku`, `ruc`, `plan_status`) — un conteo
-  DB-side en ese caso no reflejaria el resultado filtrado real. `plans` no necesita nada
-  de esto: ya devuelve la lista completa y el frontend pagina localmente con
-  `useLocalPagedItems`.
+  Python y no en DynamoDB (`q`, `sku`, `ruc`, `plan_status`) — un conteo DB-side en ese
+  caso no reflejaria el resultado filtrado real. `plans` no necesita nada de esto: ya
+  devuelve la lista completa y el frontend pagina localmente con `useLocalPagedItems`.
+
+### Busqueda Por Identificador Sin Scan: GSI + `begins_with()`
+
+Patron para cuando un dominio necesita "buscar por prefijo de un identificador estructurado
+a escala" (cedula, RUC, SKU, etc.) sin caminar la tabla en memoria. Implementado en
+`clients.identification` (`DynamoClientRepository._identification_prefix_raw()`/
+`_identification_prefix_count()`, ver `CLIENTS.md`):
+
+1. Requiere una GSI ya existente o nueva con `PK=tenant_id` (o el scope que corresponda) y
+   `SK=<campo identificador>` — DynamoDB exige `eq()` en partition key, pero permite
+   `begins_with()`/comparaciones en sort key porque la ordena lexicograficamente.
+2. `Query` (no Scan) con `KeyConditionExpression: Key('tenant_id').eq(...) &
+   Key('<campo>').begins_with(prefix)`. Mismo costo que un lookup exacto.
+3. Para el total: el mismo Query con `Select=COUNT`, combinando el `FilterExpression` de
+   los demas filtros estructurados (status, tipo, fechas) — siguen siendo DynamoDB-side,
+   asi que el conteo queda exacto sin walk en Python.
+4. **Antes de replicar este patron en otro campo, verificar dos cosas**: (a) que el metodo
+   `get_by_*` exacto existente no se use en OTRO lado para validar duplicados (cambiar su
+   semantica ahi rompe esa validacion — separar en un metodo nuevo, no reusar); (b) que la
+   GSI tenga sort key (si el partition key es el propio identificador, como `ruc-index` en
+   `tenants` por unicidad global, `begins_with()` no es valido ahi — se necesitaria una GSI
+   nueva). Casos evaluados y descartados por esto: `products.sku` (duplicate-check
+   acoplado, ver `PRODUCTS.md`), `tenants.ruc` (GSI sin sort key, ver `TENANTS.md`).
 
 ### `Request.raw_body`
 

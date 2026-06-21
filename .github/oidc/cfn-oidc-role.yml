@@ -21,7 +21,7 @@
 ##############################################################################
 
 AWSTemplateFormatVersion: "2010-09-09"
-Description: OIDC Provider + IAM Role para GitHub Actions — CodeLabs Billing Cloud
+Description: OIDC Provider + IAM Role para GitHub Actions — Wali (infra: codelabs-billing)
 
 Parameters:
   GitHubOrg:

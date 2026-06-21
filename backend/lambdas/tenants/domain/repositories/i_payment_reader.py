@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime
+
+from lambdas.tenants.domain.dashboard_summary import PaymentRevenueStats
 
 
 @dataclass(frozen=True)
@@ -27,3 +30,10 @@ class IPaymentReader(ABC):
         Must be included as an extra_transact_item in the tenant commit to ensure
         atomicity — one payment cannot be applied to two different tenants.
         """
+
+    @abstractmethod
+    def aggregate_revenue(self, now: datetime) -> PaymentRevenueStats:
+        """Single Scan of `status='PAID'` payments, summing `amount` (already gross —
+        see `shared.billing.gross_price`) bucketed by `confirmed_at` falling in the
+        current month/year. No global date GSI exists on this table (only
+        tenant-payments-index, scoped per tenant) — this is a full-table Scan."""

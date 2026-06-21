@@ -14,6 +14,7 @@ Routes:
     POST   /tenants/{id}/subscription/activate     first activation (owner | admin | superadmin)
     POST   /tenants/{id}/subscription/renew        manual renewal   (owner | admin | superadmin)
     POST   /tenants/{id}/subscription/retry-payment retry saved card (owner | admin | superadmin)
+    GET    /superadmin/dashboard                   global stats     (superadmin)
 """
 import re
 
@@ -44,6 +45,7 @@ from lambdas.tenants.use_cases.activate_subscription import ActivateSubscription
 from lambdas.tenants.use_cases.apply_subscription_renewal import ApplySubscriptionRenewalUseCase
 from lambdas.tenants.use_cases.create_tenant import CreateTenantUseCase
 from lambdas.tenants.use_cases.delete_tenant import DeleteTenantUseCase
+from lambdas.tenants.use_cases.get_superadmin_dashboard import GetSuperadminDashboardUseCase
 from lambdas.tenants.use_cases.get_tenant import GetTenantUseCase
 from lambdas.tenants.use_cases.list_tenants import ListTenantsQuery, ListTenantsUseCase
 from lambdas.tenants.use_cases.retry_onboarding import RetryTenantOnboardingUseCase
@@ -51,7 +53,7 @@ from lambdas.tenants.use_cases.retry_payment import RetryPaymentUseCase
 from lambdas.tenants.use_cases.toggle_status import ToggleStatusUseCase
 from lambdas.tenants.use_cases.update_tenant import UpdateTenantUseCase
 from shared.config import env
-from shared.dates import parse_date_boundary
+from shared.dates import now_utc, parse_date_boundary
 from shared.db.client import get_table
 from shared.db.limits import DEFAULT_LIST_LIMIT, clamp_list_limit
 from shared.errors import ForbiddenError, NotFoundError, ValidationError
@@ -383,6 +385,15 @@ def _retry_payment(request: Request, context) -> dict:
 
 @lambda_handler
 @require_superadmin
+def _dashboard(request: Request, context) -> dict:
+    summary = GetSuperadminDashboardUseCase(_repo(), _payment_reader(), _plan_catalog()).execute(
+        now_utc()
+    )
+    return ApiResponse.ok(summary.to_dict(), request.request_id)
+
+
+@lambda_handler
+@require_superadmin
 @idempotent
 def _delete(request: Request, context) -> dict:
     tenant_id = require_path_param(request, "id")
@@ -420,6 +431,10 @@ def handler(event: dict, context) -> dict:
             return _create(event, context)
         if method == "GET":
             return _list(event, context)
+
+    if path == "/superadmin/dashboard":
+        if method == "GET":
+            return _dashboard(event, context)
 
     if _STATUS_PATTERN.match(path):
         if method == "PATCH":
