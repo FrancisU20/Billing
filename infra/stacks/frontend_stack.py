@@ -3,9 +3,9 @@ FrontendStack — S3 + CloudFront + Route53 para el frontend Expo web.
 
 Arquitectura:
 
-  Browser → billing-{env}.codelabsecuador.com
+  Browser → wali-{env}.codelabsecuador.com
               CloudFront distribution (us-east-1 edge)
-                behavior /api/*  → api-billing-{env}.codelabsecuador.com
+                behavior /api/*  → api-wali-{env}.codelabsecuador.com
                                    (CloudFront Function elimina el prefijo /api)
                 behavior default → S3 bucket privado via OAC
               Route53 A + AAAA  → alias CloudFront
@@ -135,7 +135,7 @@ class FrontendStack(Stack):
 
         # ── Behavior /api/* → API Gateway ─────────────────────────────────────
         # Proxy transparente: el frontend puede llamar /api/tenants en lugar de
-        # https://api-billing-{env}.codelabsecuador.com/tenants.
+        # https://api-wali-{env}.codelabsecuador.com/tenants.
         # La CloudFront Function quita el prefijo /api antes de reenviar, de
         # modo que /api/tenants llega a API Gateway como /tenants.
         # CACHING_DISABLED + ALL_VIEWER_EXCEPT_HOST_HEADER garantiza que los

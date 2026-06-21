@@ -7,7 +7,7 @@ Lambdas:
 
 API Gateway:
   HTTP API v2 con JWT authorizer nativo apuntando al Cognito User Pool.
-  Dominio personalizado vía ACM + Route53 (ej. api-billing-dev.codelabsecuador.com).
+  Dominio personalizado vía ACM + Route53 (ej. api-wali-dev.codelabsecuador.com).
   CORS habilitado para el frontend Expo web.
 
 Bundling:

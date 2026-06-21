@@ -27,13 +27,13 @@ api:
 
 domain:
   hosted_zone: codelabsecuador.com
-  api:         api-billing.codelabsecuador.com
-  frontend:    billing.codelabsecuador.com
+  api:         api-wali.codelabsecuador.com
+  frontend:    wali.codelabsecuador.com
   enabled:     true
 
 cors:
   origins:
-    - https://billing.codelabsecuador.com
+    - https://wali.codelabsecuador.com
   headers:
     - authorization
     - content-type

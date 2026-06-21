@@ -676,7 +676,7 @@ jobs:
           echo "### Frontend desplegado (dev)" >> $GITHUB_STEP_SUMMARY
           echo "S3 bucket: \`${{ steps.cfn.outputs.bucket }}\`"   >> $GITHUB_STEP_SUMMARY
           echo "CloudFront: \`${{ steps.cfn.outputs.dist_id }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "URL: https://billing-dev.codelabsecuador.com"      >> $GITHUB_STEP_SUMMARY
+          echo "URL: https://wali-dev.codelabsecuador.com"      >> $GITHUB_STEP_SUMMARY
 
   # ── Smoke Tests ────────────────────────────────────────────────────────────
   # Necesita deploy-api (para acceder a outputs.api-url) y run-migrations

@@ -403,7 +403,7 @@ jobs:
             --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" \
             --paths "/*"
           echo "### Frontend desplegado (staging)" >> $GITHUB_STEP_SUMMARY
-          echo "URL: https://billing-staging.codelabsecuador.com" >> $GITHUB_STEP_SUMMARY
+          echo "URL: https://wali-staging.codelabsecuador.com" >> $GITHUB_STEP_SUMMARY
 
   # ── Smoke Tests ────────────────────────────────────────────────────────────
   smoke-tests:

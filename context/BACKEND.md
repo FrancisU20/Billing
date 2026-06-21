@@ -28,13 +28,13 @@ infra/
 
 ### Dominios Por Ambiente
 
-Convencion environment-suffix flat (deja `billing.codelabsecuador.com` limpio en prod):
+Convencion environment-suffix flat (deja `wali.codelabsecuador.com` limpio en prod):
 
 | Ambiente | Frontend | API |
 | --- | --- | --- |
-| dev | `billing-dev.codelabsecuador.com` | `api-billing-dev.codelabsecuador.com` |
-| staging | `billing-staging.codelabsecuador.com` | `api-billing-staging.codelabsecuador.com` |
-| prod | `billing.codelabsecuador.com` | `api-billing.codelabsecuador.com` |
+| dev | `wali-dev.codelabsecuador.com` | `api-wali-dev.codelabsecuador.com` |
+| staging | `wali-staging.codelabsecuador.com` | `api-wali-staging.codelabsecuador.com` |
+| prod | `wali.codelabsecuador.com` | `api-wali.codelabsecuador.com` |
 
 Definidos en `infra/config/{env}.yaml` (`domain.frontend`/`domain.api`), usados por CDK para
 CORS, CloudFront y Route 53. Dev no despliega CloudFront (`domain.enabled: false`).

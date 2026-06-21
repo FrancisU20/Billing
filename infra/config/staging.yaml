@@ -27,13 +27,13 @@ api:
 
 domain:
   hosted_zone: codelabsecuador.com
-  api:         api-billing-staging.codelabsecuador.com
-  frontend:    billing-staging.codelabsecuador.com
+  api:         api-wali-staging.codelabsecuador.com
+  frontend:    wali-staging.codelabsecuador.com
   enabled:     true   # CloudFront habilitado en staging y prod
 
 cors:
   origins:
-    - https://billing-staging.codelabsecuador.com
+    - https://wali-staging.codelabsecuador.com
   headers:
     - authorization
     - content-type
