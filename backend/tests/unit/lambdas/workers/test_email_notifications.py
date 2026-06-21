@@ -58,7 +58,14 @@ class FakeEmailSender(EmailSender):
         )
 
     def send_enterprise_lead_notification(
-        self, *, superadmin_email: str, trade_name: str, ruc: str, email: str, plan_id: str
+        self,
+        *,
+        superadmin_email: str,
+        trade_name: str,
+        ruc: str,
+        email: str,
+        plan_id: str,
+        plan_name: str = "",
     ) -> None:
         if self._should_fail:
             raise RuntimeError("Brevo unavailable")
@@ -68,6 +75,7 @@ class FakeEmailSender(EmailSender):
                 "trade_name": trade_name,
                 "ruc": ruc,
                 "email": email,
+                "plan_name": plan_name,
                 "plan_id": plan_id,
             }
         )
@@ -340,7 +348,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         os.environ["BREVO_SECRET_NAME"] = "dummy-secret"
         os.environ["BREVO_SENDER_EMAIL"] = "noreply@test.com"
         os.environ["BREVO_SENDER_NAME"] = "Test"
-        os.environ["SUPERADMIN_EMAIL"] = "ventas@codelabsecuador.com"
+        os.environ["SUPERADMIN_EMAIL"] = "admin@codelabsecuador.com"
         sys.modules.pop("lambdas.workers.email_notifications.handler", None)
         return importlib.import_module("lambdas.workers.email_notifications.handler")
 
@@ -409,7 +417,8 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                     "trade_name": "Empresa Demo S.A.",
                     "ruc": "1792146739001",
                     "email": "contacto@empresa.com",
-                    "plan_id": "uuid-enterprise",
+                    "plan_id": "uuid-corporativo",
+                    "plan_name": "Corporativo",
                 },
                 event_type="EnterpriseLeadCreatedEvent",
             ),
@@ -419,9 +428,10 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         self.assertEqual(result, {"batchItemFailures": []})
         self.assertEqual(len(sender.enterprise_leads_sent), 1)
         sent = sender.enterprise_leads_sent[0]
-        self.assertEqual(sent["superadmin_email"], "ventas@codelabsecuador.com")
+        self.assertEqual(sent["superadmin_email"], "admin@codelabsecuador.com")
         self.assertEqual(sent["trade_name"], "Empresa Demo S.A.")
         self.assertEqual(sent["ruc"], "1792146739001")
+        self.assertEqual(sent["plan_name"], "Corporativo")
 
     def test_ignores_unknown_events_without_error(self) -> None:
         mod = self._load_handler_module()
@@ -620,7 +630,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                     raise RuntimeError("Brevo timeout")
 
             def send_enterprise_lead_notification(
-                self, *, superadmin_email, trade_name, ruc, email, plan_id
+                self, *, superadmin_email, trade_name, ruc, email, plan_id, plan_name=""
             ):
                 raise NotImplementedError
 

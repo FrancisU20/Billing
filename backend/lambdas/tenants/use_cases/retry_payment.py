@@ -55,7 +55,8 @@ class RetryPaymentUseCase:
             raise RetryPaymentNotEligibleError()
 
         plan = self._plans.get(tenant.plan_id)
-        price = plan.annual_price if plan.limit_cycle == "year" else plan.monthly_price
+        billing_cycle = tenant.billing_cycle
+        price = plan.annual_price if billing_cycle == "year" else plan.monthly_price
         net = f"{price:.2f}"
         amount = gross_price(net)
 
@@ -83,7 +84,7 @@ class RetryPaymentUseCase:
             amount=amount,
             currency=_CURRENCY,
             status="PAID",
-            plan_cycle=plan.limit_cycle,
+            plan_cycle=billing_cycle,
             confirmed_at=now,
             payer_id=tenant.dlocal_payer_id,
         )
@@ -91,7 +92,7 @@ class RetryPaymentUseCase:
 
         tenant.apply_subscription_renewal(
             payer_id=tenant.dlocal_payer_id,
-            plan_cycle=plan.limit_cycle,
+            plan_cycle=billing_cycle,
             now=now,
             updated_by=updated_by,
         )

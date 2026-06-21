@@ -179,7 +179,7 @@ y las paginas legales:
 
 - `content/legal.ts` — contenido tipado (`LegalContent`/`LegalSection`/`LegalBlock`: parrafos
   `{ type: 'p' }` o listas `{ type: 'list' }`), separado de la presentacion. Email de contacto
-  centralizado ahi (`CONTACT_EMAIL = ventas@codelabsecuador.com`).
+  centralizado ahi (`CONTACT_EMAIL = support@codelabsecuador.com`).
 - `components/LegalPageLayout.tsx` — layout unico (reusa `LandingHeader`/`LandingFooter`, hero
   oscuro con `colors.nav`) para cualquier pagina legal. Para agregar una pagina legal nueva:
   agregar su `LegalContent` en `content/legal.ts`, un screen trivial que pase ese contenido al

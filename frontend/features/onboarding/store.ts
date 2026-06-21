@@ -10,6 +10,7 @@ import type {
 
 interface OnboardingState {
   selectedPlan: Plan | null
+  selectedBillingCycle: 'month' | 'year'
   formValues: RegistrationFormValues | null
   certificateValues: CertificateFormValues | null
   otpRequestIdempotencyKey: string | null
@@ -19,7 +20,7 @@ interface OnboardingState {
 }
 
 interface OnboardingActions {
-  selectPlan: (plan: Plan) => void
+  selectPlan: (plan: Plan, billingCycle?: 'month' | 'year') => void
   setFormValues: (values: RegistrationFormValues) => void
   setCertificateValues: (values: CertificateFormValues | null) => void
   setVerification: (verification: OnboardingOtpRequestResult) => void
@@ -29,6 +30,7 @@ interface OnboardingActions {
 
 const initialState: OnboardingState = {
   selectedPlan: null,
+  selectedBillingCycle: 'month',
   formValues: null,
   certificateValues: null,
   otpRequestIdempotencyKey: null,
@@ -40,9 +42,10 @@ const initialState: OnboardingState = {
 export const useOnboardingStore = create<OnboardingState & OnboardingActions>((set) => ({
   ...initialState,
 
-  selectPlan: (plan: Plan) =>
+  selectPlan: (plan: Plan, billingCycle: 'month' | 'year' = 'month') =>
     set((state) => ({
       selectedPlan: plan,
+      selectedBillingCycle: billingCycle,
       otpRequestIdempotencyKey:
         state.otpRequestIdempotencyKey ?? createIdempotencyKey('onboarding-otp-request'),
       otpConfirmIdempotencyKey:

@@ -38,12 +38,14 @@ class FakeOnboardingPlanCatalog(IPlanCatalog):
         self_service: bool = True,
         limit_cycle: str = "month",
         is_free: bool = True,
+        name: str = "Corporativo",
     ) -> None:
         self.exists = exists
         self.active = active
         self.self_service = self_service
         self.limit_cycle = limit_cycle
         self.is_free = is_free
+        self.name = name
         self.checked_ids: list[str] = []
 
     def get(self, plan_id: str) -> PlanSummary:
@@ -57,6 +59,7 @@ class FakeOnboardingPlanCatalog(IPlanCatalog):
             self_service=self.self_service,
             limit_cycle=self.limit_cycle,
             is_free=self.is_free,
+            name=self.name,
         )
 
 
@@ -282,6 +285,7 @@ class ConfirmOnboardingOtpUseCaseTests(unittest.TestCase):
         self.assertIsNotNone(result.lead)
         self.assertEqual(len(result.events), 1)
         self.assertIsInstance(result.events[0], EnterpriseLeadCreatedEvent)
+        self.assertEqual(result.events[0].plan_name, "Corporativo")
 
     def _execute_with_verification(
         self,

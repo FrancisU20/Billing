@@ -16,6 +16,7 @@ export function RegisterDetailsScreen() {
   const { semantic } = useTheme()
   const router = useRouter()
   const selectedPlan = useOnboardingStore((state) => state.selectedPlan)
+  const selectedBillingCycle = useOnboardingStore((state) => state.selectedBillingCycle)
   const formValues = useOnboardingStore((state) => state.formValues)
   const setFormValues = useOnboardingStore((state) => state.setFormValues)
   const requestOtp = useRequestOtp()
@@ -33,7 +34,7 @@ export function RegisterDetailsScreen() {
       router.push(Routes.public.registerCertificate as Href)
       return
     }
-    await requestOtp(formValuesToOnboardingPayload(values, selectedPlan.id))
+    await requestOtp(formValuesToOnboardingPayload(values, selectedPlan.id, selectedBillingCycle))
   })
 
   if (!selectedPlan) return null

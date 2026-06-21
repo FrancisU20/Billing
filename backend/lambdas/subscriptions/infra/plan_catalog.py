@@ -47,4 +47,5 @@ class DynamoPlanCatalog(IPlanCatalog):
             annual_price=annual_price,
             limit_cycle=item.get("limit_cycle", "month"),
             is_free=monthly_price == Decimal("0.00") and annual_price == Decimal("0.00"),
+            self_service=bool(item.get("self_service", True)),
         )

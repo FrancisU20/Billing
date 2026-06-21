@@ -144,6 +144,35 @@ class ApplySubscriptionRenewalTenantTests(unittest.TestCase):
         # Extended from future (not from now) — base = max(now, future) = future
         self.assertGreater(tenant.plan_cycle_ends_at, future)
 
+    def test_renewal_persists_billing_cycle(self) -> None:
+        now = datetime.now(UTC)
+        tenant = make_tenant(billing_cycle="month")
+
+        tenant.apply_subscription_renewal(
+            payer_id="PAY-1",
+            plan_cycle="year",
+            now=now,
+            updated_by="user-1",
+        )
+
+        self.assertEqual(tenant.billing_cycle, "year")
+
+
+class ActivateSubscriptionTenantTests(unittest.TestCase):
+    def test_activation_persists_billing_cycle(self) -> None:
+        now = datetime.now(UTC)
+        tenant = make_tenant(subscription_status="pending_payment", billing_cycle="month")
+
+        tenant.activate_subscription(
+            payer_id="PAY-1",
+            plan_cycle="year",
+            now=now,
+            updated_by="user-1",
+        )
+
+        self.assertEqual(tenant.billing_cycle, "year")
+        self.assertEqual(tenant.subscription_status, "active")
+
 
 if __name__ == "__main__":
     unittest.main()

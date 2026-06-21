@@ -117,6 +117,7 @@ def handler(record: SQSRecord, context) -> None:
             ruc=data.get("ruc", ""),
             email=data.get("email", ""),
             plan_id=data.get("plan_id", ""),
+            plan_name=data.get("plan_name", ""),
         )
         return
 

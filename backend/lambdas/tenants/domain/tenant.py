@@ -71,6 +71,7 @@ class Tenant(GlobalEntity):
     subscription_status: str | None = None
     subscription_renewal_reminder_sent_at: datetime | None = None
     pending_order_id: str | None = None
+    billing_cycle: str = "month"  # "month" | "year" — elegido por el cliente al pagar
 
     # ── factory ───────────────────────────────────────────────────────────────
 
@@ -90,6 +91,7 @@ class Tenant(GlobalEntity):
             sri_environment=SriEnvironment.TESTING,
             status=TenantStatus.ACTIVE,
             plan_id=cmd.plan_id,
+            billing_cycle=cmd.billing_cycle,
             created_by=cmd.created_by,
             updated_by=cmd.created_by,
         )
@@ -168,6 +170,7 @@ class Tenant(GlobalEntity):
     ) -> None:
         """First payment activation for a pending_payment tenant. Cycle starts from payment date."""
         self.plan_cycle_ends_at = now + _cycle_duration(plan_cycle)
+        self.billing_cycle = plan_cycle
         self.dlocal_payer_id = payer_id
         self.subscription_status = "active"
         self.subscription_renewal_reminder_sent_at = None
@@ -179,6 +182,7 @@ class Tenant(GlobalEntity):
     ) -> None:
         base = max(now, self.plan_cycle_ends_at) if self.plan_cycle_ends_at else now
         self.plan_cycle_ends_at = base + _cycle_duration(plan_cycle)
+        self.billing_cycle = plan_cycle
         self.dlocal_payer_id = payer_id
         self.subscription_status = "active"
         self.subscription_renewal_reminder_sent_at = None
@@ -234,6 +238,7 @@ class Tenant(GlobalEntity):
             "plan_id": self.plan_id,
             "plan_status": self.effective_plan_status(now_utc()).value,
             "plan_cycle_ends_at": isoformat_ecuador(self.plan_cycle_ends_at),
+            "billing_cycle": self.billing_cycle,
             "cert_subject_ruc": self.cert_subject_ruc,
             "cert_expires_at": isoformat_ecuador(self.cert_expires_at),
             "cert_issuer": self.cert_issuer,

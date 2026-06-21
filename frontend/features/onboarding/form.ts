@@ -17,6 +17,7 @@ export function registrationFormDefaultValues(): RegistrationFormValues {
 export function formValuesToOnboardingPayload(
   values: RegistrationFormValues,
   planId: string,
+  billingCycle: 'month' | 'year' = 'month',
 ): OnboardingRequest {
   return onboardingBaseRequestSchema.parse({
     ruc: values.ruc.trim(),
@@ -28,5 +29,6 @@ export function formValuesToOnboardingPayload(
     address: values.address.trim(),
     accounting_required: values.accounting_required,
     plan_id: planId,
+    billing_cycle: billingCycle,
   })
 }

@@ -9,7 +9,10 @@ import {
 } from './schemas'
 
 export const subscriptionsApi = {
-  createPayment: (body: { plan_id: string; currency: string }, idempotencyKey: string) =>
+  createPayment: (
+    body: { plan_id: string; currency: string; billing_cycle?: 'month' | 'year' },
+    idempotencyKey: string,
+  ) =>
     api.post('/subscriptions/payments', body, createPaymentResultSchema, {
       auth: false,
       idempotencyKey,

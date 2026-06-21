@@ -6,7 +6,11 @@ from decimal import Decimal
 
 from lambdas.subscriptions.domain.commands import CreatePaymentCommand
 from lambdas.subscriptions.domain.entities.payment import Payment
-from lambdas.subscriptions.domain.errors import FreePlanPaymentError, PaymentCreationError
+from lambdas.subscriptions.domain.errors import (
+    CustomQuotePlanPaymentError,
+    FreePlanPaymentError,
+    PaymentCreationError,
+)
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import IDLocalClient
 from lambdas.subscriptions.domain.repositories.i_payment_repository import IPaymentRepository
 from lambdas.subscriptions.domain.repositories.i_plan_catalog import IPlanCatalog
@@ -42,10 +46,12 @@ class CreatePaymentUseCase:
     def execute(self, cmd: CreatePaymentCommand) -> CreatePaymentResult:
         plan = self._plans.get(cmd.plan_id)
 
+        if not plan.self_service:
+            raise CustomQuotePlanPaymentError()
         if plan.is_free:
             raise FreePlanPaymentError()
 
-        net_amount = _plan_price(plan.monthly_price, plan.annual_price, plan.limit_cycle)
+        net_amount = _plan_price(plan.monthly_price, plan.annual_price, cmd.billing_cycle)
         amount = gross_price(net_amount)
 
         try:
@@ -61,7 +67,7 @@ class CreatePaymentUseCase:
             amount=amount,
             currency=cmd.currency,
             status="CREATED",
-            plan_cycle=plan.limit_cycle,
+            plan_cycle=cmd.billing_cycle,
             checkout_token=result.checkout_token,
         )
         self._payments.save(payment)

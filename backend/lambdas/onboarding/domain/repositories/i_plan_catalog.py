@@ -10,6 +10,7 @@ class PlanSummary:
     self_service: bool
     limit_cycle: str
     is_free: bool = False
+    name: str = ""
 
 
 class IPlanCatalog(ABC):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Use case: notify the sales team about a new Enterprise lead capture."""
+"""Use case: notify the sales team about a new custom-quote plan lead capture."""
 
 from lambdas.workers.email_notifications.ports import EmailSender
 from shared.errors import InternalError, ValidationError
@@ -14,7 +14,14 @@ class SendEnterpriseLeadNotificationUseCase:
         self._email_sender = email_sender
 
     def execute(
-        self, *, superadmin_email: str, trade_name: str, ruc: str, email: str, plan_id: str
+        self,
+        *,
+        superadmin_email: str,
+        trade_name: str,
+        ruc: str,
+        email: str,
+        plan_id: str,
+        plan_name: str = "",
     ) -> None:
         if not superadmin_email or not ruc:
             raise ValidationError(
@@ -28,6 +35,7 @@ class SendEnterpriseLeadNotificationUseCase:
                 ruc=ruc,
                 email=email,
                 plan_id=plan_id,
+                plan_name=plan_name,
             )
             _log.info("enterprise lead notification sent", ruc=ruc)
         except Exception as exc:

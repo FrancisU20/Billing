@@ -40,9 +40,16 @@ class EmailSender(ABC):
 
     @abstractmethod
     def send_enterprise_lead_notification(
-        self, *, superadmin_email: str, trade_name: str, ruc: str, email: str, plan_id: str
+        self,
+        *,
+        superadmin_email: str,
+        trade_name: str,
+        ruc: str,
+        email: str,
+        plan_id: str,
+        plan_name: str = "",
     ) -> None:
-        """Notify the sales team about a new Enterprise lead capture."""
+        """Notify the sales team about a new custom-quote plan lead capture."""
 
     @abstractmethod
     def send_certificate_expiry_alert(

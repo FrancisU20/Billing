@@ -7,6 +7,7 @@ from decimal import Decimal
 from lambdas.subscriptions.domain.commands import ConfirmPaymentCommand, CreatePaymentCommand
 from lambdas.subscriptions.domain.entities.payment import Payment
 from lambdas.subscriptions.domain.errors import (
+    CustomQuotePlanPaymentError,
     FreePlanPaymentError,
     PaymentAlreadyConfirmedError,
     PaymentConfirmError,
@@ -40,11 +41,13 @@ class FakePlanCatalog(IPlanCatalog):
         annual_price: Decimal = Decimal("57.00"),
         limit_cycle: str = "month",
         is_free: bool = False,
+        self_service: bool = True,
     ) -> None:
         self._monthly = monthly_price
         self._annual = annual_price
         self._cycle = limit_cycle
         self._free = is_free
+        self._self_service = self_service
 
     def get(self, plan_id: str) -> PlanSummary:
         return PlanSummary(
@@ -53,6 +56,7 @@ class FakePlanCatalog(IPlanCatalog):
             annual_price=self._annual,
             limit_cycle=self._cycle,
             is_free=self._free,
+            self_service=self._self_service,
         )
 
 
@@ -193,24 +197,39 @@ class CreatePaymentUseCaseTests(unittest.TestCase):
         self._use_case(dlocal=dlocal).execute(CreatePaymentCommand(plan_id="plan-abc"))
         self.assertEqual(dlocal.create_calls[0][2], "EC")
 
-    def test_uses_annual_price_for_year_cycle(self) -> None:
+    def test_uses_annual_price_when_billing_cycle_is_year(self) -> None:
         catalog = FakePlanCatalog(
             monthly_price=Decimal("5.99"),
             annual_price=Decimal("57.00"),
-            limit_cycle="year",
         )
         dlocal = FakeDLocalClient()
         result = self._use_case(catalog=catalog, dlocal=dlocal).execute(
-            CreatePaymentCommand(plan_id="plan-y")
+            CreatePaymentCommand(plan_id="plan-y", billing_cycle="year")
         )
         self.assertEqual(result.net_amount, "57.00")
         self.assertEqual(result.amount, "63.84")  # 57.00 * 1.12 rounded
         self.assertEqual(dlocal.create_calls[0][0], "63.84")
 
+    def test_uses_monthly_price_when_billing_cycle_is_month(self) -> None:
+        catalog = FakePlanCatalog(
+            monthly_price=Decimal("5.99"),
+            annual_price=Decimal("57.00"),
+        )
+        dlocal = FakeDLocalClient()
+        result = self._use_case(catalog=catalog, dlocal=dlocal).execute(
+            CreatePaymentCommand(plan_id="plan-m", billing_cycle="month")
+        )
+        self.assertEqual(result.net_amount, "5.99")
+
     def test_raises_for_free_plan(self) -> None:
         catalog = FakePlanCatalog(is_free=True)
         with self.assertRaises(FreePlanPaymentError):
             self._use_case(catalog=catalog).execute(CreatePaymentCommand(plan_id="free"))
+
+    def test_raises_for_custom_quote_plan(self) -> None:
+        catalog = FakePlanCatalog(self_service=False)
+        with self.assertRaises(CustomQuotePlanPaymentError):
+            self._use_case(catalog=catalog).execute(CreatePaymentCommand(plan_id="corporativo"))
 
     def test_raises_payment_creation_error_on_http_error(self) -> None:
         dlocal = FakeDLocalClient(

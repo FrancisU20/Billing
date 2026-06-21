@@ -15,6 +15,7 @@ class CreateTenantCommand:
     accounting_required: bool
     plan_id: str
     created_by: str
+    billing_cycle: str = "month"  # "month" | "year" — elegido en el toggle de precios
 
 
 @dataclass(frozen=True)

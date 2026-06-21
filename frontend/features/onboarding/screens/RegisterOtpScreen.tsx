@@ -21,6 +21,7 @@ export function RegisterOtpScreen() {
   const { semantic } = useTheme()
   const router = useRouter()
   const selectedPlan = useOnboardingStore((state) => state.selectedPlan)
+  const selectedBillingCycle = useOnboardingStore((state) => state.selectedBillingCycle)
   const formValues = useOnboardingStore((state) => state.formValues)
   const certificateValues = useOnboardingStore((state) => state.certificateValues)
   const verification = useOnboardingStore((state) => state.verification)
@@ -53,7 +54,7 @@ export function RegisterOtpScreen() {
 
     const result = await onboardingApi.confirmOtp(
       {
-        ...formValuesToOnboardingPayload(formValues, selectedPlan.id),
+        ...formValuesToOnboardingPayload(formValues, selectedPlan.id, selectedBillingCycle),
         verification_id: verification.verification_id,
         otp: values.otp.trim(),
         certificate_b64: certificateValues?.certificate_b64,
@@ -74,7 +75,7 @@ export function RegisterOtpScreen() {
     setResent(false)
     await requestOtp(
       {
-        ...formValuesToOnboardingPayload(formValues, selectedPlan.id),
+        ...formValuesToOnboardingPayload(formValues, selectedPlan.id, selectedBillingCycle),
         certificate_b64: certificateValues?.certificate_b64,
         cert_password: certificateValues?.cert_password,
       },

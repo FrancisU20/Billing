@@ -22,6 +22,7 @@ const tenant = {
   plan_id: 'plan-1',
   plan_status: 'active',
   plan_cycle_ends_at: null,
+  billing_cycle: 'month',
   cert_subject_ruc: null,
   cert_expires_at: null,
   cert_issuer: null,

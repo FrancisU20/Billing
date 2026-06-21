@@ -50,7 +50,7 @@ export function ActivateSubscriptionScreen() {
   const handleCreateOrder = useCallback(async () => {
     if (!tenant) return
     const result = await subscriptionsApi.createPayment(
-      { plan_id: tenant.plan_id, currency: 'USD' },
+      { plan_id: tenant.plan_id, currency: 'USD', billing_cycle: tenant.billing_cycle },
       createOrderKey,
     )
     setOrder(result)

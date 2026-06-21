@@ -25,6 +25,7 @@ export const tenantSchema = z.object({
   plan_id: z.string().min(1),
   plan_status: planStatusSchema,
   plan_cycle_ends_at: z.string().nullable(),
+  billing_cycle: z.enum(['month', 'year']).optional().default('month'),
   subscription_status: subscriptionStatusSchema,
   pending_order_id: z.string().nullable().optional(),
   cert_subject_ruc: z.string().nullable(),

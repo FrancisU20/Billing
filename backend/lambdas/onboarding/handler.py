@@ -79,6 +79,7 @@ def _request_otp(request: Request, context) -> dict:
         address=body.address,
         accounting_required=body.accounting_required,
         plan_id=body.plan_id,
+        billing_cycle=body.billing_cycle,
         certificate_b64=body.certificate_b64,
         cert_password=body.cert_password,
     )
@@ -121,6 +122,7 @@ def _confirm_otp(request: Request, context) -> dict:
         address=body.address,
         accounting_required=body.accounting_required,
         plan_id=body.plan_id,
+        billing_cycle=body.billing_cycle,
         certificate_b64=body.certificate_b64,
         cert_password=body.cert_password,
         order_id=body.order_id,

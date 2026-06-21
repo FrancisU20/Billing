@@ -4,13 +4,18 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/lib/theme-context'
 import { Button } from '@/components/ui/Button'
 import { typography, radius, spacing, shadow, overlay } from '@/constants/tokens'
-import { formatCurrency } from '@/lib/utils/format'
 import { Badge } from '@/components/ui/Badge'
-import { formatDocumentLimit, formatPlanLimit } from '../format'
-import type { Plan } from '../types'
+import {
+  formatBillingPrice,
+  formatDocumentLimit,
+  formatPlanLimit,
+  isCustomQuotePlan,
+} from '../format'
+import type { LimitCycle, Plan } from '../types'
 
 interface PlanCardProps {
   plan: Plan
+  billingCycle?: LimitCycle
   highlighted?: boolean
   onSelect: () => void
 }
@@ -26,8 +31,14 @@ const CARD_MIN_HEIGHT = 520
 const HEADER_MIN_HEIGHT = 76
 const STATS_MIN_HEIGHT = 82
 
-export function PlanCard({ plan, highlighted = false, onSelect }: PlanCardProps) {
+export function PlanCard({
+  plan,
+  billingCycle = 'month',
+  highlighted = false,
+  onSelect,
+}: PlanCardProps) {
   const { semantic } = useTheme()
+  const customQuote = isCustomQuotePlan(plan)
 
   const cardBg = semantic.bg.elevated
   const cardBorder = highlighted ? semantic.accent.default : semantic.border.default
@@ -86,13 +97,23 @@ export function PlanCard({ plan, highlighted = false, onSelect }: PlanCardProps)
       </View>
 
       <View style={staticStyles.priceBlock}>
-        <View style={staticStyles.priceRow}>
-          <Text style={[staticStyles.price, { color: textMain }]}>
-            {formatCurrency(plan.monthly_price)}
-          </Text>
-          <Text style={[staticStyles.cycle, { color: textMuted }]}>/mes</Text>
-        </View>
-        <Text style={[staticStyles.billingHint, { color: textMuted }]}>Facturación mensual</Text>
+        {customQuote ? (
+          <>
+            <Text style={[staticStyles.price, { color: textMain }]}>Bajo medida</Text>
+            <Text style={[staticStyles.billingHint, { color: textMuted }]}>
+              Precio a la medida de tu volumen
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text style={[staticStyles.price, { color: textMain }]}>
+              {formatBillingPrice(plan, billingCycle)}
+            </Text>
+            <Text style={[staticStyles.billingHint, { color: textMuted }]}>
+              {billingCycle === 'year' ? 'Facturación anual' : 'Facturación mensual'}
+            </Text>
+          </>
+        )}
       </View>
 
       <View style={[staticStyles.divider, { backgroundColor: dividerBg }]} />
@@ -137,7 +158,7 @@ export function PlanCard({ plan, highlighted = false, onSelect }: PlanCardProps)
 
       <View style={staticStyles.action}>
         <Button variant={highlighted ? 'primary' : 'outline'} fullWidth onPress={onSelect}>
-          Elegir plan
+          {customQuote ? 'Contactar ventas' : 'Elegir plan'}
         </Button>
       </View>
     </View>
@@ -188,14 +209,12 @@ const staticStyles = StyleSheet.create({
     lineHeight: typography.size.sm * typography.lineHeight.normal,
   },
   priceBlock: { gap: spacing[1] },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing[1] },
   price: {
     fontSize: typography.size['4xl'],
     fontWeight: typography.weight.bold,
     lineHeight: typography.size['4xl'] * typography.lineHeight.tight,
     letterSpacing: 0,
   },
-  cycle: { fontSize: typography.size.sm },
   billingHint: { fontSize: typography.size.xs, fontWeight: typography.weight.medium },
   divider: { height: 1 },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], minHeight: STATS_MIN_HEIGHT },

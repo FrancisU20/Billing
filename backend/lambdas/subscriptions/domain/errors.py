@@ -8,6 +8,11 @@ class FreePlanPaymentError(BusinessError):
     default_message = "El plan gratuito no requiere pago."
 
 
+class CustomQuotePlanPaymentError(BusinessError):
+    code = "CUSTOM_QUOTE_PLAN_NO_PAYMENT"
+    default_message = "Este plan es a medida — contacta a ventas en vez de pagar en línea."
+
+
 class PlanNotFoundForPaymentError(NotFoundError):
     code = "PLAN_NOT_FOUND"
     default_message = "Plan no encontrado."

@@ -13,6 +13,7 @@ class OnboardingBaseRequest(BaseModel):
     address: str = Field(..., min_length=5, max_length=500)
     accounting_required: bool = False
     plan_id: str = Field(..., min_length=1, max_length=36)
+    billing_cycle: str = Field("month", pattern=r"^(month|year)$")
 
 
 class OnboardingRequest(OnboardingBaseRequest):

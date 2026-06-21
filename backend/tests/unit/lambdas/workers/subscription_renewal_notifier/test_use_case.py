@@ -28,7 +28,7 @@ class FakeEmailSender(EmailSender):
         raise NotImplementedError
 
     def send_enterprise_lead_notification(
-        self, *, superadmin_email, trade_name, ruc, email, plan_id
+        self, *, superadmin_email, trade_name, ruc, email, plan_id, plan_name=""
     ):
         raise NotImplementedError
 

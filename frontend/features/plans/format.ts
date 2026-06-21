@@ -16,8 +16,16 @@ export function formatDocumentLimit(plan: Pick<Plan, 'document_limit' | 'limit_c
   return `${plan.document_limit.toLocaleString('es-EC')} docs/${cycleSuffix(plan.limit_cycle)}`
 }
 
-export function formatBillingPrice(plan: Pick<Plan, 'monthly_price' | 'annual_price'>): string {
-  return `${formatCurrency(plan.monthly_price)} / mes`
+export function formatBillingPrice(
+  plan: Pick<Plan, 'monthly_price' | 'annual_price'>,
+  billingCycle: LimitCycle = 'month',
+): string {
+  const price = billingCycle === 'year' ? plan.annual_price : plan.monthly_price
+  return `${formatCurrency(price)} / ${cycleSuffix(billingCycle)}`
+}
+
+export function isCustomQuotePlan(plan: Pick<Plan, 'self_service'>): boolean {
+  return !plan.self_service
 }
 
 export function cycleLabel(cycle: LimitCycle): string {

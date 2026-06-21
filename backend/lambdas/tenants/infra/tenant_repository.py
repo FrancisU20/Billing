@@ -657,6 +657,7 @@ class DynamoTenantRepository(ITenantRepository):
                 else None
             ),
             "pending_order_id": tenant.pending_order_id,
+            "billing_cycle": tenant.billing_cycle,
             "version": tenant.version,
             "deleted": tenant.deleted,
             "created_at": tenant.created_at.isoformat(),
@@ -706,6 +707,7 @@ class DynamoTenantRepository(ITenantRepository):
             if item.get("subscription_renewal_reminder_sent_at")
             else None,
             pending_order_id=item.get("pending_order_id"),
+            billing_cycle=item.get("billing_cycle", "month"),
             version=item.get("version", 1),
             deleted=item.get("deleted", False),
             created_at=_dt(item["created_at"]),

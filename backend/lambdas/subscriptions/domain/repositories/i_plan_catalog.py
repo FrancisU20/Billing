@@ -12,6 +12,7 @@ class PlanSummary:
     annual_price: Decimal
     limit_cycle: str
     is_free: bool
+    self_service: bool = True
 
 
 class IPlanCatalog(ABC):

@@ -676,6 +676,16 @@ class RetryPaymentUseCaseTests(unittest.TestCase):
         (_, _, _), (_, _, dlocal, _) = self._run()
         self.assertEqual(dlocal.calls[0]["amount"], "6.71")
 
+    def test_charges_annual_price_when_tenant_billing_cycle_is_year(self) -> None:
+        # plan.limit_cycle stays "month" (document-limit reset cadence) — the
+        # tenant's own billing_cycle (chosen at signup) is what must drive the
+        # renewal price/duration, not the plan's document-limit cycle.
+        t = _tenant_with_payer()
+        t.billing_cycle = "year"
+        (tenant, result, _), (_, _, dlocal, _) = self._run(tenant=t)
+        self.assertEqual(result.subscription_status, "active")
+        self.assertEqual(dlocal.calls[0]["amount"], "80.51")  # 5.99*12=71.88 * 1.12
+
 
 class GetSuperadminDashboardUseCaseTests(unittest.TestCase):
     def test_combines_tenant_payment_and_plan_stats(self) -> None:

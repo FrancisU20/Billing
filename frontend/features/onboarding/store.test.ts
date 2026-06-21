@@ -47,6 +47,16 @@ describe('useOnboardingStore', () => {
     expect(nextKey).toBe(firstKey)
   })
 
+  it('defaults the billing cycle to month', () => {
+    useOnboardingStore.getState().selectPlan(plan)
+    expect(useOnboardingStore.getState().selectedBillingCycle).toBe('month')
+  })
+
+  it('stores the chosen billing cycle alongside the plan', () => {
+    useOnboardingStore.getState().selectPlan(plan, 'year')
+    expect(useOnboardingStore.getState().selectedBillingCycle).toBe('year')
+  })
+
   it('stores and clears certificate values', () => {
     const certificate = {
       file_name: 'certificado.p12',
@@ -71,7 +81,7 @@ describe('useOnboardingStore', () => {
   })
 
   it('resets to the initial state', () => {
-    useOnboardingStore.getState().selectPlan(plan)
+    useOnboardingStore.getState().selectPlan(plan, 'year')
     useOnboardingStore.getState().setCertificateValues({
       file_name: 'certificado.p12',
       certificate_b64: 'base64-data',
@@ -81,6 +91,7 @@ describe('useOnboardingStore', () => {
     useOnboardingStore.getState().reset()
 
     expect(useOnboardingStore.getState().selectedPlan).toBeNull()
+    expect(useOnboardingStore.getState().selectedBillingCycle).toBe('month')
     expect(useOnboardingStore.getState().certificateValues).toBeNull()
     expect(useOnboardingStore.getState().otpRequestIdempotencyKey).toBeNull()
     expect(useOnboardingStore.getState().otpConfirmIdempotencyKey).toBeNull()

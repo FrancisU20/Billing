@@ -5,13 +5,18 @@ Indice y reglas no negociables. Patrones de construccion y reglas de negocio viv
 
 Marca de producto: **Wali**. La entidad legal operadora sigue siendo CodeLabs Ecuador
 (ver textos legales en `frontend/features/marketing/content/legal.ts`). Los identificadores
-internos de infra (stacks CDK, tablas, buckets, secrets, Cognito, perfil AWS `codelabs`,
-dominio `codelabsecuador.com`) siguen con el prefijo `codelabs-billing` / `CodeLabsBilling`
-a proposito: son recursos AWS ya desplegados y renombrarlos implicaria recrearlos
-(ver `context/BACKEND.md` y `context/INVOICES.md` para el detalle de cada recurso). No
-renombrar esos identificadores sin antes planear una migracion de datos/DNS/secrets.
+internos de infra (stacks CDK, tablas, buckets, secrets, Cognito, perfil AWS `codelabs`)
+siguen con el prefijo `codelabs-billing` / `CodeLabsBilling` a proposito: son recursos AWS
+ya desplegados y renombrarlos implicaria recrearlos (ver `context/BACKEND.md` y
+`context/INVOICES.md` para el detalle de cada recurso). No renombrar esos identificadores
+sin antes planear una migracion de datos/secrets.
 
-Ultima actualizacion: 2026-06-20.
+Excepcion: los **dominios publicos** (`wali-{env}.codelabsecuador.com` /
+`api-wali-{env}.codelabsecuador.com`, ver tabla en `context/BACKEND.md`) si cambiaron de
+`billing-*` a `wali-*` y ya estan desplegados en dev (2026-06-21) — los nombres fisicos de
+infra y los dominios publicos son decisiones independientes.
+
+Ultima actualizacion: 2026-06-21.
 
 ## Objetivo Del Producto
 

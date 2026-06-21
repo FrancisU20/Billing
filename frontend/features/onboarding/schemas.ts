@@ -21,6 +21,7 @@ export const onboardingBaseRequestSchema = z
     address: z.string().trim().min(5, 'Mínimo 5 caracteres').max(500, 'Máximo 500 caracteres'),
     accounting_required: z.boolean(),
     plan_id: z.string().min(1, 'El plan es requerido').max(36, 'Plan inválido'),
+    billing_cycle: z.enum(['month', 'year']).default('month'),
   })
   .strict()
 

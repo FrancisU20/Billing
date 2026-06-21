@@ -7,6 +7,7 @@ from dataclasses import dataclass
 class CreatePaymentCommand:
     plan_id: str
     currency: str = "USD"
+    billing_cycle: str = "month"  # "month" | "year" — elegido en el toggle de precios
 
 
 @dataclass

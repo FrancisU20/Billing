@@ -12,7 +12,7 @@ export interface LegalContent {
   sections: LegalSection[]
 }
 
-const CONTACT_EMAIL = 'ventas@codelabsecuador.com'
+const CONTACT_EMAIL = 'support@codelabsecuador.com'
 const LAST_UPDATED = '17 de junio de 2026'
 
 export const termsContent: LegalContent = {

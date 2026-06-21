@@ -4,10 +4,11 @@ from __future__ import annotations
 EnterpriseLead entity — "lead capture" for Enterprise plan signups.
 
 Created instead of a Tenant when the selected Plan has `self_service=False`
-(only the Enterprise plan, see `lambdas.plans.domain.plan.Plan`). It is not a
-tenant: it does not get a RUC lock, no Cognito user is provisioned, and it does
-not appear in `lambdas.tenants`. A superadmin converts it to a real Tenant
-manually (out of scope for this phase — see context/ONBOARDING.md).
+(the Corporativo plan — custom pricing, "a medida" — see
+`lambdas.plans.domain.plan.Plan`). It is not a tenant: it does not get a RUC
+lock, no Cognito user is provisioned, and it does not appear in
+`lambdas.tenants`. A superadmin converts it to a real Tenant manually (out of
+scope for this phase — see context/ONBOARDING.md).
 """
 
 from dataclasses import dataclass

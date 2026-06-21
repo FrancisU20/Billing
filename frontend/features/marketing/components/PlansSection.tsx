@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { PlanCard } from '@/features/plans/components/PlanCard'
 import { usePlans } from '@/features/plans/hooks/usePlans'
 import type { Plan } from '@/features/plans/types'
@@ -12,6 +13,11 @@ import { useOnboardingStore } from '@/features/onboarding/store'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { layout, radius, spacing, typography } from '@/constants/tokens'
+
+const BILLING_CYCLE_OPTIONS = [
+  { value: 'month' as const, label: 'Mensual' },
+  { value: 'year' as const, label: 'Anual' },
+]
 
 interface PlansSectionProps {
   onLayout?: (event: LayoutChangeEvent) => void
@@ -26,6 +32,7 @@ export const PlansSection = forwardRef<View, PlansSectionProps>(function PlansSe
   ref,
 ) {
   const [sectionWidth, setSectionWidth] = useState(0)
+  const [billingCycle, setBillingCycle] = useState<'month' | 'year'>('month')
   const { plans, loading, error, refresh } = usePlans()
   const { semantic } = useTheme()
   const router = useRouter()
@@ -42,7 +49,7 @@ export const PlansSection = forwardRef<View, PlansSectionProps>(function PlansSe
   }, [columns, gridWidth])
 
   const handleSelect = (plan: Plan) => {
-    selectPlan(plan)
+    selectPlan(plan, billingCycle)
     router.push(Routes.public.registerDetails as Href)
   }
 
@@ -64,6 +71,13 @@ export const PlansSection = forwardRef<View, PlansSectionProps>(function PlansSe
         <Text style={[styles.subtitle, { color: semantic.text.secondary }]}>
           Sin contratos forzosos. Cambia o cancela tu plan cuando lo necesites.
         </Text>
+        <View style={styles.toggleWrap}>
+          <SegmentedControl
+            options={BILLING_CYCLE_OPTIONS}
+            value={billingCycle}
+            onChange={setBillingCycle}
+          />
+        </View>
       </View>
 
       {loading ? (
@@ -83,6 +97,7 @@ export const PlansSection = forwardRef<View, PlansSectionProps>(function PlansSe
             <View key={plan.id} style={[styles.cardWrap, cardWidth ? { width: cardWidth } : null]}>
               <PlanCard
                 plan={plan}
+                billingCycle={billingCycle}
                 highlighted={index === highlightedIndex}
                 onSelect={() => handleSelect(plan)}
               />
@@ -111,6 +126,7 @@ const styles = StyleSheet.create({
     fontSize: typography.size.base,
     lineHeight: typography.size.base * typography.lineHeight.normal,
   },
+  toggleWrap: { alignSelf: 'flex-start', marginTop: spacing[2] },
   grid: {
     alignItems: 'stretch',
     alignSelf: 'center',

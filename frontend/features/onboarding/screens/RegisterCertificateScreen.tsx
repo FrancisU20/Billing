@@ -18,6 +18,7 @@ export function RegisterCertificateScreen() {
   const { semantic } = useTheme()
   const router = useRouter()
   const selectedPlan = useOnboardingStore((state) => state.selectedPlan)
+  const selectedBillingCycle = useOnboardingStore((state) => state.selectedBillingCycle)
   const formValues = useOnboardingStore((state) => state.formValues)
   const certificateValues = useOnboardingStore((state) => state.certificateValues)
   const setCertificateValues = useOnboardingStore((state) => state.setCertificateValues)
@@ -62,7 +63,7 @@ export function RegisterCertificateScreen() {
     }
     setCertificateValues(certificate)
     await requestOtp({
-      ...formValuesToOnboardingPayload(formValues, selectedPlan.id),
+      ...formValuesToOnboardingPayload(formValues, selectedPlan.id, selectedBillingCycle),
       certificate_b64: certificate.certificate_b64,
       cert_password: certificate.cert_password,
     })

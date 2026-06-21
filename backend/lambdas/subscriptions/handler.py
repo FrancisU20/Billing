@@ -63,6 +63,7 @@ def _create_payment(request: Request, context) -> dict:
         CreatePaymentCommand(
             plan_id=body.plan_id,
             currency=body.currency,
+            billing_cycle=body.billing_cycle,
         )
     )
     return ApiResponse.created(

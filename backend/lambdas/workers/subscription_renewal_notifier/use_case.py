@@ -167,7 +167,8 @@ class NotifySubscriptionRenewalUseCase:
             )
             return "expired"
 
-        price = plan.annual_price if plan.limit_cycle == "year" else plan.monthly_price
+        billing_cycle = tenant.billing_cycle
+        price = plan.annual_price if billing_cycle == "year" else plan.monthly_price
         amount = gross_price(f"{price:.2f}")
 
         charge_status = "FAILED"
@@ -194,14 +195,14 @@ class NotifySubscriptionRenewalUseCase:
                 amount=amount,
                 currency=_CURRENCY,
                 status="PAID",
-                plan_cycle=plan.limit_cycle,
+                plan_cycle=billing_cycle,
                 confirmed_at=now,
                 payer_id=tenant.dlocal_payer_id,
             )
             self._payment_repo.save(payment)  # type: ignore[union-attr]
             tenant.apply_subscription_renewal(
                 payer_id=tenant.dlocal_payer_id,
-                plan_cycle=plan.limit_cycle,
+                plan_cycle=billing_cycle,
                 now=now,
                 updated_by=_NOTIFIER_USER_ID,
             )

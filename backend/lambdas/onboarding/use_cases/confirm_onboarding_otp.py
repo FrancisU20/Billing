@@ -71,7 +71,7 @@ class ConfirmOnboardingOtpUseCase:
                 plan_limit_cycle=plan.limit_cycle,
                 plan_is_free=plan.is_free,
             )
-        return self._capture_lead(cmd, verification, plan_id=plan.id)
+        return self._capture_lead(cmd, verification, plan_id=plan.id, plan_name=plan.name)
 
     def _register_tenant(
         self,
@@ -103,6 +103,7 @@ class ConfirmOnboardingOtpUseCase:
                 address=cmd.address,
                 accounting_required=cmd.accounting_required,
                 plan_id=plan_id,
+                billing_cycle=cmd.billing_cycle,
                 created_by="onboarding",
             ),
             plan_limit_cycle=plan_limit_cycle,
@@ -145,6 +146,7 @@ class ConfirmOnboardingOtpUseCase:
         verification: OnboardingVerification,
         *,
         plan_id: str,
+        plan_name: str,
     ) -> ConfirmOnboardingOtpResult:
         lead = EnterpriseLead.create(cmd, plan_id=plan_id)
         events = [
@@ -154,6 +156,7 @@ class ConfirmOnboardingOtpUseCase:
                 trade_name=lead.trade_name,
                 email=lead.email,
                 plan_id=lead.plan_id,
+                plan_name=plan_name,
             )
         ]
         return ConfirmOnboardingOtpResult(

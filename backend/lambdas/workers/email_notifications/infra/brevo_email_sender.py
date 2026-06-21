@@ -28,7 +28,7 @@ _log = get_logger(__name__)
 
 _BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 _SECRET_NAME = env("BREVO_SECRET_NAME")
-_SENDER_EMAIL = env("BREVO_SENDER_EMAIL", "noreply@codelabsecuador.com")
+_SENDER_EMAIL = env("BREVO_SENDER_EMAIL", "no-reply@codelabsecuador.com")
 _SENDER_NAME = env("BREVO_SENDER_NAME", "Wali")
 _FRONTEND_URL = env("FRONTEND_URL", "")
 # Logotipo Wali servido por el frontend desplegado (frontend/public/wordmark-dark.png) —
@@ -243,11 +243,11 @@ def _summary_row(label: str, value: str) -> str:
                 </tr>"""
 
 
-def _build_enterprise_lead_html(trade_name: str, ruc: str, email: str, plan_id: str) -> str:
+def _build_enterprise_lead_html(trade_name: str, ruc: str, email: str, plan_label: str) -> str:
     safe_trade_name = escape(trade_name, quote=True)
     safe_ruc = escape(ruc, quote=True)
     safe_email = escape(email, quote=True)
-    safe_plan_id = escape(plan_id, quote=True)
+    safe_plan_label = escape(plan_label, quote=True)
 
     return f"""<!DOCTYPE html>
 <html lang="es">
@@ -267,11 +267,11 @@ def _build_enterprise_lead_html(trade_name: str, ruc: str, email: str, plan_id: 
           <tr>
             <td style="padding:40px">
               <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
-                Nuevo lead Enterprise
+                Nuevo lead Corporativo
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
-                Una empresa solicitó el plan Enterprise desde el registro
-                self-service. Contactar para continuar el proceso comercial.
+                Una empresa solicitó el plan Corporativo desde el formulario de
+                registro. Contactar para continuar el proceso comercial.
               </p>
 
               <div style="background:#f8f9fa;border-left:4px solid #0D1126;
@@ -286,7 +286,7 @@ def _build_enterprise_lead_html(trade_name: str, ruc: str, email: str, plan_id: 
                   <strong>Email de contacto:</strong> {safe_email}
                 </p>
                 <p style="margin:0;color:#0D1126">
-                  <strong>Plan solicitado:</strong> {safe_plan_id}
+                  <strong>Plan solicitado:</strong> {safe_plan_label}
                 </p>
               </div>
             </td>
@@ -1030,14 +1030,23 @@ class BrevoEmailSender(EmailSender):
         _send(api_key, payload, log_email=email)
 
     def send_enterprise_lead_notification(
-        self, *, superadmin_email: str, trade_name: str, ruc: str, email: str, plan_id: str
+        self,
+        *,
+        superadmin_email: str,
+        trade_name: str,
+        ruc: str,
+        email: str,
+        plan_id: str,
+        plan_name: str = "",
     ) -> None:
         api_key = _get_api_key()
         payload = {
             "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
             "to": [{"email": superadmin_email}],
-            "subject": f"Nuevo lead Enterprise — {trade_name}",
-            "htmlContent": _build_enterprise_lead_html(trade_name, ruc, email, plan_id),
+            "subject": f"Nuevo lead Corporativo — {trade_name}",
+            "htmlContent": _build_enterprise_lead_html(
+                trade_name, ruc, email, plan_name or plan_id
+            ),
         }
         _send(api_key, payload, log_email=superadmin_email)
 

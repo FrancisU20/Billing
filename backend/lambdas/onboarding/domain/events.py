@@ -13,6 +13,7 @@ class EnterpriseLeadCreatedEvent(DomainEvent):
     trade_name: str = ""
     email: str = ""
     plan_id: str = ""
+    plan_name: str = ""
 
 
 @dataclass(frozen=True)
