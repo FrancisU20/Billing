@@ -12,9 +12,16 @@ interface DistributionBarProps {
    * color suelto (ver `chart.primary`/`chart.secondary` que reemplazo esto, sin ningun
    * significado de estado detras). */
   variant: BadgeVariant
+  formatValue?: (count: number) => string
 }
 
-export function DistributionBar({ label, count, total, variant }: DistributionBarProps) {
+export function DistributionBar({
+  label,
+  count,
+  total,
+  variant,
+  formatValue = (value) => String(value),
+}: DistributionBarProps) {
   const { semantic } = useTheme()
   const pct = total > 0 ? Math.round((count / total) * 100) : 0
 
@@ -34,7 +41,7 @@ export function DistributionBar({ label, count, total, variant }: DistributionBa
           {label}
         </Text>
         <Text style={[styles.value, { color: semantic.text.secondary }]}>
-          {count} ({pct}%)
+          {formatValue(count)} ({pct}%)
         </Text>
       </View>
       <View style={[styles.track, { backgroundColor: semantic.chart.track }]}>

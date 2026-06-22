@@ -73,3 +73,13 @@ class ListDocumentsQueryParams(BaseModel):
     date_to: str | None = None
     limit: int = Field(default=20, ge=1, le=100)
     cursor: str | None = None
+
+
+class AnnulDocumentRequest(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=300)
+
+    @model_validator(mode="after")
+    def validate_reason(self) -> AnnulDocumentRequest:
+        if not self.reason.strip():
+            raise ValueError("Debes indicar el motivo de la anulación.")
+        return self

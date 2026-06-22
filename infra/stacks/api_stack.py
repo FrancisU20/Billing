@@ -746,6 +746,7 @@ class ApiStack(Stack):
             (apigwv2.HttpMethod.GET,  "/documents/summary"),
             (apigwv2.HttpMethod.GET,  "/documents/{id}"),
             (apigwv2.HttpMethod.GET,  "/documents/{id}/ride"),
+            (apigwv2.HttpMethod.POST, "/documents/{id}/annul"),
         ]:
             api.add_routes(
                 path        = route,

@@ -15,6 +15,8 @@ interface ConfirmDialogProps {
   variant?: DialogVariant
   icon?: keyof typeof Ionicons.glyphMap
   isLoading?: boolean
+  confirmDisabled?: boolean
+  children?: React.ReactNode
   onCancel: () => void
   onConfirm: () => void
 }
@@ -27,6 +29,8 @@ export function ConfirmDialog({
   variant = 'danger',
   icon = 'trash-outline',
   isLoading = false,
+  confirmDisabled = false,
+  children,
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -65,6 +69,7 @@ export function ConfirmDialog({
             <Text style={[styles.title, { color: semantic.text.primary }]}>{title}</Text>
             <Text style={[styles.message, { color: semantic.text.secondary }]}>{message}</Text>
           </View>
+          {children}
           <View style={styles.actions}>
             <Button variant="outline" size="md" onPress={onCancel} isDisabled={isLoading}>
               Cancelar
@@ -74,6 +79,7 @@ export function ConfirmDialog({
               size="md"
               onPress={onConfirm}
               isLoading={isLoading}
+              isDisabled={confirmDisabled}
             >
               {confirmLabel}
             </Button>

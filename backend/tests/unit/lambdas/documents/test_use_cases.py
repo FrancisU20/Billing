@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 from lambdas.documents.domain.commands import (
+    AnnulDocumentCommand,
     EmitDocumentCommand,
     GetDocumentCommand,
     LineData,
@@ -14,8 +15,11 @@ from lambdas.documents.domain.commands import (
 )
 from lambdas.documents.domain.entities import Document, DocumentStatus, DocumentSummary
 from lambdas.documents.domain.errors import (
+    AnnulmentWindowExpiredError,
     CertificateNotUploadedError,
+    ConsumerFinalCannotBeAnnulledError,
     DocumentLimitReachedError,
+    DocumentNotAuthorizedError,
     DocumentNotFoundError,
     InvalidIssuedDateError,
     RideNotAvailableError,
@@ -24,6 +28,7 @@ from lambdas.documents.domain.repositories.i_discount_campaign_port import (
     DiscountCampaignSnapshot,
 )
 from lambdas.documents.domain.repositories.i_product_catalog import InvoiceProductSnapshot
+from lambdas.documents.use_cases.annul_document import AnnulDocumentUseCase
 from lambdas.documents.use_cases.emit_document import EmitDocumentUseCase
 from lambdas.documents.use_cases.get_document import GetDocumentUseCase
 from lambdas.documents.use_cases.get_documents_summary import GetDocumentsSummaryUseCase
@@ -659,3 +664,47 @@ class GetRideUrlUseCaseTests(unittest.TestCase):
 
         with self.assertRaises(RideNotAvailableError):
             GetRideUrlUseCase(repo).execute(GetRideUrlCommand("t-1", "doc-1", "my-bucket"))
+
+
+# ── AnnulDocumentUseCase ──────────────────────────────────────────────────────
+
+
+class AnnulDocumentUseCaseTests(unittest.TestCase):
+    def _run(self, **overrides: Any) -> Document:
+        repo = FakeDocumentsRepository()
+        defaults: dict[str, Any] = {
+            "status": DocumentStatus.AUTHORIZED,
+            "buyer_id_type": "05",
+            "issued_at": _TODAY,
+        }
+        doc = _make_document(**{**defaults, **overrides})
+        repo.seed(doc)
+        with patch("lambdas.documents.use_cases.annul_document.today_ecuador", return_value=_TODAY):
+            return AnnulDocumentUseCase(repo).execute(
+                AnnulDocumentCommand(
+                    tenant_id="t-1",
+                    document_id="doc-1",
+                    reason="Error en el monto facturado",
+                    user_id="user-1",
+                )
+            )
+
+    def test_annuls_authorized_document_within_window(self) -> None:
+        result = self._run()
+
+        self.assertEqual(result.status, DocumentStatus.ANNULLED)
+        self.assertEqual(result.annulled_by, "user-1")
+        self.assertEqual(result.annulment_reason, "Error en el monto facturado")
+        self.assertIsNotNone(result.annulled_at)
+
+    def test_raises_if_not_authorized(self) -> None:
+        with self.assertRaises(DocumentNotAuthorizedError):
+            self._run(status=DocumentStatus.PENDING)
+
+    def test_raises_for_consumidor_final(self) -> None:
+        with self.assertRaises(ConsumerFinalCannotBeAnnulledError):
+            self._run(buyer_id_type="07")
+
+    def test_raises_if_window_expired(self) -> None:
+        with self.assertRaises(AnnulmentWindowExpiredError):
+            self._run(issued_at=date(2026, 1, 1))

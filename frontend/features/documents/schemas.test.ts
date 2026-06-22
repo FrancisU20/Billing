@@ -55,6 +55,9 @@ const document = {
   created_at: '2026-06-18T09:00:00+00:00',
   updated_at: '2026-06-18T10:00:00+00:00',
   created_by: 'user-1',
+  annulled_at: null,
+  annulled_by: '',
+  annulment_reason: null,
 }
 
 describe('document contract schemas', () => {
@@ -104,6 +107,8 @@ describe('document contract schemas', () => {
         document_limit: 500,
         is_unlimited: false,
         is_free_plan: false,
+        daily_issued: [{ date: '2026-06-18', count: 3 }],
+        top_clients: [{ client_id: 'client-1', name: 'Cliente Uno', total: '120.00' }],
       }),
     ).toEqual({
       period_start: '2026-06-01',
@@ -118,6 +123,8 @@ describe('document contract schemas', () => {
       document_limit: 500,
       is_unlimited: false,
       is_free_plan: false,
+      daily_issued: [{ date: '2026-06-18', count: 3 }],
+      top_clients: [{ client_id: 'client-1', name: 'Cliente Uno', total: '120.00' }],
     })
   })
 

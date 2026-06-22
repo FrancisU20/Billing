@@ -17,7 +17,12 @@ import { ecuadorDateTimeDisplay } from '@/lib/utils/ecuador-time'
 import { useAuthStore, selectUser } from '@/features/auth/store'
 import { Routes } from '@/constants/routes'
 import { useDocumentsSummary } from '@/features/documents/hooks/useDocumentsSummary'
+import { CertificateSection } from '../components/CertificateSection'
+import { DistributionBar } from '../components/DistributionBar'
+import { TrendChart } from '../components/TrendChart'
 import { useTenant } from '../hooks/useTenant'
+
+const TOP_CLIENT_BADGE_VARIANTS = ['primary', 'accent', 'success', 'warning', 'neutral'] as const
 
 type MetricTone = 'primary' | 'secondary' | 'success' | 'error'
 
@@ -72,6 +77,14 @@ export function TenantDashboardScreen() {
   const periodCaption = summary
     ? `Periodo ${formatCivilDate(summary.period_start)} - ${formatCivilDate(summary.period_end)}`
     : 'Periodo actual'
+  const dailyIssuedPoints = (summary?.daily_issued ?? []).map((point) => ({
+    date: point.date,
+    value: point.count,
+  }))
+  const averageTicket =
+    authorizedCount > 0 ? Number(summary?.authorized_total ?? 0) / authorizedCount : 0
+  const topClients = summary?.top_clients ?? []
+  const maxTopClientTotal = Math.max(...topClients.map((client) => Number(client.total)), 1)
   const dashboardMetrics = [
     {
       icon: 'document-text-outline',
@@ -232,36 +245,82 @@ export function TenantDashboardScreen() {
           </View>
         </View>
 
-        <Card variant="elevated" elevated style={staticStyles.insightCard}>
-          <View style={staticStyles.insightHeader}>
-            <View
-              style={[
-                staticStyles.insightIcon,
-                { backgroundColor: semantic.accent.tertiarySubtle },
-              ]}
-            >
-              <Ionicons name="analytics-outline" size={20} color={semantic.accent.tertiary} />
-            </View>
-            <View style={staticStyles.insightCopy}>
-              <Text style={[staticStyles.insightTitle, { color: semantic.text.primary }]}>
-                Flujo del mes
-              </Text>
-              <Text style={[staticStyles.insightDescription, { color: semantic.text.secondary }]}>
-                {issuedCount > 0
-                  ? `${authorizedCount} de ${issuedCount} documentos ya fueron autorizados por el SRI.`
-                  : 'Aún no hay documentos emitidos en el periodo actual.'}
-              </Text>
-            </View>
+        <View style={staticStyles.topRow}>
+          <View style={staticStyles.topColumn}>
+            <SectionHeader title="Certificado digital" caption="Estado del certificado p12" />
+            {tenant ? (
+              <CertificateSection
+                tenantId={tenant.id}
+                canManage={false}
+                style={staticStyles.equalHeightCard}
+              />
+            ) : (
+              <Card variant="elevated" elevated style={staticStyles.equalHeightCard}>
+                <LoadingSpinner size="small" compact />
+              </Card>
+            )}
           </View>
-          <View style={[staticStyles.progressTrack, { backgroundColor: semantic.chart.track }]}>
-            <View
-              style={[
-                staticStyles.progressFill,
-                { backgroundColor: semantic.chart.tertiary, width: `${authorizedRate}%` },
-              ]}
+
+          <View style={staticStyles.topColumn}>
+            <SectionHeader title="Evolución diaria" caption="Documentos emitidos por día" />
+            <Card
+              variant="elevated"
+              elevated
+              style={[staticStyles.insightCard, staticStyles.equalHeightCard]}
+            >
+              {dailyIssuedPoints.length > 0 ? (
+                <TrendChart data={dailyIssuedPoints} formatValue={formatInteger} />
+              ) : (
+                <Text style={[staticStyles.insightDescription, { color: semantic.text.secondary }]}>
+                  Aún no hay documentos emitidos en el periodo actual.
+                </Text>
+              )}
+            </Card>
+          </View>
+        </View>
+
+        <View style={staticStyles.topRow}>
+          <View style={staticStyles.topColumn}>
+            <SectionHeader title="Ticket promedio" caption="Valor medio por documento autorizado" />
+            <MetricCard
+              icon="pricetag-outline"
+              label="Ticket promedio"
+              value={formatCurrency(averageTicket.toFixed(2))}
+              detail={
+                authorizedCount > 0
+                  ? `Sobre ${formatInteger(authorizedCount)} documentos autorizados`
+                  : 'Sin documentos autorizados todavía'
+              }
+              tone="secondary"
             />
           </View>
-        </Card>
+
+          <View style={staticStyles.topColumn}>
+            <SectionHeader title="Top clientes" caption="Mayor monto facturado del mes" />
+            <Card
+              variant="elevated"
+              elevated
+              style={[staticStyles.insightCard, staticStyles.equalHeightCard]}
+            >
+              {topClients.length > 0 ? (
+                topClients.map((client, index) => (
+                  <DistributionBar
+                    key={client.client_id}
+                    label={client.name}
+                    count={Number(client.total)}
+                    total={maxTopClientTotal}
+                    variant={TOP_CLIENT_BADGE_VARIANTS[index % TOP_CLIENT_BADGE_VARIANTS.length]}
+                    formatValue={(value) => formatCurrency(value.toFixed(2))}
+                  />
+                ))
+              ) : (
+                <Text style={[staticStyles.insightDescription, { color: semantic.text.secondary }]}>
+                  Aún no hay clientes facturados este mes.
+                </Text>
+              )}
+            </Card>
+          </View>
+        </View>
 
         {isUnlimitedPlan ? (
           <Card variant="elevated" elevated style={staticStyles.insightCard}>
@@ -403,6 +462,9 @@ const staticStyles = StyleSheet.create({
   welcomeDate: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
   topRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
   topColumn: { flexGrow: 1, flexBasis: 420, minWidth: 320, gap: spacing[4] },
+  // mismo patron que `equalHeightCard` en CompanyScreen: el card se estira para igualar
+  // al mas alto de su fila (stretch por defecto en `topRow`, flexDirection: 'row').
+  equalHeightCard: { flex: 1 },
   sectionHeader: { gap: spacing[1] },
   sectionTitle: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
   sectionCaption: { fontSize: typography.size.sm },

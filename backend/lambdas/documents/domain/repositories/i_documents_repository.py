@@ -94,6 +94,24 @@ class IDocumentsRepository(ABC):
         """
 
     @abstractmethod
+    def annul(
+        self,
+        tenant_id: str,
+        document_id: str,
+        *,
+        reason: str,
+        user_id: str,
+        access_key: str,
+        idempotency: IdempotencyContext | None = None,
+        response: dict | None = None,
+    ) -> None:
+        """Transition AUTHORIZED -> ANNULLED atomically with an audit record.
+
+        Raises DocumentNotAuthorizedError if the document's current status isn't
+        AUTHORIZED (lost a race, or was already annulled).
+        """
+
+    @abstractmethod
     def mark_buyer_notification_status(
         self,
         tenant_id: str,

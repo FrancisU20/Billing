@@ -32,3 +32,21 @@ class InvalidIssuedDateError(BusinessError):
 class RideNotAvailableError(BusinessError):
     code = "RIDE_NOT_AVAILABLE"
     default_message = "El RIDE solo está disponible para documentos autorizados."
+
+
+class DocumentNotAuthorizedError(BusinessError):
+    code = "DOCUMENT_NOT_AUTHORIZED"
+    default_message = "Solo se pueden anular documentos autorizados."
+
+
+class AnnulmentWindowExpiredError(BusinessError):
+    code = "ANNULMENT_WINDOW_EXPIRED"
+    default_message = (
+        "El plazo para anular este documento ante el SRI ya venció. "
+        "A partir de esta fecha solo se puede corregir con una nota de crédito."
+    )
+
+
+class ConsumerFinalCannotBeAnnulledError(BusinessError):
+    code = "CONSUMER_FINAL_CANNOT_BE_ANNULLED"
+    default_message = "Las facturas emitidas a Consumidor Final no se pueden anular ante el SRI."

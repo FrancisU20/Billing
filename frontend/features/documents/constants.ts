@@ -14,6 +14,7 @@ export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
   REJECTED: 'Rechazado',
   FAILED: 'Falló (reintentando)',
   FAILED_PERMANENT: 'Falló definitivamente',
+  ANNULLED: 'Anulado',
 }
 
 export const DOCUMENT_STATUS_BADGE_VARIANT: Record<DocumentStatus, BadgeVariant> = {
@@ -23,6 +24,7 @@ export const DOCUMENT_STATUS_BADGE_VARIANT: Record<DocumentStatus, BadgeVariant>
   REJECTED: 'error',
   FAILED: 'warning',
   FAILED_PERMANENT: 'error',
+  ANNULLED: 'neutral',
 }
 
 export const DOCUMENT_STATUS_OPTIONS: Array<{ value: DocumentStatus | 'all'; label: string }> = [
@@ -33,6 +35,7 @@ export const DOCUMENT_STATUS_OPTIONS: Array<{ value: DocumentStatus | 'all'; lab
   { value: 'REJECTED', label: 'Rechazado' },
   { value: 'FAILED', label: 'Falló' },
   { value: 'FAILED_PERMANENT', label: 'Falló definitivo' },
+  { value: 'ANNULLED', label: 'Anulado' },
 ]
 
 export const IVA_RATE_OPTIONS: Array<{ value: IvaRate; label: string }> = [

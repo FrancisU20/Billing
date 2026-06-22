@@ -256,10 +256,14 @@ calculo extendiendo lo que ya se recorria:
 Frontend: `features/tenants/screens/SuperadminDashboardScreen.tsx` +
 `useSuperadminDashboard` + `tenantsApi.dashboardSummary()` — mismo patron que
 `useDocumentsSummary`/`GET /documents/summary` del dashboard tenant. Item de menu
-"Dashboard" al inicio de la navegacion superadmin. `RevenueChart.tsx` (SVG propio sobre
-`react-native-svg`, ya instalado — sin dependencia nueva) y `DistributionBar.tsx` (barra de
-porcentaje etiquetada, mismo lenguaje visual que el `progressTrack`/`progressFill` inline de
-`TenantDashboardScreen.tsx`, sin centralizar ese inline existente en este cambio — deuda
+"Dashboard" al inicio de la navegacion superadmin. `TrendChart.tsx` (SVG propio sobre
+`react-native-svg`, ya instalado — sin dependencia nueva; antes `RevenueChart.tsx`, renombrado
+y generalizado con prop `formatValue?: (value: number) => string` cuando el dashboard tenant
+lo reuso para graficar conteos de documentos en vez de montos — default sigue siendo
+`formatCurrency`) y `DistributionBar.tsx` (barra de porcentaje etiquetada, con prop opcional
+`formatValue?: (count: number) => string` por el mismo motivo, default `String(count)` para no
+romper los usos existentes; mismo lenguaje visual que el `progressTrack`/`progressFill` inline
+de `TenantDashboardScreen.tsx`, sin centralizar ese inline existente en este cambio — deuda
 señalada abajo) viven en `features/tenants/components/`. `StatMetric` (compartido) ahora
 acepta `trend?: { pct, label }` y `size?: 'md' | 'lg'` opcionales.
 
@@ -280,10 +284,11 @@ queda fuera de alcance, no se tocó.
   salvo que `q`/`ruc`/`plan_status` esten activos — esos se
   resuelven en Python (`plan_status` se computa en lectura, nunca se persiste). Mismo costo
   que `list()`; no resuelve la deuda de arriba, solo la extiende al conteo.
-- `DistributionBar.tsx` (nuevo en el dashboard superadmin) duplica el lenguaje visual del
-  `progressTrack`/`progressFill` inline ya existente en `TenantDashboardScreen.tsx` en vez
-  de centralizarlo en un componente compartido — quedo fuera de alcance de la Fase 2 del
-  dashboard; oportunidad para unificar si aparece un tercer consumidor.
+- `DistributionBar.tsx` duplica el lenguaje visual del `progressTrack`/`progressFill` inline
+  ya existente en `TenantDashboardScreen.tsx` en vez de centralizarlo en un componente
+  compartido — quedo fuera de alcance de la Fase 2 del dashboard superadmin. Ya tiene un
+  tercer consumidor ("Top clientes" del dashboard tenant, ver `INVOICES.md`); sigue siendo
+  oportunidad de unificar, ahora con mas urgencia al tener 3 lugares con el mismo patron.
 
 ## Deuda Solventada
 

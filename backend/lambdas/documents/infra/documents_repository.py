@@ -15,7 +15,7 @@ GSI `tenant-docs-index`:
   projection = ALL
 """
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from boto3.dynamodb.conditions import Attr, Key
@@ -24,15 +24,17 @@ from botocore.exceptions import ClientError
 from lambdas._base.idempotency import IdempotencyContext, completion_transact_item, mark_completed
 from lambdas.documents.domain.entities import (
     BuyerNotificationStatus,
+    DailyIssuedCount,
     Document,
     DocumentStatus,
     DocumentSummary,
     InvoiceLine,
+    TopClientTotal,
 )
-from lambdas.documents.domain.errors import DocumentNotFoundError
+from lambdas.documents.domain.errors import DocumentNotAuthorizedError, DocumentNotFoundError
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from shared.audit.writer import audit_item, audit_put_transact_item
-from shared.dates import current_ecuador_month_utc_bounds, now_ecuador, now_utc
+from shared.dates import current_ecuador_month_utc_bounds, now_ecuador, now_utc, to_ecuador
 from shared.db.paginator import decode_cursor, encode_cursor
 from shared.errors import DatabaseError
 from shared.logger import get_logger
@@ -45,6 +47,11 @@ _GSI = "tenant-docs-index"
 def _dt(value: str) -> datetime:
     dt = datetime.fromisoformat(value)
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
+def _date_range(start: date, end: date) -> list[date]:
+    days = (end - start).days
+    return [start + timedelta(days=offset) for offset in range(days + 1)]
 
 
 def _digits_only(value: str) -> str:
@@ -265,6 +272,8 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         period_end = local_now.date().isoformat()
         status_counts = {status.value: 0 for status in DocumentStatus}
         authorized_total = Decimal("0.00")
+        daily_counts: dict[str, int] = {}
+        client_totals: dict[str, dict] = {}
         last_key = None
 
         try:
@@ -286,8 +295,23 @@ class DynamoDocumentsRepository(IDocumentsRepository):
                     if status not in status_counts:
                         continue
                     status_counts[status] += 1
+
+                    issued_day = to_ecuador(_dt(str(item.get("created_at")))).date().isoformat()
+                    daily_counts[issued_day] = daily_counts.get(issued_day, 0) + 1
+
                     if status == DocumentStatus.AUTHORIZED.value:
-                        authorized_total += Decimal(str(item.get("total", "0.00")))
+                        total = Decimal(str(item.get("total", "0.00")))
+                        authorized_total += total
+                        client_id = item.get("client_id")
+                        if client_id:
+                            entry = client_totals.setdefault(
+                                client_id,
+                                {
+                                    "name": str(item.get("buyer_name") or ""),
+                                    "total": Decimal("0.00"),
+                                },
+                            )
+                            entry["total"] += total
 
                 last_key = resp.get("LastEvaluatedKey")
                 if not last_key:
@@ -300,6 +324,16 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             status_counts[DocumentStatus.FAILED.value]
             + status_counts[DocumentStatus.FAILED_PERMANENT.value]
         )
+        daily_issued = [
+            DailyIssuedCount(date=day.isoformat(), count=daily_counts.get(day.isoformat(), 0))
+            for day in _date_range(date.fromisoformat(period_start), date.fromisoformat(period_end))
+        ]
+        top_clients = [
+            TopClientTotal(client_id=client_id, name=entry["name"], total=entry["total"])
+            for client_id, entry in sorted(
+                client_totals.items(), key=lambda pair: pair[1]["total"], reverse=True
+            )[:5]
+        ]
         return DocumentSummary(
             period_start=period_start,
             period_end=period_end,
@@ -310,6 +344,8 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             pending_count=status_counts[DocumentStatus.PENDING.value],
             processing_count=status_counts[DocumentStatus.PROCESSING.value],
             authorized_total=authorized_total.quantize(Decimal("0.01")),
+            daily_issued=daily_issued,
+            top_clients=top_clients,
         )
 
     # ── write ─────────────────────────────────────────────────────────────────
@@ -371,6 +407,87 @@ class DynamoDocumentsRepository(IDocumentsRepository):
                     reasons=reasons,
                 )
             _log.error("DynamoDB save document error", error=str(exc))
+            raise DatabaseError() from exc
+
+    def annul(
+        self,
+        tenant_id: str,
+        document_id: str,
+        *,
+        reason: str,
+        user_id: str,
+        access_key: str,
+        idempotency: IdempotencyContext | None = None,
+        response: dict | None = None,
+    ) -> None:
+        now = now_utc().isoformat()
+
+        transact_items: list[dict] = [
+            {
+                "Update": {
+                    "TableName": self._table.table_name,
+                    "Key": {"pk": self._pk(tenant_id), "sk": self._sk(document_id)},
+                    "UpdateExpression": (
+                        "SET #status = :new_status, #updated_at = :updated_at, "
+                        "#annulled_at = :annulled_at, #annulled_by = :annulled_by, "
+                        "#annulment_reason = :annulment_reason"
+                    ),
+                    "ConditionExpression": "#status = :expected_status",
+                    "ExpressionAttributeNames": {
+                        "#status": "status",
+                        "#updated_at": "updated_at",
+                        "#annulled_at": "annulled_at",
+                        "#annulled_by": "annulled_by",
+                        "#annulment_reason": "annulment_reason",
+                    },
+                    "ExpressionAttributeValues": {
+                        ":new_status": DocumentStatus.ANNULLED.value,
+                        ":expected_status": DocumentStatus.AUTHORIZED.value,
+                        ":updated_at": now,
+                        ":annulled_at": now,
+                        ":annulled_by": user_id,
+                        ":annulment_reason": reason,
+                    },
+                }
+            }
+        ]
+        if self._audit_table:
+            transact_items.append(
+                audit_put_transact_item(
+                    self._audit_table.table_name,
+                    audit_item(
+                        pk=f"AUDIT#{tenant_id}",
+                        entity_type="DOCUMENT",
+                        entity_id=document_id,
+                        action="DOCUMENT_ANNULLED",
+                        changed_by=user_id,
+                        before={"status": DocumentStatus.AUTHORIZED.value},
+                        after={
+                            "status": DocumentStatus.ANNULLED.value,
+                            "reason": reason,
+                            "access_key": access_key,
+                        },
+                    ),
+                )
+            )
+        if idempotency is not None:
+            if response is None:
+                raise ValueError("response is required when idempotency context is provided")
+            transact_items.append(completion_transact_item(idempotency, response))
+
+        try:
+            self._table.meta.client.transact_write_items(TransactItems=transact_items)
+            if idempotency is not None:
+                mark_completed()
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
+                _log.warning(
+                    "annul no-op: document status already changed",
+                    document_id=document_id,
+                )
+                raise DocumentNotAuthorizedError() from exc
+            _log.error("DynamoDB annul document error", error=str(exc))
             raise DatabaseError() from exc
 
     def update_status(
@@ -575,6 +692,9 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             if doc.buyer_notified_at
             else None,
             "buyer_notification_error": doc.buyer_notification_error,
+            "annulled_at": doc.annulled_at.isoformat() if doc.annulled_at else None,
+            "annulled_by": doc.annulled_by,
+            "annulment_reason": doc.annulment_reason,
         }
 
     def _from_item(self, item: dict) -> Document:
@@ -619,4 +739,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             if item.get("buyer_notified_at")
             else None,
             buyer_notification_error=item.get("buyer_notification_error"),
+            annulled_at=_dt(item["annulled_at"]) if item.get("annulled_at") else None,
+            annulled_by=item.get("annulled_by", ""),
+            annulment_reason=item.get("annulment_reason"),
         )

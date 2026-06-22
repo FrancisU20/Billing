@@ -7,6 +7,7 @@ from decimal import Decimal
 from botocore.exceptions import ClientError
 
 from lambdas.documents.domain.entities import Document, DocumentStatus
+from lambdas.documents.domain.errors import DocumentNotAuthorizedError
 from lambdas.documents.infra.documents_repository import DynamoDocumentsRepository
 from shared.errors import DatabaseError
 
@@ -38,11 +39,16 @@ class FakeDocumentsTable:
 
 
 class _FakeDynamoClient:
-    def __init__(self) -> None:
+    def __init__(self, error_code: str | None = None) -> None:
         self.transact_write_calls: list[dict] = []
+        self.error_code = error_code
 
     def transact_write_items(self, **kwargs) -> dict:
         self.transact_write_calls.append(kwargs)
+        if self.error_code:
+            raise ClientError(
+                {"Error": {"Code": self.error_code, "Message": "boom"}}, "TransactWriteItems"
+            )
         return {}
 
 
@@ -54,8 +60,8 @@ class _FakeMeta:
 class FakeTransactTable:
     table_name = "unit-documents"
 
-    def __init__(self) -> None:
-        self.client = _FakeDynamoClient()
+    def __init__(self, error_code: str | None = None) -> None:
+        self.client = _FakeDynamoClient(error_code)
         self.meta = _FakeMeta(self.client)
 
 
@@ -146,6 +152,82 @@ class DynamoDocumentsRepositoryCountTests(unittest.TestCase):
         self.assertEqual(summary.authorized_total, Decimal("11.50"))
         self.assertEqual(table.query_calls[0]["IndexName"], "tenant-docs-index")
 
+    def test_summary_this_month_builds_daily_issued_and_top_clients(self) -> None:
+        repo_for_items = DynamoDocumentsRepository(FakeDocumentsTable())
+        day_one_authorized_client_a = repo_for_items._to_item(
+            _make_document(
+                document_id="doc-1",
+                status=DocumentStatus.AUTHORIZED,
+                total=Decimal("11.50"),
+                created_at=datetime(2026, 6, 18, 12, tzinfo=UTC),
+                client_id="client-a",
+                buyer_name="Cliente A",
+            )
+        )
+        day_one_rejected_client_b = repo_for_items._to_item(
+            _make_document(
+                document_id="doc-2",
+                status=DocumentStatus.REJECTED,
+                total=Decimal("23.00"),
+                created_at=datetime(2026, 6, 18, 13, tzinfo=UTC),
+                client_id="client-b",
+                buyer_name="Cliente B",
+            )
+        )
+        day_one_failed_no_client = repo_for_items._to_item(
+            _make_document(
+                document_id="doc-3",
+                status=DocumentStatus.FAILED_PERMANENT,
+                total=Decimal("34.50"),
+                created_at=datetime(2026, 6, 18, 14, tzinfo=UTC),
+            )
+        )
+        day_two_authorized_client_a = repo_for_items._to_item(
+            _make_document(
+                document_id="doc-4",
+                status=DocumentStatus.AUTHORIZED,
+                total=Decimal("5.00"),
+                created_at=datetime(2026, 6, 19, 10, tzinfo=UTC),
+                client_id="client-a",
+                buyer_name="Cliente A",
+            )
+        )
+        day_two_authorized_consumidor_final = repo_for_items._to_item(
+            _make_document(
+                document_id="doc-5",
+                status=DocumentStatus.AUTHORIZED,
+                total=Decimal("50.00"),
+                created_at=datetime(2026, 6, 19, 11, tzinfo=UTC),
+                client_id=None,
+                buyer_name="Consumidor Final",
+            )
+        )
+        table = FakeDocumentsTable(
+            query_responses=[
+                {
+                    "Items": [
+                        day_one_authorized_client_a,
+                        day_one_rejected_client_b,
+                        day_one_failed_no_client,
+                        day_two_authorized_client_a,
+                        day_two_authorized_consumidor_final,
+                    ]
+                }
+            ]
+        )
+        repo = DynamoDocumentsRepository(table)
+
+        summary = repo.summary_this_month("tenant-1")
+
+        self.assertEqual(summary.authorized_total, Decimal("66.50"))
+        daily_by_date = {entry.date: entry.count for entry in summary.daily_issued}
+        self.assertEqual(daily_by_date["2026-06-18"], 3)
+        self.assertEqual(daily_by_date["2026-06-19"], 2)
+        self.assertEqual(len(summary.top_clients), 1)
+        self.assertEqual(summary.top_clients[0].client_id, "client-a")
+        self.assertEqual(summary.top_clients[0].name, "Cliente A")
+        self.assertEqual(summary.top_clients[0].total, Decimal("16.50"))
+
 
 class DynamoDocumentsRepositorySearchTests(unittest.TestCase):
     def _item(self, **overrides) -> dict:
@@ -230,6 +312,51 @@ class DynamoDocumentsRepositorySaveTests(unittest.TestCase):
 
         transact_items = table.client.transact_write_calls[0]["TransactItems"]
         self.assertEqual(len(transact_items), 1)
+
+
+class DynamoDocumentsRepositoryAnnulTests(unittest.TestCase):
+    def test_annul_updates_status_and_writes_audit(self) -> None:
+        table = FakeTransactTable()
+        repo = DynamoDocumentsRepository(table, FakeAuditTable())
+
+        repo.annul(
+            "tenant-1",
+            "doc-1",
+            reason="Error en el monto facturado",
+            user_id="user-1",
+            access_key="1" * 49,
+        )
+
+        transact_items = table.client.transact_write_calls[0]["TransactItems"]
+        self.assertEqual(len(transact_items), 2)
+        update = transact_items[0]["Update"]
+        self.assertEqual(
+            update["ExpressionAttributeValues"][":new_status"], DocumentStatus.ANNULLED.value
+        )
+        self.assertEqual(
+            update["ExpressionAttributeValues"][":expected_status"],
+            DocumentStatus.AUTHORIZED.value,
+        )
+        audit_put = transact_items[1]["Put"]
+        self.assertEqual(audit_put["Item"]["action"], "DOCUMENT_ANNULLED")
+        self.assertEqual(audit_put["Item"]["changed_by"], "user-1")
+        self.assertEqual(audit_put["Item"]["after"]["reason"], "Error en el monto facturado")
+
+    def test_annul_skips_audit_without_audit_table(self) -> None:
+        table = FakeTransactTable()
+        repo = DynamoDocumentsRepository(table)
+
+        repo.annul("tenant-1", "doc-1", reason="Motivo", user_id="user-1", access_key="1" * 49)
+
+        transact_items = table.client.transact_write_calls[0]["TransactItems"]
+        self.assertEqual(len(transact_items), 1)
+
+    def test_annul_raises_not_authorized_on_condition_failure(self) -> None:
+        table = FakeTransactTable(error_code="TransactionCanceledException")
+        repo = DynamoDocumentsRepository(table, FakeAuditTable())
+
+        with self.assertRaises(DocumentNotAuthorizedError):
+            repo.annul("tenant-1", "doc-1", reason="Motivo", user_id="user-1", access_key="1" * 49)
 
 
 class DynamoDocumentsRepositoryUpdateStatusTests(unittest.TestCase):

@@ -29,7 +29,8 @@
       "Bash(echo \"exit:$?\")",
       "Bash(ssh-keygen -t ed25519 -C \"panchoulloateran@gmail.com\" -f ~/.ssh/id_ed25519_francisu20 -N \"\")",
       "Bash(ssh -T git@github.com-francisu20 -o BatchMode=yes -o ConnectTimeout=10)",
-      "Bash(gh ssh-key *)"
+      "Bash(gh ssh-key *)",
+      "Bash(PYTHONPATH=backend backend/.venv/bin/python -m unittest tests.unit.lambdas.documents.test_documents_repository -v)"
     ],
     "additionalDirectories": [
       "/Users/panchoulloa/.ssh"

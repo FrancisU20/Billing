@@ -8,6 +8,7 @@ export const documentStatusSchema = z.enum([
   'REJECTED',
   'FAILED',
   'FAILED_PERMANENT',
+  'ANNULLED',
 ])
 
 export const ivaRateSchema = z.enum(['15', '5', '0', 'EXENTO'])
@@ -74,6 +75,9 @@ export const documentSchema = z.object({
   created_at: z.string().min(1),
   updated_at: z.string().min(1),
   created_by: z.string(),
+  annulled_at: z.string().nullable().optional().default(null),
+  annulled_by: z.string().optional().default(''),
+  annulment_reason: z.string().nullable().optional().default(null),
 })
 
 export const documentsPageSchema = z.object({
@@ -81,6 +85,17 @@ export const documentsPageSchema = z.object({
   next_token: z.string().nullable(),
   has_more: z.boolean(),
   total: z.number().nullable().optional(),
+})
+
+export const dailyIssuedPointSchema = z.object({
+  date: z.string().min(1),
+  count: z.coerce.number(),
+})
+
+export const topClientSchema = z.object({
+  client_id: z.string().min(1),
+  name: z.string(),
+  total: z.string().min(1),
 })
 
 export const documentsSummarySchema = z.object({
@@ -96,6 +111,8 @@ export const documentsSummarySchema = z.object({
   document_limit: z.coerce.number().nullable(),
   is_unlimited: z.boolean(),
   is_free_plan: z.boolean().optional().default(false),
+  daily_issued: z.array(dailyIssuedPointSchema).optional().default([]),
+  top_clients: z.array(topClientSchema).optional().default([]),
 })
 
 export const rideUrlSchema = z.object({

@@ -16,7 +16,7 @@ Excepcion: los **dominios publicos** (`wali-{env}.codelabsecuador.com` /
 `billing-*` a `wali-*` y ya estan desplegados en dev (2026-06-21) — los nombres fisicos de
 infra y los dominios publicos son decisiones independientes.
 
-Ultima actualizacion: 2026-06-21.
+Ultima actualizacion: 2026-06-22.
 
 ## Objetivo Del Producto
 
@@ -114,7 +114,19 @@ final de componentes (`StatMetric`, `ListScreenHeader`, `ListCell`, `EntityAvata
 dashboard tenant. Nota de Credito (04), auto-provision de colas enterprise y batch masivo
 quedan pendientes salvo cambio de prioridad (no eran parte de este roadmap).
 Dashboard tenant real implementado via `GET /documents/summary` (conteos del mes, total
-autorizado y consumo del limite mensual del plan con barra de progreso). Hub "Mi empresa"
+autorizado y consumo del limite mensual del plan con barra de progreso). **2026-06-22:**
+el widget redundante "Flujo del mes" se reemplazo por 4 widgets derivados del mismo
+`summary_this_month()` sin lecturas adicionales — certificado digital (solo lectura, sin
+boton de actualizar), evolucion diaria del mes (`TrendChart`, antes `RevenueChart`,
+generalizado y reusado del dashboard superadmin), ticket promedio y top 5 clientes del
+mes por monto autorizado (excluye "Consumidor Final"); detalle en `context/INVOICES.md` y
+`context/TENANTS.md`. **Anulacion de documentos (2026-06-22):** `POST
+/documents/{id}/annul` marca un documento `AUTHORIZED` como `ANNULLED` con motivo
+obligatorio y auditoria — el SRI no expone webservice de anulacion (confirmado contra 3
+fuentes externas), es tramite manual fuera de Wali; el endpoint solo refleja ese
+resultado, nunca llama al SRI. Reglas: solo `AUTHORIZED`, no Consumidor Final, dentro del
+plazo legal (dia 7 del mes siguiente). Detalle completo en `context/INVOICES.md` seccion
+"Anulacion De Documentos". Hub "Mi empresa"
 (`/settings/company`) agrupa datos de empresa (self-edit), certificado digital y accesos a
 establecimientos/descuento global/facturacion; menu principal tenant quedo con un solo
 item de configuracion en vez de tres; `BillingScreen` ya no permite pago manual cuando la
@@ -166,7 +178,7 @@ corresponda. Estado actual por capa/dominio:
 | `context/PRODUCTS.md`      | Inventario avanzado con movimientos/reservas queda para sprint futuro                                                                                                                                                                                                                                                                           |
 | `context/ONBOARDING.md`    | Queue dedicada Enterprise automatica es alcance futuro                                                                                                                                                                                                                                                                                          |
 | `context/CERTIFICATES.md`  | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras                                                                                                                                                                                                                                                                         |
-| `context/INVOICES.md`      | Literal SOAP de rechazo sin verificar contra SRI real; RIDE sin barcode/logo; clasificacion de errores SRI parcial; colas dedicadas enterprise sin auto-provision; `invoice_processor` sin concurrencia reservada (cuenta AWS limitada a 10 ejecuciones concurrentes en `sa-east-1`)    |
+| `context/INVOICES.md`      | Literal SOAP de rechazo sin verificar contra SRI real; RIDE sin barcode/logo; clasificacion de errores SRI parcial; colas dedicadas enterprise sin auto-provision; `invoice_processor` sin concurrencia reservada (cuenta AWS limitada a 10 ejecuciones concurrentes en `sa-east-1`); plazo de anulacion sin ajuste por feriados/fin de semana de Ecuador (deliberado, ver seccion "Anulacion De Documentos")    |
 | `context/SUBSCRIPTIONS.md` | Scans en workers (aceptable hasta ~10 K); webhook sin DLQ; orders PENDING (3DS) sin limpieza automatica                                                                                                                                                                                                                                         |
 
 ## Stack

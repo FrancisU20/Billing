@@ -99,7 +99,7 @@ export function CertificateSection({
         icon="ribbon-outline"
         layout="stack"
         style={style}
-        contentStyle={styles.sectionBody}
+        contentStyle={styles.loadingBody}
       >
         <LoadingSpinner size="small" compact />
       </DetailSection>
@@ -215,6 +215,10 @@ export function CertificateSection({
 
 const styles = StyleSheet.create({
   sectionBody: { flex: 1 },
+  // minHeight aproxima el alto del estado cargado (badge + 4 DetailField) para que el
+  // card no se vea mas chico mientras el spinner esta solo, y no "salte" de tamano al
+  // terminar de cargar.
+  loadingBody: { flex: 1, minHeight: 220, alignItems: 'center', justifyContent: 'center' },
   details: { gap: spacing[4] },
   message: { fontSize: typography.size.base, lineHeight: typography.size.base * 1.5 },
   actionFooter: {

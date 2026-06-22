@@ -53,9 +53,49 @@ repositorio de documents conozca nada de planes. Si el plan no se puede resolver
 `document_limit` queda en `null` y el resto del summary se devuelve igual — no se cae todo
 el endpoint por esa causa.
 
+El mismo `summary_this_month()` tambien devuelve `daily_issued` (lista `{date, count}`, un
+punto por dia civil Ecuador entre `period_start` y `period_end`, con `count=0` en los dias
+sin actividad) y `top_clients` (top 5 `{client_id, name, total}` por monto AUTORIZADO del
+mes, excluyendo documentos sin `client_id` — "Consumidor Final" nunca entra al ranking).
+Ambos se acumulan en el mismo loop que ya pagina el GSI `tenant-docs-index`: cero lecturas
+adicionales, `name` es el `buyer_name` ya snapshoteado en el documento (no se vuelve a
+consultar `clients`). Usados por el dashboard tenant (ver `FRONTEND.md`).
+
 **Fuera de alcance MVP:** Nota de credito (04), retencion (07), batch masivo XLSX.
 Esos se disenan en sprints posteriores pero la arquitectura actual los soporta sin
 migraciones.
+
+### Anulacion De Documentos (2026-06-22) — Marcado Local, Sin Integracion SRI
+
+El SRI **no expone un webservice** para anular comprobantes electronicos (a diferencia de
+recepcion/autorizacion, que si son SOAP) — confirmado contra 3 fuentes independientes
+(NMS legal, Facturero Movil, soporte Contifico/Siigo). Es un tramite manual: el
+contribuyente entra al portal SRI en linea con sus propias credenciales (o usa el
+Facturador SRI), pide la anulacion ahi, y el sistema de facturacion solo debe reflejar
+el resultado despues. Por eso `POST /documents/{id}/annul` (`AnnulDocumentUseCase` +
+`DynamoDocumentsRepository.annul()`) **no llama a ningun servicio del SRI** — solo marca
+`status=ANNULLED` con auditoria (`action="DOCUMENT_ANNULLED"`, igual patron transaccional
+que `DISCOUNT_CEILING_OVERRIDE` en `save()`), y asume que el tramite manual ya se hizo.
+
+Reglas de elegibilidad (Res. NAC-DGERCGC25-00000014/00000017, vigente 2026), validadas en
+`AnnulDocumentUseCase.execute()`:
+- Solo documentos `AUTHORIZED` (`DocumentNotAuthorizedError` si no).
+- Facturas a Consumidor Final (`buyer_id_type == "07"`) no se pueden anular desde enero
+  2026 (`ConsumerFinalCannotBeAnnulledError`).
+- Plazo: hasta el dia 7 del mes siguiente a `issued_at` (`AnnulmentWindowExpiredError` si
+  venció). **Deuda tecnica deliberada:** no se ajusta al siguiente dia habil si ese dia 7
+  cae feriado/fin de semana (calendario de feriados de Ecuador fuera de alcance) — el
+  efecto es ser ligeramente mas restrictivo que el SRI en esos casos puntuales, nunca mas
+  permisivo. Mismo calculo replicado en frontend (`features/documents/utils.ts`,
+  `isWithinAnnulmentWindow`) solo para UX proactiva (ocultar el boton); el backend es la
+  fuente de verdad.
+
+Motivo obligatorio (`AnnulDocumentRequest.reason`) guardado en `Document.annulment_reason`
++ `annulled_at`/`annulled_by`. Frontend: boton "Anular factura" en
+`DocumentDetailScreen.tsx` (solo `owner`/`admin`/`superadmin`, documento `AUTHORIZED`, no
+Consumidor Final, dentro de plazo) abre un `ConfirmDialog` extendido con un slot
+`children` (nuevo prop generico, reusable para futuros modales con input) que pide el
+motivo via `FormField`.
 
 ## Lambdas Y Responsabilidades
 

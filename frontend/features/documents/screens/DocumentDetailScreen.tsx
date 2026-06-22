@@ -1,26 +1,38 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DetailField, DetailSection } from '@/components/ui/DetailSection'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { FormField } from '@/components/ui/FormField'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useToast } from '@/components/feedback/Toast'
+import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { formatDate, formatDateTime } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
+import { canWrite } from '@/constants/roles'
 import { radius, spacing, typography } from '@/constants/tokens'
+import { selectUser, useAuthStore } from '@/features/auth/store'
 import { documentsApi } from '../api'
 import { DocumentStatusBadge } from '../components/DocumentStatusBadge'
-import { BUYER_ID_TYPE_LABELS } from '../constants'
+import { BUYER_ID_TYPE_LABELS, CONSUMIDOR_FINAL_ID_TYPE } from '../constants'
 import { useDocument } from '../hooks/useDocument'
+import { isWithinAnnulmentWindow } from '../utils'
 
 export function DocumentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { semantic } = useTheme()
+  const toast = useToast()
+  const user = useAuthStore(selectUser)
   const { document, loading, error, refresh } = useDocument(id ?? null)
+  const [annulling, setAnnulling] = useState(false)
+  const [reason, setReason] = useState('')
+  const [reasonError, setReasonError] = useState<string | null>(null)
 
   useRefreshOnFocus(refresh)
 
@@ -33,6 +45,31 @@ export function DocumentDetailScreen() {
     const { url } = await documentsApi.getRideUrl(id)
     await Linking.openURL(url)
   })
+
+  const {
+    submitting: annullingSubmit,
+    error: annulError,
+    submit: confirmAnnul,
+  } = useFormSubmit(async () => {
+    if (!id) return
+    if (!reason.trim()) {
+      setReasonError('Indica el motivo de la anulación.')
+      return
+    }
+    setReasonError(null)
+    await documentsApi.annul(id, reason.trim(), createIdempotencyKey('document_annul'))
+    toast.success('Documento marcado como anulado')
+    setAnnulling(false)
+    setReason('')
+    await refresh()
+  })
+
+  const canAnnul =
+    !!document &&
+    canWrite(user?.role ?? null) &&
+    document.status === 'AUTHORIZED' &&
+    document.buyer_id_type !== CONSUMIDOR_FINAL_ID_TYPE &&
+    isWithinAnnulmentWindow(document.issued_at)
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando documento..." />
 
@@ -69,19 +106,40 @@ export function DocumentDetailScreen() {
                   <DocumentStatusBadge status={document.status} />
                 </View>
               </View>
-              {document.status === 'AUTHORIZED' ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  isLoading={downloading}
-                  onPress={() => downloadRide()}
-                >
-                  Descargar RIDE
-                </Button>
-              ) : null}
+              <View style={styles.profileActions}>
+                {document.status === 'AUTHORIZED' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    isLoading={downloading}
+                    onPress={() => downloadRide()}
+                  >
+                    Descargar RIDE
+                  </Button>
+                ) : null}
+                {canAnnul ? (
+                  <Button variant="danger" size="sm" onPress={() => setAnnulling(true)}>
+                    Anular factura
+                  </Button>
+                ) : null}
+              </View>
             </View>
 
             {downloadError ? <ApiErrorBanner error={downloadError} /> : null}
+
+            {document.status === 'ANNULLED' ? (
+              <View
+                style={[
+                  styles.infoBanner,
+                  { backgroundColor: semantic.bg.muted, borderColor: semantic.border.default },
+                ]}
+              >
+                <Text style={[styles.infoBannerText, { color: semantic.text.secondary }]}>
+                  Anulado{document.annulled_at ? ` el ${formatDateTime(document.annulled_at)}` : ''}
+                  {document.annulment_reason ? ` — ${document.annulment_reason}` : ''}
+                </Text>
+              </View>
+            ) : null}
 
             {document.status === 'PENDING' || document.status === 'PROCESSING' ? (
               <View
@@ -164,6 +222,37 @@ export function DocumentDetailScreen() {
           </>
         ) : null}
       </ScrollView>
+
+      <ConfirmDialog
+        visible={annulling}
+        title="Anular factura"
+        message="Esta acción no se puede revertir. El trámite de anulación ante el SRI se hace por fuera de Wali (portal SRI en línea o Facturador SRI) — marca esto como anulado solo después de completarlo ahí."
+        confirmLabel="Marcar como anulado"
+        variant="danger"
+        icon="ban-outline"
+        isLoading={annullingSubmit}
+        confirmDisabled={!reason.trim()}
+        onCancel={() => {
+          setAnnulling(false)
+          setReason('')
+          setReasonError(null)
+        }}
+        onConfirm={() => confirmAnnul()}
+      >
+        <FormField
+          label="Motivo de la anulación"
+          placeholder="Ej. error en el monto facturado"
+          leftIcon="alert-circle-outline"
+          error={reasonError ?? undefined}
+          onChangeText={(value) => {
+            setReason(value)
+            setReasonError(null)
+          }}
+          value={reason}
+          required
+        />
+        {annulError ? <ApiErrorBanner error={annulError} /> : null}
+      </ConfirmDialog>
     </View>
   )
 }
@@ -181,6 +270,7 @@ const styles = StyleSheet.create({
     padding: spacing[5],
   },
   profileCopy: { flex: 1, gap: spacing[1], minWidth: 220 },
+  profileActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   sequential: {
     fontFamily: typography.fontFamily.mono,
     fontSize: typography.size.xl,

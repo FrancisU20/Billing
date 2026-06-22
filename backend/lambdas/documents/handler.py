@@ -9,6 +9,7 @@ Routes:
     GET  /documents/summary        → get_documents_summary
     GET  /documents/{id}           → get_document
     GET  /documents/{id}/ride      → get_ride_url (pre-signed S3 URL)
+    POST /documents/{id}/annul     → annul_document (local mark only, no SRI webservice)
 
 Auth:
     - POST: owner, admin, superadmin
@@ -27,6 +28,7 @@ from lambdas._base.parser import Request, parse, require_path_param
 from lambdas._base.permissions import require_role
 from lambdas._base.response import ApiResponse
 from lambdas.documents.domain.commands import (
+    AnnulDocumentCommand,
     EmitDocumentCommand,
     GetDocumentCommand,
     GetRideUrlCommand,
@@ -40,7 +42,12 @@ from lambdas.documents.infra.documents_repository import DynamoDocumentsReposito
 from lambdas.documents.infra.plan_reader import DynamoPlanReader
 from lambdas.documents.infra.product_catalog import DynamoProductCatalog
 from lambdas.documents.infra.sequences_adapter import DynamoSequencesAdapter
-from lambdas.documents.schemas import EmitDocumentRequest, ListDocumentsQueryParams
+from lambdas.documents.schemas import (
+    AnnulDocumentRequest,
+    EmitDocumentRequest,
+    ListDocumentsQueryParams,
+)
+from lambdas.documents.use_cases.annul_document import AnnulDocumentUseCase
 from lambdas.documents.use_cases.emit_document import EmitDocumentUseCase
 from lambdas.documents.use_cases.get_document import GetDocumentUseCase
 from lambdas.documents.use_cases.get_documents_summary import GetDocumentsSummaryUseCase
@@ -292,12 +299,46 @@ def _get_ride(request: Request, context) -> dict:
     return ApiResponse.ok({"url": url}, request.request_id)
 
 
+@lambda_handler
+@require_role("owner", "admin", "superadmin")
+@idempotent
+def _annul(request: Request, context) -> dict:
+    tenant_id = _resolve_tenant_id(request)
+    document_id = require_path_param(request, "id")
+    body = parse(AnnulDocumentRequest, request.body)
+    repo = _repo()
+
+    document = AnnulDocumentUseCase(repo).execute(
+        AnnulDocumentCommand(
+            tenant_id=tenant_id,
+            document_id=document_id,
+            reason=body.reason,
+            user_id=request.user_id,
+        )
+    )
+
+    response = ApiResponse.ok(document.to_dict(), request.request_id)
+
+    repo.annul(
+        tenant_id,
+        document_id,
+        reason=body.reason,
+        user_id=request.user_id,
+        access_key=document.access_key,
+        idempotency=require_current_context(),
+        response=response,
+    )
+
+    return response
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 _DOCUMENTS_PATTERN = re.compile(r"^/documents$")
 _DOCUMENTS_SUMMARY_PATTERN = re.compile(r"^/documents/summary$")
 _DOCUMENT_PATTERN = re.compile(r"^/documents/[^/]+$")
 _RIDE_PATTERN = re.compile(r"^/documents/[^/]+/ride$")
+_ANNUL_PATTERN = re.compile(r"^/documents/[^/]+/annul$")
 
 
 def handler(event: dict, context) -> dict:
@@ -320,6 +361,10 @@ def handler(event: dict, context) -> dict:
     if _RIDE_PATTERN.match(path):
         if method == "GET":
             return _get_ride(event, context)
+
+    if _ANNUL_PATTERN.match(path):
+        if method == "POST":
+            return _annul(event, context)
 
     if _DOCUMENT_PATTERN.match(path):
         if method == "GET":

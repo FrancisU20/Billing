@@ -4,10 +4,15 @@ import Svg, { Line, Path, Text as SvgText } from 'react-native-svg'
 import { useTheme } from '@/lib/theme-context'
 import { formatCurrency, formatDate } from '@/lib/utils/format'
 import { typography } from '@/constants/tokens'
-import type { DailyRevenuePoint } from '@/features/tenants/schemas'
 
-interface RevenueChartProps {
-  data: DailyRevenuePoint[]
+export interface TrendChartPoint {
+  date: string
+  value: number
+}
+
+interface TrendChartProps {
+  data: TrendChartPoint[]
+  formatValue?: (value: number) => string
 }
 
 const HEIGHT = 180
@@ -23,7 +28,7 @@ const Y_AXIS_MARKS = 4
 const SVG_TEXT_FONT_FAMILY =
   '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif'
 
-export function RevenueChart({ data }: RevenueChartProps) {
+export function TrendChart({ data, formatValue = formatCurrency }: TrendChartProps) {
   const { semantic } = useTheme()
   const [width, setWidth] = useState(0)
 
@@ -33,19 +38,19 @@ export function RevenueChart({ data }: RevenueChartProps) {
     return <View style={styles.container} onLayout={onLayout} />
   }
 
-  const amounts = data.map((point) => Number(point.amount))
-  const maxAmount = Math.max(...amounts, 1)
+  const values = data.map((point) => point.value)
+  const maxValue = Math.max(...values, 1)
   const plotWidth = width - LEFT_PADDING
   const plotHeight = HEIGHT - TOP_PADDING - BOTTOM_PADDING
 
   const xAt = (index: number) =>
     LEFT_PADDING + (data.length > 1 ? (index / (data.length - 1)) * plotWidth : 0)
-  const yAt = (amount: number) => TOP_PADDING + (1 - amount / maxAmount) * plotHeight
+  const yAt = (value: number) => TOP_PADDING + (1 - value / maxValue) * plotHeight
 
-  const linePath = amounts
-    .map((amount, index) => `${index === 0 ? 'M' : 'L'} ${xAt(index)},${yAt(amount)}`)
+  const linePath = values
+    .map((value, index) => `${index === 0 ? 'M' : 'L'} ${xAt(index)},${yAt(value)}`)
     .join(' ')
-  const areaPath = `${linePath} L ${xAt(amounts.length - 1)},${TOP_PADDING + plotHeight} L ${xAt(0)},${TOP_PADDING + plotHeight} Z`
+  const areaPath = `${linePath} L ${xAt(values.length - 1)},${TOP_PADDING + plotHeight} L ${xAt(0)},${TOP_PADDING + plotHeight} Z`
 
   const xLabelStep = Math.max(1, Math.ceil(data.length / 6))
   const xLabelIndexes = data
@@ -57,8 +62,8 @@ export function RevenueChart({ data }: RevenueChartProps) {
       <Svg width={width} height={HEIGHT}>
         {Array.from({ length: Y_AXIS_MARKS }, (_, mark) => {
           const fraction = mark / (Y_AXIS_MARKS - 1)
-          const amount = maxAmount * fraction
-          const y = yAt(amount)
+          const value = maxValue * fraction
+          const y = yAt(value)
           return (
             <React.Fragment key={mark}>
               <Line
@@ -77,7 +82,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
                 fill={semantic.text.secondary}
                 textAnchor="end"
               >
-                {formatCurrency(amount)}
+                {formatValue(value)}
               </SvgText>
             </React.Fragment>
           )

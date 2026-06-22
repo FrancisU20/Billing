@@ -17,7 +17,7 @@ import { radius, spacing, typography } from '@/constants/tokens'
 import { Routes } from '@/constants/routes'
 import { TENANT_ENVIRONMENT_BADGE_VARIANT } from '../constants'
 import { DistributionBar } from '../components/DistributionBar'
-import { RevenueChart } from '../components/RevenueChart'
+import { TrendChart } from '../components/TrendChart'
 import { useSuperadminDashboard } from '../hooks/useSuperadminDashboard'
 
 export function SuperadminDashboardScreen() {
@@ -111,7 +111,12 @@ export function SuperadminDashboardScreen() {
             <Text style={[styles.sectionTitle, { color: semantic.text.primary }]}>
               Evolución de ingresos (últimos 30 días)
             </Text>
-            <RevenueChart data={summary?.daily_revenue ?? []} />
+            <TrendChart
+              data={(summary?.daily_revenue ?? []).map((point) => ({
+                date: point.date,
+                value: Number(point.amount),
+              }))}
+            />
           </Card>
 
           <Card variant="elevated" elevated style={[styles.distributionCard, styles.columnCard]}>

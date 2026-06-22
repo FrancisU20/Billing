@@ -19,6 +19,7 @@ class DocumentStatus(str, Enum):
     REJECTED = "REJECTED"
     FAILED = "FAILED"
     FAILED_PERMANENT = "FAILED_PERMANENT"
+    ANNULLED = "ANNULLED"
 
 
 class BuyerNotificationStatus(str, Enum):
@@ -27,6 +28,25 @@ class BuyerNotificationStatus(str, Enum):
     SENT = "SENT"
     SKIPPED_NO_EMAIL = "SKIPPED_NO_EMAIL"
     FAILED = "FAILED"
+
+
+@dataclass(frozen=True)
+class DailyIssuedCount:
+    date: str
+    count: int
+
+    def to_dict(self) -> dict:
+        return {"date": self.date, "count": self.count}
+
+
+@dataclass(frozen=True)
+class TopClientTotal:
+    client_id: str
+    name: str
+    total: Decimal
+
+    def to_dict(self) -> dict:
+        return {"client_id": self.client_id, "name": self.name, "total": str(self.total)}
 
 
 @dataclass(frozen=True)
@@ -43,6 +63,8 @@ class DocumentSummary:
     document_limit: int | None = None
     is_unlimited: bool = False
     is_free_plan: bool = False
+    daily_issued: list[DailyIssuedCount] = field(default_factory=list)
+    top_clients: list[TopClientTotal] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -58,6 +80,8 @@ class DocumentSummary:
             "document_limit": self.document_limit,
             "is_unlimited": self.is_unlimited,
             "is_free_plan": self.is_free_plan,
+            "daily_issued": [d.to_dict() for d in self.daily_issued],
+            "top_clients": [c.to_dict() for c in self.top_clients],
         }
 
 
@@ -148,6 +172,9 @@ class Document:
     buyer_notification_status: BuyerNotificationStatus | None = None
     buyer_notified_at: datetime | None = None
     buyer_notification_error: str | None = None
+    annulled_at: datetime | None = None
+    annulled_by: str = ""
+    annulment_reason: str | None = None
 
     @property
     def sequential_display(self) -> str:
@@ -193,4 +220,7 @@ class Document:
             "created_at": isoformat_ecuador(self.created_at),
             "updated_at": isoformat_ecuador(self.updated_at),
             "created_by": self.created_by,
+            "annulled_at": isoformat_ecuador(self.annulled_at),
+            "annulled_by": self.annulled_by,
+            "annulment_reason": self.annulment_reason,
         }
