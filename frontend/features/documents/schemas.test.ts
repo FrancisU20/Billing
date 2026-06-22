@@ -103,6 +103,7 @@ describe('document contract schemas', () => {
         authorized_total: '199.95',
         document_limit: 500,
         is_unlimited: false,
+        is_free_plan: false,
       }),
     ).toEqual({
       period_start: '2026-06-01',
@@ -116,6 +117,7 @@ describe('document contract schemas', () => {
       authorized_total: '199.95',
       document_limit: 500,
       is_unlimited: false,
+      is_free_plan: false,
     })
   })
 

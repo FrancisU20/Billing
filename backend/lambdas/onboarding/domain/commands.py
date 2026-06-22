@@ -15,8 +15,6 @@ class RequestOnboardingOtpCommand:
     accounting_required: bool
     plan_id: str
     billing_cycle: str = "month"  # "month" | "year" — elegido en el toggle de precios
-    certificate_b64: str | None = None
-    cert_password: str | None = None
 
 
 @dataclass(frozen=True)
@@ -33,6 +31,4 @@ class ConfirmOnboardingOtpCommand:
     accounting_required: bool
     plan_id: str
     billing_cycle: str = "month"
-    certificate_b64: str | None = None
-    cert_password: str | None = None
     order_id: str | None = None

@@ -32,3 +32,8 @@ class ToggleStatusRequest(BaseModel):
 
 class ApplyRenewalRequest(BaseModel):
     order_id: str = Field(..., min_length=1, max_length=36)
+
+
+class ChangeTenantPlanRequest(BaseModel):
+    plan_id: str = Field(..., min_length=1, max_length=36)
+    billing_cycle: str = Field("month", pattern=r"^(month|year)$")

@@ -12,6 +12,7 @@ export interface FormFieldProps extends TextInputProps {
   required?: boolean
   isDisabled?: boolean
   leftIcon?: keyof typeof Ionicons.glyphMap
+  rightElement?: React.ReactNode
   dark?: boolean
 }
 
@@ -22,6 +23,7 @@ export function FormField({
   required,
   isDisabled,
   leftIcon,
+  rightElement,
   dark,
   ...inputProps
 }: FormFieldProps) {
@@ -44,6 +46,7 @@ export function FormField({
         hasError={!!error}
         isDisabled={isDisabled}
         leftIcon={leftIcon}
+        rightElement={rightElement}
         dark={dark}
         accessibilityLabel={label}
       />

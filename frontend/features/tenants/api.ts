@@ -4,6 +4,7 @@ import {
   certificateMetadataSchema,
   certificateSchema,
   certificateUpdateSchema,
+  changeTenantPlanSchema,
   createTenantSchema,
   retryTenantOnboardingSchema,
   superadminDashboardSummarySchema,
@@ -14,6 +15,7 @@ import {
 } from './schemas'
 import type {
   CertificateUpdateInput,
+  ChangeTenantPlanInput,
   CreateTenantInput,
   ToggleTenantStatusInput,
   UpdateTenantInput,
@@ -60,6 +62,14 @@ export const tenantsApi = {
       {
         idempotencyKey,
       },
+    ),
+
+  changePlan: (id: string, body: ChangeTenantPlanInput, idempotencyKey: string) =>
+    api.patch(
+      `/tenants/${encodeURIComponent(id)}/plan`,
+      changeTenantPlanSchema.parse(body),
+      tenantSchema,
+      { idempotencyKey },
     ),
 
   delete: (id: string, idempotencyKey: string) =>

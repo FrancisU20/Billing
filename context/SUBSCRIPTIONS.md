@@ -9,7 +9,8 @@ del pagador independiente del perfil del tenant, **resiliencia de 4 capas** en e
 de activacion/renovacion (retry, degradacion graceful, guard auto-activate, reconciliador
 cada 5 min), **markup 12%** sobre el precio neto del plan, **cobro automatico** en
 renovacion via `dlocal_payer_id` guardado, estado `payment_failed` con banner de accion
-requerida y endpoint `retry-payment` para reintentar tarjeta guardada.
+requerida y endpoint `retry-payment` para reintentar tarjeta guardada. Desde 2026-06-21,
+pantalla de **confirmar/cambiar plan** post-registro antes de pagar (`PATCH /tenants/{id}/plan`).
 
 ## Lee Tambien Antes De Empezar
 
@@ -43,6 +44,57 @@ POST /onboarding/otp/confirm
   → plan de pago: tenant creado, subscription_status='pending_payment', plan_cycle_ends_at=null
 ```
 
+## Confirmar/Cambiar Plan Post-Registro
+
+Agregado 2026-06-21. Entre el cambio de password forzado y el pago (o el dashboard, si
+el plan es gratis) hay un paso intermedio para CUALQUIER tenant nuevo, gratis o de pago:
+confirmar el plan elegido en el registro o cambiarlo. Ver `ONBOARDING.md` → "Flujo De
+Registro" pasos 11-13 para donde encaja esto en la secuencia completa.
+
+```
+PATCH /tenants/{id}/plan          owner|admin|superadmin, idempotente
+  Body: { plan_id }
+  Solo si tenant.subscription_status in (None, 'pending_payment') — si no,
+    TenantPlanChangeNotAllowedError (422): ya paso por aqui o ya esta activo.
+  Solo si el plan destino es self_service=true — si no,
+    TenantPlanNotSelfServiceError (422): Enterprise no se elige aqui.
+  ChangePlanUseCase → Tenant.confirm_plan_selection(plan_id, plan_limit_cycle, plan_is_free, updated_by):
+    - plan_id = nuevo
+    - pending_order_id = None (invalida cualquier orden de pago anterior — el monto
+      cambio si el plan cambio)
+    - is_free:  subscription_status=None,            plan_cycle_ends_at = now + ciclo
+    - !is_free: subscription_status='pending_payment', plan_cycle_ends_at = None
+    - plan_confirmed_at = now()   ← esto es lo que saca al tenant de este paso
+```
+
+`IPlanCatalog.ensure_self_service_active(plan_id)` (en `lambdas/tenants/infra/plan_catalog.py`,
+NO el `IPlanCatalog` del dominio `onboarding` — son interfaces distintas con el mismo
+nombre, cada lambda tiene su propia copia para no acoplar bundles) hace el mismo `get_item`
+que `ensure_active()` pero ademas valida `self_service` y devuelve si es gratis
+(`monthly_price == 0 and annual_price == 0`, no es un campo persistido — ver `PLANS.md`).
+
+Frontend: `ConfirmPlanScreen` (`/(app)/confirm-plan`, fuera del grupo `(tenant)` —
+mismo motivo que `activate-subscription`: si estuviera dentro, el guard que redirige
+aqui crearia un loop). Reusa `usePlans()` + `PlanCard` filtrando `self_service`, muestra
+el plan actual resaltado, y SIEMPRE llama `tenantsApi.changePlan(...)` al confirmar
+(incluso si el usuario no cambio nada) — es lo que setea `plan_confirmed_at` y saca al
+tenant de este paso para siempre. Segun la respuesta:
+- `subscription_status === 'pending_payment'` → `router.replace(activateSubscription)`
+- si no → `router.replace(uploadCertificate)` (ver `CERTIFICATES.md`)
+
+Guard en `(tenant)/_layout.tsx`, ANTES del guard de `pending_payment` (ver "Flujo De
+Activacion" abajo):
+
+```ts
+const needsPlanConfirmation = !tenant?.plan_confirmed_at && !tenant?.cert_uploaded_at
+if (needsPlanConfirmation) return <Redirect href={Routes.app.confirmPlan} />
+```
+
+El segundo termino (`!tenant?.cert_uploaded_at`) es deliberado: un tenant creado ANTES
+de 2026-06-21 ya subio su certificado durante el wizard de registro (modelo viejo), asi
+que `cert_uploaded_at` ya esta seteado y este guard nunca se activa para el — aunque
+`plan_confirmed_at` sea `null` para siempre (no hay backfill, no hace falta).
+
 ## Flujo De Activacion — Primera Sesion (plan de pago)
 
 ```
@@ -50,6 +102,8 @@ Frontend (app autenticada)  Backend              dLocal Go
    |                          |                    |
    | login → JWT               |                    |
    | (tenant)/_layout.tsx      |                    |
+   | needsPlanConfirmation?    |                    |
+   |   → si SI: redirect confirm-plan (ver arriba) |
    | detecta pending_payment   |                    |
    |   + pending_order_id?     |                    |
    |   → si SI: banner auto-activate               |
@@ -69,7 +123,9 @@ Frontend (app autenticada)  Backend              dLocal Go
    |    Phase 2: transact_write (activa tenant +   |
    |             linkea payment)                   |
    |<-- { plan_cycle_ends_at, subscription_status } |
-   | → redirect dashboard                           |
+   | → redirect dashboard (el guard intercepta y    |
+   |   redirige a upload-certificate si             |
+   |   !cert_uploaded_at — ver CERTIFICATES.md)     |
 ```
 
 Si el `activate` falla despues de todas las retries:
@@ -474,6 +530,20 @@ Errores:
 via `save_transact_item()`. Si el commit del Tenant falla, el Payment tampoco queda
 escrito — no hay riesgo de pagos huerfanos por este path.
 
+### PATCH /tenants/{id}/plan
+
+Ver "Confirmar/Cambiar Plan Post-Registro" arriba. Requiere `X-Idempotency-Key`.
+
+Request:
+```json
+{ "plan_id": "uuid-plan" }
+```
+
+Response 200: el `Tenant` completo (`tenant.to_dict()`), igual que `PATCH /tenants/{id}`.
+
+Errores: 422 `TENANT_PLAN_CHANGE_NOT_ALLOWED` (subscription_status fuera de
+`None`/`pending_payment`), 422 `TENANT_PLAN_NOT_SELF_SERVICE` (plan destino Enterprise).
+
 ## DynamoDB Schema
 
 Tabla: `payments`. PK = `id` (sin SK).
@@ -525,6 +595,10 @@ GSI `tenant-payments-index`: PK=`tenant_id`, SK=`created_at`. Para historial por
 Nota: `BusinessError` → HTTP 422 (no 400). `SavedCardRejectedError` usa 402 para que el
 frontend pueda distinguir rechazo de tarjeta de un error de servidor. Ver `BACKEND.md`.
 
+Errores de `PATCH /tenants/{id}/plan` (dominio `tenants`, no `subscriptions` —
+`lambdas/tenants/domain/errors.py`): `TenantPlanChangeNotAllowedError` (422) y
+`TenantPlanNotSelfServiceError` (422). Mismo `BusinessError` base, mismo 422.
+
 ## Campos De Suscripcion En Tenant
 
 ```python
@@ -538,6 +612,11 @@ pending_order_id                       str | None  — order_id PAID pendiente d
                                                      se escribe en Phase 1 de activate,
                                                      se limpia al activar exitosamente.
                                                      Sirve de señal para el guard y el reconciliador.
+plan_confirmed_at                      str | None  — seteado por ChangePlanUseCase (ver
+                                                     "Confirmar/Cambiar Plan Post-Registro");
+                                                     null para siempre en tenants creados
+                                                     antes de 2026-06-21 (no afecta porque
+                                                     esos ya tienen cert_uploaded_at).
 ```
 
 Metodos de dominio relevantes:
@@ -562,6 +641,12 @@ y, si el tenant estaba `SUSPENDED`, lo devuelve a `ACTIVE` (permite reactivar ex
 
 `expire_subscription(updated_by)` setea `subscription_status="expired"` **y** `status=SUSPENDED`
 (el tenant pierde acceso al dashboard hasta que renueve).
+
+`confirm_plan_selection(plan_id, plan_limit_cycle, plan_is_free, updated_by)` — usado por
+`ChangePlanUseCase`: cambia `plan_id`, limpia `pending_order_id`, y rehace el mismo
+branching libre/pago que `Tenant.create()` (gratis → `subscription_status=None` +
+`plan_cycle_ends_at = now + ciclo`; pago → `subscription_status='pending_payment'` +
+`plan_cycle_ends_at=None`), y setea `plan_confirmed_at = now()`.
 
 ## Tareas Manuales/Operativas Por Entorno
 
@@ -638,6 +723,9 @@ campos esten completos.
 
 ### Pantallas
 
+- **Confirmar/Cambiar Plan** (primera sesion, antes de pagar): ver "Confirmar/Cambiar
+  Plan Post-Registro" arriba — `ConfirmPlanScreen`, ruta `/(app)/confirm-plan`.
+
 - **Activacion** (primera sesion): `frontend/features/subscriptions/screens/ActivateSubscriptionScreen.tsx`
   Ruta: `/(app)/activate-subscription` — fuera de `(tenant)/` para evitar loop del guard.
   Guard: `(tenant)/_layout.tsx` detecta `pending_payment` sin `pending_order_id` y redirige aqui.
@@ -663,11 +751,14 @@ campos esten completos.
   No existe una regla de "ultimos N dias antes de vencer" — si se necesita, es una
   decision de negocio nueva a definir aqui, no solo un ajuste de UI.
 
-- **Guard con banners** `(tenant)/_layout.tsx`:
-  - `payment_failed` → muestra Stack + `PaymentFailedBanner` encima (acceso al dashboard permitido)
-  - `pending_payment` + `pending_order_id` → muestra Stack + `PendingActivationBanner`
-  - `pending_payment` sin `pending_order_id` → redirect a `ActivateSubscriptionScreen`
-  - cualquier otro estado → pass-through
+- **Guard con banners** `(tenant)/_layout.tsx` (orden exacto, cada uno solo se evalua si
+  el anterior no aplico):
+  1. `!plan_confirmed_at && !cert_uploaded_at` → redirect a `ConfirmPlanScreen`
+  2. `pending_payment` + `pending_order_id` → muestra Stack + `PendingActivationBanner`
+  3. `pending_payment` sin `pending_order_id` → redirect a `ActivateSubscriptionScreen`
+  4. `payment_failed` → muestra Stack + `PaymentFailedBanner` encima (acceso al dashboard permitido)
+  5. `!cert_uploaded_at` → redirect a `UploadCertificateScreen` (ver `CERTIFICATES.md`)
+  6. cualquier otro estado → pass-through (dashboard)
 
 ## Workers De Suscripcion
 
@@ -696,3 +787,13 @@ Email de pago fallido: una sola vez por ciclo (no se reenvía en reintentos).
   mecanismo para detectar perdida de eventos mas alla de los logs de Lambda.
 - Orders con status `PENDING` (3DS iniciado pero no completado) no tienen limpieza
   automatica — quedan indefinidamente en DynamoDB sin un worker que los expire o notifique.
+- `PATCH /tenants/{id}/plan` no tiene rate limit ni tope de cambios — un tenant podria
+  alternar entre planes repetidamente antes de pagar. Cada cambio a un plan gratis
+  resetea `plan_cycle_ends_at` a `now + ciclo`, lo cual es inocuo en este punto del flujo
+  (el tenant todavia no emitio nada), pero no hay un test que documente ese
+  comportamiento como deliberado vs. casual.
+- Si un `Payment` quedo `CREATED`/`PENDING` con `tenant_id` vacio (creado desde
+  `ActivateSubscriptionScreen` antes de cambiar de plan) y el tenant cambia de plan via
+  `PATCH /tenants/{id}/plan`, ese payment queda huerfano (mismo patron que pagos
+  abandonados sin confirmar) — no hay limpieza automatica, mismo punto que el de arriba
+  sobre orders `PENDING`.

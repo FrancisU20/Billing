@@ -8,6 +8,8 @@ import boto3
 from botocore.exceptions import ClientError
 
 from lambdas.auth.domain.commands import (
+    ConfirmForgotPasswordCommand,
+    ForgotPasswordCommand,
     LoginCommand,
     LogoutCommand,
     RefreshCommand,
@@ -104,6 +106,27 @@ class CognitoAuthProvider(IAuthProvider):
             )
             return self._outcome_from_response(response)
 
+        except ClientError as exc:
+            raise self._map_client_error(exc) from exc
+
+    def forgot_password(self, command: ForgotPasswordCommand) -> None:
+        try:
+            self._idp.forgot_password(ClientId=self._client_id, Username=command.username)
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            if code == "UserNotFoundException":
+                # Never reveal whether an account exists for this email.
+                return
+            raise self._map_client_error(exc) from exc
+
+    def confirm_forgot_password(self, command: ConfirmForgotPasswordCommand) -> None:
+        try:
+            self._idp.confirm_forgot_password(
+                ClientId=self._client_id,
+                Username=command.username,
+                ConfirmationCode=command.confirmation_code,
+                Password=command.new_password,
+            )
         except ClientError as exc:
             raise self._map_client_error(exc) from exc
 

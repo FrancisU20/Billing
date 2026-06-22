@@ -95,6 +95,7 @@ export const documentsSummarySchema = z.object({
   authorized_total: z.string().min(1),
   document_limit: z.coerce.number().nullable(),
   is_unlimited: z.boolean(),
+  is_free_plan: z.boolean().optional().default(false),
 })
 
 export const rideUrlSchema = z.object({

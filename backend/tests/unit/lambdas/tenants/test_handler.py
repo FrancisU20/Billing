@@ -244,6 +244,58 @@ class TenantsHandlerTests(unittest.TestCase):
         self.assertEqual(repo.commit_calls[0]["action"], "UPDATE")
         self.assertEqual(repo.commit_calls[0]["tenant"].trade_name, "Nuevo Nombre")
 
+    def test_change_plan_commits_plan_change(self) -> None:
+        from tests.unit.support import FakePlanCatalog
+
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="t-plan-1", subscription_status="pending_payment")
+        repo.tenants[tenant.id] = tenant
+        idempotency_context = object()
+        event = api_event(
+            method="PATCH",
+            path="/tenants/t-plan-1/plan",
+            body={"plan_id": "uuid-pro"},
+            headers={"X-Idempotency-Key": "plan-1"},
+        )
+
+        with (
+            patch.object(self.handler, "_repo", return_value=repo),
+            patch.object(
+                self.handler, "_plan_catalog", return_value=FakePlanCatalog(is_free=False)
+            ),
+            patch.object(self.handler, "require_current_context", return_value=idempotency_context),
+        ):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(body["data"]["plan_id"], "uuid-pro")
+        self.assertEqual(repo.commit_calls[0]["action"], "PLAN_CHANGE")
+
+    def test_change_plan_rejects_once_active(self) -> None:
+        from tests.unit.support import FakePlanCatalog
+
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="t-plan-2", subscription_status="active")
+        repo.tenants[tenant.id] = tenant
+        event = api_event(
+            method="PATCH",
+            path="/tenants/t-plan-2/plan",
+            body={"plan_id": "uuid-pro"},
+            headers={"X-Idempotency-Key": "plan-2"},
+        )
+
+        with (
+            patch.object(self.handler, "_repo", return_value=repo),
+            patch.object(self.handler, "_plan_catalog", return_value=FakePlanCatalog()),
+            patch.object(self.handler, "require_current_context", return_value=object()),
+        ):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 422)
+        self.assertEqual(body["error"]["code"], "TENANT_PLAN_CHANGE_NOT_ALLOWED")
+
     def test_toggle_status_commits_status_change(self) -> None:
         repo = FakeTenantRepository()
         tenant = make_tenant(id="t-tog-1")

@@ -154,9 +154,10 @@ const staticStyles = StyleSheet.create({
   leftIcon: { marginRight: spacing[3] },
   input: {
     flex: 1,
+    minWidth: 0,
     fontSize: typography.size.base,
     paddingVertical: spacing[3],
     includeFontPadding: false,
   },
-  rightEl: { marginLeft: spacing[2] },
+  rightEl: { marginLeft: spacing[2], flexShrink: 0 },
 })

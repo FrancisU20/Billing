@@ -5,7 +5,8 @@ from decimal import Decimal
 from botocore.exceptions import ClientError
 
 from lambdas.tenants.domain.dashboard_summary import PlanPricing
-from lambdas.tenants.domain.repositories.i_plan_catalog import IPlanCatalog
+from lambdas.tenants.domain.errors import TenantPlanNotSelfServiceError
+from lambdas.tenants.domain.repositories.i_plan_catalog import IPlanCatalog, SelfServicePlanInfo
 from shared.errors import DatabaseError, ValidationError
 from shared.logger import get_logger
 
@@ -22,7 +23,7 @@ class DynamoPlanCatalog(IPlanCatalog):
     def __init__(self, plans_table) -> None:
         self._table = plans_table
 
-    def ensure_active(self, plan_id: str) -> str:
+    def _get_active_item(self, plan_id: str) -> dict:
         if not plan_id:
             raise ValidationError("plan_id es requerido")
 
@@ -42,7 +43,21 @@ class DynamoPlanCatalog(IPlanCatalog):
         if not item.get("active", True):
             raise ValidationError("plan_id no está activo")
 
-        return item.get("limit_cycle", "month")
+        return item
+
+    def ensure_active(self, plan_id: str) -> str:
+        return self._get_active_item(plan_id).get("limit_cycle", "month")
+
+    def ensure_self_service_active(self, plan_id: str) -> SelfServicePlanInfo:
+        item = self._get_active_item(plan_id)
+        if not item.get("self_service", True):
+            raise TenantPlanNotSelfServiceError()
+        monthly = Decimal(str(item.get("monthly_price", 0) or 0))
+        annual = Decimal(str(item.get("annual_price", 0) or 0))
+        return SelfServicePlanInfo(
+            limit_cycle=item.get("limit_cycle", "month"),
+            is_free=monthly == 0 and annual == 0,
+        )
 
     def get_pricing(self, plan_ids: set[str]) -> dict[str, PlanPricing]:
         pricing: dict[str, PlanPricing] = {}

@@ -26,3 +26,15 @@ class RespondChallengeCommand:
     challenge_name: str
     session: str
     responses: dict[str, str]
+
+
+@dataclass(frozen=True)
+class ForgotPasswordCommand:
+    username: str
+
+
+@dataclass(frozen=True)
+class ConfirmForgotPasswordCommand:
+    username: str
+    confirmation_code: str
+    new_password: str

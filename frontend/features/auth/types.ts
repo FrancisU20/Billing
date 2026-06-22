@@ -32,3 +32,9 @@ export interface ChallengeCredentials {
   challenge_name: string
   responses: Record<string, string>
 }
+
+export interface ConfirmForgotPasswordCredentials {
+  username: string
+  confirmationCode: string
+  newPassword: string
+}

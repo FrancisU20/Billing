@@ -25,10 +25,7 @@ export const onboardingBaseRequestSchema = z
   })
   .strict()
 
-export const onboardingRequestSchema = onboardingBaseRequestSchema.extend({
-  certificate_b64: z.string().min(1).optional(),
-  cert_password: z.string().min(1).max(200).optional(),
-})
+export const onboardingRequestSchema = onboardingBaseRequestSchema
 
 export const onboardingOtpConfirmRequestSchema = onboardingRequestSchema.extend({
   verification_id: z.string().min(1),
@@ -46,12 +43,6 @@ export const onboardingResultSchema = z.union([
   z.object({ tenant_id: z.string().min(1), email: z.string().min(1) }),
   z.object({ message: z.string().min(1) }),
 ])
-
-export const certificateFormValuesSchema = z.object({
-  file_name: z.string().min(1, 'Selecciona tu certificado p12'),
-  certificate_b64: z.string().min(1, 'Selecciona tu certificado p12'),
-  cert_password: z.string().min(1, 'La clave del certificado es requerida').max(200),
-})
 
 export const otpFormValuesSchema = z.object({
   otp: z
@@ -83,6 +74,5 @@ export type OnboardingRequest = z.infer<typeof onboardingRequestSchema>
 export type OnboardingOtpConfirmRequest = z.infer<typeof onboardingOtpConfirmRequestSchema>
 export type OnboardingOtpRequestResult = z.infer<typeof onboardingOtpRequestResultSchema>
 export type OnboardingResult = z.infer<typeof onboardingResultSchema>
-export type CertificateFormValues = z.infer<typeof certificateFormValuesSchema>
 export type OtpFormValues = z.infer<typeof otpFormValuesSchema>
 export type RegistrationFormValues = z.infer<typeof registrationFormValuesSchema>

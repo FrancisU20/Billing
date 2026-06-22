@@ -30,6 +30,8 @@ const product = {
   version: '1',
 } as const
 
+const uuidSku = '550E8400-E29B-41D4-A716-446655440000'
+
 describe('product contract schemas', () => {
   it('accepts the backend product shape with a discount', () => {
     expect(productSchema.parse(product)).toEqual({ ...product, version: 1 })
@@ -68,6 +70,25 @@ describe('product contract schemas', () => {
         status: 'ACTIVE',
       }),
     ).toThrow()
+  })
+
+  it('accepts a UUID as SKU', () => {
+    const values = productFormSchema.parse({
+      sku: uuidSku,
+      name: 'Producto Demo',
+      description: '',
+      kind: 'PRODUCT',
+      unit: 'unit',
+      unit_price: '25.50',
+      iva_rate: '15',
+      discount_percentage: '',
+      stock_enabled: false,
+      stock_quantity: '',
+      low_stock_threshold: '',
+      status: 'ACTIVE',
+    })
+
+    expect(createProductSchema.parse(formValuesToCreateProductInput(values)).sku).toBe(uuidSku)
   })
 
   it('builds the API payload with the discount as a string, or null when empty', () => {

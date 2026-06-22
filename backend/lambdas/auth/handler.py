@@ -4,16 +4,20 @@ from __future__ import annotations
 Auth Lambda — AWS entry point.
 
 Routes:
-    POST /auth/login      login with Cognito USER_SRP_AUTH
-    POST /auth/refresh    refresh Cognito tokens
-    POST /auth/logout     global logout with access_token from the body
-    POST /auth/challenge  respond to Cognito auth challenges
+    POST /auth/login            login with Cognito USER_SRP_AUTH
+    POST /auth/refresh          refresh Cognito tokens
+    POST /auth/logout           global logout with access_token from the body
+    POST /auth/challenge        respond to Cognito auth challenges
+    POST /auth/forgot-password  request a password reset code by email
+    POST /auth/reset-password   complete a password reset with the emailed code
 """
 
 from lambdas._base.handler import public_lambda_handler
 from lambdas._base.parser import Request, parse
 from lambdas._base.response import ApiResponse
 from lambdas.auth.domain.commands import (
+    ConfirmForgotPasswordCommand,
+    ForgotPasswordCommand,
     LoginCommand,
     LogoutCommand,
     RefreshCommand,
@@ -21,7 +25,16 @@ from lambdas.auth.domain.commands import (
 )
 from lambdas.auth.domain.repositories.i_auth_provider import IAuthProvider
 from lambdas.auth.infra.cognito_auth_provider import CognitoAuthProvider
-from lambdas.auth.schemas import ChallengeRequest, LoginRequest, LogoutRequest, RefreshRequest
+from lambdas.auth.schemas import (
+    ChallengeRequest,
+    ConfirmForgotPasswordRequest,
+    ForgotPasswordRequest,
+    LoginRequest,
+    LogoutRequest,
+    RefreshRequest,
+)
+from lambdas.auth.use_cases.confirm_forgot_password import ConfirmForgotPasswordUseCase
+from lambdas.auth.use_cases.forgot_password import ForgotPasswordUseCase
 from lambdas.auth.use_cases.login import LoginUseCase
 from lambdas.auth.use_cases.logout import LogoutUseCase
 from lambdas.auth.use_cases.refresh import RefreshUseCase
@@ -71,6 +84,29 @@ def _challenge(request: Request, context) -> dict:
     return ApiResponse.ok(result.to_dict(), request.request_id)
 
 
+@public_lambda_handler
+def _forgot_password(request: Request, context) -> dict:
+    body = parse(ForgotPasswordRequest, request.body)
+    ForgotPasswordUseCase(_provider()).execute(ForgotPasswordCommand(username=body.username))
+    return ApiResponse.ok(
+        {"message": "Si el correo está registrado, te enviamos un código de recuperación."},
+        request.request_id,
+    )
+
+
+@public_lambda_handler
+def _reset_password(request: Request, context) -> dict:
+    body = parse(ConfirmForgotPasswordRequest, request.body)
+    ConfirmForgotPasswordUseCase(_provider()).execute(
+        ConfirmForgotPasswordCommand(
+            username=body.username,
+            confirmation_code=body.confirmation_code,
+            new_password=body.new_password,
+        )
+    )
+    return ApiResponse.no_content(request.request_id)
+
+
 def handler(event: dict, context) -> dict:
     ctx = event.get("requestContext", {})
     http = ctx.get("http", {})
@@ -86,5 +122,9 @@ def handler(event: dict, context) -> dict:
             return _logout(event, context)
         if path == "/auth/challenge":
             return _challenge(event, context)
+        if path == "/auth/forgot-password":
+            return _forgot_password(event, context)
+        if path == "/auth/reset-password":
+            return _reset_password(event, context)
 
     return ApiResponse.error(NotFoundError(), ctx.get("requestId", "local"))

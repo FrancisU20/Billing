@@ -1,14 +1,16 @@
 import React from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { StyleSheet, Text, View } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { FormActions } from '@/components/ui/FormActions'
 import { FormField } from '@/components/ui/FormField'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { EmailField, PhoneField, RucField } from '@/components/ui/SpecializedFields'
 import { useTheme } from '@/lib/theme-context'
+import { Routes } from '@/constants/routes'
 import { radius, sizes, spacing, typography } from '@/constants/tokens'
 import { registrationFormDefaultValues } from '../form'
 import { registrationFormValuesSchema, type RegistrationFormValues } from '../schemas'
@@ -33,6 +35,7 @@ export function RegistrationForm({
   apiError,
 }: RegistrationFormProps) {
   const { semantic } = useTheme()
+  const router = useRouter()
   const {
     control,
     handleSubmit,
@@ -186,6 +189,21 @@ export function RegistrationForm({
 
       {apiError ? <ApiErrorBanner error={apiError} /> : null}
 
+      {apiError?.code === 'TENANT_ACCOUNT_ALREADY_EXISTS' ? (
+        <View style={styles.accountExistsLinks}>
+          <Pressable onPress={() => router.push(Routes.auth.login)}>
+            <Text style={[styles.accountExistsLinkText, { color: semantic.accent.default }]}>
+              Iniciar sesión
+            </Text>
+          </Pressable>
+          <Pressable onPress={() => router.push(Routes.auth.forgotPassword)}>
+            <Text style={[styles.accountExistsLinkText, { color: semantic.accent.default }]}>
+              ¿Olvidaste tu contraseña?
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       <FormActions
         submitLabel="Continuar"
         isSubmitting={isLoading}
@@ -244,4 +262,6 @@ const styles = StyleSheet.create({
   sectionBody: { gap: spacing[4] },
   fieldBlock: { gap: spacing[2] },
   label: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
+  accountExistsLinks: { gap: spacing[2] },
+  accountExistsLinkText: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
 })

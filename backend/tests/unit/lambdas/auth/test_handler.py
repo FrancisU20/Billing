@@ -6,6 +6,8 @@ import sys
 import unittest
 
 from lambdas.auth.domain.commands import (
+    ConfirmForgotPasswordCommand,
+    ForgotPasswordCommand,
     LoginCommand,
     LogoutCommand,
     RefreshCommand,
@@ -22,6 +24,8 @@ class FakeAuthProvider(IAuthProvider):
         self.refresh_calls: list[RefreshCommand] = []
         self.logout_calls: list[LogoutCommand] = []
         self.challenge_calls: list[RespondChallengeCommand] = []
+        self.forgot_password_calls: list[ForgotPasswordCommand] = []
+        self.confirm_forgot_password_calls: list[ConfirmForgotPasswordCommand] = []
         self.login_result: AuthOutcome = AuthTokens(
             id_token="id-token",
             access_token="access-token",
@@ -57,6 +61,12 @@ class FakeAuthProvider(IAuthProvider):
     def respond_to_challenge(self, command: RespondChallengeCommand) -> AuthOutcome:
         self.challenge_calls.append(command)
         return self.challenge_result
+
+    def forgot_password(self, command: ForgotPasswordCommand) -> None:
+        self.forgot_password_calls.append(command)
+
+    def confirm_forgot_password(self, command: ConfirmForgotPasswordCommand) -> None:
+        self.confirm_forgot_password_calls.append(command)
 
 
 def _load_handler_module():
@@ -172,6 +182,45 @@ class AuthHandlerTests(unittest.TestCase):
         self.assertEqual(call.session, "session-token")
         self.assertEqual(call.challenge_name, "NEW_PASSWORD_REQUIRED")
         self.assertEqual(call.responses["NEW_PASSWORD"], "PermanentPass123!")
+
+    def test_forgot_password_normalizes_username_and_returns_generic_message(self) -> None:
+        response = self.handler.handler(
+            api_event(
+                method="POST",
+                path="/auth/forgot-password",
+                body={"username": "OWNER@CODELABS.COM "},
+                claims={},
+            ),
+            self.context,
+        )
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 200)
+        self.assertIn("código de recuperación", body["data"]["message"])
+        self.assertEqual(self.provider.forgot_password_calls[0].username, "owner@codelabs.com")
+
+    def test_reset_password_returns_204(self) -> None:
+        response = self.handler.handler(
+            api_event(
+                method="POST",
+                path="/auth/reset-password",
+                body={
+                    "username": "owner@codelabs.com",
+                    "confirmation_code": "123456",
+                    "new_password": "NewPermanentPass123!",
+                },
+                claims={},
+            ),
+            self.context,
+        )
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 204)
+        self.assertTrue(body["success"])
+        call = self.provider.confirm_forgot_password_calls[0]
+        self.assertEqual(call.username, "owner@codelabs.com")
+        self.assertEqual(call.confirmation_code, "123456")
+        self.assertEqual(call.new_password, "NewPermanentPass123!")
 
     def test_invalid_login_body_returns_400(self) -> None:
         response = self.handler.handler(

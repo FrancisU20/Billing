@@ -23,6 +23,26 @@ class LogoutRequest(BaseModel):
     access_token: str = Field(min_length=1, max_length=8192)
 
 
+class ForgotPasswordRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=320)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        return value.strip().lower()
+
+
+class ConfirmForgotPasswordRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=320)
+    confirmation_code: str = Field(min_length=1, max_length=64)
+    new_password: str = Field(min_length=8, max_length=1024)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        return value.strip().lower()
+
+
 class ChallengeRequest(BaseModel):
     session: str = Field(min_length=1, max_length=8192)
     challenge_name: str = Field(min_length=1, max_length=128)

@@ -38,6 +38,8 @@ interface CertificateSectionProps {
   canManage: boolean
   style?: StyleProp<ViewStyle>
   actionSize?: 'sm' | 'md'
+  startEditing?: boolean
+  onUploaded?: () => void
 }
 
 export function CertificateSection({
@@ -45,11 +47,13 @@ export function CertificateSection({
   canManage,
   style,
   actionSize = 'sm',
+  startEditing = false,
+  onUploaded,
 }: CertificateSectionProps) {
   const { semantic } = useTheme()
   const toast = useToast()
   const { certificate, loading, error, refresh } = useTenantCertificate(tenantId)
-  const [replacing, setReplacing] = useState(false)
+  const [replacing, setReplacing] = useState(startEditing)
   const {
     fileName,
     certificateB64,
@@ -85,6 +89,7 @@ export function CertificateSection({
     setCertPassword('')
     resetPicker()
     await refresh()
+    onUploaded?.()
   })
 
   if (loading && !certificate) {
@@ -181,7 +186,7 @@ export function CertificateSection({
                 size="md"
                 isDisabled={submitting}
                 onPress={() => {
-                  setReplacing(false)
+                  if (!startEditing) setReplacing(false)
                   setLocalError(null)
                   setCertPassword('')
                   resetPicker()

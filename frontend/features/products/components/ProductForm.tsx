@@ -13,7 +13,9 @@ import { spacing, typography } from '@/constants/tokens'
 import { PRODUCT_KIND_OPTIONS, PRODUCT_STATUS_OPTIONS, PRODUCT_UNIT_OPTIONS } from '../constants'
 import { defaultProductFormValues } from '../form'
 import { productFormSchema } from '../schemas'
+import { generateProductSku, SKU_PLACEHOLDER } from '../sku'
 import type { Product, ProductFormValues } from '../types'
+import { GenerateSkuButton } from './GenerateSkuButton'
 
 interface ProductFormProps {
   mode: 'create' | 'edit'
@@ -28,6 +30,7 @@ export function ProductForm({ mode, product, onSubmit, isLoading, apiError }: Pr
   const {
     control,
     handleSubmit,
+    setValue,
     formState: { errors, isValid },
   } = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
@@ -35,6 +38,10 @@ export function ProductForm({ mode, product, onSubmit, isLoading, apiError }: Pr
     mode: 'onChange',
   })
   const stockEnabled = useWatch({ control, name: 'stock_enabled' })
+
+  function handleGenerateSku() {
+    setValue('sku', generateProductSku(), { shouldDirty: true, shouldValidate: true })
+  }
 
   return (
     <View style={styles.container}>
@@ -46,12 +53,15 @@ export function ProductForm({ mode, product, onSubmit, isLoading, apiError }: Pr
             render={({ field: { onChange, onBlur, value } }) => (
               <FormField
                 label="SKU"
-                placeholder="PROD-001"
+                placeholder={SKU_PLACEHOLDER}
                 leftIcon="barcode-outline"
                 error={errors.sku?.message}
                 onChangeText={onChange}
                 onBlur={onBlur}
                 value={value}
+                rightElement={
+                  mode === 'create' ? <GenerateSkuButton onPress={handleGenerateSku} /> : null
+                }
                 required
               />
             )}

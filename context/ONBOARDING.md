@@ -1,7 +1,9 @@
 # Onboarding & Certificados — Dominio
 
-Estado: **implementado base**. El flujo productivo usa OTP por correo y certificado
-digital p12 valido antes de crear tenants self-service.
+Estado: **implementado base**. El flujo productivo usa OTP por correo para crear
+tenants self-service. Desde 2026-06-21 el certificado digital p12 **ya no se sube
+durante el wizard de registro** — se sube despues, desde el area autenticada del
+tenant, como ultimo paso antes del dashboard (ver "Flujo De Registro — Paso A Paso").
 
 ## Lee Tambien Antes De Empezar
 
@@ -64,7 +66,16 @@ cert_uploaded_at: str | None                        = None
 cert_expiry_alert_60_sent_at: str | None            = None
 cert_expiry_alert_30_sent_at: str | None            = None
 onboarding_completed_at: str | None                 = None
+plan_confirmed_at: str | None                       = None
 ```
+
+`plan_confirmed_at` (nuevo 2026-06-21): se setea cuando el tenant pasa por la pantalla
+post-login "confirmar/cambiar plan" (`PATCH /tenants/{id}/plan`, ver mas abajo). Junto
+con `cert_uploaded_at` es lo que el guard de `(tenant)/_layout.tsx` usa para decidir si
+un tenant (nuevo o de antes de este cambio) debe ver alguno de los pasos obligatorios
+post-login. Un tenant creado ANTES de 2026-06-21 ya tiene `cert_uploaded_at` seteado
+(subia el certificado en el wizard), así que nunca cae en el guard de "confirmar plan"
+aunque `plan_confirmed_at` sea `null` para siempre — no requiere backfill.
 
 `cert_expiry_alert_60_sent_at` / `cert_expiry_alert_30_sent_at`: usados por el worker
 `certificate_expiry_notifier` para no repetir alertas de caducidad; se resetean a
@@ -122,66 +133,77 @@ Reglas:
 Aplica solo a planes con `self_service=true`. Para `self_service=false` (Enterprise), ver
 "Flujo Enterprise — Lead Capture" mas abajo.
 
+El certificado **no se pide en este wizard** (desde 2026-06-21) — se sube despues del
+primer login, como ultimo paso antes del dashboard (paso 13). Esto permite validar
+duplicados (email/RUC) ANTES de mandar el OTP, en vez de descubrirlos al confirmar.
+
 ```
 1. GET /plans (publico) — cliente ve planes disponibles
 2. Formulario (frontend):
    - RUC (13 digitos), razon social, nombre comercial, email, telefono opcional
-   - Archivo p12 + clave del certificado
 3. POST /onboarding/otp/request (publico, sin JWT)
-   Body: { ruc, trade_name, legal_name, email, phone?, plan_id,
-           certificate_b64, cert_password }
+   Body: { ruc, trade_name, legal_name, email, phone?, plan_id }
 
-4. Handler valida y ejecuta en orden:
-   a. Verifica que plan_id existe, esta activo y self_service=true
-      (si self_service=false, ver "Flujo Enterprise — Lead Capture"; no pide p12)
-   b. `shared.certificates.CertificateValidator.validate_base64(...)`:
-      - Parsear p12 (falla si archivo corrupto o password incorrecta)
-      - Extraer RUC del Subject del certificado
-      - Comparar RUC del cert contra RUC del body → si difiere: CertificateRucMismatchError
-      - Verificar expiry → si vencido: CertificateExpiredError
-      - No se valida el emisor (CA) — ver "Errores" en CERTIFICATES.md
-   c. Verifica que el RUC no esta en uso
-      - Validar el certificado primero (paso b) evita exponer disponibilidad de RUC a quien
-        no tiene un certificado valido para ese RUC (enumeracion).
+4. Handler valida y ejecuta en orden (solo si self_service=true; Enterprise no valida
+   nada de esto, ver "Flujo Enterprise — Lead Capture"):
+   a. Verifica que plan_id existe y esta activo
+   b. Verifica que el RUC no esta en uso (`TenantRucAlreadyExistsError`, 409)
+   c. Verifica que el email no tiene ya un usuario Cognito
+      (`TenantAccountAlreadyExistsError`, 409) — `IIdentityProvider.email_exists()`,
+      implementado en `lambdas/onboarding/infra/identity_provider.py` via
+      `AdminGetUser`. Este check es el fix de un bug real: antes, si el email ya
+      tenia usuario Cognito, el tenant se creaba igual (con el RUC bloqueado) pero la
+      creacion del owner en Cognito fallaba en silencio en el worker async — el
+      usuario nunca recibia la clave temporal y nadie se enteraba. Ahora el frontend
+      muestra el error ANTES de llegar a la pantalla de OTP (banner en
+      `RegisterDetailsScreen`, sin cambios de UI necesarios: el banner de error ya
+      existia para otros casos).
    d. Crea registro temporal `ONBOARDING_VERIFICATION`:
       - OTP hasheado, nunca plano
       - TTL 10 minutos
       - intentos maximos 5
-      - no guarda p12 ni cert_password
    e. Envia OTP al email
 
 5. Frontend llama /otp/confirm directamente (planes gratis y de pago).
    El pago ya NO ocurre en este paso — modelo Netflix.
 
 6. POST /onboarding/otp/confirm (publico, sin JWT)
-   Body: { verification_id, otp, ruc, trade_name, legal_name, email, phone?, plan_id,
-           certificate_b64, cert_password }
+   Body: { verification_id, otp, ruc, trade_name, legal_name, email, phone?, plan_id }
 
 7. Handler confirma:
    a. Verifica OTP, expiracion e intentos
-   b. Revalida certificado p12 completo contra el RUC
-   c. Secrets Manager PutSecretValue:
-      - Path: /codelabs-billing/{env}/tenant/{tenant_id}/certificate
-      - Contenido: { "p12_b64": "...", "password": "..." }
-      - Si DynamoDB falla luego, el handler intenta limpiar el secreto huerfano.
-   d. DynamoDB TransactWriteItems:
-      - Tenant con:
+   b. Re-verifica RUC y email (mismos checks de 4b/4c, cubre la carrera entre
+      request y confirm)
+   c. DynamoDB TransactWriteItems:
+      - Tenant SIN certificado (`certificate_secret_arn=null`); `Tenant.create()` ya
+        soporta esto — el dominio nunca exigio el certificado en la creacion, solo lo
+        exigia (hasta este cambio) el use case de onboarding.
         - plan gratis: `subscription_status=null`, `plan_cycle_ends_at` calculado
         - plan de pago: `subscription_status='pending_payment'`, `plan_cycle_ends_at=null`
+      - `onboarding_completed_at = now()` (ya no depende de `attach_certificate`)
       - RUC lock — MISMO mecanismo `RUC#{ruc}` / `TENANT_RUC_LOCK` de TENANTS.md.
       - Idempotency record
-   e. Outbox: encola evento TenantCreatedEvent
+   d. Outbox: encola evento TenantCreatedEvent
       - El worker tenant_onboarding llama AdminCreateUser con clave temporal
       - Worker email_notifications envia email con clave temporal
 
 8. Respuesta: { success: true, data: { tenant_id, email } }
 9. Cliente recibe email con clave temporal
 10. Cliente hace login → challenge NEW_PASSWORD_REQUIRED → cambia clave
-11. Si plan de pago: el layout (tenant)/_layout.tsx detecta subscription_status='pending_payment'
-    → redirige automaticamente a /(app)/activate-subscription
-    → usuario paga → POST /tenants/{id}/subscription/activate
-    → subscription_status='active', plan_cycle_ends_at = now + ciclo
-12. Dashboard arranca en sri_environment=testing
+11. `(tenant)/_layout.tsx` detecta `!plan_confirmed_at && !cert_uploaded_at` → redirige
+    a `/(app)/confirm-plan` (`ConfirmPlanScreen`): muestra el plan elegido en el paso 2
+    y permite cambiarlo entre planes self-service (Enterprise queda oculto). Al
+    confirmar (mismo plan u otro) llama `PATCH /tenants/{id}/plan` — ver SUBSCRIPTIONS.md
+    "Confirmar/Cambiar Plan Post-Registro".
+12. Segun el resultado de (11):
+    - Si quedo de pago (`subscription_status='pending_payment'`): redirige a
+      `/(app)/activate-subscription` → paga → `POST /tenants/{id}/subscription/activate`
+      → `subscription_status='active'`.
+    - Si quedo gratis: no hay pago, sigue directo al paso 13.
+13. `(tenant)/_layout.tsx` detecta `!cert_uploaded_at` → redirige a
+    `/(app)/upload-certificate` (`UploadCertificateScreen`, reusa
+    `CertificateSection` — ver CERTIFICATES.md). Tras subir el p12, navega al dashboard.
+14. Dashboard arranca en sri_environment=testing
 ```
 
 ## Flujo Enterprise — Lead Capture (`self_service=false`)
@@ -193,10 +215,8 @@ publico, pero el resultado es un contacto comercial, no un tenant operativo.
 1. GET /plans (publico) — Enterprise aparece en el catalogo igual que los demas
 2. Formulario (frontend):
    - RUC, razon social, nombre comercial, email, telefono opcional
-   - Paso de certificado (paso 3 del wizard) se OMITE para este plan
 3. POST /onboarding/otp/request (publico, sin JWT)
    Body: { ruc, trade_name, legal_name, email, phone?, plan_id }
-   (sin certificate_b64 / cert_password)
 
 4. Handler:
    a. Verifica que plan_id existe, esta activo y self_service=false
@@ -221,18 +241,19 @@ El registro `ENTERPRISE_LEAD` no se convierte automaticamente — queda como his
 
 ## Manejo De Errores En La Creacion
 
-La creacion involucra 3 sistemas no-transaccionales entre si (Secrets Manager, DynamoDB,
-Cognito). El orden minimiza tenants incompletos:
+Desde que el certificado se desacoplo del onboarding (2026-06-21), la creacion ya solo
+involucra 2 sistemas no-transaccionales entre si (DynamoDB, Cognito) — Secrets Manager
+ya no participa en este flujo:
 
 | Paso | Si falla | Estado resultante |
 | --- | --- | --- |
-| Validacion p12 | error de negocio | nada quedo creado |
-| Secrets Manager | error externo | no se crea tenant |
-| DynamoDB transaction | rollback automatico; se intenta limpiar secreto | no se crea tenant |
+| RUC/email ya existen | error de negocio (409), antes del OTP | nada quedo creado |
+| DynamoDB transaction | rollback automatico | no se crea tenant |
 | Cognito via outbox | outbox reintenta | tenant creado; usuario se recupera async |
 
-Si un tenant existente necesita cambiar el certificado, usa `PUT /tenants/{id}/certificate`
-en la Lambda `certificates`.
+El certificado se sube despues, ya autenticado, via `PUT /tenants/{id}/certificate` en
+la Lambda `certificates` (primera subida o reemplazo — mismo endpoint para ambos casos,
+ver CERTIFICATES.md).
 
 ## Validador De Certificado
 
@@ -274,7 +295,13 @@ para que el mensaje al usuario sea claro (no un generico "invalido").
 
 ## Lambda `certificates` — Gestion Post-Onboarding
 
-Permite al tenant actualizar su certificado sin pasar por onboarding de nuevo.
+Desde 2026-06-21 este es el UNICO lugar donde se sube un certificado, tanto la
+primera vez (paso 13 del flujo de registro, pantalla obligatoria
+`UploadCertificateScreen`) como reemplazos posteriores (pantalla "Mi empresa",
+`CertificateSection`) — mismo endpoint `PUT`, mismo use case
+(`update_certificate.py`/`CertificateStore.put_certificate`, que ya hacia
+`create_secret` o `put_secret_value` segun si el secreto existia, sin necesitar
+distinguir "primera vez" de "reemplazo").
 
 ```
 PUT /tenants/{id}/certificate    — owner/admin del tenant o superadmin
@@ -336,14 +363,16 @@ backend/lambdas/onboarding/
     onboarding_verification.py
     repositories/
       i_plan_catalog.py                  # ABC + PlanSummary
+      i_identity_provider.py             # ABC — email_exists(email) contra Cognito
       i_enterprise_lead_repository.py
       i_onboarding_verification_repository.py
   use_cases/
-    request_onboarding_otp.py    # valida certificado + RUC, crea ONBOARDING_VERIFICATION, envia OTP
-    confirm_onboarding_otp.py    # verifica OTP, rama self-service (Tenant) vs lead (EnterpriseLead)
+    request_onboarding_otp.py    # valida RUC + email Cognito, crea ONBOARDING_VERIFICATION, envia OTP
+    confirm_onboarding_otp.py    # verifica OTP, rama self-service (Tenant, sin cert) vs lead (EnterpriseLead)
     payload_signature.py         # hash de integridad request<->confirm
   infra/
     plan_catalog.py                   # adapta PlanRepository a IPlanCatalog
+    identity_provider.py              # CognitoIdentityProvider — admin_get_user (solo lectura)
     enterprise_lead_repository.py     # DynamoDB tabla `tenants`, entity_type=ENTERPRISE_LEAD
     onboarding_verification_repository.py
     onboarding_commit_repository.py   # transaccion OTP + Tenant/EnterpriseLead
@@ -354,6 +383,9 @@ backend/shared/certificates/
   metadata.py
   errors.py
 ```
+
+El certificado ya no se valida ni se sube desde `onboarding/` — `shared/certificates/`
+sigue existiendo para la Lambda `certificates` (subida real, primera vez o reemplazo).
 
 Reusa sin reimplementar: `lambdas.tenants.domain.tenant.Tenant`/`Tenant.create()`,
 `lambdas.tenants.domain.events.TenantCreatedEvent`,
@@ -372,10 +404,15 @@ audit + idempotency + outbox), `lambdas.plans.infra.plan_repository.DynamoPlanRe
 # Autenticadas:
 (HttpMethod.PUT,  "/tenants/{id}/certificate")
 (HttpMethod.GET,  "/tenants/{id}/certificate")
+(HttpMethod.PATCH, "/tenants/{id}/plan")   # ver SUBSCRIPTIONS.md — confirmar/cambiar plan
 ```
 
 Las rutas publicas de onboarding usan throttling nativo de API Gateway HTTP API por ruta.
 No usar WAF para este proyecto mientras el control de costo sea prioridad.
+
+`onboarding_api_fn` tiene permiso IAM `cognito-idp:AdminGetUser` (solo lectura, scoped al
+user pool) para el check de email duplicado — no tiene `AdminCreateUser` ni ningun permiso
+de Secrets Manager (ese permiso se quito junto con la subida de certificado en este lambda).
 
 ## Frontend — Wizard De Registro
 
@@ -383,53 +420,42 @@ La seleccion de plan (paso 1) ya no es una ruta separada: vive embebida en la la
 page publica (`/`, `features/marketing/components/PlansSection.tsx`), que reusa
 `usePlans()` y al elegir un plan llama `selectPlan()` y navega a `details`.
 
-Rutas en `frontend/app/(public)/register/`:
+Rutas en `frontend/app/(public)/register/` (wizard publico, termina en login):
 
 ```
-details.tsx      # paso 2: datos empresa (RUC, razon social, contacto, contabilidad) -> RegisterDetailsScreen
-certificate.tsx  # paso 3: p12 + clave; se omite si plan.self_service=false
-otp.tsx          # paso 4: confirmacion OTP
-payment.tsx      # paso 5 (solo planes de pago): pago dLocal SmartFields -> RegisterPaymentScreen
-confirm.tsx      # confirmacion — mensaje distinto segun self_service (login vs "te contactaremos") -> RegisterConfirmScreen
+details.tsx   # paso 2: datos empresa (RUC, razon social, contacto, contabilidad) -> RegisterDetailsScreen
+otp.tsx       # paso 3: confirmacion OTP -> RegisterOtpScreen
+confirm.tsx   # confirmacion — mensaje distinto segun self_service (login vs "te contactaremos") -> RegisterConfirmScreen
 ```
 
-Si el store no tiene `selectedPlan`/`result` (usuario entra directo a `details` o
-`confirm`), ambas pantallas redirigen a `Routes.root` (`/`), donde puede elegir un plan.
-`RegisterPaymentScreen` tambien verifica `otpValue` en store — si no esta, redirige a root.
+No hay paso de certificado ni de pago en este wizard (ver "Flujo De Registro — Paso A
+Paso" para donde quedaron: pasos 11-13, ya autenticado, fuera de `register/`). Si el
+store no tiene `selectedPlan`/`result` (usuario entra directo a `details` o `confirm`),
+ambas pantallas redirigen a `Routes.root` (`/`), donde puede elegir un plan.
 
 Feature: `frontend/features/onboarding/` — `schemas.ts`, `api.ts`, `form.ts`, `store.ts`
-(Zustand: `selectedPlan`, `formValues`, `certificateValues`,
-`otpRequestIdempotencyKey`, `otpConfirmIdempotencyKey`, `verification`, `result`,
-`otpValue`, `orderId`),
+(Zustand: `selectedPlan`, `selectedBillingCycle`, `formValues`,
+`otpRequestIdempotencyKey`, `otpConfirmIdempotencyKey`, `verification`, `result`),
 `components/RegistrationForm.tsx`,
-`screens/Register{Details,Certificate,Otp,Payment,Confirm}Screen.tsx`.
+`screens/Register{Details,Otp,Confirm}Screen.tsx`.
 
-Logica de bifurcacion en `RegisterOtpScreen`:
-- `isPaidPlan(monthly_price, annual_price)` — `parseFloat(price) > 0`
-- Si es de pago: `setOtpValue(otp)` + `router.push(registerPayment)` (sin llamar confirm)
-- Si es gratis: llama `confirmOtp` directamente como antes
+`RegisterDetailsScreen` llama `requestOtp(...)` directo para CUALQUIER plan
+(self-service o Enterprise) — ya no hay bifurcacion hacia un paso de certificado.
 
 - `hooks/useRequestOtp.ts`: encapsula la llamada a `/onboarding/otp/request` +
   `setVerification`, con navegacion a `otp` por defecto (`options?.navigate`, default
-  `true`). Usado por `RegisterDetailsScreen` (planes no self-service, sin certificado)
-  y `RegisterCertificateScreen` (planes self-service, con certificado) sin pasar
-  `options`. Si se agrega un paso intermedio que tambien dispare OTP, reusar este hook
-  en vez de duplicar la llamada.
+  `true`). Si el backend devuelve `TENANT_ACCOUNT_ALREADY_EXISTS` o
+  `TENANT_RUC_ALREADY_EXISTS` (409), el error se renderiza automaticamente en
+  `ApiErrorBanner` dentro de `RegistrationForm` — no requirio cambios de UI, el banner
+  generico ya existia.
 - `RegisterOtpScreen`: si el codigo no llega o expira, el boton "Reenviar codigo" llama
-  a `useRequestOtp` con `{ navigate: false }` (mismo payload que `confirmOtp`, sin
-  `otp`/`verification_id`) y muestra confirmacion inline; "Volver" hace `router.back()`
-  al paso anterior (`certificate` o `details` segun `selectedPlan.self_service`) sin
-  perder el estado del wizard (store en memoria persiste mientras el stack no se
-  desmonta).
+  a `useRequestOtp` con `{ navigate: false }`; "Volver" hace `router.back()` a
+  `details` sin perder el estado del wizard (store en memoria persiste mientras el
+  stack no se desmonta).
 - `otpConfirmIdempotencyKey` se genera una sola vez en `selectPlan()` (lazy, `??`) y
   no se rota — a diferencia de `otpRequestIdempotencyKey`, que `setVerification`
   rota tras cada `/otp/request` exitoso.
 
-- El p12 viaja en el body como base64 (archivos tipicos < 10 KB, limite backend 50 KB).
-- El selector inicial de p12 en frontend es web nativo (`input[type=file]`). Si se habilita
-  onboarding movil nativo, reemplazar por `expo-document-picker` manteniendo el mismo
-  contrato `{ certificate_b64, cert_password }`.
-- Nunca loguear ni mostrar la password del certificado.
 - Validar RUC localmente antes de enviar. No reemplaza validacion backend.
   Implementado en `frontend/lib/utils/ruc.ts` (`isValidRuc`/`isValidCedula`), portado
   desde `backend/shared/domain/value_objects/ecuador_identification.py`.
@@ -473,21 +499,32 @@ Logica de bifurcacion en `RegisterOtpScreen`:
   usuario Cognito. El outbox reintenta. Si el reintento falla definitivamente, el superadmin
   puede re-encolar el evento o crear el usuario manualmente.
 
-- **Email con typo en el registro**: el RUC lock es permanente (paso d) pero el usuario
-  Cognito se crea async con el email del formulario (paso f). Si el email tiene un error
-  de tipeo, la empresa queda con el RUC bloqueado y sin acceso, sin que nadie lo note hasta
-  que el cliente reclama. Recuperacion: corregir `email` con
-  `PATCH /tenants/{id}` y luego llamar
+- **Email con typo en el registro**: el RUC lock es permanente (paso 4b/7c) pero el
+  usuario Cognito se crea async (paso 7d). Si el email tiene un typo que NO coincide con
+  ninguna cuenta existente (osea, el check de 4c/7b no lo atrapa porque ese email no
+  tiene usuario Cognito), la empresa queda con el RUC bloqueado y sin acceso, sin que
+  nadie lo note hasta que el cliente reclama. Esto sigue siendo posible — el fix de
+  2026-06-21 solo previene el caso de email YA registrado, no el de email mal tipeado
+  sin colision. Recuperacion: corregir `email` con `PATCH /tenants/{id}` y luego llamar
   `POST /tenants/{id}/onboarding/retry`, que re-encola `TenantCreatedEvent`
   para reintentar `AdminCreateUser`/reset de clave temporal y email de bienvenida.
 
-- **Un email = un tenant**: Cognito exige username (email) unico por User Pool, y el
-  onboarding no implementa logica especial para permitir el mismo email en varios tenants
-  (ej. un contador con varios RUCs). Si el email ya esta registrado, el registro se
-  rechaza con un error claro (`EmailAlreadyRegisteredError` o equivalente). Esto es
-  intencional, no un bug: el caso "un usuario administra varios tenants" se resuelve a
-  futuro con un modelo de membresias (ver `AUTH.md` → "Memberships / Multi-tenant
-  Switch"), no relajando la unicidad de email en onboarding.
+- **Un email = un tenant**: Cognito exige username (email) unico por User Pool. Hasta
+  2026-06-21 el onboarding NO validaba esto antes de mandar el OTP — si el email ya
+  tenia usuario Cognito (de un registro anterior, completo o no), el tenant se creaba
+  igual en DynamoDB (RUC bloqueado) pero `AdminCreateUser` fallaba en silencio en el
+  worker async (`UsernameExistsException`, solo logueada como `warning`) y, si el
+  usuario Cognito existente ya habia completado su propio onboarding (`UserStatus` fuera
+  de `FORCE_CHANGE_PASSWORD`/`RESET_REQUIRED`), tampoco se reseteaba password ni se
+  enviaba email — el cliente nunca recibia nada y nadie se enteraba. Se reprodujo en dev
+  borrando datos de DynamoDB sin borrar el usuario Cognito correspondiente, pero el mismo
+  escenario ocurre en cualquier registro repetido con el mismo email. Fix:
+  `IIdentityProvider.email_exists()`
+  ahora corta el flujo ANTES del OTP con `TenantAccountAlreadyExistsError` (409, mensaje
+  "Ya existe una cuenta con este correo..."), visible en el formulario. El caso "un
+  usuario administra varios tenants" sigue sin resolverse aqui — se resuelve a futuro con
+  un modelo de membresias (ver `AUTH.md` → "Memberships / Multi-tenant Switch"), no
+  relajando la unicidad de email en onboarding.
 
 ## Plan Enterprise Y Queue Dedicada
 
@@ -582,6 +619,43 @@ Frontend:
 - [x] `subscriptionStatusSchema`: agregado `'pending_payment'` al enum Zod
 - [x] `subscriptionsApi.activateSubscription()` y `activateSubscriptionResultSchema`
 
+### Fase 4 (completado 2026-06-21 — validacion previa al OTP, certificado post-pago)
+
+Fix de un bug real (email duplicado en Cognito fallaba en silencio) + rediseño del
+orden del wizard: certificado se mueve del paso 2 al ultimo paso, despues de
+confirmar/cambiar plan y de pagar (si aplica).
+
+Backend:
+- [x] `IIdentityProvider`/`CognitoIdentityProvider` (`onboarding/domain/repositories/i_identity_provider.py`,
+  `onboarding/infra/identity_provider.py`) — `email_exists()` via `AdminGetUser`
+- [x] `TenantAccountAlreadyExistsError` (409) en `request_onboarding_otp.py` y
+  `confirm_onboarding_otp.py` (mismo patron que `TenantRucAlreadyExistsError`)
+- [x] CDK: permiso `cognito-idp:AdminGetUser` para `onboarding_api_fn`
+- [x] Certificado removido de `RequestOnboardingOtpCommand`/`ConfirmOnboardingOtpCommand`/
+  `OnboardingRequest`/`OnboardingOtpConfirmRequest` — `Tenant.create()` ya soportaba
+  crearse sin certificado, solo habia que dejar de exigirlo en el use case
+- [x] `confirm_onboarding_otp.py` setea `onboarding_completed_at` directo (ya no depende
+  de `attach_certificate(complete_onboarding=True)`)
+- [x] `_grant_certificate_secrets` (CDK) perdio el parametro `allow_delete` (solo lo usaba
+  `onboarding_api_fn`) y `CertificateStore.delete_certificate()` se eliminó (sin llamadores)
+- [x] `Tenant.plan_confirmed_at` (nuevo campo) + `Tenant.confirm_plan_selection()` —
+  domain method que cambia `plan_id` y rehace el branching libre/pago de `Tenant.create()`
+- [x] `IPlanCatalog.ensure_self_service_active()` (tenants) — variante de `ensure_active()`
+  que tambien rechaza planes `self_service=false`
+- [x] `ChangePlanUseCase` + `PATCH /tenants/{id}/plan` — solo si
+  `subscription_status in (None, 'pending_payment')`; ver SUBSCRIPTIONS.md
+
+Frontend:
+- [x] Eliminados `certificate.tsx`, `RegisterCertificateScreen.tsx`,
+  `certificateValues`/`setCertificateValues` del store, `certificateFormValuesSchema`
+- [x] `RegisterDetailsScreen`: una sola rama (llama `requestOtp` siempre, self-service o no)
+- [x] Nueva pantalla `/(app)/confirm-plan` (`ConfirmPlanScreen`) — ver SUBSCRIPTIONS.md
+- [x] Nueva pantalla `/(app)/upload-certificate` (`UploadCertificateScreen`, reusa
+  `CertificateSection` con prop `onUploaded`) — ver CERTIFICATES.md
+- [x] `(tenant)/_layout.tsx`: guard `needsPlanConfirmation` (antes de pending_payment) y
+  guard de certificado (despues de pending_payment/payment_failed)
+- [x] `tenantSchema`: agregado `plan_confirmed_at`; `tenantsApi.changePlan()`
+
 ## Decisiones Futuras
 
 - Provisioning automatico de queue dedicada Enterprise no esta en scope del flujo actual:
@@ -605,3 +679,6 @@ Frontend:
   `POST /tenants/{id}/onboarding/retry`; el endpoint escribe audit + outbox +
   idempotencia sin modificar la entidad tenant y valida existencia/version/deleted con
   `ConditionCheck` en la misma transaccion.
+- 2026-06-21: registrarse con un email que ya tiene usuario Cognito ya no falla en
+  silencio — `IIdentityProvider.email_exists()` lo rechaza antes del OTP con
+  `TenantAccountAlreadyExistsError` (409), visible en el formulario.

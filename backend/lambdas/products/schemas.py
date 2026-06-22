@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class CreateProductRequest(BaseModel):
-    sku: str = Field(..., min_length=1, max_length=32)
+    sku: str = Field(..., min_length=1, max_length=36)
     name: str = Field(..., min_length=1, max_length=160)
     description: str = Field(default="", max_length=500)
     kind: Literal["PRODUCT", "SERVICE", "PACKAGE", "MEMBERSHIP", "OTHER"] = "PRODUCT"
@@ -21,7 +21,7 @@ class CreateProductRequest(BaseModel):
 
 
 class UpdateProductRequest(BaseModel):
-    sku: str | None = Field(default=None, min_length=1, max_length=32)
+    sku: str | None = Field(default=None, min_length=1, max_length=36)
     name: str | None = Field(default=None, min_length=1, max_length=160)
     description: str | None = Field(default=None, max_length=500)
     kind: Literal["PRODUCT", "SERVICE", "PACKAGE", "MEMBERSHIP", "OTHER"] | None = None

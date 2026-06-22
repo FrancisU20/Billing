@@ -530,6 +530,29 @@ class GetDocumentsSummaryUseCaseTests(unittest.TestCase):
         self.assertEqual(summary.document_limit, 500)
         self.assertFalse(summary.is_unlimited)
 
+    def test_marks_free_plan_when_provided(self) -> None:
+        repo = FakeDocumentsRepository()
+        repo.summary_result = DocumentSummary(
+            period_start="2026-06-01",
+            period_end="2026-06-17",
+            issued_count=7,
+            authorized_count=5,
+            rejected_count=1,
+            failed_count=1,
+            pending_count=0,
+            processing_count=0,
+            authorized_total=Decimal("123.45"),
+        )
+
+        summary = GetDocumentsSummaryUseCase(repo).execute(
+            "t-1",
+            monthly_limit=20,
+            is_free_plan=True,
+        )
+
+        self.assertEqual(summary.document_limit, 20)
+        self.assertTrue(summary.is_free_plan)
+
     def test_marks_unlimited_for_sentinel_value(self) -> None:
         repo = FakeDocumentsRepository()
         repo.summary_result = DocumentSummary(

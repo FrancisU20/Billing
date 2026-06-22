@@ -5,7 +5,11 @@ from datetime import UTC, datetime
 
 from lambdas.subscriptions.domain.entities.payment import Payment
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import DLocalDirectChargeResult
-from lambdas.tenants.domain.commands import ToggleStatusCommand, UpdateTenantCommand
+from lambdas.tenants.domain.commands import (
+    ChangeTenantPlanCommand,
+    ToggleStatusCommand,
+    UpdateTenantCommand,
+)
 from lambdas.tenants.domain.enums import SriEnvironment, TenantStatus
 from lambdas.tenants.domain.errors import (
     NoSavedPaymentMethodError,
@@ -16,12 +20,15 @@ from lambdas.tenants.domain.errors import (
     SubscriptionRenewalPaymentNotConfirmedError,
     SubscriptionRenewalPlanMismatchError,
     TenantNotFoundError,
+    TenantPlanChangeNotAllowedError,
+    TenantPlanNotSelfServiceError,
     TenantRucAlreadyExistsError,
 )
 from lambdas.tenants.domain.events import TenantCreatedEvent
 from lambdas.tenants.domain.repositories.i_payment_reader import IPaymentReader, PaymentRecord
 from lambdas.tenants.use_cases.activate_subscription import ActivateSubscriptionUseCase
 from lambdas.tenants.use_cases.apply_subscription_renewal import ApplySubscriptionRenewalUseCase
+from lambdas.tenants.use_cases.change_plan import ChangePlanUseCase
 from lambdas.tenants.use_cases.create_tenant import CreateTenantUseCase
 from lambdas.tenants.use_cases.delete_tenant import DeleteTenantUseCase
 from lambdas.tenants.use_cases.list_tenants import ListTenantsQuery, ListTenantsUseCase
@@ -273,6 +280,75 @@ class TenantMutationUseCaseTests(unittest.TestCase):
             ListTenantsUseCase(repo).count(ListTenantsQuery(limit=10, plan_status="active"))
         )
         self.assertEqual(repo.count_calls, [])
+
+
+class ChangePlanUseCaseTests(unittest.TestCase):
+    def test_changes_plan_while_pending_payment(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="tenant-1", subscription_status="pending_payment")
+        repo.tenants[tenant.id] = tenant
+        catalog = FakePlanCatalog(self_service=True, is_free=False)
+
+        updated, events = ChangePlanUseCase(repo, catalog).execute(
+            ChangeTenantPlanCommand(
+                tenant_id="tenant-1", plan_id="uuid-pro", billing_cycle="year", updated_by="user-1"
+            )
+        )
+
+        self.assertEqual(updated.plan_id, "uuid-pro")
+        self.assertEqual(updated.subscription_status, "pending_payment")
+        self.assertEqual(updated.billing_cycle, "year")
+        self.assertEqual(events, [])
+
+    def test_changes_plan_for_free_tenant(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="tenant-1", subscription_status=None)
+        repo.tenants[tenant.id] = tenant
+        catalog = FakePlanCatalog(self_service=True, is_free=True)
+
+        updated, _ = ChangePlanUseCase(repo, catalog).execute(
+            ChangeTenantPlanCommand(
+                tenant_id="tenant-1",
+                plan_id="uuid-free",
+                billing_cycle="month",
+                updated_by="user-1",
+            )
+        )
+
+        self.assertEqual(updated.plan_id, "uuid-free")
+        self.assertIsNone(updated.subscription_status)
+        self.assertIsNotNone(updated.plan_confirmed_at)
+
+    def test_rejects_change_once_subscription_is_active(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="tenant-1", subscription_status="active")
+        repo.tenants[tenant.id] = tenant
+
+        with self.assertRaises(TenantPlanChangeNotAllowedError):
+            ChangePlanUseCase(repo, FakePlanCatalog()).execute(
+                ChangeTenantPlanCommand(
+                    tenant_id="tenant-1",
+                    plan_id="uuid-pro",
+                    billing_cycle="month",
+                    updated_by="user-1",
+                )
+            )
+
+    def test_rejects_enterprise_plan(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(id="tenant-1", subscription_status="pending_payment")
+        repo.tenants[tenant.id] = tenant
+        catalog = FakePlanCatalog(self_service=False)
+
+        with self.assertRaises(TenantPlanNotSelfServiceError):
+            ChangePlanUseCase(repo, catalog).execute(
+                ChangeTenantPlanCommand(
+                    tenant_id="tenant-1",
+                    plan_id="uuid-enterprise",
+                    billing_cycle="month",
+                    updated_by="user-1",
+                )
+            )
 
 
 class ApplySubscriptionRenewalUseCaseTests(unittest.TestCase):

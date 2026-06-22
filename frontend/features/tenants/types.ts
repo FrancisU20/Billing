@@ -4,6 +4,7 @@ export type {
   Certificate,
   CertificateMetadata,
   CertificateUpdateInput,
+  ChangeTenantPlanInput,
   CreateTenantInput,
   PlanStatus,
   RetryTenantOnboardingResult,

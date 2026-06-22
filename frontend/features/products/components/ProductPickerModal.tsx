@@ -11,7 +11,9 @@ import { ApiError, toApiError, type ApiError as ApiErrorType } from '@/lib/api/e
 import { useTheme } from '@/lib/theme-context'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { productsApi } from '../api'
+import { generateProductSku, SKU_PLACEHOLDER } from '../sku'
 import type { Product, ProductIvaRate } from '../types'
+import { GenerateSkuButton } from './GenerateSkuButton'
 
 interface ProductPickerModalProps {
   visible: boolean
@@ -194,6 +196,7 @@ export function ProductPickerModal({
             iva={quickIva}
             onIvaChange={setQuickIva}
             creating={creating}
+            onGenerateSku={() => setQuickSku(generateProductSku())}
             onSubmit={createQuick}
           />
         ) : null
@@ -259,6 +262,7 @@ function QuickCreateForm({
   iva,
   onIvaChange,
   creating,
+  onGenerateSku,
   onSubmit,
 }: {
   sku: string
@@ -270,6 +274,7 @@ function QuickCreateForm({
   iva: ProductIvaRate
   onIvaChange: (value: ProductIvaRate) => void
   creating: boolean
+  onGenerateSku: () => void
   onSubmit: () => void
 }) {
   const { semantic } = useTheme()
@@ -280,10 +285,11 @@ function QuickCreateForm({
         <View style={styles.quickCol}>
           <FormField
             label="SKU"
-            placeholder="PROD-001"
+            placeholder={SKU_PLACEHOLDER}
             leftIcon="barcode-outline"
             value={sku}
             onChangeText={onSkuChange}
+            rightElement={<GenerateSkuButton onPress={onGenerateSku} />}
             required
           />
         </View>
@@ -358,6 +364,6 @@ const styles = StyleSheet.create({
   quickBox: { borderRadius: radius.md, borderWidth: 1, gap: spacing[3], padding: spacing[3] },
   quickTitle: { fontSize: typography.size.sm, fontWeight: typography.weight.bold },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[3] },
-  quickCol: { flex: 1, minWidth: 140 },
-  quickWide: { flex: 2, minWidth: 220 },
+  quickCol: { flex: 1, minWidth: 180 },
+  quickWide: { flex: 2, minWidth: 240 },
 })

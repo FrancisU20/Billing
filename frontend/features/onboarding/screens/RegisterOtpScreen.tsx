@@ -23,7 +23,6 @@ export function RegisterOtpScreen() {
   const selectedPlan = useOnboardingStore((state) => state.selectedPlan)
   const selectedBillingCycle = useOnboardingStore((state) => state.selectedBillingCycle)
   const formValues = useOnboardingStore((state) => state.formValues)
-  const certificateValues = useOnboardingStore((state) => state.certificateValues)
   const verification = useOnboardingStore((state) => state.verification)
   const otpConfirmIdempotencyKey = useOnboardingStore((state) => state.otpConfirmIdempotencyKey)
   const setResult = useOnboardingStore((state) => state.setResult)
@@ -42,12 +41,8 @@ export function RegisterOtpScreen() {
   useEffect(() => {
     if (!selectedPlan || !formValues || !verification) {
       router.replace(Routes.root as Href)
-      return
     }
-    if (selectedPlan.self_service && !certificateValues) {
-      router.replace(Routes.public.registerCertificate as Href)
-    }
-  }, [certificateValues, formValues, selectedPlan, verification, router])
+  }, [formValues, selectedPlan, verification, router])
 
   const { submitting, error, submit } = useFormSubmit(async (values: OtpFormValues) => {
     if (!selectedPlan || !formValues || !verification || !otpConfirmIdempotencyKey) return
@@ -57,8 +52,6 @@ export function RegisterOtpScreen() {
         ...formValuesToOnboardingPayload(formValues, selectedPlan.id, selectedBillingCycle),
         verification_id: verification.verification_id,
         otp: values.otp.trim(),
-        certificate_b64: certificateValues?.certificate_b64,
-        cert_password: certificateValues?.cert_password,
       },
       otpConfirmIdempotencyKey,
     )
@@ -74,11 +67,7 @@ export function RegisterOtpScreen() {
     if (!selectedPlan || !formValues) return
     setResent(false)
     await requestOtp(
-      {
-        ...formValuesToOnboardingPayload(formValues, selectedPlan.id, selectedBillingCycle),
-        certificate_b64: certificateValues?.certificate_b64,
-        cert_password: certificateValues?.cert_password,
-      },
+      formValuesToOnboardingPayload(formValues, selectedPlan.id, selectedBillingCycle),
       { navigate: false },
     )
     setResent(true)

@@ -8,6 +8,7 @@ Routes:
     GET    /tenants                                list all         (superadmin)
     GET    /tenants/{id}                           get by ID        (superadmin | tenant members)
     PATCH  /tenants/{id}                           update           (superadmin | owner | admin)
+    PATCH  /tenants/{id}/plan                      change plan      (owner | admin | superadmin)
     PATCH  /tenants/{id}/status                    change status    (superadmin)
     POST   /tenants/{id}/onboarding/retry          retry onboarding (superadmin)
     DELETE /tenants/{id}                           soft delete      (superadmin)
@@ -26,6 +27,7 @@ from lambdas._base.response import ApiResponse
 from lambdas.subscriptions.infra.dlocal_client import DLocalClient
 from lambdas.subscriptions.infra.payment_repository import DynamoPaymentRepository
 from lambdas.tenants.domain.commands import (
+    ChangeTenantPlanCommand,
     CreateTenantCommand,
     RetryTenantOnboardingCommand,
     ToggleStatusCommand,
@@ -37,12 +39,14 @@ from lambdas.tenants.infra.plan_catalog import DynamoPlanCatalog
 from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
 from lambdas.tenants.schemas import (
     ApplyRenewalRequest,
+    ChangeTenantPlanRequest,
     CreateTenantRequest,
     ToggleStatusRequest,
     UpdateTenantRequest,
 )
 from lambdas.tenants.use_cases.activate_subscription import ActivateSubscriptionUseCase
 from lambdas.tenants.use_cases.apply_subscription_renewal import ApplySubscriptionRenewalUseCase
+from lambdas.tenants.use_cases.change_plan import ChangePlanUseCase
 from lambdas.tenants.use_cases.create_tenant import CreateTenantUseCase
 from lambdas.tenants.use_cases.delete_tenant import DeleteTenantUseCase
 from lambdas.tenants.use_cases.get_superadmin_dashboard import GetSuperadminDashboardUseCase
@@ -222,6 +226,35 @@ def _update(request: Request, context) -> dict:
         tenant=tenant,
         user_id=request.user_id,
         action="UPDATE",
+        events=events,
+        idempotency=require_current_context(),
+        response=response,
+    )
+    return response
+
+
+@lambda_handler
+@require_role("owner", "admin", "superadmin")
+@idempotent
+def _change_plan(request: Request, context) -> dict:
+    tenant_id = require_path_param(request, "id")
+    if not request.is_superadmin and request.tenant_id != tenant_id:
+        raise ForbiddenError()
+
+    body = parse(ChangeTenantPlanRequest, request.body)
+    command = ChangeTenantPlanCommand(
+        tenant_id=tenant_id,
+        plan_id=body.plan_id,
+        billing_cycle=body.billing_cycle,
+        updated_by=request.user_id,
+    )
+    repo = _repo()
+    tenant, events = ChangePlanUseCase(repo, _plan_catalog()).execute(command)
+    response = ApiResponse.ok(tenant.to_dict(), request.request_id)
+    repo.commit(
+        tenant=tenant,
+        user_id=request.user_id,
+        action="PLAN_CHANGE",
         events=events,
         idempotency=require_current_context(),
         response=response,
@@ -414,6 +447,7 @@ def _delete(request: Request, context) -> dict:
 # ── Entry point AWS ───────────────────────────────────────────────────────────
 
 _ID_PATTERN = re.compile(r"^/tenants/[^/]+$")
+_PLAN_PATTERN = re.compile(r"^/tenants/[^/]+/plan$")
 _STATUS_PATTERN = re.compile(r"^/tenants/[^/]+/status$")
 _ONBOARDING_RETRY_PATTERN = re.compile(r"^/tenants/[^/]+/onboarding/retry$")
 _SUBSCRIPTION_RENEW_PATTERN = re.compile(r"^/tenants/[^/]+/subscription/renew$")
@@ -435,6 +469,10 @@ def handler(event: dict, context) -> dict:
     if path == "/superadmin/dashboard":
         if method == "GET":
             return _dashboard(event, context)
+
+    if _PLAN_PATTERN.match(path):
+        if method == "PATCH":
+            return _change_plan(event, context)
 
     if _STATUS_PATTERN.match(path):
         if method == "PATCH":

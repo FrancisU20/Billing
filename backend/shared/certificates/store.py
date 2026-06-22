@@ -55,15 +55,5 @@ class CertificateStore:
             _log.error("Secrets Manager put_secret_value error", tenant_id=tenant_id)
             raise ExternalServiceError("no se pudo guardar el certificado") from exc
 
-    def delete_certificate(self, *, tenant_id: str) -> None:
-        try:
-            self._client.delete_secret(
-                SecretId=self.secret_name(tenant_id),
-                ForceDeleteWithoutRecovery=True,
-            )
-        except ClientError as exc:
-            if exc.response["Error"]["Code"] != "ResourceNotFoundException":
-                _log.warning("Secrets Manager cleanup failed", tenant_id=tenant_id)
-
     def secret_name(self, tenant_id: str) -> str:
         return f"{self._secret_prefix.rstrip('/')}/{tenant_id}/certificate"

@@ -81,26 +81,18 @@ class _PythonLocalBundler:
 
 class ApiStack(Stack):
     @staticmethod
-    def _grant_certificate_secrets(
-        fn: lmb.Function, *, env: str, region: str, allow_delete: bool = False
-    ) -> None:
+    def _grant_certificate_secrets(fn: lmb.Function, *, env: str, region: str) -> None:
         """Allow a Lambda to manage tenant certificate secrets in Secrets Manager.
 
-        Used by both `certificates` (post-onboarding certificate replacement) and
-        `onboarding` (initial certificate upload + orphan cleanup) — same secret
-        naming convention. `allow_delete` is only needed by `onboarding`, which
-        cleans up orphaned secrets when a transactional commit fails.
+        Used by `certificates` — the certificate is uploaded after payment, from the
+        tenant's authenticated area, not during onboarding.
         """
-        actions = [
-            "secretsmanager:CreateSecret",
-            "secretsmanager:DescribeSecret",
-            "secretsmanager:PutSecretValue",
-        ]
-        if allow_delete:
-            actions.append("secretsmanager:DeleteSecret")
-
         fn.add_to_role_policy(iam.PolicyStatement(
-            actions   = actions,
+            actions   = [
+                "secretsmanager:CreateSecret",
+                "secretsmanager:DescribeSecret",
+                "secretsmanager:PutSecretValue",
+            ],
             resources = [
                 f"arn:aws:secretsmanager:{region}:*:secret:/codelabs-billing/{env}/tenant/*"
             ],
@@ -623,6 +615,7 @@ class ApiStack(Stack):
             (apigwv2.HttpMethod.GET,    "/tenants"),
             (apigwv2.HttpMethod.GET,    "/tenants/{id}"),
             (apigwv2.HttpMethod.PATCH,  "/tenants/{id}"),
+            (apigwv2.HttpMethod.PATCH,  "/tenants/{id}/plan"),
             (apigwv2.HttpMethod.PATCH,  "/tenants/{id}/status"),
             (apigwv2.HttpMethod.POST,   "/tenants/{id}/onboarding/retry"),
             (apigwv2.HttpMethod.POST,   "/tenants/{id}/subscription/activate"),
@@ -868,6 +861,8 @@ class ApiStack(Stack):
                 "cognito-idp:InitiateAuth",
                 "cognito-idp:RespondToAuthChallenge",
                 "cognito-idp:GlobalSignOut",
+                "cognito-idp:ForgotPassword",
+                "cognito-idp:ConfirmForgotPassword",
             ],
             resources = [auth.user_pool.user_pool_arn],
         ))
@@ -882,12 +877,20 @@ class ApiStack(Stack):
             "/auth/refresh",
             "/auth/logout",
             "/auth/challenge",
+            "/auth/reset-password",
         ]:
             api.add_routes(
                 path        = route,
                 methods     = [apigwv2.HttpMethod.POST],
                 integration = auth_integration,
             )
+
+        # Enumeration/abuse-prone — throttled below alongside onboarding/subscriptions.
+        auth_throttled_routes: list[apigwv2.HttpRoute] = list(api.add_routes(
+            path        = "/auth/forgot-password",
+            methods     = [apigwv2.HttpMethod.POST],
+            integration = auth_integration,
+        ))
 
         # ── Plans Lambda ───────────────────────────────────────────────────────
         plans_fn = lmb.Function(
@@ -958,7 +961,7 @@ class ApiStack(Stack):
                 "AUDIT_LOG_TABLE":   database.audit_table.table_name,
                 "IDEMPOTENCY_TABLE": database.idempotency_table.table_name,
                 "OUTBOX_TABLE":      database.outbox_table.table_name,
-                "CERTIFICATE_SECRET_PREFIX": f"/codelabs-billing/{env}/tenant",
+                "COGNITO_USER_POOL_ID": auth.user_pool.user_pool_id,
             },
         )
         database.tenants_table.grant_read_write_data(onboarding_api_fn)
@@ -967,9 +970,10 @@ class ApiStack(Stack):
         database.audit_table.grant_read_write_data(onboarding_api_fn)
         database.idempotency_table.grant_read_write_data(onboarding_api_fn)
         database.outbox_table.grant_write_data(onboarding_api_fn)
-        self._grant_certificate_secrets(
-            onboarding_api_fn, env=env, region=region, allow_delete=True
-        )
+        onboarding_api_fn.add_to_role_policy(iam.PolicyStatement(
+            actions   = ["cognito-idp:AdminGetUser"],
+            resources = [auth.user_pool.user_pool_arn],
+        ))
 
         onboarding_integration = integrations.HttpLambdaIntegration(
             "OnboardingIntegration", onboarding_api_fn
@@ -1057,10 +1061,11 @@ class ApiStack(Stack):
         pay_create_throttle    = throttling_cfg.get("payment_create", {})
         pay_capture_throttle   = throttling_cfg.get("payment_confirm", throttling_cfg.get("payment_capture", {}))
         pay_get_throttle       = throttling_cfg.get("payment_get", {})
+        forgot_password_throttle = throttling_cfg.get("auth_forgot_password", {})
         default_throttle       = throttling_cfg.get("default", {})
         if api.default_stage:
             cfn_stage = api.default_stage.node.default_child
-            throttled_routes = onboarding_routes + subscriptions_routes
+            throttled_routes = onboarding_routes + subscriptions_routes + auth_throttled_routes
             for route in throttled_routes:
                 cfn_stage.add_dependency(route.node.default_child)
             cfn_stage.add_property_override("DefaultRouteSettings", {
@@ -1087,6 +1092,10 @@ class ApiStack(Stack):
                 "GET /subscriptions/payments/{order_id}": {
                     "ThrottlingBurstLimit": pay_get_throttle.get("burst_limit", 20),
                     "ThrottlingRateLimit": pay_get_throttle.get("rate_limit", 10),
+                },
+                "POST /auth/forgot-password": {
+                    "ThrottlingBurstLimit": forgot_password_throttle.get("burst_limit", 5),
+                    "ThrottlingRateLimit": forgot_password_throttle.get("rate_limit", 1),
                 },
             })
 

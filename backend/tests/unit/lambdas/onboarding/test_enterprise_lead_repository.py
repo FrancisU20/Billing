@@ -32,8 +32,6 @@ def _lead() -> EnterpriseLead:
     command = ConfirmOnboardingOtpCommand(
         verification_id="verification-1",
         otp="123456",
-        certificate_b64=None,
-        cert_password=None,
         **tenant_payload(),
     )
     return EnterpriseLead.create(command, plan_id="uuid-enterprise")

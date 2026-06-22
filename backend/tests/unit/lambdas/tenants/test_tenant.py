@@ -174,5 +174,44 @@ class ActivateSubscriptionTenantTests(unittest.TestCase):
         self.assertEqual(tenant.subscription_status, "active")
 
 
+class ConfirmPlanSelectionTenantTests(unittest.TestCase):
+    def test_switching_to_paid_plan_starts_pending_payment(self) -> None:
+        tenant = make_tenant(subscription_status=None, plan_cycle_ends_at=datetime.now(UTC))
+
+        tenant.confirm_plan_selection(
+            plan_id="uuid-pro",
+            plan_limit_cycle="month",
+            plan_is_free=False,
+            billing_cycle="year",
+            updated_by="user-1",
+        )
+
+        self.assertEqual(tenant.plan_id, "uuid-pro")
+        self.assertEqual(tenant.subscription_status, "pending_payment")
+        self.assertEqual(tenant.billing_cycle, "year")
+        self.assertIsNone(tenant.plan_cycle_ends_at)
+        self.assertIsNotNone(tenant.plan_confirmed_at)
+
+    def test_switching_to_free_plan_activates_immediately(self) -> None:
+        tenant = make_tenant(
+            subscription_status="pending_payment",
+            plan_cycle_ends_at=None,
+            pending_order_id="order-1",
+        )
+
+        tenant.confirm_plan_selection(
+            plan_id="uuid-free",
+            plan_limit_cycle="month",
+            plan_is_free=True,
+            billing_cycle="month",
+            updated_by="user-1",
+        )
+
+        self.assertEqual(tenant.plan_id, "uuid-free")
+        self.assertIsNone(tenant.subscription_status)
+        self.assertIsNotNone(tenant.plan_cycle_ends_at)
+        self.assertIsNone(tenant.pending_order_id)
+
+
 if __name__ == "__main__":
     unittest.main()

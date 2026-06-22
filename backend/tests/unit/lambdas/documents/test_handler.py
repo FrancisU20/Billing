@@ -257,7 +257,11 @@ class DocumentsSummaryHandlerTests(unittest.TestCase):
             patch.object(
                 self.mod,
                 "_get_plan",
-                return_value=PlanInfo(document_limit=500, pruebas_monthly_docs_limit=50),
+                return_value=PlanInfo(
+                    document_limit=500,
+                    pruebas_monthly_docs_limit=50,
+                    is_free=False,
+                ),
             ),
         ):
             resp = self.mod.handler(event, _CTX)
@@ -268,6 +272,35 @@ class DocumentsSummaryHandlerTests(unittest.TestCase):
         self.assertEqual(body["data"]["authorized_total"], "99.90")
         self.assertEqual(body["data"]["document_limit"], 50)
         self.assertFalse(body["data"]["is_unlimited"])
+        self.assertFalse(body["data"]["is_free_plan"])
+
+    def test_marks_free_plan_in_summary(self) -> None:
+        repo = FakeDocumentsRepository()
+        event = api_event(
+            method="GET",
+            path="/documents/summary",
+            claims=_owner_claims("t-1"),
+        )
+
+        with (
+            patch.object(self.mod, "_repo", return_value=repo),
+            patch.object(self.mod, "_get_tenant", return_value=_fake_tenant()),
+            patch.object(
+                self.mod,
+                "_get_plan",
+                return_value=PlanInfo(
+                    document_limit=20,
+                    pruebas_monthly_docs_limit=20,
+                    is_free=True,
+                ),
+            ),
+        ):
+            resp = self.mod.handler(event, _CTX)
+
+        body = decode_response(resp)
+        self.assertEqual(resp["statusCode"], 200)
+        self.assertEqual(body["data"]["document_limit"], 20)
+        self.assertTrue(body["data"]["is_free_plan"])
 
     def test_returns_unlimited_when_plan_has_sentinel_limit(self) -> None:
         repo = FakeDocumentsRepository()

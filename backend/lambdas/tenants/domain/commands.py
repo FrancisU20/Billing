@@ -43,3 +43,11 @@ class ToggleStatusCommand:
 class RetryTenantOnboardingCommand:
     tenant_id: str
     requested_by: str
+
+
+@dataclass(frozen=True)
+class ChangeTenantPlanCommand:
+    tenant_id: str
+    plan_id: str
+    billing_cycle: str
+    updated_by: str

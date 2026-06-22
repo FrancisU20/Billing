@@ -13,6 +13,13 @@ class TenantRucAlreadyExistsError(ConflictError):
     default_message = "Ya existe una empresa registrada con ese RUC."
 
 
+class TenantAccountAlreadyExistsError(ConflictError):
+    code = "TENANT_ACCOUNT_ALREADY_EXISTS"
+    default_message = (
+        "Ya existe una cuenta con este correo. Inicia sesión o recupera tu contraseña."
+    )
+
+
 class TenantSuspendedError(BusinessError):
     code = "TENANT_SUSPENDED"
     default_message = "La empresa está suspendida y no puede operar."
@@ -69,3 +76,16 @@ class SavedCardRejectedError(AppError):
 class RetryPaymentNotEligibleError(BusinessError):
     code = "RETRY_PAYMENT_NOT_ELIGIBLE"
     default_message = "La suscripción no tiene pagos pendientes."
+
+
+class TenantPlanChangeNotAllowedError(BusinessError):
+    code = "TENANT_PLAN_CHANGE_NOT_ALLOWED"
+    default_message = (
+        "Solo puedes cambiar de plan antes de tu primer pago. Contacta a soporte si necesitas "
+        "cambiar de plan."
+    )
+
+
+class TenantPlanNotSelfServiceError(BusinessError):
+    code = "TENANT_PLAN_NOT_SELF_SERVICE"
+    default_message = "Este plan requiere contacto con ventas y no está disponible aquí."

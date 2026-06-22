@@ -8,12 +8,14 @@ from lambdas.onboarding.domain.onboarding_verification import (
     OnboardingVerification,
     generate_otp,
 )
+from lambdas.onboarding.domain.repositories.i_identity_provider import IIdentityProvider
 from lambdas.onboarding.domain.repositories.i_plan_catalog import IPlanCatalog
 from lambdas.onboarding.use_cases.payload_signature import onboarding_payload_hash
-from lambdas.tenants.domain.errors import TenantRucAlreadyExistsError
+from lambdas.tenants.domain.errors import (
+    TenantAccountAlreadyExistsError,
+    TenantRucAlreadyExistsError,
+)
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
-from shared.certificates.errors import CertificateInvalidError
-from shared.certificates.validator import CertificateValidator
 from shared.domain.events.domain_event import DomainEvent
 
 
@@ -28,25 +30,20 @@ class RequestOnboardingOtpUseCase:
         self,
         plan_catalog: IPlanCatalog,
         tenant_repo: ITenantRepository,
-        certificate_validator: CertificateValidator,
+        identity_provider: IIdentityProvider,
     ) -> None:
         self._plan_catalog = plan_catalog
         self._tenant_repo = tenant_repo
-        self._certificate_validator = certificate_validator
+        self._identity_provider = identity_provider
 
     def execute(self, cmd: RequestOnboardingOtpCommand) -> RequestOnboardingOtpResult:
         plan = self._plan_catalog.get(cmd.plan_id)
 
         if plan.self_service:
-            if not cmd.certificate_b64 or not cmd.cert_password:
-                raise CertificateInvalidError("certificado requerido para self-service")
-            self._certificate_validator.validate_base64(
-                certificate_b64=cmd.certificate_b64,
-                password=cmd.cert_password,
-                expected_ruc=cmd.ruc,
-            )
             if self._tenant_repo.get_by_ruc(cmd.ruc):
                 raise TenantRucAlreadyExistsError()
+            if self._identity_provider.email_exists(cmd.email):
+                raise TenantAccountAlreadyExistsError()
 
         otp = generate_otp()
         verification = OnboardingVerification.create(

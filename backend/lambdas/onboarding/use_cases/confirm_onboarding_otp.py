@@ -7,19 +7,20 @@ from lambdas.onboarding.domain.enterprise_lead import EnterpriseLead
 from lambdas.onboarding.domain.errors import OnboardingPayloadMismatchError
 from lambdas.onboarding.domain.events import EnterpriseLeadCreatedEvent
 from lambdas.onboarding.domain.onboarding_verification import OnboardingVerification
+from lambdas.onboarding.domain.repositories.i_identity_provider import IIdentityProvider
 from lambdas.onboarding.domain.repositories.i_onboarding_verification_repository import (
     IOnboardingVerificationRepository,
 )
 from lambdas.onboarding.domain.repositories.i_plan_catalog import IPlanCatalog
 from lambdas.onboarding.use_cases.payload_signature import onboarding_payload_hash
 from lambdas.tenants.domain.commands import CreateTenantCommand
-from lambdas.tenants.domain.errors import TenantRucAlreadyExistsError
+from lambdas.tenants.domain.errors import (
+    TenantAccountAlreadyExistsError,
+    TenantRucAlreadyExistsError,
+)
 from lambdas.tenants.domain.events import TenantCreatedEvent
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.tenants.domain.tenant import Tenant
-from shared.certificates.errors import CertificateInvalidError
-from shared.certificates.store import CertificateStore
-from shared.certificates.validator import CertificateValidator
 from shared.dates import now_utc
 from shared.domain.events.domain_event import DomainEvent
 
@@ -38,14 +39,12 @@ class ConfirmOnboardingOtpUseCase:
         plan_catalog: IPlanCatalog,
         tenant_repo: ITenantRepository,
         verification_repo: IOnboardingVerificationRepository,
-        certificate_validator: CertificateValidator,
-        certificate_store: CertificateStore,
+        identity_provider: IIdentityProvider,
     ) -> None:
         self._plan_catalog = plan_catalog
         self._tenant_repo = tenant_repo
         self._verification_repo = verification_repo
-        self._certificate_validator = certificate_validator
-        self._certificate_store = certificate_store
+        self._identity_provider = identity_provider
 
     def execute(self, cmd: ConfirmOnboardingOtpCommand) -> ConfirmOnboardingOtpResult:
         verification = self._verification_repo.get_by_id(cmd.verification_id)
@@ -82,16 +81,10 @@ class ConfirmOnboardingOtpUseCase:
         plan_limit_cycle: str,
         plan_is_free: bool,
     ) -> ConfirmOnboardingOtpResult:
-        if not cmd.certificate_b64 or not cmd.cert_password:
-            raise CertificateInvalidError("certificado requerido para self-service")
-
-        metadata = self._certificate_validator.validate_base64(
-            certificate_b64=cmd.certificate_b64,
-            password=cmd.cert_password,
-            expected_ruc=cmd.ruc,
-        )
         if self._tenant_repo.get_by_ruc(cmd.ruc):
             raise TenantRucAlreadyExistsError()
+        if self._identity_provider.email_exists(cmd.email):
+            raise TenantAccountAlreadyExistsError()
         tenant = Tenant.create(
             CreateTenantCommand(
                 ruc=cmd.ruc,
@@ -112,19 +105,8 @@ class ConfirmOnboardingOtpUseCase:
             # Netflix model: cycle starts at first payment, not at registration.
             tenant.plan_cycle_ends_at = None
             tenant.subscription_status = "pending_payment"
-        secret_arn = self._certificate_store.put_certificate(
-            tenant_id=tenant.id,
-            certificate_b64=cmd.certificate_b64,
-            password=cmd.cert_password,
-        )
-        tenant.attach_certificate(
-            metadata,
-            secret_arn=secret_arn,
-            uploaded_at=now_utc(),
-            updated_by="onboarding",
-            complete_onboarding=True,
-            touch_entity=False,
-        )
+        # The certificate is uploaded later, after payment — see context/CERTIFICATES.md.
+        tenant.onboarding_completed_at = now_utc()
         events = [
             TenantCreatedEvent(
                 tenant_id=tenant.id,

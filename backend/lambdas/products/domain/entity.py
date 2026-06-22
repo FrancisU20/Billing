@@ -10,7 +10,7 @@ from shared.dates import isoformat_ecuador
 from shared.domain.base_entity import TenantScopedEntity
 from shared.errors import ValidationError
 
-_SKU_RE = re.compile(r"^[A-Z0-9][A-Z0-9._\-/]{0,31}$")
+_SKU_RE = re.compile(r"^[A-Z0-9][A-Z0-9._\-/]{0,35}$")
 _UNIT_RE = re.compile(r"^[a-z][a-z0-9_/-]{0,24}$")
 _VALID_IVA_RATES = {"15", "5", "0", "EXENTO"}
 

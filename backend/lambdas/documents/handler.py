@@ -232,7 +232,7 @@ def _list(request: Request, context) -> dict:
     )
 
 
-def _resolve_monthly_limit(tenant_id: str) -> int | None:
+def _resolve_monthly_limit(tenant_id: str) -> tuple[int | None, bool]:
     """None when the tenant's plan can't be resolved (eg. deactivated by superadmin
     after the tenant subscribed) — the summary still returns counts, just without the
     limit comparison, instead of failing the whole dashboard block."""
@@ -241,21 +241,26 @@ def _resolve_monthly_limit(tenant_id: str) -> int | None:
         plan_info = _get_plan(tenant.plan_id)
     except ValidationError:
         _log.warning("could not resolve plan for documents summary limit", tenant_id=tenant_id)
-        return None
+        return None, False
 
-    return (
+    limit = (
         plan_info.pruebas_monthly_docs_limit
         if tenant.sri_environment == SriEnvironment.TESTING
         else plan_info.document_limit
     )
+    return limit, plan_info.is_free
 
 
 @lambda_handler
 @require_role("owner", "admin", "viewer", "superadmin")
 def _summary(request: Request, context) -> dict:
     tenant_id = _resolve_tenant_id(request)
-    monthly_limit = _resolve_monthly_limit(tenant_id)
-    summary = GetDocumentsSummaryUseCase(_repo()).execute(tenant_id, monthly_limit)
+    monthly_limit, is_free_plan = _resolve_monthly_limit(tenant_id)
+    summary = GetDocumentsSummaryUseCase(_repo()).execute(
+        tenant_id,
+        monthly_limit,
+        is_free_plan=is_free_plan,
+    )
     return ApiResponse.ok(summary.to_dict(), request.request_id)
 
 

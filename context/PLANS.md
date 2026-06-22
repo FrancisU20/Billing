@@ -159,6 +159,23 @@ sea < 100 planes. No replicar este patron para entidades de alta cardinalidad.
 sigue devolviendolo. Significa que `POST /onboarding/otp/confirm` con ese `plan_id` toma la rama
 "lead capture" en vez de crear el tenant (ver `ONBOARDING.md`).
 
+### `self_service` Tambien Filtra El Picker De Cambio De Plan Post-Registro
+
+Desde 2026-06-21, `PATCH /tenants/{id}/plan` (dominio `tenants`, ver `SUBSCRIPTIONS.md` →
+"Confirmar/Cambiar Plan Post-Registro") usa el mismo campo `self_service` para rechazar
+Enterprise: `IPlanCatalog.ensure_self_service_active(plan_id)` (en
+`lambdas/tenants/infra/plan_catalog.py`) lanza `TenantPlanNotSelfServiceError` (422) si
+el plan destino no es self-service. En frontend, `ConfirmPlanScreen` filtra
+`plans.filter((p) => p.self_service)` con el mismo `usePlans()`/`PlanCard` que ya
+ocultaba el precio de Enterprise (`isCustomQuotePlan` en `features/plans/format.ts`) —
+mismo campo, dos lugares distintos que lo leen.
+
+`is_free` (para decidir si el cambio de plan activa pago o no) NO es un campo
+persistido — se deriva de `monthly_price == 0 and annual_price == 0`, igual que en
+`lambdas/onboarding/infra/plan_catalog.py::DynamoPlanCatalog.get()`. Si se agrega un
+plan "gratis" con precio > 0 por algun motivo (ej. cortesia), este calculo lo trataria
+como de pago — no hay override explicito.
+
 ## Deuda Tecnica
 
 - El scan completo de `plans` en `list()` no escala si el catalogo crece. Si se agregan

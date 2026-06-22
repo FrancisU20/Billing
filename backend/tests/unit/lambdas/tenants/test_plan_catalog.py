@@ -3,7 +3,9 @@ from __future__ import annotations
 import unittest
 from decimal import Decimal
 
+from lambdas.tenants.domain.errors import TenantPlanNotSelfServiceError
 from lambdas.tenants.infra.plan_catalog import DynamoPlanCatalog
+from shared.errors import ValidationError
 
 
 class FakeTable:
@@ -63,6 +65,69 @@ class PlanCatalogGetPricingTests(unittest.TestCase):
         pricing = catalog.get_pricing({"uuid-old"})
 
         self.assertEqual(pricing, {})
+
+
+class PlanCatalogEnsureSelfServiceActiveTests(unittest.TestCase):
+    def test_returns_plan_info_for_free_self_service_plan(self) -> None:
+        table = FakeTable(
+            {
+                "uuid-free": {
+                    "id": "uuid-free",
+                    "entity_type": "PLAN",
+                    "self_service": True,
+                    "monthly_price": "0.00",
+                    "annual_price": "0.00",
+                    "limit_cycle": "month",
+                },
+            }
+        )
+        catalog = DynamoPlanCatalog(table)
+
+        info = catalog.ensure_self_service_active("uuid-free")
+
+        self.assertTrue(info.is_free)
+        self.assertEqual(info.limit_cycle, "month")
+
+    def test_returns_plan_info_for_paid_self_service_plan(self) -> None:
+        table = FakeTable(
+            {
+                "uuid-basic": {
+                    "id": "uuid-basic",
+                    "entity_type": "PLAN",
+                    "self_service": True,
+                    "monthly_price": "10.00",
+                    "annual_price": "100.00",
+                    "limit_cycle": "month",
+                },
+            }
+        )
+        catalog = DynamoPlanCatalog(table)
+
+        info = catalog.ensure_self_service_active("uuid-basic")
+
+        self.assertFalse(info.is_free)
+
+    def test_rejects_non_self_service_plan(self) -> None:
+        table = FakeTable(
+            {
+                "uuid-enterprise": {
+                    "id": "uuid-enterprise",
+                    "entity_type": "PLAN",
+                    "self_service": False,
+                    "limit_cycle": "month",
+                },
+            }
+        )
+        catalog = DynamoPlanCatalog(table)
+
+        with self.assertRaises(TenantPlanNotSelfServiceError):
+            catalog.ensure_self_service_active("uuid-enterprise")
+
+    def test_rejects_missing_plan(self) -> None:
+        catalog = DynamoPlanCatalog(FakeTable({}))
+
+        with self.assertRaises(ValidationError):
+            catalog.ensure_self_service_active("uuid-missing")
 
 
 if __name__ == "__main__":

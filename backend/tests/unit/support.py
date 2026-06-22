@@ -9,6 +9,8 @@ from lambdas.clients.domain.commands import CreateClientCommand
 from lambdas.clients.domain.entity import Client
 from lambdas.clients.domain.errors import ClientNotFoundError
 from lambdas.tenants.domain.commands import CreateTenantCommand
+from lambdas.tenants.domain.errors import TenantPlanNotSelfServiceError
+from lambdas.tenants.domain.repositories.i_plan_catalog import SelfServicePlanInfo
 from lambdas.tenants.domain.tenant import Tenant
 from shared.errors import ValidationError
 
@@ -265,9 +267,20 @@ class FakeTenantRepository:
 
 
 class FakePlanCatalog:
-    def __init__(self, *, active: bool = True, exists: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        active: bool = True,
+        exists: bool = True,
+        self_service: bool = True,
+        is_free: bool = False,
+        limit_cycle: str = "month",
+    ) -> None:
         self.active = active
         self.exists = exists
+        self.self_service = self_service
+        self.is_free = is_free
+        self.limit_cycle = limit_cycle
         self.checked_ids: list[str] = []
         self.get_pricing_result: dict[str, Any] = {}
         self.get_pricing_calls: list[set[str]] = []
@@ -278,6 +291,12 @@ class FakePlanCatalog:
             raise ValidationError("plan_id inválido")
         if not self.active:
             raise ValidationError("plan_id no está activo")
+
+    def ensure_self_service_active(self, plan_id: str) -> SelfServicePlanInfo:
+        self.ensure_active(plan_id)
+        if not self.self_service:
+            raise TenantPlanNotSelfServiceError()
+        return SelfServicePlanInfo(limit_cycle=self.limit_cycle, is_free=self.is_free)
 
     def get_pricing(self, plan_ids: set[str]) -> dict[str, Any]:
         self.get_pricing_calls.append(plan_ids)

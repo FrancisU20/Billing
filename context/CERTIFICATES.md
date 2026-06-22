@@ -1,8 +1,15 @@
 # Certificados Digitales — Dominio
 
 Estado: **implementado**. Validacion p12, almacenamiento en Secrets Manager, endpoint
-autenticado PUT/GET, worker de alerta de caducidad y gestion post-onboarding en el
+autenticado PUT/GET, worker de alerta de caducidad y gestion del certificado en el
 frontend existen. Pendiente: selector nativo movil.
+
+Desde 2026-06-21 el certificado ya NO se sube durante el wizard de registro publico —
+se sube despues del primer login (y del pago, si el plan es de pago), como paso
+obligatorio antes del dashboard (`UploadCertificateScreen`, ver "Frontend" mas abajo y
+`context/ONBOARDING.md`). El endpoint `PUT` y el modulo `shared/certificates/` no
+cambiaron — siguen siendo el unico lugar donde se valida/guarda un p12, tanto para esta
+primera subida como para reemplazos posteriores.
 
 ## Lee Tambien Antes De Empezar
 
@@ -11,7 +18,7 @@ frontend existen. Pendiente: selector nativo movil.
 | `CLAUDE.md` | Reglas no negociables de seguridad, costos y git |
 | `BACKEND.md` | Clean Architecture, Secrets Manager, idempotencia y permisos |
 | `FRONTEND.md` | Patrones de pantalla, formularios y design system |
-| `ONBOARDING.md` | Registro inicial usa este dominio para validar el p12 antes de crear tenant |
+| `ONBOARDING.md` | El tenant se crea sin certificado; el p12 se sube despues, ya autenticado, via este dominio |
 | `TENANTS.md` | El RUC del certificado debe coincidir con el RUC del tenant |
 
 ## Proposito
@@ -98,12 +105,10 @@ validator.py      # parseo p12, RUC, expiracion
 store.py          # Secrets Manager
 ```
 
-Este modulo se usa desde:
-
-- `onboarding`: validacion inicial antes de enviar OTP y antes de crear tenant.
-- `certificates`: reemplazo posterior del certificado.
-
-La logica de parseo y validacion no se duplica entre Lambdas.
+Este modulo se usa desde la Lambda `certificates` unicamente — la primera subida (post-pago)
+y los reemplazos posteriores pasan por el mismo `PUT /tenants/{id}/certificate`. Antes de
+2026-06-21 tambien lo usaba `onboarding` para validar el p12 antes de crear el tenant; ese
+uso se eliminó (ver `ONBOARDING.md` → "Fase 4").
 
 ## Extraccion De RUC
 
@@ -186,27 +191,39 @@ Implementacion inicial: Secrets Manager, 1 secreto por tenant.
 
 No usar S3 plano para p12. No usar DynamoDB para bytes/password del certificado.
 
-## Frontend — Gestion Post-Onboarding
+## Frontend — Gestion Del Certificado
 
 Componente compartido `frontend/features/tenants/components/CertificateSection.tsx`,
-usado en dos pantallas:
+usado en tres pantallas:
 
 - `TenantDashboardScreen` (owner/admin/viewer de su propio tenant) —
   `tenantId = user.tenantId`, `canManage = canWrite(user.role)`.
 - `TenantDetailScreen` (superadmin viendo cualquier tenant) — `tenantId = tenant.id`,
   `canManage = true`.
+- `UploadCertificateScreen` (`frontend/features/tenants/screens/`, ruta
+  `/(app)/upload-certificate`, fuera del grupo `(tenant)`) — paso obligatorio post-pago
+  del flujo de registro (ver `ONBOARDING.md`). `canManage` siempre `true` (el dueño del
+  tenant recien logueado). Usa la prop `onUploaded` (ver abajo) para navegar al dashboard
+  apenas se sube el certificado por primera vez; las otras dos pantallas no la pasan.
 
 `canManage` debe coincidir exactamente con los roles permitidos por el backend para
 reemplazar certificados (`owner`/`admin`/`superadmin`, ver `PUT` en "Contrato API") —
 por eso se usa `canWrite(role)` de `constants/roles.ts`, que cubre el mismo conjunto.
 
 - Datos: `useTenantCertificate(tenantId)` (`GET .../certificate`).
-- Reemplazo: `tenantsApi.replaceCertificate(tenantId, {certificate_b64, cert_password},
+- Subida/reemplazo: `tenantsApi.replaceCertificate(tenantId, {certificate_b64, cert_password},
   idempotencyKey)` (`PUT .../certificate`), con `useFormSubmit` +
-  `createIdempotencyKey('certificate_replace')`.
+  `createIdempotencyKey('certificate_replace')`. Mismo endpoint y mismo componente para
+  la primera subida (`UploadCertificateScreen`) y para reemplazos — el backend ya
+  distinguia create/update por si mismo (`CertificateStore.put_certificate`), no hubo que
+  tocarlo.
+- `onUploaded?: () => void` (prop opcional, agregada 2026-06-21): se llama tras un
+  `replaceCertificate` exitoso y el `refresh()` interno. `UploadCertificateScreen` la usa
+  para `router.replace(Routes.tenant.dashboard)`; las pantallas de "Mi empresa" no la
+  pasan (se quedan en la misma pantalla tras reemplazar).
 - Selector de archivo `.p12`/`.pfx`: hook compartido
-  `frontend/lib/hooks/useCertificateFilePicker.ts` (web-only), tambien usado por
-  `RegisterCertificateScreen` del wizard de onboarding.
+  `frontend/lib/hooks/useCertificateFilePicker.ts` (web-only). Hasta 2026-06-21 tambien lo
+  usaba `RegisterCertificateScreen` del wizard de onboarding (eliminada).
 - Estado de vigencia (`Badge`) calculado en el cliente a partir de `cert_expires_at`:
   vencido → error "Vencido"; ≤30 dias → error "Vence en N dias"; ≤60 dias → warning
   "Vence en N dias"; resto → success "Vigente". Umbrales frontend centralizados en
@@ -239,3 +256,8 @@ por eso se usa `canWrite(role)` de `constants/roles.ts`, que cubre el mismo conj
   arriba.
 - 2026-06-14: se elimino la validacion de emisor (`CertificateUntrustedIssuerError` /
   whitelist `ALLOWED_ISSUER_NAMES`) por las razones descritas en "Errores".
+- 2026-06-21: el certificado se desacoplo del onboarding — el tenant se crea sin p12 y
+  lo sube despues, autenticado, en una pantalla obligatoria
+  (`UploadCertificateScreen`) que reusa `CertificateSection` via la nueva prop
+  `onUploaded`. `onboarding` perdio el permiso IAM de Secrets Manager
+  (`allow_delete` y el resto del grant) — ya no le hace falta.

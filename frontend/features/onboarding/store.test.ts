@@ -57,20 +57,6 @@ describe('useOnboardingStore', () => {
     expect(useOnboardingStore.getState().selectedBillingCycle).toBe('year')
   })
 
-  it('stores and clears certificate values', () => {
-    const certificate = {
-      file_name: 'certificado.p12',
-      certificate_b64: 'base64-data',
-      cert_password: 'secret',
-    }
-
-    useOnboardingStore.getState().setCertificateValues(certificate)
-    expect(useOnboardingStore.getState().certificateValues).toEqual(certificate)
-
-    useOnboardingStore.getState().setCertificateValues(null)
-    expect(useOnboardingStore.getState().certificateValues).toBeNull()
-  })
-
   it('stores the onboarding result', () => {
     useOnboardingStore.getState().setResult({ tenant_id: 'tenant-1', email: 'owner@codelabs.com' })
 
@@ -82,17 +68,11 @@ describe('useOnboardingStore', () => {
 
   it('resets to the initial state', () => {
     useOnboardingStore.getState().selectPlan(plan, 'year')
-    useOnboardingStore.getState().setCertificateValues({
-      file_name: 'certificado.p12',
-      certificate_b64: 'base64-data',
-      cert_password: 'secret',
-    })
 
     useOnboardingStore.getState().reset()
 
     expect(useOnboardingStore.getState().selectedPlan).toBeNull()
     expect(useOnboardingStore.getState().selectedBillingCycle).toBe('month')
-    expect(useOnboardingStore.getState().certificateValues).toBeNull()
     expect(useOnboardingStore.getState().otpRequestIdempotencyKey).toBeNull()
     expect(useOnboardingStore.getState().otpConfirmIdempotencyKey).toBeNull()
   })

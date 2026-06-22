@@ -67,6 +67,7 @@ class Tenant(GlobalEntity):
     cert_expiry_alert_60_sent_at: datetime | None = None
     cert_expiry_alert_30_sent_at: datetime | None = None
     onboarding_completed_at: datetime | None = None
+    plan_confirmed_at: datetime | None = None
     dlocal_payer_id: str | None = None
     subscription_status: str | None = None
     subscription_renewal_reminder_sent_at: datetime | None = None
@@ -154,6 +155,35 @@ class Tenant(GlobalEntity):
             self.onboarding_completed_at = uploaded_at
         if touch_entity:
             self.touch(updated_by)
+
+    def confirm_plan_selection(
+        self,
+        *,
+        plan_id: str,
+        plan_limit_cycle: str,
+        plan_is_free: bool,
+        billing_cycle: str,
+        updated_by: str,
+    ) -> None:
+        """Post-registration plan confirmation/change, before the certificate is
+        uploaded. Mirrors the free/paid branching done at Tenant.create() — switching
+        to a paid plan (re)starts the pending-payment gate; switching to (or keeping)
+        a free plan activates it immediately, no payment required.
+
+        `billing_cycle` is the customer's payment frequency (month|year, picked via
+        the toggle on the confirm-plan screen) — unrelated to `plan_limit_cycle`,
+        which is the plan's own document-quota reset cadence."""
+        self.plan_id = plan_id
+        self.billing_cycle = billing_cycle
+        self.pending_order_id = None
+        if plan_is_free:
+            self.subscription_status = None
+            self.plan_cycle_ends_at = now_utc() + _cycle_duration(plan_limit_cycle)
+        else:
+            self.subscription_status = "pending_payment"
+            self.plan_cycle_ends_at = None
+        self.plan_confirmed_at = now_utc()
+        self.touch(updated_by)
 
     def due_certificate_expiry_alerts(self, now: datetime) -> list[int]:
         if self.cert_expires_at is None:
@@ -246,6 +276,7 @@ class Tenant(GlobalEntity):
             "cert_expiry_alert_60_sent_at": isoformat_ecuador(self.cert_expiry_alert_60_sent_at),
             "cert_expiry_alert_30_sent_at": isoformat_ecuador(self.cert_expiry_alert_30_sent_at),
             "onboarding_completed_at": isoformat_ecuador(self.onboarding_completed_at),
+            "plan_confirmed_at": isoformat_ecuador(self.plan_confirmed_at),
             "dlocal_payer_id": self.dlocal_payer_id,
             "subscription_status": self.subscription_status,
             "subscription_renewal_reminder_sent_at": isoformat_ecuador(

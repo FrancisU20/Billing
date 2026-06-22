@@ -7,8 +7,8 @@ import type { OnboardingRequest } from '../schemas'
 
 /**
  * Llama a /onboarding/otp/request y guarda la verificacion en el store. Por defecto
- * navega al paso de OTP (usado por RegisterDetailsScreen y RegisterCertificateScreen);
- * con `{ navigate: false }` solo refresca la verificacion (reenvio desde RegisterOtpScreen).
+ * navega al paso de OTP (usado por RegisterDetailsScreen); con `{ navigate: false }`
+ * solo refresca la verificacion (reenvio desde RegisterOtpScreen).
  */
 export function useRequestOtp() {
   const router = useRouter()

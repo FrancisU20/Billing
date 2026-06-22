@@ -5,6 +5,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from lambdas.auth.domain.commands import (
+    ConfirmForgotPasswordCommand,
+    ForgotPasswordCommand,
     LoginCommand,
     LogoutCommand,
     RefreshCommand,
@@ -29,3 +31,15 @@ class IAuthProvider(ABC):
     @abstractmethod
     def respond_to_challenge(self, command: RespondChallengeCommand) -> AuthOutcome:
         """Continue a Cognito auth challenge."""
+
+    @abstractmethod
+    def forgot_password(self, command: ForgotPasswordCommand) -> None:
+        """Request a password reset code by email.
+
+        Never raises for an unknown username — always succeeds from the
+        caller's perspective to avoid leaking account existence.
+        """
+
+    @abstractmethod
+    def confirm_forgot_password(self, command: ConfirmForgotPasswordCommand) -> None:
+        """Complete a password reset with the emailed confirmation code."""

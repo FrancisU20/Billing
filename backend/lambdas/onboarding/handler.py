@@ -11,6 +11,7 @@ from lambdas.onboarding.domain.commands import (
     RequestOnboardingOtpCommand,
 )
 from lambdas.onboarding.infra.enterprise_lead_repository import DynamoEnterpriseLeadRepository
+from lambdas.onboarding.infra.identity_provider import CognitoIdentityProvider
 from lambdas.onboarding.infra.onboarding_commit_repository import DynamoOnboardingCommitRepository
 from lambdas.onboarding.infra.onboarding_verification_repository import (
     DynamoOnboardingVerificationRepository,
@@ -20,8 +21,6 @@ from lambdas.onboarding.schemas import OnboardingOtpConfirmRequest, OnboardingRe
 from lambdas.onboarding.use_cases.confirm_onboarding_otp import ConfirmOnboardingOtpUseCase
 from lambdas.onboarding.use_cases.request_onboarding_otp import RequestOnboardingOtpUseCase
 from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
-from shared.certificates.store import CertificateStore
-from shared.certificates.validator import CertificateValidator
 from shared.config import env
 from shared.dates import isoformat_ecuador
 from shared.db.client import get_table
@@ -54,12 +53,8 @@ def _commit_repo() -> DynamoOnboardingCommitRepository:
     return DynamoOnboardingCommitRepository(_tenant_repo(), _lead_repo(), _verification_repo())
 
 
-def _certificate_validator() -> CertificateValidator:
-    return CertificateValidator()
-
-
-def _certificate_store() -> CertificateStore:
-    return CertificateStore()
+def _identity_provider() -> CognitoIdentityProvider:
+    return CognitoIdentityProvider()
 
 
 # ── Handlers ──────────────────────────────────────────────────────────────────
@@ -80,13 +75,11 @@ def _request_otp(request: Request, context) -> dict:
         accounting_required=body.accounting_required,
         plan_id=body.plan_id,
         billing_cycle=body.billing_cycle,
-        certificate_b64=body.certificate_b64,
-        cert_password=body.cert_password,
     )
     result = RequestOnboardingOtpUseCase(
         _plan_catalog(),
         _tenant_repo(),
-        _certificate_validator(),
+        _identity_provider(),
     ).execute(command)
 
     response = ApiResponse.created(
@@ -123,33 +116,26 @@ def _confirm_otp(request: Request, context) -> dict:
         accounting_required=body.accounting_required,
         plan_id=body.plan_id,
         billing_cycle=body.billing_cycle,
-        certificate_b64=body.certificate_b64,
-        cert_password=body.cert_password,
         order_id=body.order_id,
     )
     result = ConfirmOnboardingOtpUseCase(
         _plan_catalog(),
         _tenant_repo(),
         _verification_repo(),
-        _certificate_validator(),
-        _certificate_store(),
+        _identity_provider(),
     ).execute(command)
 
     if result.tenant:
         response = ApiResponse.created(
             {"tenant_id": result.tenant.id, "email": result.tenant.email}, request.request_id
         )
-        try:
-            _commit_repo().commit_tenant_registration(
-                tenant=result.tenant,
-                verification=result.verification,
-                events=result.events,
-                idempotency=require_current_context(),
-                response=response,
-            )
-        except Exception:
-            _certificate_store().delete_certificate(tenant_id=result.tenant.id)
-            raise
+        _commit_repo().commit_tenant_registration(
+            tenant=result.tenant,
+            verification=result.verification,
+            events=result.events,
+            idempotency=require_current_context(),
+            response=response,
+        )
         return response
 
     response = ApiResponse.created({"message": "Te contactaremos pronto."}, request.request_id)

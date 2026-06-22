@@ -649,6 +649,9 @@ class DynamoTenantRepository(ITenantRepository):
                 if tenant.onboarding_completed_at
                 else None
             ),
+            "plan_confirmed_at": (
+                tenant.plan_confirmed_at.isoformat() if tenant.plan_confirmed_at else None
+            ),
             "dlocal_payer_id": tenant.dlocal_payer_id,
             "subscription_status": tenant.subscription_status,
             "subscription_renewal_reminder_sent_at": (
@@ -700,6 +703,9 @@ class DynamoTenantRepository(ITenantRepository):
             else None,
             onboarding_completed_at=_dt(item["onboarding_completed_at"])
             if item.get("onboarding_completed_at")
+            else None,
+            plan_confirmed_at=_dt(item["plan_confirmed_at"])
+            if item.get("plan_confirmed_at")
             else None,
             dlocal_payer_id=item.get("dlocal_payer_id"),
             subscription_status=item.get("subscription_status"),

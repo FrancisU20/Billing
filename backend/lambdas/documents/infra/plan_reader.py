@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from botocore.exceptions import ClientError
 
@@ -14,6 +15,7 @@ _log = get_logger(__name__)
 class PlanInfo:
     document_limit: int
     pruebas_monthly_docs_limit: int
+    is_free: bool = False
 
 
 class DynamoPlanReader:
@@ -39,4 +41,6 @@ class DynamoPlanReader:
         return PlanInfo(
             document_limit=int(item.get("document_limit", 0)),
             pruebas_monthly_docs_limit=int(item.get("pruebas_monthly_docs_limit", 0)),
+            is_free=Decimal(str(item.get("monthly_price", "0"))) == Decimal("0")
+            and Decimal(str(item.get("annual_price", "0"))) == Decimal("0"),
         )

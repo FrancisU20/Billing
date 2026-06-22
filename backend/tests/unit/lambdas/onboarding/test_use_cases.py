@@ -22,10 +22,11 @@ from lambdas.onboarding.domain.repositories.i_plan_catalog import IPlanCatalog, 
 from lambdas.onboarding.use_cases.confirm_onboarding_otp import ConfirmOnboardingOtpUseCase
 from lambdas.onboarding.use_cases.payload_signature import onboarding_payload_hash
 from lambdas.onboarding.use_cases.request_onboarding_otp import RequestOnboardingOtpUseCase
-from lambdas.tenants.domain.errors import TenantRucAlreadyExistsError
+from lambdas.tenants.domain.errors import (
+    TenantAccountAlreadyExistsError,
+    TenantRucAlreadyExistsError,
+)
 from lambdas.tenants.domain.events import TenantCreatedEvent
-from shared.certificates.errors import CertificateInvalidError, CertificateRucMismatchError
-from shared.certificates.metadata import CertificateMetadata
 from tests.unit.support import FakeTenantRepository, make_tenant, tenant_payload
 
 
@@ -63,71 +64,52 @@ class FakeOnboardingPlanCatalog(IPlanCatalog):
         )
 
 
-class FakeCertificateValidator:
-    def __init__(self, *, error: Exception | None = None) -> None:
-        self.error = error
-        self.calls: list[dict[str, Any]] = []
+class FakeIdentityProvider:
+    def __init__(self, *, exists: bool = False) -> None:
+        self.exists = exists
+        self.checked_emails: list[str] = []
 
-    def validate_base64(self, **kwargs: Any) -> CertificateMetadata:
-        self.calls.append(kwargs)
-        if self.error:
-            raise self.error
-        return CertificateMetadata(
-            subject_ruc=kwargs["expected_ruc"],
-            expires_at=datetime.now(UTC) + timedelta(days=365),
-            issuer="Security Data",
-        )
+    def email_exists(self, email: str) -> bool:
+        self.checked_emails.append(email)
+        return self.exists
 
 
 def _request_command(**overrides: Any) -> RequestOnboardingOtpCommand:
     payload = tenant_payload()
     payload.update(overrides)
-    payload.setdefault("certificate_b64", "base64-p12")
-    payload.setdefault("cert_password", "secret")
     return RequestOnboardingOtpCommand(**payload)
 
 
 class RequestOnboardingOtpUseCaseTests(unittest.TestCase):
-    def test_self_service_validates_certificate_before_checking_ruc(self) -> None:
-        repo = FakeTenantRepository()
-        catalog = FakeOnboardingPlanCatalog(self_service=True)
-        validator = FakeCertificateValidator(error=CertificateRucMismatchError())
-
-        with self.assertRaises(CertificateRucMismatchError):
-            RequestOnboardingOtpUseCase(catalog, repo, validator).execute(_request_command())
-
-        self.assertEqual(len(validator.calls), 1)
-        self.assertEqual(repo.get_by_ruc_calls, [])
-
-    def test_self_service_rejects_existing_ruc_after_certificate_is_valid(self) -> None:
+    def test_self_service_rejects_existing_ruc(self) -> None:
         repo = FakeTenantRepository()
         repo.existing_by_ruc = make_tenant()
         catalog = FakeOnboardingPlanCatalog(self_service=True)
-        validator = FakeCertificateValidator()
 
         with self.assertRaises(TenantRucAlreadyExistsError):
-            RequestOnboardingOtpUseCase(catalog, repo, validator).execute(_request_command())
-
-        self.assertEqual(len(validator.calls), 1)
-
-    def test_self_service_without_certificate_raises_invalid(self) -> None:
-        repo = FakeTenantRepository()
-        catalog = FakeOnboardingPlanCatalog(self_service=True)
-        validator = FakeCertificateValidator()
-
-        with self.assertRaises(CertificateInvalidError):
-            RequestOnboardingOtpUseCase(catalog, repo, validator).execute(
-                _request_command(certificate_b64=None, cert_password=None)
+            RequestOnboardingOtpUseCase(catalog, repo, FakeIdentityProvider()).execute(
+                _request_command()
             )
 
-        self.assertEqual(validator.calls, [])
+    def test_self_service_rejects_existing_email_in_cognito(self) -> None:
+        repo = FakeTenantRepository()
+        catalog = FakeOnboardingPlanCatalog(self_service=True)
+        identity_provider = FakeIdentityProvider(exists=True)
+
+        with self.assertRaises(TenantAccountAlreadyExistsError):
+            RequestOnboardingOtpUseCase(catalog, repo, identity_provider).execute(
+                _request_command()
+            )
+
+        self.assertEqual(len(identity_provider.checked_emails), 1)
 
     def test_self_service_creates_verification_and_otp_event(self) -> None:
         repo = FakeTenantRepository()
         catalog = FakeOnboardingPlanCatalog(self_service=True)
-        validator = FakeCertificateValidator()
 
-        result = RequestOnboardingOtpUseCase(catalog, repo, validator).execute(_request_command())
+        result = RequestOnboardingOtpUseCase(catalog, repo, FakeIdentityProvider()).execute(
+            _request_command()
+        )
 
         self.assertIsInstance(result.verification, OnboardingVerification)
         self.assertTrue(result.verification.self_service)
@@ -137,18 +119,18 @@ class RequestOnboardingOtpUseCaseTests(unittest.TestCase):
         self.assertEqual(event.verification_id, result.verification.id)
         self.assertEqual(len(event.otp), 6)
 
-    def test_enterprise_plan_skips_certificate_and_ruc_check(self) -> None:
+    def test_enterprise_plan_skips_ruc_and_email_check(self) -> None:
         repo = FakeTenantRepository()
         catalog = FakeOnboardingPlanCatalog(self_service=False)
-        validator = FakeCertificateValidator()
+        identity_provider = FakeIdentityProvider()
 
-        result = RequestOnboardingOtpUseCase(catalog, repo, validator).execute(
-            _request_command(certificate_b64=None, cert_password=None)
+        result = RequestOnboardingOtpUseCase(catalog, repo, identity_provider).execute(
+            _request_command()
         )
 
         self.assertFalse(result.verification.self_service)
-        self.assertEqual(validator.calls, [])
         self.assertEqual(repo.get_by_ruc_calls, [])
+        self.assertEqual(identity_provider.checked_emails, [])
 
 
 def _confirm_command(**overrides: Any) -> ConfirmOnboardingOtpCommand:
@@ -156,8 +138,6 @@ def _confirm_command(**overrides: Any) -> ConfirmOnboardingOtpCommand:
     payload.update(overrides)
     payload.setdefault("verification_id", "verification-1")
     payload.setdefault("otp", "123456")
-    payload.setdefault("certificate_b64", "base64-p12")
-    payload.setdefault("cert_password", "secret")
     return ConfirmOnboardingOtpCommand(**payload)
 
 
@@ -174,15 +154,6 @@ def _verification_for(
     )
     verification.id = cmd.verification_id
     return verification
-
-
-class FakeCertificateStore:
-    def __init__(self) -> None:
-        self.put_calls: list[dict[str, Any]] = []
-
-    def put_certificate(self, **kwargs: Any) -> str:
-        self.put_calls.append(kwargs)
-        return "arn:aws:secretsmanager:sa-east-1:123:secret:/tenant/certificate"
 
 
 class ConfirmOnboardingOtpUseCaseTests(unittest.TestCase):
@@ -240,6 +211,14 @@ class ConfirmOnboardingOtpUseCaseTests(unittest.TestCase):
         with self.assertRaises(TenantRucAlreadyExistsError):
             self._execute_with_verification(cmd, verification, repo=repo)
 
+    def test_self_service_rejects_existing_email_in_cognito(self) -> None:
+        cmd = _confirm_command()
+        verification = _verification_for(cmd)
+        identity_provider = FakeIdentityProvider(exists=True)
+
+        with self.assertRaises(TenantAccountAlreadyExistsError):
+            self._execute_with_verification(cmd, verification, identity_provider=identity_provider)
+
     def test_self_service_creates_tenant_and_event(self) -> None:
         cmd = _confirm_command()
         verification = _verification_for(cmd)
@@ -248,6 +227,8 @@ class ConfirmOnboardingOtpUseCaseTests(unittest.TestCase):
 
         self.assertIsNotNone(result.tenant)
         self.assertIsNone(result.lead)
+        self.assertIsNotNone(result.tenant.onboarding_completed_at)
+        self.assertIsNone(result.tenant.certificate_secret_arn)
         self.assertEqual(len(result.events), 1)
         self.assertIsInstance(result.events[0], TenantCreatedEvent)
 
@@ -273,8 +254,8 @@ class ConfirmOnboardingOtpUseCaseTests(unittest.TestCase):
         self.assertEqual(result.tenant.subscription_status, "pending_payment")
         self.assertIsNone(result.tenant.plan_cycle_ends_at)
 
-    def test_enterprise_plan_captures_lead_without_certificate(self) -> None:
-        cmd = _confirm_command(certificate_b64=None, cert_password=None)
+    def test_enterprise_plan_captures_lead(self) -> None:
+        cmd = _confirm_command()
         verification = _verification_for(cmd, self_service=False)
 
         result = self._execute_with_verification(
@@ -294,7 +275,7 @@ class ConfirmOnboardingOtpUseCaseTests(unittest.TestCase):
         *,
         repo: FakeTenantRepository | None = None,
         catalog: FakeOnboardingPlanCatalog | None = None,
-        validator: FakeCertificateValidator | None = None,
+        identity_provider: FakeIdentityProvider | None = None,
     ):
         class _FakeVerificationRepo:
             def __init__(self, item: OnboardingVerification) -> None:
@@ -311,8 +292,7 @@ class ConfirmOnboardingOtpUseCaseTests(unittest.TestCase):
             catalog or FakeOnboardingPlanCatalog(self_service=True),
             repo or FakeTenantRepository(),
             verification_repo=_FakeVerificationRepo(verification),
-            certificate_validator=validator or FakeCertificateValidator(),
-            certificate_store=FakeCertificateStore(),
+            identity_provider=identity_provider or FakeIdentityProvider(),
         )
         return use_case.execute(cmd)
 

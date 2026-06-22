@@ -68,6 +68,14 @@ requerida; endpoint `POST /tenants/{id}/subscription/retry-payment` (tarjeta gua
 402 si rechazada); `PaymentFailedBanner` con reintento automatico y opcion de nueva tarjeta;
 **6 bugs de auditoría resueltos** (scan payment_failed, guard PENDING en confirm, webhook
 order_id, mark_applied_to_tenant condition, type hint RetryPaymentUseCase, safe datetime).
+**Rediseño de onboarding (2026-06-21):** fix de bug real (email duplicado en Cognito
+fallaba en silencio, sin avisar al usuario) via validación previa al OTP
+(`TenantAccountAlreadyExistsError`); certificado digital se desacopló del wizard de
+registro y ahora se sube despues del primer login (y del pago, si aplica), como paso
+obligatorio antes del dashboard; nueva pantalla "confirmar/cambiar plan"
+(`PATCH /tenants/{id}/plan`) entre el cambio de password forzado y el pago/certificado,
+limitada a planes self-service. Detalle completo en `context/ONBOARDING.md`,
+`context/CERTIFICATES.md` y `context/SUBSCRIPTIONS.md`.
 
 Products — Sprint 1: CRUD tenant-scoped de productos/servicios con `product_id` estable,
 SKU editable unico por tenant, tipo vendible, precio/IVA default y stock opcional modelado.

@@ -8,6 +8,7 @@ export const planStatusSchema = z.enum(['active', 'expired'])
 
 export const subscriptionStatusSchema = z
   .enum(['active', 'expired', 'none', 'pending_payment', 'payment_failed'])
+  .nullable()
   .optional()
 
 export const tenantSchema = z.object({
@@ -35,6 +36,7 @@ export const tenantSchema = z.object({
   cert_expiry_alert_60_sent_at: z.string().nullable(),
   cert_expiry_alert_30_sent_at: z.string().nullable(),
   onboarding_completed_at: z.string().nullable(),
+  plan_confirmed_at: z.string().nullable(),
   created_at: z.string().min(1),
   updated_at: z.string().min(1),
   created_by: z.string(),
@@ -115,6 +117,13 @@ export const updateTenantSchema = z
 export const toggleTenantStatusSchema = z
   .object({
     status: z.enum(['active', 'suspended', 'inactive']),
+  })
+  .strict()
+
+export const changeTenantPlanSchema = z
+  .object({
+    plan_id: z.string().min(1, 'El plan es requerido'),
+    billing_cycle: z.enum(['month', 'year']),
   })
   .strict()
 
@@ -209,6 +218,7 @@ export type TenantsPage = z.infer<typeof tenantsPageSchema>
 export type CreateTenantInput = z.infer<typeof createTenantSchema>
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>
 export type ToggleTenantStatusInput = z.infer<typeof toggleTenantStatusSchema>
+export type ChangeTenantPlanInput = z.infer<typeof changeTenantPlanSchema>
 export type TenantFormValues = z.infer<typeof tenantFormValuesSchema>
 export type CertificateMetadata = z.infer<typeof certificateMetadataSchema>
 export type Certificate = z.infer<typeof certificateSchema>

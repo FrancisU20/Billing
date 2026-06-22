@@ -30,10 +30,6 @@ export function RegisterDetailsScreen() {
   const { submitting, error, submit } = useFormSubmit(async (values: RegistrationFormValues) => {
     if (!selectedPlan) return
     setFormValues(values)
-    if (selectedPlan.self_service) {
-      router.push(Routes.public.registerCertificate as Href)
-      return
-    }
     await requestOtp(formValuesToOnboardingPayload(values, selectedPlan.id, selectedBillingCycle))
   })
 

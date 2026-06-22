@@ -3,11 +3,12 @@ export const Routes = {
   auth: {
     login: '/(auth)/login' as const,
     challenge: '/(auth)/challenge' as const,
+    forgotPassword: '/(auth)/forgot-password' as const,
+    resetPassword: '/(auth)/reset-password' as const,
   },
   public: {
     components: '/(public)/components' as const,
     registerDetails: '/(public)/register/details' as const,
-    registerCertificate: '/(public)/register/certificate' as const,
     registerOtp: '/(public)/register/otp' as const,
     registerConfirm: '/(public)/register/confirm' as const,
     legalTerms: '/(public)/legal/terms' as const,
@@ -16,6 +17,8 @@ export const Routes = {
   },
   app: {
     activateSubscription: '/(app)/activate-subscription' as const,
+    confirmPlan: '/(app)/confirm-plan' as const,
+    uploadCertificate: '/(app)/upload-certificate' as const,
   },
   superadmin: {
     dashboard: '/(app)/(superadmin)/dashboard' as const,

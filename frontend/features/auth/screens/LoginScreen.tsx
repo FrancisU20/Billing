@@ -57,6 +57,15 @@ export function LoginScreen() {
         <LoginForm onSubmit={handleSubmit} isLoading={loading} apiError={error} dark={isDark} />
 
         <Pressable
+          onPress={() => router.push(Routes.auth.forgotPassword)}
+          style={({ pressed }) => [staticStyles.forgotLink, pressed && { opacity: 0.5 }]}
+        >
+          <Text style={[staticStyles.forgotLinkText, { color: semantic.accent.default }]}>
+            ¿Olvidaste tu contraseña?
+          </Text>
+        </Pressable>
+
+        <Pressable
           onPress={() => router.push(Routes.root)}
           style={({ pressed }) => [staticStyles.backLink, pressed && { opacity: 0.5 }]}
         >
@@ -85,4 +94,6 @@ const staticStyles = StyleSheet.create({
   backLink: { flexDirection: 'row', alignSelf: 'flex-start' },
   backLinkText: { fontSize: typography.size.sm },
   backLinkArrow: { fontSize: typography.size.sm },
+  forgotLink: { alignSelf: 'flex-start' },
+  forgotLinkText: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
 })

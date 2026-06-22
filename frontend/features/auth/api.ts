@@ -1,6 +1,12 @@
 import { api } from '@/lib/api/client'
-import type { AuthChallenge, AuthTokens, ChallengeCredentials, LoginCredentials } from './types'
-import { loginResponseSchema, refreshResponseSchema } from './schemas'
+import type {
+  AuthChallenge,
+  AuthTokens,
+  ChallengeCredentials,
+  ConfirmForgotPasswordCredentials,
+  LoginCredentials,
+} from './types'
+import { forgotPasswordResponseSchema, loginResponseSchema, refreshResponseSchema } from './schemas'
 import { z } from 'zod'
 
 function mapLoginResponse(raw: unknown): AuthTokens | AuthChallenge {
@@ -44,5 +50,28 @@ export const authApi = {
   challenge: async (creds: ChallengeCredentials): Promise<AuthTokens | AuthChallenge> => {
     const res = await api.post('/auth/challenge', creds, loginResponseSchema, { auth: false })
     return mapLoginResponse(res)
+  },
+
+  forgotPassword: async (username: string): Promise<string> => {
+    const res = await api.post(
+      '/auth/forgot-password',
+      { username },
+      forgotPasswordResponseSchema,
+      { auth: false },
+    )
+    return res.message
+  },
+
+  resetPassword: async (creds: ConfirmForgotPasswordCredentials): Promise<void> => {
+    await api.post(
+      '/auth/reset-password',
+      {
+        username: creds.username,
+        confirmation_code: creds.confirmationCode,
+        new_password: creds.newPassword,
+      },
+      z.void(),
+      { auth: false },
+    )
   },
 }

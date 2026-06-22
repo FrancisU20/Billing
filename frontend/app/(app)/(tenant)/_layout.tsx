@@ -23,6 +23,14 @@ export default function TenantLayout() {
   const isPaymentFailed = tenant?.subscription_status === 'payment_failed'
   const hasPendingOrder = isPendingPayment && Boolean(tenant?.pending_order_id)
 
+  // New tenants (free or paid) confirm/change their plan before paying or uploading
+  // a certificate. Gated on cert_uploaded_at too so tenants from the old flow (cert
+  // already uploaded at registration) are never sent back here.
+  const needsPlanConfirmation = !tenant?.plan_confirmed_at && !tenant?.cert_uploaded_at
+  if (needsPlanConfirmation) {
+    return <Redirect href={Routes.app.confirmPlan as Href} />
+  }
+
   // Payment confirmed but activation transaction failed: auto-activate via banner.
   if (hasPendingOrder) {
     return (
@@ -50,6 +58,12 @@ export default function TenantLayout() {
         <Stack screenOptions={{ headerShown: false }} />
       </View>
     )
+  }
+
+  // Plan confirmed (free) or payment already done: certificate is the last onboarding
+  // step. Reached only once isPendingPayment/needsPlanConfirmation are both false.
+  if (!tenant?.cert_uploaded_at) {
+    return <Redirect href={Routes.app.uploadCertificate as Href} />
   }
 
   return <Stack screenOptions={{ headerShown: false }} />

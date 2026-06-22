@@ -36,7 +36,7 @@ export const productsPageSchema = z.object({
 
 export const productFormSchema = z
   .object({
-    sku: z.string().trim().min(1, 'Requerido').max(32, 'Máximo 32 caracteres'),
+    sku: z.string().trim().min(1, 'Requerido').max(36, 'Máximo 36 caracteres'),
     name: z.string().trim().min(1, 'Requerido').max(160, 'Máximo 160 caracteres'),
     description: z.string().trim().max(500, 'Máximo 500 caracteres'),
     kind: productKindSchema,
@@ -60,7 +60,7 @@ export const productFormSchema = z
   .strict()
 
 const productPayloadBaseSchema = z.object({
-  sku: z.string().trim().min(1).max(32),
+  sku: z.string().trim().min(1).max(36),
   name: z.string().trim().min(1).max(160),
   description: z.string().trim().max(500),
   kind: productKindSchema,

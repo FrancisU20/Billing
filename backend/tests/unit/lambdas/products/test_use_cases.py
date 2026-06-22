@@ -69,6 +69,14 @@ class ProductUseCaseTests(unittest.TestCase):
         self.assertEqual(product.kind.value, "SERVICE")
         self.assertEqual(repo.commit_calls, [])
 
+    def test_create_accepts_uuid_sku(self) -> None:
+        repo = FakeProductRepository()
+        product = CreateProductUseCase(repo).execute(
+            _create_cmd(sku="550e8400-e29b-41d4-a716-446655440000")
+        )
+
+        self.assertEqual(product.sku, "550E8400-E29B-41D4-A716-446655440000")
+
     def test_create_rejects_invalid_sku(self) -> None:
         with self.assertRaises(ValidationError):
             CreateProductUseCase(FakeProductRepository()).execute(_create_cmd(sku="*bad*"))

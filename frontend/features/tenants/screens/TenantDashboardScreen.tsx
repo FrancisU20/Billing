@@ -58,6 +58,7 @@ export function TenantDashboardScreen() {
   const authorizedRate = issuedCount > 0 ? Math.round((authorizedCount / issuedCount) * 100) : 0
   const documentLimit = summary?.document_limit ?? null
   const isUnlimitedPlan = summary?.is_unlimited ?? false
+  const isFreePlan = summary?.is_free_plan ?? false
   const limitRate =
     documentLimit && documentLimit > 0
       ? Math.min(100, Math.round((issuedCount / documentLimit) * 100))
@@ -292,7 +293,9 @@ export function TenantDashboardScreen() {
                   Límite del plan
                 </Text>
                 <Text style={[staticStyles.insightDescription, { color: semantic.text.secondary }]}>
-                  {`${formatInteger(issuedCount)} de ${formatInteger(documentLimit)} documentos usados este mes.`}
+                  {isFreePlan
+                    ? `${formatInteger(issuedCount)} de ${formatInteger(documentLimit)} documentos usados.`
+                    : `${formatInteger(issuedCount)} de ${formatInteger(documentLimit)} documentos usados este mes.`}
                 </Text>
               </View>
             </View>

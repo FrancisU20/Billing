@@ -30,6 +30,7 @@ const tenant = {
   cert_expiry_alert_60_sent_at: null,
   cert_expiry_alert_30_sent_at: null,
   onboarding_completed_at: null,
+  plan_confirmed_at: null,
   created_at: '2026-06-08T00:00:00Z',
   updated_at: '2026-06-08T00:00:00Z',
   created_by: 'user-1',
