@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X POST https://api-wali-dev.codelabsecuador.com/auth/forgot-password -H 'Content-Type: application/json' -H 'X-Idempotency-Key: smoke-test-forgot-__CMDSUB_OUTPUT__' -d '{\"username\":\"codelabs.sas@gmail.com\"}' -w '\\\\nHTTP_STATUS:%{http_code}\\\\n')",
+      "Bash(curl -s -X POST https://api-wali-dev.codelabsecuador.com/auth/forgot-password -H 'Content-Type: application/json' -d '{\"username\":\"definitely-not-a-real-account-xyz@example.com\"}' -w '\\\\nHTTP_STATUS:%{http_code}\\\\n')",
+      "Bash(backend/.venv/bin/python /tmp/wipe_tenants2.py)",
+      "Bash(backend/.venv/bin/python /tmp/wipe_tenants2.py --execute)",
+      "Bash(curl -s http://localhost:8081 -o /dev/null -w \"%{http_code}\\\\n\")",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(python3 -c ' *)",
+      "Bash(mkdir -p /tmp/pw3)",
+      "Bash(backend/.venv/bin/python /tmp/make_test_tenant2.py)",
+      "Bash(mkdir -p /tmp/pw4)",
+      "Bash(mkdir -p /tmp/pw5)",
+      "Bash(awk '/const styles = StyleSheet.create/,0' /Users/panchoulloa/Documents/CodeLabs/Proyectos/CodeLabsBillingCloud/frontend/features/products/components/ProductPickerModal.tsx)",
+      "Bash(kill 31610)",
+      "Bash(nohup npx expo start --web -c)",
+      "Bash(disown)",
+      "Bash(lsof -iTCP -sTCP:LISTEN -P)",
+      "Bash(curl -s \"http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&minify=false\" -o /tmp/bundle8081.js)",
+      "Bash(mdfind \"kMDItemKind == 'Application'\")",
+      "Bash(curl -s \"http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&minify=false\" -o /tmp/bundle8081_v2.js)",
+      "Bash(curl -s \"http://localhost:8081/\")",
+      "Bash(curl -s \"http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app\" -o /tmp/bundle_exact.js)",
+      "Bash(kill 33000)",
+      "Bash(break)",
+      "Bash(curl -s \"http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app\" -o /tmp/bundle_fresh.js)",
+      "Bash(echo \"exit:$?\")"
+    ]
+  }
+}
