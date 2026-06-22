@@ -26,7 +26,13 @@
       "Bash(kill 33000)",
       "Bash(break)",
       "Bash(curl -s \"http://localhost:8081/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&lazy=true&transform.routerRoot=app\" -o /tmp/bundle_fresh.js)",
-      "Bash(echo \"exit:$?\")"
+      "Bash(echo \"exit:$?\")",
+      "Bash(ssh-keygen -t ed25519 -C \"panchoulloateran@gmail.com\" -f ~/.ssh/id_ed25519_francisu20 -N \"\")",
+      "Bash(ssh -T git@github.com-francisu20 -o BatchMode=yes -o ConnectTimeout=10)",
+      "Bash(gh ssh-key *)"
+    ],
+    "additionalDirectories": [
+      "/Users/panchoulloa/.ssh"
     ]
   }
 }
