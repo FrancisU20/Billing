@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native'
@@ -14,11 +14,21 @@ import { clientFormValuesSchema, type ClientFormValues } from '../schemas'
 import {
   CLIENT_FORM_STATUS_OPTIONS,
   CLIENT_IDENTIFICATION_OPTIONS,
+  CLIENT_PERSON_LABELS,
   CLIENT_PERSON_OPTIONS,
 } from '../constants'
-import { clientToFormValues } from '../form'
+import { clientToFormValues, derivePersonType } from '../form'
 import type { ApiError } from '@/lib/api/errors'
 import type { Client, ClientStatus, PersonType } from '../types'
+
+/** Cedula y RUC determinan el tipo de persona por su propia estructura (ver
+ * `derivePersonType`) — solo pasaporte/exterior dejan la eleccion manual al usuario. */
+const PERSON_TYPE_IS_DERIVED: Record<ClientFormValues['identification_type'], boolean> = {
+  ruc: true,
+  cedula: true,
+  pasaporte: false,
+  exterior: false,
+}
 
 interface ClientFormProps {
   mode: 'create' | 'edit'
@@ -42,9 +52,19 @@ export function ClientForm({ mode, client, onSubmit, isLoading, apiError }: Clie
     reValidateMode: 'onChange',
   })
   const identificationType = useWatch({ control, name: 'identification_type' })
+  const identification = useWatch({ control, name: 'identification' })
   const personType = useWatch({ control, name: 'person_type' })
   const specialTaxpayer = useWatch({ control, name: 'special_taxpayer' })
   const status = useWatch({ control, name: 'status' })
+  const personTypeIsDerived = PERSON_TYPE_IS_DERIVED[identificationType]
+
+  useEffect(() => {
+    if (!personTypeIsDerived) return
+    const derived = derivePersonType(identificationType, identification, personType)
+    if (derived !== personType) {
+      setValue('person_type', derived, { shouldDirty: true, shouldValidate: true })
+    }
+  }, [identificationType, identification, personType, personTypeIsDerived, setValue])
 
   return (
     <View style={styles.container}>
@@ -85,13 +105,33 @@ export function ClientForm({ mode, client, onSubmit, isLoading, apiError }: Clie
 
         <View style={styles.fieldBlock}>
           <Text style={[styles.label, { color: semantic.text.primary }]}>Tipo de persona *</Text>
-          <SegmentedControl<PersonType>
-            options={CLIENT_PERSON_OPTIONS}
-            value={personType}
-            onChange={(nextPersonType) =>
-              setValue('person_type', nextPersonType, { shouldDirty: true, shouldValidate: true })
-            }
-          />
+          {personTypeIsDerived ? (
+            <View
+              style={[
+                styles.derivedPersonType,
+                { backgroundColor: semantic.bg.muted, borderColor: semantic.border.default },
+              ]}
+            >
+              <Ionicons name="checkmark-circle-outline" size={16} color={semantic.text.secondary} />
+              <Text style={[styles.derivedPersonTypeText, { color: semantic.text.primary }]}>
+                {CLIENT_PERSON_LABELS[personType]}
+              </Text>
+              <Text style={[styles.derivedPersonTypeHint, { color: semantic.text.secondary }]}>
+                — detectado por {identificationType === 'cedula' ? 'la cédula' : 'el RUC'}
+              </Text>
+            </View>
+          ) : (
+            <SegmentedControl<PersonType>
+              options={CLIENT_PERSON_OPTIONS}
+              value={personType}
+              onChange={(nextPersonType) =>
+                setValue('person_type', nextPersonType, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+            />
+          )}
         </View>
       </FormSection>
 
@@ -359,6 +399,19 @@ const styles = StyleSheet.create({
   optionLabel: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
   fieldBlock: { gap: spacing[2] },
   label: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
+  derivedPersonType: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[1],
+    minHeight: 34,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+  },
+  derivedPersonTypeText: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  derivedPersonTypeHint: { fontSize: typography.size.xs },
   switchRow: {
     alignItems: 'center',
     borderRadius: radius.md,

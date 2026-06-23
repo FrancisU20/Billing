@@ -296,14 +296,88 @@ export function TenantDashboardScreen() {
           </View>
 
           <View style={staticStyles.topColumn}>
-            <SectionHeader title="Top clientes" caption="Mayor monto facturado del mes" />
-            <Card
-              variant="elevated"
-              elevated
-              style={[staticStyles.insightCard, staticStyles.equalHeightCard]}
-            >
-              {topClients.length > 0 ? (
-                topClients.map((client, index) => (
+            {isUnlimitedPlan ? (
+              <>
+                <SectionHeader title="Límite del plan" caption="Uso del plan este mes" />
+                <Card
+                  variant="elevated"
+                  elevated
+                  style={[staticStyles.insightCard, staticStyles.equalHeightCard]}
+                >
+                  <View style={staticStyles.insightHeader}>
+                    <View
+                      style={[
+                        staticStyles.insightIcon,
+                        { backgroundColor: semantic.status.successBg },
+                      ]}
+                    >
+                      <Ionicons name="infinite-outline" size={20} color={semantic.status.success} />
+                    </View>
+                    <View style={staticStyles.insightCopy}>
+                      <Text
+                        style={[
+                          staticStyles.insightDescription,
+                          { color: semantic.text.secondary },
+                        ]}
+                      >
+                        {`${formatInteger(issuedCount)} documentos emitidos este mes.`}
+                      </Text>
+                    </View>
+                    <Badge label="Ilimitado" variant="success" size="sm" />
+                  </View>
+                </Card>
+              </>
+            ) : documentLimit ? (
+              <>
+                <SectionHeader title="Límite del plan" caption="Uso del plan este mes" />
+                <Card
+                  variant="elevated"
+                  elevated
+                  style={[staticStyles.insightCard, staticStyles.equalHeightCard]}
+                >
+                  <View style={staticStyles.insightHeader}>
+                    <View style={[staticStyles.insightIcon, { backgroundColor: limitTone.bg }]}>
+                      <Ionicons name="speedometer-outline" size={20} color={limitTone.color} />
+                    </View>
+                    <View style={staticStyles.insightCopy}>
+                      <Text
+                        style={[
+                          staticStyles.insightDescription,
+                          { color: semantic.text.secondary },
+                        ]}
+                      >
+                        {isFreePlan
+                          ? `${formatInteger(issuedCount)} de ${formatInteger(documentLimit)} documentos usados.`
+                          : `${formatInteger(issuedCount)} de ${formatInteger(documentLimit)} documentos usados este mes.`}
+                      </Text>
+                    </View>
+                  </View>
+                  <View
+                    style={[staticStyles.progressTrack, { backgroundColor: semantic.chart.track }]}
+                  >
+                    <View
+                      style={[
+                        staticStyles.progressFill,
+                        { backgroundColor: limitTone.color, width: `${limitRate}%` },
+                      ]}
+                    />
+                  </View>
+                </Card>
+              </>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={staticStyles.topColumn}>
+          <SectionHeader title="Top clientes" caption="Mayor monto facturado del mes" />
+          <Card variant="elevated" elevated>
+            {topClients.length > 0 ? (
+              <ScrollView
+                style={staticStyles.topClientsScroll}
+                contentContainerStyle={staticStyles.topClientsList}
+                showsVerticalScrollIndicator={false}
+              >
+                {topClients.map((client, index) => (
                   <DistributionBar
                     key={client.client_id}
                     label={client.name}
@@ -312,62 +386,15 @@ export function TenantDashboardScreen() {
                     variant={TOP_CLIENT_BADGE_VARIANTS[index % TOP_CLIENT_BADGE_VARIANTS.length]}
                     formatValue={(value) => formatCurrency(value.toFixed(2))}
                   />
-                ))
-              ) : (
-                <Text style={[staticStyles.insightDescription, { color: semantic.text.secondary }]}>
-                  Aún no hay clientes facturados este mes.
-                </Text>
-              )}
-            </Card>
-          </View>
+                ))}
+              </ScrollView>
+            ) : (
+              <Text style={[staticStyles.insightDescription, { color: semantic.text.secondary }]}>
+                Aún no hay clientes facturados este mes.
+              </Text>
+            )}
+          </Card>
         </View>
-
-        {isUnlimitedPlan ? (
-          <Card variant="elevated" elevated style={staticStyles.insightCard}>
-            <View style={staticStyles.insightHeader}>
-              <View
-                style={[staticStyles.insightIcon, { backgroundColor: semantic.status.successBg }]}
-              >
-                <Ionicons name="infinite-outline" size={20} color={semantic.status.success} />
-              </View>
-              <View style={staticStyles.insightCopy}>
-                <Text style={[staticStyles.insightTitle, { color: semantic.text.primary }]}>
-                  Límite del plan
-                </Text>
-                <Text style={[staticStyles.insightDescription, { color: semantic.text.secondary }]}>
-                  {`${formatInteger(issuedCount)} documentos emitidos este mes.`}
-                </Text>
-              </View>
-              <Badge label="Ilimitado" variant="success" size="sm" />
-            </View>
-          </Card>
-        ) : documentLimit ? (
-          <Card variant="elevated" elevated style={staticStyles.insightCard}>
-            <View style={staticStyles.insightHeader}>
-              <View style={[staticStyles.insightIcon, { backgroundColor: limitTone.bg }]}>
-                <Ionicons name="speedometer-outline" size={20} color={limitTone.color} />
-              </View>
-              <View style={staticStyles.insightCopy}>
-                <Text style={[staticStyles.insightTitle, { color: semantic.text.primary }]}>
-                  Límite del plan
-                </Text>
-                <Text style={[staticStyles.insightDescription, { color: semantic.text.secondary }]}>
-                  {isFreePlan
-                    ? `${formatInteger(issuedCount)} de ${formatInteger(documentLimit)} documentos usados.`
-                    : `${formatInteger(issuedCount)} de ${formatInteger(documentLimit)} documentos usados este mes.`}
-                </Text>
-              </View>
-            </View>
-            <View style={[staticStyles.progressTrack, { backgroundColor: semantic.chart.track }]}>
-              <View
-                style={[
-                  staticStyles.progressFill,
-                  { backgroundColor: limitTone.color, width: `${limitRate}%` },
-                ]}
-              />
-            </View>
-          </Card>
-        ) : null}
       </ScrollView>
     </View>
   )
@@ -499,6 +526,8 @@ const staticStyles = StyleSheet.create({
   },
   metricDetail: { fontSize: typography.size.xs },
   insightCard: { gap: spacing[4] },
+  topClientsScroll: { maxHeight: 280 },
+  topClientsList: { gap: spacing[3] },
   insightHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
   insightIcon: {
     width: 44,

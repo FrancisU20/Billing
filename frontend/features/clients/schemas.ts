@@ -40,7 +40,10 @@ export const clientsPageSchema = z.object({
 })
 
 function validateClientIdentification(
-  value: { identification: string; identification_type: z.infer<typeof identificationTypeSchema> },
+  value: {
+    identification: string
+    identification_type: z.infer<typeof identificationTypeSchema>
+  },
   ctx: z.RefinementCtx,
 ) {
   const identification = value.identification.trim()

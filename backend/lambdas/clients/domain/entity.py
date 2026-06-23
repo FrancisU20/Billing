@@ -32,9 +32,10 @@ class Client(TenantScopedEntity):
     @classmethod
     def create(cls, cmd: CreateClientCommand) -> Client:
         identification_type = _identification_type(cmd.identification_type)
-        person_type = _person_type(cmd.person_type)
         identification = _normalize_identification(cmd.identification, identification_type)
-        _validate_person_type(identification_type, person_type)
+        person_type = _derive_person_type(
+            identification_type, identification, _person_type(cmd.person_type)
+        )
         return cls(
             tenant_id=cmd.tenant_id,
             identification=identification,
@@ -57,7 +58,7 @@ class Client(TenantScopedEntity):
             if cmd.identification_type is not None
             else self.identification_type
         )
-        next_person_type = (
+        next_requested_person_type = (
             _person_type(cmd.person_type) if cmd.person_type is not None else self.person_type
         )
         next_identification = (
@@ -65,10 +66,11 @@ class Client(TenantScopedEntity):
             if cmd.identification is not None
             else _normalize_identification(self.identification, next_identification_type)
         )
-        _validate_person_type(next_identification_type, next_person_type)
 
         self.identification_type = next_identification_type
-        self.person_type = next_person_type
+        self.person_type = _derive_person_type(
+            next_identification_type, next_identification, next_requested_person_type
+        )
         self.identification = next_identification
         if cmd.legal_name is not None:
             self.legal_name = _required_text(cmd.legal_name, "legal_name")
@@ -138,12 +140,23 @@ def _normalize_identification(value: str, identification_type: IdentificationTyp
     return value
 
 
-def _validate_person_type(
+def _derive_person_type(
     identification_type: IdentificationType,
-    person_type: PersonType,
-) -> None:
-    if identification_type == IdentificationType.CEDULA and person_type != PersonType.NATURAL:
-        raise ValidationError("La cédula solo aplica para persona natural")
+    identification: str,
+    requested: PersonType,
+) -> PersonType:
+    """La cedula y el RUC ya codifican el tipo de persona — no es una eleccion libre.
+
+    El tercer digito del RUC es la regla del propio SRI para el digito verificador
+    (ver `is_valid_ruc`): 0-5 persona natural, 6 entidad publica, 9 sociedad. Las
+    entidades publicas se clasifican como juridica (no son personas naturales). Solo
+    pasaporte/exterior quedan a eleccion manual porque ahi no hay RUC que lo determine.
+    """
+    if identification_type == IdentificationType.CEDULA:
+        return PersonType.NATURAL
+    if identification_type == IdentificationType.RUC:
+        return PersonType.NATURAL if int(identification[2]) < 6 else PersonType.JURIDICA
+    return requested
 
 
 def _required_text(value: str, field_name: str) -> str:

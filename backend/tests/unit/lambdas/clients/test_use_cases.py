@@ -33,6 +33,31 @@ class CreateClientUseCaseTests(unittest.TestCase):
                 create_client_command(identification="179214673900")
             )
 
+    def test_create_derives_natural_for_ruc_with_natural_third_digit(self) -> None:
+        client = CreateClientUseCase(FakeClientRepository()).execute(
+            create_client_command(identification="1710034065001", person_type="juridica")
+        )
+
+        self.assertEqual(client.person_type.value, "natural")
+
+    def test_create_derives_juridica_for_ruc_with_legal_entity_third_digit(self) -> None:
+        client = CreateClientUseCase(FakeClientRepository()).execute(
+            create_client_command(person_type="natural")
+        )
+
+        self.assertEqual(client.person_type.value, "juridica")
+
+    def test_create_derives_natural_for_cedula_ignoring_requested_juridica(self) -> None:
+        client = CreateClientUseCase(FakeClientRepository()).execute(
+            create_client_command(
+                identification="1710034065",
+                identification_type="cedula",
+                person_type="juridica",
+            )
+        )
+
+        self.assertEqual(client.person_type.value, "natural")
+
     def test_create_accepts_pasaporte_without_foreign_field(self) -> None:
         client = CreateClientUseCase(FakeClientRepository()).execute(
             create_client_command(
@@ -111,21 +136,22 @@ class ClientMutationUseCaseTests(unittest.TestCase):
         self.assertEqual(updated.trade_name, "Nueva marca")
         self.assertEqual(repo.get_by_identification_calls, [])
 
-    def test_update_rejects_juridica_with_cedula(self) -> None:
+    def test_update_derives_natural_for_cedula_ignoring_requested_juridica(self) -> None:
         repo = FakeClientRepository()
         client = make_client(id="client-1")
         repo.clients[client.id] = client
 
-        with self.assertRaises(ValidationError):
-            UpdateClientUseCase(repo).execute(
-                UpdateClientCommand(
-                    client_id="client-1",
-                    updated_by="admin-1",
-                    identification="1710034065",
-                    identification_type="cedula",
-                    person_type="juridica",
-                )
+        updated = UpdateClientUseCase(repo).execute(
+            UpdateClientCommand(
+                client_id="client-1",
+                updated_by="admin-1",
+                identification="1710034065",
+                identification_type="cedula",
+                person_type="juridica",
             )
+        )
+
+        self.assertEqual(updated.person_type.value, "natural")
 
     def test_delete_soft_deletes(self) -> None:
         repo = FakeClientRepository()

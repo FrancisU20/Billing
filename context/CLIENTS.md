@@ -70,14 +70,40 @@ Esto es una regla SRI, no una decision de diseno del sistema.
 
 ### Tipos De Identificacion Soportados
 
+Codigos conforme Tabla 6 de la ficha tecnica SRI "Emision de comprobantes electronicos -
+Esquema offline" (`tipoIdentificacionComprador`). No incluye "07" (Venta a Consumidor
+Final): ese codigo no representa un `Client`, ver seccion anterior.
+
 | Tipo | Codigo SRI | Formato |
 | --- | --- | --- |
-| Cedula | "01" | 10 digitos, validacion modulo 11 |
-| RUC | "04" | 13 digitos |
+| RUC | "04" | 13 digitos, 3er digito determina natural/publico/sociedad (ver abajo) |
+| Cedula | "05" | 10 digitos, validacion modulo 10 |
 | Pasaporte | "06" | alfanumerico libre |
 | Exterior | "08" | para extranjeros sin cedula/pasaporte ecuatoriano |
 
 La identificacion es validada por value objects en `shared/domain/value_objects/`.
+
+### Tipo De Persona — Derivado, No Es Una Eleccion Libre
+
+El SRI **no tiene** un campo "tipo de persona" en el XML de comprobantes — no existe en
+ninguno de los anexos de la ficha tecnica. `person_type` (`natural`/`juridica`) es un
+campo propio de Wali, pero la cedula y el RUC ya codifican esa distincion en su propia
+estructura (regla del SRI para el digito verificador del RUC, ver
+`shared/domain/value_objects/ecuador_identification.py::is_valid_ruc`):
+
+- Cedula → siempre `natural` (es por definicion un documento de persona natural).
+- RUC → 3er digito: `0-5` natural, `6` entidad publica, `9` sociedad. Las entidades
+  publicas se clasifican como `juridica` (no son personas naturales) — no existe un
+  tercer valor de `PersonType` para "publico".
+- Pasaporte/Exterior → no tienen esa estructura, queda a eleccion manual del usuario
+  (`Client.create`/`Client.update` respetan el valor recibido en `person_type`).
+
+`Client.create`/`Client.update` (`backend/lambdas/clients/domain/entity.py::_derive_person_type`)
+**ignoran** el `person_type` recibido en el payload para `ruc`/`cedula` y lo derivan
+siempre — el backend es la fuente de verdad. El frontend (`features/clients/form.ts::derivePersonType`)
+replica la misma logica para feedback inmediato (oculta el selector manual y muestra el
+valor derivado), pero el backend nunca confia en lo que mande el cliente para esos dos
+tipos.
 
 ### Reglas De Negocio
 

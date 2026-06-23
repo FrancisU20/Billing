@@ -4,8 +4,31 @@ import {
   type Client,
   type ClientFormValues,
   type CreateClientInput,
+  type IdentificationType,
+  type PersonType,
   type UpdateClientInput,
 } from './schemas'
+
+/**
+ * Espejo de `backend/lambdas/clients/domain/entity.py::_derive_person_type`. La cedula y
+ * el RUC ya codifican el tipo de persona (regla del propio SRI para el digito
+ * verificador, ver `lib/utils/ruc.ts`): cedula siempre natural; RUC con 3er digito 0-5
+ * persona natural, 6 o 9 juridica (las entidades publicas no son personas naturales).
+ * Pasaporte/exterior no tienen esa estructura, ahi se respeta la eleccion manual.
+ */
+export function derivePersonType(
+  identificationType: IdentificationType,
+  identification: string,
+  requested: PersonType,
+): PersonType {
+  if (identificationType === 'cedula') return 'natural'
+  if (identificationType === 'ruc') {
+    const thirdDigit = identification.trim()[2]
+    if (thirdDigit === undefined || !/^\d$/.test(thirdDigit)) return requested
+    return Number(thirdDigit) < 6 ? 'natural' : 'juridica'
+  }
+  return requested
+}
 
 export function clientToFormValues(client?: Client | null): ClientFormValues {
   const address = client?.addresses[0]
