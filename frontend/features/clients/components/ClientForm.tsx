@@ -44,6 +44,7 @@ export function ClientForm({ mode, client, onSubmit, isLoading, apiError }: Clie
     control,
     handleSubmit,
     setValue,
+    trigger,
     formState: { errors, isValid },
   } = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormValuesSchema),
@@ -76,12 +77,13 @@ export function ClientForm({ mode, client, onSubmit, isLoading, apiError }: Clie
               icon={option.icon}
               label={option.label}
               selected={identificationType === option.value}
-              onPress={() =>
-                setValue('identification_type', option.value, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
+              onPress={() => {
+                setValue('identification_type', option.value, { shouldDirty: true })
+                // El error de formato (RUC/cedula invalido) vive en el campo
+                // "identification", no en "identification_type" — hay que revalidar
+                // ambos juntos o el mensaje de error queda pegado al tipo anterior.
+                void trigger(['identification_type', 'identification'])
+              }}
             />
           ))}
         </View>
