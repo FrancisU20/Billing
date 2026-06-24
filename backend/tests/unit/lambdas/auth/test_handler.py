@@ -6,13 +6,12 @@ import sys
 import unittest
 
 from lambdas.auth.domain.commands import (
-    ConfirmForgotPasswordCommand,
-    ForgotPasswordCommand,
     LoginCommand,
     LogoutCommand,
     RefreshCommand,
     RespondChallengeCommand,
 )
+from lambdas.auth.domain.password_reset import PasswordReset
 from lambdas.auth.domain.repositories.i_auth_provider import IAuthProvider
 from lambdas.auth.domain.results import AuthChallenge, AuthOutcome, AuthTokens
 from tests.unit.support import LambdaContext, api_event, configure_unit_environment, decode_response
@@ -24,8 +23,9 @@ class FakeAuthProvider(IAuthProvider):
         self.refresh_calls: list[RefreshCommand] = []
         self.logout_calls: list[LogoutCommand] = []
         self.challenge_calls: list[RespondChallengeCommand] = []
-        self.forgot_password_calls: list[ForgotPasswordCommand] = []
-        self.confirm_forgot_password_calls: list[ConfirmForgotPasswordCommand] = []
+        self.user_exists_calls: list[str] = []
+        self.set_password_calls: list[dict] = []
+        self.user_exists_result = True
         self.login_result: AuthOutcome = AuthTokens(
             id_token="id-token",
             access_token="access-token",
@@ -62,11 +62,43 @@ class FakeAuthProvider(IAuthProvider):
         self.challenge_calls.append(command)
         return self.challenge_result
 
-    def forgot_password(self, command: ForgotPasswordCommand) -> None:
-        self.forgot_password_calls.append(command)
+    def user_exists(self, username: str) -> bool:
+        self.user_exists_calls.append(username)
+        return self.user_exists_result
 
-    def confirm_forgot_password(self, command: ConfirmForgotPasswordCommand) -> None:
-        self.confirm_forgot_password_calls.append(command)
+    def set_permanent_password(self, *, username: str, password: str) -> None:
+        self.set_password_calls.append({"username": username, "password": password})
+
+
+class FakePasswordResetRepository:
+    def __init__(self) -> None:
+        self.saved: list[PasswordReset] = []
+        self.attempts_saved: list[PasswordReset] = []
+        self.used: list[PasswordReset] = []
+        self.current_reset = PasswordReset.create(username="owner@codelabs.com", code="123456")
+
+    def save(self, reset: PasswordReset) -> None:
+        self.saved.append(reset)
+
+    def get_by_username(self, username: str) -> PasswordReset | None:
+        if self.current_reset and self.current_reset.username == username:
+            return self.current_reset
+        return None
+
+    def save_attempts(self, reset: PasswordReset) -> None:
+        self.attempts_saved.append(reset)
+
+    def mark_used(self, reset: PasswordReset) -> None:
+        reset.mark_used()
+        self.used.append(reset)
+
+
+class FakeEventPublisher:
+    def __init__(self) -> None:
+        self.events: list[object] = []
+
+    def publish(self, event: object) -> None:
+        self.events.append(event)
 
 
 def _load_handler_module():
@@ -81,7 +113,11 @@ class AuthHandlerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.handler = _load_handler_module()
         self.provider = FakeAuthProvider()
+        self.reset_repo = FakePasswordResetRepository()
+        self.publisher = FakeEventPublisher()
         self.handler._provider = lambda: self.provider
+        self.handler._reset_repository = lambda: self.reset_repo
+        self.handler._event_publisher = self.publisher
         self.context = LambdaContext()
 
     def test_login_returns_tokens_and_normalizes_username(self) -> None:
@@ -197,7 +233,29 @@ class AuthHandlerTests(unittest.TestCase):
         body = decode_response(response)
         self.assertEqual(response["statusCode"], 200)
         self.assertIn("código de recuperación", body["data"]["message"])
-        self.assertEqual(self.provider.forgot_password_calls[0].username, "owner@codelabs.com")
+        self.assertEqual(self.provider.user_exists_calls[0], "owner@codelabs.com")
+        self.assertEqual(self.reset_repo.saved[0].username, "owner@codelabs.com")
+        self.assertEqual(self.publisher.events[0].email, "owner@codelabs.com")
+        self.assertEqual(len(self.publisher.events[0].code), 6)
+
+    def test_forgot_password_does_not_send_email_when_user_does_not_exist(self) -> None:
+        self.provider.user_exists_result = False
+
+        response = self.handler.handler(
+            api_event(
+                method="POST",
+                path="/auth/forgot-password",
+                body={"username": "missing@codelabs.com"},
+                claims={},
+            ),
+            self.context,
+        )
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 200)
+        self.assertIn("código de recuperación", body["data"]["message"])
+        self.assertEqual(self.reset_repo.saved, [])
+        self.assertEqual(self.publisher.events, [])
 
     def test_reset_password_returns_204(self) -> None:
         response = self.handler.handler(
@@ -217,10 +275,10 @@ class AuthHandlerTests(unittest.TestCase):
         body = decode_response(response)
         self.assertEqual(response["statusCode"], 204)
         self.assertTrue(body["success"])
-        call = self.provider.confirm_forgot_password_calls[0]
-        self.assertEqual(call.username, "owner@codelabs.com")
-        self.assertEqual(call.confirmation_code, "123456")
-        self.assertEqual(call.new_password, "NewPermanentPass123!")
+        call = self.provider.set_password_calls[0]
+        self.assertEqual(call["username"], "owner@codelabs.com")
+        self.assertEqual(call["password"], "NewPermanentPass123!")
+        self.assertEqual(len(self.reset_repo.used), 1)
 
     def test_invalid_login_body_returns_400(self) -> None:
         response = self.handler.handler(

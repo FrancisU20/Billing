@@ -357,7 +357,14 @@ class ApiStack(Stack):
                 **_common_env,
                 "BREVO_SECRET_NAME":  f"codelabs-billing-{env}/brevo-api-key",
                 "BREVO_SENDER_EMAIL": "no-reply@codelabsecuador.com",
+                "BREVO_NO_REPLY_EMAIL": "no-reply@codelabsecuador.com",
+                "BREVO_INFO_EMAIL":     "info@codelabsecuador.com",
+                "BREVO_BILLING_EMAIL":  "billing@codelabsecuador.com",
+                "BREVO_SALES_EMAIL":    "sales@codelabsecuador.com",
+                "BREVO_SUPPORT_EMAIL":  "support@codelabsecuador.com",
+                "BREVO_TESTING_EMAIL":  "testing@codelabsecuador.com",
                 "BREVO_SENDER_NAME":  "Wali",
+                "SALES_EMAIL":        "sales@codelabsecuador.com",
                 "FRONTEND_URL":       frontend_url,
                 "SUPERADMIN_EMAIL":   config.get("superadmin_email", ""),
                 "DOCUMENTS_TABLE":     database.documents_table.table_name,
@@ -424,6 +431,12 @@ class ApiStack(Stack):
                 "AUDIT_LOG_TABLE":    database.audit_table.table_name,
                 "BREVO_SECRET_NAME":  f"codelabs-billing-{env}/brevo-api-key",
                 "BREVO_SENDER_EMAIL": "no-reply@codelabsecuador.com",
+                "BREVO_NO_REPLY_EMAIL": "no-reply@codelabsecuador.com",
+                "BREVO_INFO_EMAIL":     "info@codelabsecuador.com",
+                "BREVO_BILLING_EMAIL":  "billing@codelabsecuador.com",
+                "BREVO_SALES_EMAIL":    "sales@codelabsecuador.com",
+                "BREVO_SUPPORT_EMAIL":  "support@codelabsecuador.com",
+                "BREVO_TESTING_EMAIL":  "testing@codelabsecuador.com",
                 "BREVO_SENDER_NAME":  "Wali",
             },
         )
@@ -462,6 +475,12 @@ class ApiStack(Stack):
                 "PAYMENTS_TABLE":            database.payments_table.table_name,
                 "BREVO_SECRET_NAME":         f"codelabs-billing-{env}/brevo-api-key",
                 "BREVO_SENDER_EMAIL":        "no-reply@codelabsecuador.com",
+                "BREVO_NO_REPLY_EMAIL":      "no-reply@codelabsecuador.com",
+                "BREVO_INFO_EMAIL":          "info@codelabsecuador.com",
+                "BREVO_BILLING_EMAIL":       "billing@codelabsecuador.com",
+                "BREVO_SALES_EMAIL":         "sales@codelabsecuador.com",
+                "BREVO_SUPPORT_EMAIL":       "support@codelabsecuador.com",
+                "BREVO_TESTING_EMAIL":       "testing@codelabsecuador.com",
                 "BREVO_SENDER_NAME":         "Wali",
                 "FRONTEND_URL":              frontend_url,
                 "DLOCALGO_CREDENTIALS_NAME": f"codelabs-billing-{env}/dlocalgo-credentials",
@@ -503,7 +522,14 @@ class ApiStack(Stack):
                 "PAYMENTS_TABLE":               database.payments_table.table_name,
                 "BREVO_SECRET_NAME":            f"codelabs-billing-{env}/brevo-api-key",
                 "BREVO_SENDER_EMAIL":           "no-reply@codelabsecuador.com",
+                "BREVO_NO_REPLY_EMAIL":         "no-reply@codelabsecuador.com",
+                "BREVO_INFO_EMAIL":             "info@codelabsecuador.com",
+                "BREVO_BILLING_EMAIL":          "billing@codelabsecuador.com",
+                "BREVO_SALES_EMAIL":            "sales@codelabsecuador.com",
+                "BREVO_SUPPORT_EMAIL":          "support@codelabsecuador.com",
+                "BREVO_TESTING_EMAIL":          "testing@codelabsecuador.com",
                 "BREVO_SENDER_NAME":            "Wali",
+                "BILLING_EMAIL":                "billing@codelabsecuador.com",
                 "SUPERADMIN_EMAIL":             config.get("superadmin_email", ""),
                 "ORPHAN_PAYMENT_GRACE_MINUTES": "30",
             },
@@ -857,6 +883,8 @@ class ApiStack(Stack):
                 **_common_env,
                 "COGNITO_USER_POOL_ID": auth.user_pool.user_pool_id,
                 "COGNITO_WEB_CLIENT_ID": auth.web_client.user_pool_client_id,
+                "PASSWORD_RESETS_TABLE": database.password_resets_table.table_name,
+                "EMAIL_NOTIFICATIONS_QUEUE_URL": queues.email_notifications_queue.queue_url,
             },
         )
         auth_fn.add_to_role_policy(iam.PolicyStatement(
@@ -864,11 +892,14 @@ class ApiStack(Stack):
                 "cognito-idp:InitiateAuth",
                 "cognito-idp:RespondToAuthChallenge",
                 "cognito-idp:GlobalSignOut",
-                "cognito-idp:ForgotPassword",
-                "cognito-idp:ConfirmForgotPassword",
+                "cognito-idp:AdminGetUser",
+                "cognito-idp:AdminSetUserPassword",
             ],
             resources = [auth.user_pool.user_pool_arn],
         ))
+        database.password_resets_table.grant_read_write_data(auth_fn)
+        queues.email_notifications_queue.grant_send_messages(auth_fn)
+        queues.email_notifications_key.grant_encrypt_decrypt(auth_fn)
 
         auth_integration = integrations.HttpLambdaIntegration(
             "AuthIntegration", auth_fn

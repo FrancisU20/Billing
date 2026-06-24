@@ -25,6 +25,7 @@ from lambdas.auth.domain.commands import (
 )
 from lambdas.auth.domain.repositories.i_auth_provider import IAuthProvider
 from lambdas.auth.infra.cognito_auth_provider import CognitoAuthProvider
+from lambdas.auth.infra.password_reset_repository import DynamoPasswordResetRepository
 from lambdas.auth.schemas import (
     ChallengeRequest,
     ConfirmForgotPasswordRequest,
@@ -39,13 +40,25 @@ from lambdas.auth.use_cases.login import LoginUseCase
 from lambdas.auth.use_cases.logout import LogoutUseCase
 from lambdas.auth.use_cases.refresh import RefreshUseCase
 from lambdas.auth.use_cases.respond_challenge import RespondChallengeUseCase
+from shared.config import env
+from shared.db.client import get_table
+from shared.domain.events.publisher import EventPublisher
 from shared.errors import NotFoundError
 
 _provider_instance = CognitoAuthProvider()
+_password_reset_repo: DynamoPasswordResetRepository | None = None
+_event_publisher = EventPublisher(queue_url=env("EMAIL_NOTIFICATIONS_QUEUE_URL", ""))
 
 
 def _provider() -> IAuthProvider:
     return _provider_instance
+
+
+def _reset_repository() -> DynamoPasswordResetRepository:
+    global _password_reset_repo
+    if _password_reset_repo is None:
+        _password_reset_repo = DynamoPasswordResetRepository(get_table("PASSWORD_RESETS_TABLE"))
+    return _password_reset_repo
 
 
 @public_lambda_handler
@@ -87,7 +100,9 @@ def _challenge(request: Request, context) -> dict:
 @public_lambda_handler
 def _forgot_password(request: Request, context) -> dict:
     body = parse(ForgotPasswordRequest, request.body)
-    ForgotPasswordUseCase(_provider()).execute(ForgotPasswordCommand(username=body.username))
+    ForgotPasswordUseCase(_provider(), _reset_repository(), _event_publisher).execute(
+        ForgotPasswordCommand(username=body.username)
+    )
     return ApiResponse.ok(
         {"message": "Si el correo está registrado, te enviamos un código de recuperación."},
         request.request_id,
@@ -97,7 +112,7 @@ def _forgot_password(request: Request, context) -> dict:
 @public_lambda_handler
 def _reset_password(request: Request, context) -> dict:
     body = parse(ConfirmForgotPasswordRequest, request.body)
-    ConfirmForgotPasswordUseCase(_provider()).execute(
+    ConfirmForgotPasswordUseCase(_provider(), _reset_repository()).execute(
         ConfirmForgotPasswordCommand(
             username=body.username,
             confirmation_code=body.confirmation_code,

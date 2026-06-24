@@ -22,6 +22,7 @@ class FakeEmailSender(EmailSender):
     def __init__(self, *, should_fail: bool = False) -> None:
         self.sent: list[dict] = []
         self.otp_sent: list[dict] = []
+        self.password_reset_sent: list[dict] = []
         self.enterprise_leads_sent: list[dict] = []
         self.certificate_expiry_alerts_sent: list[dict] = []
         self.renewal_reminders_sent: list[dict] = []
@@ -54,6 +55,17 @@ class FakeEmailSender(EmailSender):
                 "email": email,
                 "legal_rep_name": legal_rep_name,
                 "temp_password": temp_password,
+            }
+        )
+
+    def send_password_reset(self, *, email: str, code: str, expires_at: str) -> None:
+        if self._should_fail:
+            raise RuntimeError("Brevo unavailable")
+        self.password_reset_sent.append(
+            {
+                "email": email,
+                "code": code,
+                "expires_at": expires_at,
             }
         )
 
@@ -349,6 +361,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         os.environ["BREVO_SENDER_EMAIL"] = "noreply@test.com"
         os.environ["BREVO_SENDER_NAME"] = "Test"
         os.environ["SUPERADMIN_EMAIL"] = "admin@codelabsecuador.com"
+        os.environ["SALES_EMAIL"] = "sales@codelabsecuador.com"
         sys.modules.pop("lambdas.workers.email_notifications.handler", None)
         return importlib.import_module("lambdas.workers.email_notifications.handler")
 
@@ -406,6 +419,28 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         self.assertEqual(len(sender.otp_sent), 1)
         self.assertEqual(sender.otp_sent[0]["otp"], "123456")
 
+    def test_processes_password_reset_event_and_sends_email(self) -> None:
+        mod = self._load_handler_module()
+        sender = FakeEmailSender()
+        mod._email_sender = sender
+
+        result = mod.handler(
+            self._make_sqs_event(
+                {
+                    "email": "owner@empresa.com",
+                    "code": "123456",
+                    "expires_at": "2026-06-13T12:00:00+00:00",
+                },
+                event_type="PasswordResetRequestedEvent",
+            ),
+            LambdaContext(),
+        )
+
+        self.assertEqual(result, {"batchItemFailures": []})
+        self.assertEqual(len(sender.password_reset_sent), 1)
+        self.assertEqual(sender.password_reset_sent[0]["email"], "owner@empresa.com")
+        self.assertEqual(sender.password_reset_sent[0]["code"], "123456")
+
     def test_processes_enterprise_lead_created_event_and_sends_email(self) -> None:
         mod = self._load_handler_module()
         sender = FakeEmailSender()
@@ -428,7 +463,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
         self.assertEqual(result, {"batchItemFailures": []})
         self.assertEqual(len(sender.enterprise_leads_sent), 1)
         sent = sender.enterprise_leads_sent[0]
-        self.assertEqual(sent["superadmin_email"], "admin@codelabsecuador.com")
+        self.assertEqual(sent["superadmin_email"], "sales@codelabsecuador.com")
         self.assertEqual(sent["trade_name"], "Empresa Demo S.A.")
         self.assertEqual(sent["ruc"], "1792146739001")
         self.assertEqual(sent["plan_name"], "Corporativo")
@@ -628,6 +663,9 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                 calls.append(email)
                 if email == "bad@empresa.com":
                     raise RuntimeError("Brevo timeout")
+
+            def send_password_reset(self, *, email, code, expires_at):
+                raise NotImplementedError
 
             def send_enterprise_lead_notification(
                 self, *, superadmin_email, trade_name, ruc, email, plan_id, plan_name=""

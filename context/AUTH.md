@@ -22,7 +22,9 @@ todos los demas Lambdas usan para identificar al caller.
 
 - Lambda: `backend/lambdas/auth/`
 - Cognito User Pool (provisionado por CDK)
-- No tiene tabla DynamoDB propia; el estado de usuario vive en Cognito.
+- Tabla DynamoDB `password-resets` para códigos de recuperación propios: guarda solo hash
+  del código, intentos, expiración y TTL.
+- El estado de usuario vive en Cognito.
 
 ## Frontend
 
@@ -130,27 +132,31 @@ POST /auth/refresh { refresh_token }
 
 Hasta esta fecha no existía ningún mecanismo de recuperación de contraseña — un usuario
 que olvidaba su clave (o no recibía el email de bienvenida por algún motivo) quedaba sin
-salida. Implementado con `ForgotPassword`/`ConfirmForgotPassword` de Cognito, mismo
-patrón mecánico que el resto de `auth/` (comando → use case wrapper → `IAuthProvider` →
-`CognitoAuthProvider`):
+salida. Desde 2026-06-24 el flujo no usa el canal de email de Cognito: Wali genera el
+código, guarda su hash en DynamoDB y lo envía por `email_notifications`/Brevo.
 
 ```
 POST /auth/forgot-password { username }
--> CognitoIdentityProvider.forgot_password: Cognito envía un código de 6 dígitos al
-   email registrado (NO pasa por Brevo — lo manda Cognito directo, ver "Email de
-   Cognito" en Deuda Tecnica)
+-> Cognito AdminGetUser valida si existe el usuario. Si no existe, no se crea código ni
+   se envía correo.
+-> Si existe: se genera código de 6 dígitos, se guarda hash PBKDF2 + salt en
+   `password-resets` con TTL 15 min e intentos máximos 5.
+-> Se publica `PasswordResetRequestedEvent` directo a la cola `email_notifications`.
+-> `email_notifications` envía plantilla Wali por Brevo desde `no-reply@codelabsecuador.com`
+   (en ambientes no-prod el sender real se fuerza a `testing@codelabsecuador.com`).
 -> Respuesta SIEMPRE genérica: { "message": "Si el correo está registrado, te
    enviamos un código de recuperación." } — incluso si el username no existe
-   (UserNotFoundException se atrapa en CognitoAuthProvider.forgot_password y NO se
-   propaga como error; ver infra/cognito_auth_provider.py:forgot_password). Nunca
-   reveles si una cuenta existe — el frontend tampoco se entera, navega igual al
-   siguiente paso.
+   (`user_exists=False` corta silenciosamente). Nunca reveles si una cuenta existe — el
+   frontend tampoco se entera, navega igual al siguiente paso.
 
 POST /auth/reset-password { username, confirmation_code, new_password }
--> CognitoIdentityProvider.confirm_forgot_password
--> 204 en éxito; CodeMismatchException/ExpiredCodeException/InvalidPasswordException
-   se mapean a InvalidChallengeResponseError (422) — mismo mapeo que ya usa
-   confirm_forgot_password para CodeMismatch/Expired/InvalidPassword.
+-> Lee `password-resets` por username, valida que no esté expirado/usado/bloqueado y
+   compara el código contra el hash.
+-> Código inválido incrementa intentos y responde `INVALID_CHALLENGE_RESPONSE`.
+-> Código válido llama `AdminSetUserPassword(Permanent=True)` en Cognito y marca el reset
+   como usado.
+-> 204 en éxito; contraseña inválida por política Cognito se mapea a
+   `INVALID_CHALLENGE_RESPONSE`.
 ```
 
 Frontend: `ForgotPasswordScreen` (`/(auth)/forgot-password`, link "¿Olvidaste tu
@@ -209,11 +215,3 @@ Diseno futuro (no implementar como parte de onboarding):
 - No hay tests de integracion contra Cognito real; los tests usan fakes.
 - El token refresh no rota el refresh_token actualmente; evaluar si el User Pool debe tener
   rotacion activada para mayor seguridad.
-- **Email de Cognito sin SES** (`infra/stacks/auth_stack.py`): el User Pool no tiene
-  `email: cognito.UserPoolEmail.withSES(...)` configurado — usa el email default de
-  Cognito (`no-reply@verificationemail.com`, límite ~50/día, sin SLA). Esto afecta tanto
-  `AdminCreateUser` (ya suprimido, Brevo manda ese email) como **el código de
-  `ForgotPassword`, que sí lo manda Cognito directo** y no pasa por Brevo. Aceptable para
-  el volumen actual; si el límite diario se vuelve un problema real (errores
-  `LimitExceededException` en `forgot_password`, que hoy se propagan como
-  `ExternalServiceError` 500 sin alerta), evaluar integrar SES en el User Pool.

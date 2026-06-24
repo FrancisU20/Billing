@@ -27,9 +27,16 @@ from shared.secrets.client import get_secret
 _log = get_logger(__name__)
 
 _BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
+_ENV = env("ENV", "dev")
 _SECRET_NAME = env("BREVO_SECRET_NAME")
 _SENDER_EMAIL = env("BREVO_SENDER_EMAIL", "no-reply@codelabsecuador.com")
 _SENDER_NAME = env("BREVO_SENDER_NAME", "Wali")
+_NO_REPLY_EMAIL = env("BREVO_NO_REPLY_EMAIL", _SENDER_EMAIL)
+_INFO_EMAIL = env("BREVO_INFO_EMAIL", "info@codelabsecuador.com")
+_BILLING_EMAIL = env("BREVO_BILLING_EMAIL", "billing@codelabsecuador.com")
+_SALES_EMAIL = env("BREVO_SALES_EMAIL", "sales@codelabsecuador.com")
+_SUPPORT_EMAIL = env("BREVO_SUPPORT_EMAIL", "support@codelabsecuador.com")
+_TESTING_EMAIL = env("BREVO_TESTING_EMAIL", "testing@codelabsecuador.com")
 _FRONTEND_URL = env("FRONTEND_URL", "")
 # Logotipo Wali servido por el frontend desplegado (frontend/public/wordmark-dark.png) —
 # evita duplicar el asset en el backend y los clientes de correo no renderizan SVG.
@@ -190,6 +197,69 @@ def _build_onboarding_otp_html(legal_rep_name: str, otp: str, expires_at: str) -
 </html>"""
 
 
+def _build_password_reset_html(code: str, expires_at: str) -> str:
+    safe_code = escape(code, quote=True)
+    safe_expires_at = escape(_format_datetime(expires_at), quote=True)
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:40px 20px">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+          {_render_header("Recuperación de acceso")}
+
+          <tr>
+            <td style="padding:40px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
+                Recupera tu contraseña
+              </h2>
+              <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                Recibimos una solicitud para restablecer la contraseña de tu cuenta en Wali.
+                Usa este código para continuar desde la pantalla de recuperación.
+              </p>
+
+              <div style="background:#f8f9fa;border-left:4px solid #0D1126;
+                          border-radius:4px;padding:20px;margin:0 0 24px;text-align:center">
+                <p style="margin:0;color:#0D1126;font-size:32px;font-weight:700;
+                          letter-spacing:6px">{safe_code}</p>
+              </div>
+
+              <p style="margin:0 0 16px;color:#444;line-height:1.6">
+                Si no solicitaste este cambio, puedes ignorar este correo. Tu contraseña actual
+                seguirá siendo válida.
+              </p>
+              <p style="margin:0;color:#888;font-size:13px;line-height:1.6">
+                Este código expira en 15 minutos. Fecha técnica de expiración:
+                {safe_expires_at}. Por seguridad, no compartas este código con nadie.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f8f9fa;padding:20px 40px;
+                       border-top:1px solid #e9ecef">
+              <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
+                © Wali · Ecuador
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
 def _get_api_key() -> str:
     api_key = get_secret(_SECRET_NAME)
     # Secrets Manager puede almacenar el valor como string plano o como JSON.
@@ -222,6 +292,11 @@ def _send(api_key: str, payload: dict, *, log_email: str) -> None:
         raise ExternalServiceError(f"Brevo responded {response.status}")
 
     _log.info("Brevo: email sent", email=log_email, status=response.status)
+
+
+def _sender(email: str) -> dict:
+    sender_email = _TESTING_EMAIL if _ENV != "prod" else email
+    return {"name": _SENDER_NAME, "email": sender_email or _NO_REPLY_EMAIL}
 
 
 def _format_date(value: str) -> str:
@@ -1012,7 +1087,7 @@ class BrevoEmailSender(EmailSender):
     ) -> None:
         api_key = _get_api_key()
         payload = {
-            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "sender": _sender(_INFO_EMAIL),
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": "Verifica tu correo — Wali",
             "htmlContent": _build_onboarding_otp_html(legal_rep_name, otp, expires_at),
@@ -1022,10 +1097,20 @@ class BrevoEmailSender(EmailSender):
     def send_welcome(self, *, email: str, legal_rep_name: str, temp_password: str) -> None:
         api_key = _get_api_key()
         payload = {
-            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "sender": _sender(_INFO_EMAIL),
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": "Bienvenido a Wali — tus credenciales de acceso",
             "htmlContent": _build_html(legal_rep_name, email, temp_password),
+        }
+        _send(api_key, payload, log_email=email)
+
+    def send_password_reset(self, *, email: str, code: str, expires_at: str) -> None:
+        api_key = _get_api_key()
+        payload = {
+            "sender": _sender(_NO_REPLY_EMAIL),
+            "to": [{"email": email}],
+            "subject": "Recupera tu contraseña — Wali",
+            "htmlContent": _build_password_reset_html(code, expires_at),
         }
         _send(api_key, payload, log_email=email)
 
@@ -1041,7 +1126,7 @@ class BrevoEmailSender(EmailSender):
     ) -> None:
         api_key = _get_api_key()
         payload = {
-            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "sender": _sender(_SALES_EMAIL),
             "to": [{"email": superadmin_email}],
             "subject": f"Nuevo lead Corporativo — {trade_name}",
             "htmlContent": _build_enterprise_lead_html(
@@ -1062,7 +1147,7 @@ class BrevoEmailSender(EmailSender):
     ) -> None:
         api_key = _get_api_key()
         payload = {
-            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "sender": _sender(_SUPPORT_EMAIL),
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": f"Tu certificado digital vence en {days_remaining} días — Wali",
             "htmlContent": _build_certificate_expiry_alert_html(
@@ -1083,7 +1168,7 @@ class BrevoEmailSender(EmailSender):
     ) -> None:
         api_key = _get_api_key()
         payload = {
-            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "sender": _sender(_BILLING_EMAIL),
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": f"Tu suscripción vence en {days_remaining} días — Wali",
             "htmlContent": _build_subscription_renewal_reminder_html(
@@ -1102,7 +1187,7 @@ class BrevoEmailSender(EmailSender):
     ) -> None:
         api_key = _get_api_key()
         payload = {
-            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "sender": _sender(_BILLING_EMAIL),
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": "Tu suscripción ha vencido — Wali",
             "htmlContent": _build_subscription_expired_html(
@@ -1121,7 +1206,7 @@ class BrevoEmailSender(EmailSender):
     ) -> None:
         api_key = _get_api_key()
         payload = {
-            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "sender": _sender(_BILLING_EMAIL),
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": "Pago fallido — acción requerida para mantener tu cuenta activa",
             "htmlContent": _build_payment_failed_html(legal_rep_name, trade_name, renewal_url),
@@ -1149,7 +1234,7 @@ class BrevoEmailSender(EmailSender):
     ) -> None:
         api_key = _get_api_key()
         payload = {
-            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "sender": _sender(_BILLING_EMAIL),
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": "Tu factura fue autorizada por el SRI — Wali",
             "htmlContent": _build_document_authorized_html(
@@ -1182,7 +1267,7 @@ class BrevoEmailSender(EmailSender):
     ) -> None:
         api_key = _get_api_key()
         payload = {
-            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "sender": _sender(_BILLING_EMAIL),
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": "El SRI rechazó tu factura — Wali",
             "htmlContent": _build_document_rejected_html(legal_rep_name, access_key, sri_errors),
@@ -1199,7 +1284,7 @@ class BrevoEmailSender(EmailSender):
     ) -> None:
         api_key = _get_api_key()
         payload = {
-            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "sender": _sender(_BILLING_EMAIL),
             "to": [{"email": email, "name": legal_rep_name}],
             "subject": "No pudimos confirmar tu factura con el SRI — Wali",
             "htmlContent": _build_document_failed_permanent_html(legal_rep_name, access_key),
@@ -1228,7 +1313,7 @@ class BrevoEmailSender(EmailSender):
     ) -> None:
         api_key = _get_api_key()
         payload = {
-            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "sender": _sender(_BILLING_EMAIL),
             "to": [{"email": email, "name": buyer_name}],
             "subject": "Factura electrónica autorizada — XML y RIDE adjuntos",
             "htmlContent": _build_document_buyer_html(
@@ -1269,7 +1354,7 @@ class BrevoEmailSender(EmailSender):
     ) -> None:
         api_key = _get_api_key()
         payload = {
-            "sender": {"name": _SENDER_NAME, "email": _SENDER_EMAIL},
+            "sender": _sender(_BILLING_EMAIL),
             "to": [{"email": superadmin_email}],
             "subject": f"[ALERTA] Pago sin cuenta — {order_id}",
             "htmlContent": _build_orphan_payment_alert_html(

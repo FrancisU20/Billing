@@ -102,6 +102,20 @@ class DatabaseStack(Stack):
             removal_policy = removal,
         )
 
+        # ── Password Resets ───────────────────────────────────────────────────
+        # PK: id="PASSWORD_RESET#{email}". Guarda solo hash del código + TTL.
+        self.password_resets_table = ddb.Table(
+            self, "PasswordResetsTable",
+            table_name    = f"codelabs-billing-{env}-password-resets",
+            partition_key = ddb.Attribute(name="id", type=ddb.AttributeType.STRING),
+            billing_mode  = ddb.BillingMode.PAY_PER_REQUEST,
+            time_to_live_attribute = "ttl",
+            point_in_time_recovery_specification=ddb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=pitr,
+            ),
+            removal_policy = removal,
+        )
+
         # ── Plans ──────────────────────────────────────────────────────────────
         # PK: id (UUID) — FK estable en Tenant.plan_id
         # GSI slug-index: PK=slug → lookup por slug para rutas públicas
@@ -272,6 +286,10 @@ class DatabaseStack(Stack):
         CfnOutput(self, "OutboxTableName",
                   value=self.outbox_table.table_name,
                   export_name=f"CodeLabsBilling-{env}-OutboxTableName")
+
+        CfnOutput(self, "PasswordResetsTableName",
+                  value=self.password_resets_table.table_name,
+                  export_name=f"CodeLabsBilling-{env}-PasswordResetsTableName")
 
         CfnOutput(self, "PlansTableName",
                   value=self.plans_table.table_name,

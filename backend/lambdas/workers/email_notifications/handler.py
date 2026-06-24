@@ -14,6 +14,7 @@ Flow:
 Recognized events:
     OnboardingOtpRequestedEvent          — verification email for public registration
     OwnerCreatedEvent                    — welcome email to the owner of a newly created tenant
+    PasswordResetRequestedEvent          — password recovery code
     EnterpriseLeadCreatedEvent           — internal notification to the sales team
     SubscriptionRenewalReminderEvent     — subscription expiry reminder to tenant owner
     SubscriptionExpiredEvent             — subscription expired / account suspended notice
@@ -49,6 +50,9 @@ from lambdas.workers.email_notifications.use_cases.send_enterprise_lead_notifica
 from lambdas.workers.email_notifications.use_cases.send_onboarding_otp import (
     SendOnboardingOtpUseCase,
 )
+from lambdas.workers.email_notifications.use_cases.send_password_reset import (
+    SendPasswordResetUseCase,
+)
 from lambdas.workers.email_notifications.use_cases.send_subscription_expired import (
     SendSubscriptionExpiredUseCase,
 )
@@ -67,6 +71,7 @@ _log = get_logger(__name__)
 # ── Cold start ────────────────────────────────────────────────────────────────
 _email_sender = BrevoEmailSender()
 _SUPERADMIN_EMAIL = env("SUPERADMIN_EMAIL", "")
+_SALES_EMAIL = env("SALES_EMAIL", "sales@codelabsecuador.com")
 _DOCUMENTS_BUCKET = env("DOCUMENTS_BUCKET", "")
 _documents_repo: DynamoDocumentsRepository | None = None
 _attachment_reader: S3DocumentAttachmentReader | None = None
@@ -110,9 +115,17 @@ def handler(record: SQSRecord, context) -> None:
         )
         return
 
+    if event_type == "PasswordResetRequestedEvent":
+        SendPasswordResetUseCase(_email_sender).execute(
+            email=data.get("email", ""),
+            code=data.get("code", ""),
+            expires_at=data.get("expires_at", ""),
+        )
+        return
+
     if event_type == "EnterpriseLeadCreatedEvent":
         SendEnterpriseLeadNotificationUseCase(_email_sender).execute(
-            superadmin_email=_SUPERADMIN_EMAIL,
+            superadmin_email=_SALES_EMAIL or _SUPERADMIN_EMAIL,
             trade_name=data.get("trade_name", ""),
             ruc=data.get("ruc", ""),
             email=data.get("email", ""),

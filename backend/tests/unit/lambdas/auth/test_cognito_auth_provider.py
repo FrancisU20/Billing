@@ -6,8 +6,6 @@ from unittest.mock import patch
 from botocore.exceptions import ClientError
 
 from lambdas.auth.domain.commands import (
-    ConfirmForgotPasswordCommand,
-    ForgotPasswordCommand,
     LoginCommand,
     LogoutCommand,
     RefreshCommand,
@@ -49,8 +47,8 @@ class FakeCognitoClient:
         auth_response: dict | Exception | None = None,
         challenge_response: dict | Exception | None = None,
         refresh_response: dict | Exception | None = None,
-        forgot_password_response: dict | Exception | None = None,
-        confirm_forgot_password_response: dict | Exception | None = None,
+        admin_get_user_response: dict | Exception | None = None,
+        admin_set_user_password_response: dict | Exception | None = None,
     ) -> None:
         self.auth_response = auth_response or {
             "ChallengeName": "PASSWORD_VERIFIER",
@@ -78,13 +76,13 @@ class FakeCognitoClient:
                 "TokenType": "Bearer",
             }
         }
-        self.forgot_password_response = forgot_password_response
-        self.confirm_forgot_password_response = confirm_forgot_password_response
+        self.admin_get_user_response = admin_get_user_response or {"Username": "owner@example.com"}
+        self.admin_set_user_password_response = admin_set_user_password_response
         self.initiate_auth_calls: list[dict] = []
         self.respond_to_auth_challenge_calls: list[dict] = []
         self.global_sign_out_calls: list[dict] = []
-        self.forgot_password_calls: list[dict] = []
-        self.confirm_forgot_password_calls: list[dict] = []
+        self.admin_get_user_calls: list[dict] = []
+        self.admin_set_user_password_calls: list[dict] = []
 
     def initiate_auth(self, **kwargs):
         self.initiate_auth_calls.append(kwargs)
@@ -105,17 +103,17 @@ class FakeCognitoClient:
     def global_sign_out(self, **kwargs):
         self.global_sign_out_calls.append(kwargs)
 
-    def forgot_password(self, **kwargs):
-        self.forgot_password_calls.append(kwargs)
-        if isinstance(self.forgot_password_response, Exception):
-            raise self.forgot_password_response
-        return self.forgot_password_response or {}
+    def admin_get_user(self, **kwargs):
+        self.admin_get_user_calls.append(kwargs)
+        if isinstance(self.admin_get_user_response, Exception):
+            raise self.admin_get_user_response
+        return self.admin_get_user_response
 
-    def confirm_forgot_password(self, **kwargs):
-        self.confirm_forgot_password_calls.append(kwargs)
-        if isinstance(self.confirm_forgot_password_response, Exception):
-            raise self.confirm_forgot_password_response
-        return self.confirm_forgot_password_response or {}
+    def admin_set_user_password(self, **kwargs):
+        self.admin_set_user_password_calls.append(kwargs)
+        if isinstance(self.admin_set_user_password_response, Exception):
+            raise self.admin_set_user_password_response
+        return self.admin_set_user_password_response or {}
 
 
 class CognitoAuthProviderTests(unittest.TestCase):
@@ -328,76 +326,70 @@ class CognitoAuthProviderTests(unittest.TestCase):
                         )
                     )
 
-    def test_forgot_password_calls_cognito_with_username(self) -> None:
+    def test_user_exists_calls_admin_get_user(self) -> None:
         idp = FakeCognitoClient()
         provider = CognitoAuthProvider(
             idp=idp, user_pool_id="sa-east-1_unit", client_id="client-id"
         )
 
-        provider.forgot_password(ForgotPasswordCommand(username="owner@example.com"))
+        result = provider.user_exists("owner@example.com")
 
+        self.assertTrue(result)
         self.assertEqual(
-            idp.forgot_password_calls[0],
-            {"ClientId": "client-id", "Username": "owner@example.com"},
+            idp.admin_get_user_calls[0],
+            {"UserPoolId": "sa-east-1_unit", "Username": "owner@example.com"},
         )
 
-    def test_forgot_password_swallows_user_not_found(self) -> None:
-        idp = FakeCognitoClient(forgot_password_response=_client_error("UserNotFoundException"))
+    def test_user_exists_returns_false_for_user_not_found(self) -> None:
+        idp = FakeCognitoClient(admin_get_user_response=_client_error("UserNotFoundException"))
         provider = CognitoAuthProvider(
             idp=idp, user_pool_id="sa-east-1_unit", client_id="client-id"
         )
 
-        # Must not raise — never reveal whether the account exists.
-        provider.forgot_password(ForgotPasswordCommand(username="missing@example.com"))
+        self.assertFalse(provider.user_exists("missing@example.com"))
 
-    def test_forgot_password_propagates_other_errors(self) -> None:
-        idp = FakeCognitoClient(forgot_password_response=_client_error("LimitExceededException"))
+    def test_user_exists_propagates_other_errors(self) -> None:
+        idp = FakeCognitoClient(admin_get_user_response=_client_error("LimitExceededException"))
         provider = CognitoAuthProvider(
             idp=idp, user_pool_id="sa-east-1_unit", client_id="client-id"
         )
 
         with self.assertRaises(ExternalServiceError):
-            provider.forgot_password(ForgotPasswordCommand(username="owner@example.com"))
+            provider.user_exists("owner@example.com")
 
-    def test_confirm_forgot_password_calls_cognito_with_code_and_password(self) -> None:
+    def test_set_permanent_password_calls_admin_set_user_password(self) -> None:
         idp = FakeCognitoClient()
         provider = CognitoAuthProvider(
             idp=idp, user_pool_id="sa-east-1_unit", client_id="client-id"
         )
 
-        provider.confirm_forgot_password(
-            ConfirmForgotPasswordCommand(
-                username="owner@example.com",
-                confirmation_code="123456",
-                new_password="NewPermanentPass123!",
-            )
+        provider.set_permanent_password(
+            username="owner@example.com",
+            password="NewPermanentPass123!",
         )
 
         self.assertEqual(
-            idp.confirm_forgot_password_calls[0],
+            idp.admin_set_user_password_calls[0],
             {
-                "ClientId": "client-id",
+                "UserPoolId": "sa-east-1_unit",
                 "Username": "owner@example.com",
-                "ConfirmationCode": "123456",
                 "Password": "NewPermanentPass123!",
+                "Permanent": True,
             },
         )
 
-    def test_confirm_forgot_password_maps_invalid_code(self) -> None:
-        for code in ("CodeMismatchException", "ExpiredCodeException", "InvalidPasswordException"):
+    def test_set_permanent_password_maps_invalid_password(self) -> None:
+        for code in ("InvalidParameterException", "InvalidPasswordException"):
             with self.subTest(code=code):
-                idp = FakeCognitoClient(confirm_forgot_password_response=_client_error(code))
+                idp = FakeCognitoClient(admin_set_user_password_response=_client_error(code))
                 provider = CognitoAuthProvider(
                     idp=idp, user_pool_id="sa-east-1_unit", client_id="client-id"
                 )
 
                 with self.assertRaises(InvalidChallengeResponseError):
-                    provider.confirm_forgot_password(
-                        ConfirmForgotPasswordCommand(
-                            username="owner@example.com",
-                            confirmation_code="000000",
-                            new_password="NewPermanentPass123!",
-                        )
+                    provider.set_permanent_password(
+                        username="owner@example.com",
+                        password="short",
                     )
 
     def test_maps_unexpected_cognito_error_as_external_service_error(self) -> None:

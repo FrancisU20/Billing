@@ -12,7 +12,9 @@ export interface LegalContent {
   sections: LegalSection[]
 }
 
-const CONTACT_EMAIL = 'support@codelabsecuador.com'
+const CONTACT_EMAIL = 'contact@codelabsecuador.com'
+const SUPPORT_EMAIL = 'support@codelabsecuador.com'
+const BILLING_EMAIL = 'billing@codelabsecuador.com'
 const LAST_UPDATED = '17 de junio de 2026'
 
 export const termsContent: LegalContent = {
@@ -249,7 +251,7 @@ export const privacyContent: LegalContent = {
           type: 'p',
           text:
             `CodeLabs Ecuador es responsable del tratamiento de los datos personales recopilados a ` +
-            `través de Wali. Puedes contactarnos en ${CONTACT_EMAIL} para cualquier ` +
+            `través de Wali. Puedes contactarnos en ${SUPPORT_EMAIL} para cualquier ` +
             'consulta relacionada con esta política.',
         },
       ],
@@ -379,7 +381,7 @@ export const privacyContent: LegalContent = {
             'Conforme a la Ley Orgánica de Protección de Datos Personales del Ecuador, puedes ' +
             'solicitar acceso, rectificación, actualización o eliminación de tus datos personales, ' +
             'así como oponerte a determinados tratamientos. Para ejercer estos derechos, ' +
-            `escríbenos a ${CONTACT_EMAIL}.`,
+            `escríbenos a ${SUPPORT_EMAIL}.`,
         },
       ],
     },
@@ -412,7 +414,7 @@ export const privacyContent: LegalContent = {
       blocks: [
         {
           type: 'p',
-          text: `Para cualquier consulta sobre privacidad, escríbenos a ${CONTACT_EMAIL}.`,
+          text: `Para cualquier consulta sobre privacidad, escríbenos a ${SUPPORT_EMAIL}.`,
         },
       ],
     },
@@ -508,7 +510,7 @@ export const refundContent: LegalContent = {
         {
           type: 'p',
           text:
-            `Escríbenos a ${CONTACT_EMAIL} indicando el correo de tu cuenta y el motivo de tu ` +
+            `Escríbenos a ${BILLING_EMAIL} indicando el correo de tu cuenta y el motivo de tu ` +
             'solicitud. Revisaremos el caso con la información del pago y el uso registrado en la ' +
             'cuenta.',
         },
@@ -519,7 +521,7 @@ export const refundContent: LegalContent = {
       blocks: [
         {
           type: 'p',
-          text: `Para cualquier consulta sobre pagos, cancelaciones o reembolsos, escríbenos a ${CONTACT_EMAIL}.`,
+          text: `Para cualquier consulta sobre pagos, cancelaciones o reembolsos, escríbenos a ${BILLING_EMAIL}.`,
         },
       ],
     },

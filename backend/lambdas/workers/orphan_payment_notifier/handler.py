@@ -25,6 +25,7 @@ _log = get_logger(__name__)
 
 _PAYMENTS_TABLE = get_table("PAYMENTS_TABLE")
 _SUPERADMIN_EMAIL = env("SUPERADMIN_EMAIL")
+_BILLING_EMAIL = env("BILLING_EMAIL", "billing@codelabsecuador.com")
 _GRACE_MINUTES = int(env("ORPHAN_PAYMENT_GRACE_MINUTES", "30"))
 
 
@@ -83,7 +84,7 @@ def handler(event: dict, context) -> dict:
         result = NotifyOrphanPaymentsUseCase(
             _DynamoOrphanPaymentQuery(_PAYMENTS_TABLE),
             BrevoEmailSender(),
-            superadmin_email=_SUPERADMIN_EMAIL,
+            superadmin_email=_BILLING_EMAIL or _SUPERADMIN_EMAIL,
             now=cutoff,
         ).execute()
 

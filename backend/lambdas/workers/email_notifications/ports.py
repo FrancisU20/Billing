@@ -39,6 +39,10 @@ class EmailSender(ABC):
         """Send the welcome email to the newly created owner."""
 
     @abstractmethod
+    def send_password_reset(self, *, email: str, code: str, expires_at: str) -> None:
+        """Send the password reset confirmation code."""
+
+    @abstractmethod
     def send_enterprise_lead_notification(
         self,
         *,

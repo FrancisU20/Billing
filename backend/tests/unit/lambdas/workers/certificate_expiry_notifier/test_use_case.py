@@ -21,6 +21,9 @@ class FakeEmailSender(EmailSender):
     def send_welcome(self, *, email, legal_rep_name, temp_password):
         raise NotImplementedError
 
+    def send_password_reset(self, *, email, code, expires_at):
+        raise NotImplementedError
+
     def send_enterprise_lead_notification(
         self, *, superadmin_email, trade_name, ruc, email, plan_id, plan_name=""
     ):
