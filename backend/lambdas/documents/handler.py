@@ -9,6 +9,7 @@ Routes:
     GET  /documents/summary        → get_documents_summary
     GET  /documents/{id}           → get_document
     GET  /documents/{id}/ride      → get_ride_url (pre-signed S3 URL)
+    GET  /documents/{id}/xml       → get_xml_url (pre-signed S3 URL)
     POST /documents/{id}/annul     → annul_document (local mark only, no SRI webservice)
 
 Auth:
@@ -32,6 +33,7 @@ from lambdas.documents.domain.commands import (
     EmitDocumentCommand,
     GetDocumentCommand,
     GetRideUrlCommand,
+    GetXmlUrlCommand,
     LineData,
     ListDocumentsCommand,
 )
@@ -52,6 +54,7 @@ from lambdas.documents.use_cases.emit_document import EmitDocumentUseCase
 from lambdas.documents.use_cases.get_document import GetDocumentUseCase
 from lambdas.documents.use_cases.get_documents_summary import GetDocumentsSummaryUseCase
 from lambdas.documents.use_cases.get_ride_url import GetRideUrlUseCase
+from lambdas.documents.use_cases.get_xml_url import GetXmlUrlUseCase
 from lambdas.documents.use_cases.list_documents import ListDocumentsUseCase
 from lambdas.tenants.domain.enums import SriEnvironment
 from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
@@ -300,6 +303,22 @@ def _get_ride(request: Request, context) -> dict:
 
 
 @lambda_handler
+@require_role("owner", "admin", "viewer", "superadmin")
+def _get_xml(request: Request, context) -> dict:
+    tenant_id = _resolve_tenant_id(request)
+    document_id = require_path_param(request, "id")
+
+    url = GetXmlUrlUseCase(_repo()).execute(
+        GetXmlUrlCommand(
+            tenant_id=tenant_id,
+            document_id=document_id,
+            documents_bucket=_documents_bucket,
+        )
+    )
+    return ApiResponse.ok({"url": url}, request.request_id)
+
+
+@lambda_handler
 @require_role("owner", "admin", "superadmin")
 @idempotent
 def _annul(request: Request, context) -> dict:
@@ -338,6 +357,7 @@ _DOCUMENTS_PATTERN = re.compile(r"^/documents$")
 _DOCUMENTS_SUMMARY_PATTERN = re.compile(r"^/documents/summary$")
 _DOCUMENT_PATTERN = re.compile(r"^/documents/[^/]+$")
 _RIDE_PATTERN = re.compile(r"^/documents/[^/]+/ride$")
+_XML_PATTERN = re.compile(r"^/documents/[^/]+/xml$")
 _ANNUL_PATTERN = re.compile(r"^/documents/[^/]+/annul$")
 
 
@@ -361,6 +381,10 @@ def handler(event: dict, context) -> dict:
     if _RIDE_PATTERN.match(path):
         if method == "GET":
             return _get_ride(event, context)
+
+    if _XML_PATTERN.match(path):
+        if method == "GET":
+            return _get_xml(event, context)
 
     if _ANNUL_PATTERN.match(path):
         if method == "POST":

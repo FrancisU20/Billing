@@ -65,6 +65,12 @@ export function DocumentsListScreen() {
       await Linking.openURL(url)
     },
   )
+  const { error: downloadXmlError, submit: downloadXml } = useFormSubmit(
+    async (documentId: string) => {
+      const { url } = await documentsApi.getXmlUrl(documentId)
+      await Linking.openURL(url)
+    },
+  )
 
   if (loading && documents.length === 0) {
     return <LoadingSpinner fullScreen label="Cargando documentos..." />
@@ -103,6 +109,7 @@ export function DocumentsListScreen() {
             document={item}
             onView={() => router.push(Routes.tenant.documentDetail(item.document_id) as Href)}
             onDownloadRide={() => downloadRide(item.document_id)}
+            onDownloadXml={() => downloadXml(item.document_id)}
           />
         )}
         contentContainerStyle={styles.list}
@@ -128,6 +135,7 @@ export function DocumentsListScreen() {
 
             {error ? <ApiErrorBanner error={error} /> : null}
             {downloadError ? <ApiErrorBanner error={downloadError} /> : null}
+            {downloadXmlError ? <ApiErrorBanner error={downloadXmlError} /> : null}
 
             <ListPaginationControls {...paginationProps} />
           </View>

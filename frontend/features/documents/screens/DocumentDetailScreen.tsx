@@ -19,7 +19,9 @@ import { canWrite } from '@/constants/roles'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { documentsApi } from '../api'
+import { DocumentLineSummaryRow } from '../components/DocumentLineSummaryRow'
 import { DocumentStatusBadge } from '../components/DocumentStatusBadge'
+import { TotalsSummary } from '../components/TotalsSummary'
 import { BUYER_ID_TYPE_LABELS, CONSUMIDOR_FINAL_ID_TYPE } from '../constants'
 import { useDocument } from '../hooks/useDocument'
 import { isWithinAnnulmentWindow } from '../utils'
@@ -43,6 +45,15 @@ export function DocumentDetailScreen() {
   } = useFormSubmit(async () => {
     if (!id) return
     const { url } = await documentsApi.getRideUrl(id)
+    await Linking.openURL(url)
+  })
+  const {
+    submitting: downloadingXml,
+    error: downloadXmlError,
+    submit: downloadXml,
+  } = useFormSubmit(async () => {
+    if (!id) return
+    const { url } = await documentsApi.getXmlUrl(id)
     await Linking.openURL(url)
   })
 
@@ -107,14 +118,24 @@ export function DocumentDetailScreen() {
                 </View>
               </View>
               <View style={styles.profileActions}>
-                {document.status === 'AUTHORIZED' ? (
+                {document.ride_s3_key ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      isLoading={downloading}
+                      onPress={() => downloadRide()}
+                    >
+                      Descargar RIDE
+                    </Button>
+                ) : null}
+                {document.xml_s3_key ? (
                   <Button
                     variant="outline"
                     size="sm"
-                    isLoading={downloading}
-                    onPress={() => downloadRide()}
+                    isLoading={downloadingXml}
+                    onPress={() => downloadXml()}
                   >
-                    Descargar RIDE
+                    Descargar XML
                   </Button>
                 ) : null}
                 {canAnnul ? (
@@ -126,6 +147,7 @@ export function DocumentDetailScreen() {
             </View>
 
             {downloadError ? <ApiErrorBanner error={downloadError} /> : null}
+            {downloadXmlError ? <ApiErrorBanner error={downloadXmlError} /> : null}
 
             {document.status === 'ANNULLED' ? (
               <View
@@ -202,23 +224,21 @@ export function DocumentDetailScreen() {
               <DetailField label="Email" value={document.buyer_email ?? 'Sin email'} />
             </DetailSection>
 
-            <DetailSection title="Líneas de detalle" icon="list-outline">
-              {document.lines.map((line, index) => (
-                <DetailField
-                  key={`${line.code}-${index}`}
-                  label={`${line.code} · ${line.description}`}
-                  value={`${line.quantity} × $${line.unit_price} = $${line.total} (IVA ${line.iva_rate === 'EXENTO' ? 'Exento' : `${line.iva_rate}%`})`}
-                />
-              ))}
+            <DetailSection title="Productos" icon="list-outline" layout="stack">
+              <View style={styles.linesList}>
+                {document.lines.map((line, index) => (
+                  <DocumentLineSummaryRow key={`${line.code}-${index}`} line={line} />
+                ))}
+              </View>
             </DetailSection>
 
-            <DetailSection title="Totales" icon="cash-outline">
-              <DetailField label="Subtotal" value={`$${document.subtotal}`} />
-              <DetailField label="Descuento" value={`$${document.total_discount}`} />
-              <DetailField label="IVA 15%" value={`$${document.iva_15}`} />
-              <DetailField label="IVA 5%" value={`$${document.iva_5}`} />
-              <DetailField label="Total" value={`$${document.total}`} />
-            </DetailSection>
+            <TotalsSummary
+              subtotal={Number(document.subtotal)}
+              totalDiscount={Number(document.total_discount)}
+              iva15={Number(document.iva_15)}
+              iva5={Number(document.iva_5)}
+              total={Number(document.total)}
+            />
           </>
         ) : null}
       </ScrollView>
@@ -270,6 +290,7 @@ const styles = StyleSheet.create({
     padding: spacing[5],
   },
   profileCopy: { flex: 1, gap: spacing[1], minWidth: 220 },
+  linesList: { gap: spacing[2] },
   profileActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   sequential: {
     fontFamily: typography.fontFamily.mono,

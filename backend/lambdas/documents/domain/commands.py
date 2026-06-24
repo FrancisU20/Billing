@@ -64,6 +64,13 @@ class GetRideUrlCommand:
 
 
 @dataclass
+class GetXmlUrlCommand:
+    tenant_id: str
+    document_id: str
+    documents_bucket: str
+
+
+@dataclass
 class AnnulDocumentCommand:
     tenant_id: str
     document_id: str

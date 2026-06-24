@@ -28,6 +28,7 @@ import { documentsApi } from '../api'
 import { BuyerSection } from '../components/BuyerSection'
 import { DocumentLineEditModal } from '../components/DocumentLineEditModal'
 import { DocumentLineRow } from '../components/DocumentLineRow'
+import { TotalsSummary } from '../components/TotalsSummary'
 import { PAYMENT_METHOD_OPTIONS } from '../constants'
 import {
   computeLineTotals,
@@ -395,21 +396,14 @@ export function EmitDocumentScreen() {
           </Button>
         </FormSection>
 
-        <View
-          style={[
-            styles.totalsCard,
-            { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-          ]}
-        >
-          <TotalRow label="Subtotal" value={totals.subtotal} />
-          <TotalRow label="Descuento" value={totals.totalDiscount} />
-          {discountPreview.suggestedDiscount > 0 ? (
-            <TotalRow label="Descuento sugerido" value={discountPreview.suggestedDiscount} muted />
-          ) : null}
-          <TotalRow label="IVA 15%" value={totals.iva15} />
-          <TotalRow label="IVA 5%" value={totals.iva5} />
-          <TotalRow label="Total" value={totals.total} emphasis />
-        </View>
+        <TotalsSummary
+          subtotal={totals.subtotal}
+          totalDiscount={totals.totalDiscount}
+          suggestedDiscount={discountPreview.suggestedDiscount}
+          iva15={totals.iva15}
+          iva5={totals.iva5}
+          total={totals.total}
+        />
 
         {error ? <ApiErrorBanner error={error} /> : null}
 
@@ -613,48 +607,6 @@ function Pill({
   )
 }
 
-function TotalRow({
-  label,
-  value,
-  emphasis = false,
-  muted = false,
-}: {
-  label: string
-  value: number
-  emphasis?: boolean
-  muted?: boolean
-}) {
-  const { semantic } = useTheme()
-  return (
-    <View style={styles.totalRow}>
-      <Text
-        style={[
-          styles.totalLabel,
-          emphasis && styles.totalLabelEmphasis,
-          {
-            color: emphasis
-              ? semantic.text.primary
-              : muted
-                ? semantic.text.tertiary
-                : semantic.text.secondary,
-          },
-        ]}
-      >
-        {label}
-      </Text>
-      <Text
-        style={[
-          styles.totalValue,
-          emphasis && styles.totalValueEmphasis,
-          { color: semantic.text.primary },
-        ]}
-      >
-        ${value.toFixed(2)}
-      </Text>
-    </View>
-  )
-}
-
 function computeDiscountPreview(
   lines: EmitDocumentFormValues['lines'],
   productDiscountByLine: Record<number, string | null>,
@@ -745,7 +697,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[3],
   },
   pillText: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
-  totalsCard: { borderRadius: radius.md, borderWidth: 1, gap: spacing[2], padding: spacing[4] },
   lockedDate: {
     alignItems: 'center',
     borderRadius: radius.md,
@@ -767,9 +718,4 @@ const styles = StyleSheet.create({
   lockedDateValue: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   lockedDateMeta: { fontFamily: typography.fontFamily.mono, fontSize: typography.size.xs },
   fieldError: { fontSize: typography.size.xs },
-  totalRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  totalLabel: { fontSize: typography.size.sm },
-  totalLabelEmphasis: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
-  totalValue: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
-  totalValueEmphasis: { fontSize: typography.size.lg, fontWeight: typography.weight.bold },
 })

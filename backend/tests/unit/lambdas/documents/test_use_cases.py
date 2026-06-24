@@ -10,6 +10,7 @@ from lambdas.documents.domain.commands import (
     AnnulDocumentCommand,
     EmitDocumentCommand,
     GetDocumentCommand,
+    GetXmlUrlCommand,
     LineData,
     ListDocumentsCommand,
 )
@@ -23,6 +24,7 @@ from lambdas.documents.domain.errors import (
     DocumentNotFoundError,
     InvalidIssuedDateError,
     RideNotAvailableError,
+    XmlNotAvailableError,
 )
 from lambdas.documents.domain.repositories.i_discount_campaign_port import (
     DiscountCampaignSnapshot,
@@ -33,6 +35,7 @@ from lambdas.documents.use_cases.emit_document import EmitDocumentUseCase
 from lambdas.documents.use_cases.get_document import GetDocumentUseCase
 from lambdas.documents.use_cases.get_documents_summary import GetDocumentsSummaryUseCase
 from lambdas.documents.use_cases.get_ride_url import GetRideUrlUseCase
+from lambdas.documents.use_cases.get_xml_url import GetXmlUrlUseCase
 from lambdas.documents.use_cases.list_documents import ListDocumentsUseCase
 from shared.errors import ValidationError
 from tests.unit.support import configure_unit_environment
@@ -664,6 +667,35 @@ class GetRideUrlUseCaseTests(unittest.TestCase):
 
         with self.assertRaises(RideNotAvailableError):
             GetRideUrlUseCase(repo).execute(GetRideUrlCommand("t-1", "doc-1", "my-bucket"))
+
+
+# ── GetXmlUrlUseCase ──────────────────────────────────────────────────────────
+
+
+class GetXmlUrlUseCaseTests(unittest.TestCase):
+    def test_returns_presigned_url(self) -> None:
+        repo = FakeDocumentsRepository()
+        doc = _make_document(
+            status=DocumentStatus.AUTHORIZED,
+            xml_s3_key="tenants/t-1/docs/2026/doc-1.xml",
+        )
+        repo.seed(doc)
+
+        with patch("lambdas.documents.use_cases.get_xml_url.boto3") as mock_boto3:
+            mock_boto3.client.return_value.generate_presigned_url.return_value = (
+                "https://s3.example.com/signed-xml"
+            )
+            url = GetXmlUrlUseCase(repo).execute(GetXmlUrlCommand("t-1", "doc-1", "my-bucket"))
+
+        self.assertEqual(url, "https://s3.example.com/signed-xml")
+
+    def test_raises_if_xml_not_available(self) -> None:
+        repo = FakeDocumentsRepository()
+        doc = _make_document(status=DocumentStatus.PENDING, xml_s3_key=None)
+        repo.seed(doc)
+
+        with self.assertRaises(XmlNotAvailableError):
+            GetXmlUrlUseCase(repo).execute(GetXmlUrlCommand("t-1", "doc-1", "my-bucket"))
 
 
 # ── AnnulDocumentUseCase ──────────────────────────────────────────────────────

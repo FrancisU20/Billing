@@ -419,3 +419,48 @@ class GetRideUrlHandlerTests(unittest.TestCase):
         with patch.object(self.mod, "_repo", return_value=repo):
             resp = self.mod.handler(event, _CTX)
         self.assertEqual(resp["statusCode"], 422)
+
+
+# ── GET /documents/{id}/xml ───────────────────────────────────────────────────
+
+
+class GetXmlUrlHandlerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.mod = _load_handler()
+
+    def test_returns_presigned_url(self) -> None:
+        repo = FakeDocumentsRepository()
+        doc = _make_saved_document()
+        doc.status = DocumentStatus.AUTHORIZED
+        doc.xml_s3_key = "tenants/t-1/docs/2026/doc-1.xml"
+        repo.seed(doc)
+        event = api_event(
+            method="GET",
+            path="/documents/doc-1/xml",
+            claims=_owner_claims("t-1"),
+            path_params={"id": "doc-1"},
+        )
+        with (
+            patch.object(self.mod, "_repo", return_value=repo),
+            patch("lambdas.documents.use_cases.get_xml_url.boto3") as mock_boto3,
+        ):
+            mock_boto3.client.return_value.generate_presigned_url.return_value = (
+                "https://presigned-xml"
+            )
+            resp = self.mod.handler(event, _CTX)
+        self.assertEqual(resp["statusCode"], 200)
+        body = decode_response(resp)
+        self.assertEqual(body["data"]["url"], "https://presigned-xml")
+
+    def test_returns_422_if_xml_not_available(self) -> None:
+        repo = FakeDocumentsRepository()
+        repo.seed(_make_saved_document())
+        event = api_event(
+            method="GET",
+            path="/documents/doc-1/xml",
+            claims=_owner_claims("t-1"),
+            path_params={"id": "doc-1"},
+        )
+        with patch.object(self.mod, "_repo", return_value=repo):
+            resp = self.mod.handler(event, _CTX)
+        self.assertEqual(resp["statusCode"], 422)

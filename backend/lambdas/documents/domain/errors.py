@@ -34,6 +34,11 @@ class RideNotAvailableError(BusinessError):
     default_message = "El RIDE solo está disponible para documentos autorizados."
 
 
+class XmlNotAvailableError(BusinessError):
+    code = "XML_NOT_AVAILABLE"
+    default_message = "El XML solo está disponible para documentos autorizados."
+
+
 class DocumentNotAuthorizedError(BusinessError):
     code = "DOCUMENT_NOT_AUTHORIZED"
     default_message = "Solo se pueden anular documentos autorizados."

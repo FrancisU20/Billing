@@ -37,7 +37,7 @@ monto sugerido y total sugerido. Esto es solo preview de UX; `documents` recalcu
 `Decimal` y valida el techo real en backend antes de persistir.
 
 **Alcance MVP (Sprint 1-6):** Factura electronica (tipo 01), emision individual,
-multiples establecimientos desde el primer dia, RIDE descargable y entrega automatica
+multiples establecimientos desde el primer dia, XML/RIDE descargables y entrega automatica
 al comprador con XML autorizado + RIDE adjuntos cuando existe `buyer_email`.
 
 Dashboard/operabilidad: `GET /documents/summary` devuelve el resumen del mes civil Ecuador
@@ -102,7 +102,7 @@ motivo via `FormField`.
 | Lambda | Tipo | Responsabilidad |
 | --- | --- | --- |
 | `sequences` | HTTP | CRUD establecimientos + puntos de emision. NO expone contadores internos. |
-| `documents` | HTTP | Emision individual: valida, reserva secuencial, computa access\_key, encola. |
+| `documents` | HTTP | Emision individual: valida, reserva secuencial, computa access\_key, encola; expone descarga XML/RIDE y marcado local de anulacion. |
 | `invoice_processor` | SQS worker | Firma XAdES-BES, envio SRI SOAP, polling de autorizacion, genera RIDE, guarda en S3. |
 
 `batch_jobs` es un Lambda futuro (no MVP). La tabla `batch_jobs` se crea en el Sprint 1

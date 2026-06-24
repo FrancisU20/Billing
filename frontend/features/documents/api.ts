@@ -41,6 +41,8 @@ export const documentsApi = {
 
   getRideUrl: (id: string) => api.get(`/documents/${encodeURIComponent(id)}/ride`, rideUrlSchema),
 
+  getXmlUrl: (id: string) => api.get(`/documents/${encodeURIComponent(id)}/xml`, rideUrlSchema),
+
   annul: (id: string, reason: string, idempotencyKey: string) =>
     api.post(`/documents/${encodeURIComponent(id)}/annul`, { reason }, documentSchema, {
       idempotencyKey,

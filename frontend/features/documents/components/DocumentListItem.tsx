@@ -13,23 +13,40 @@ interface DocumentListItemProps {
   document: Document
   onView: () => void
   onDownloadRide: () => void
+  onDownloadXml: () => void
 }
 
-export function DocumentListItem({ document, onView, onDownloadRide }: DocumentListItemProps) {
+export function DocumentListItem({
+  document,
+  onView,
+  onDownloadRide,
+  onDownloadXml,
+}: DocumentListItemProps) {
   const { semantic } = useTheme()
   const isDesktop = useIsDesktopLayout()
 
-  const rowActions: RowAction[] =
-    document.status === 'AUTHORIZED'
+  const rowActions: RowAction[] = [
+    ...(document.ride_s3_key
       ? [
           {
             key: 'download-ride',
-            icon: 'download-outline',
+            icon: 'download-outline' as const,
             label: 'Descargar RIDE',
             onPress: onDownloadRide,
           },
         ]
-      : []
+      : []),
+    ...(document.xml_s3_key
+      ? [
+          {
+            key: 'download-xml',
+            icon: 'code-download-outline' as const,
+            label: 'Descargar XML',
+            onPress: onDownloadXml,
+          },
+        ]
+      : []),
+  ]
 
   return (
     <View
