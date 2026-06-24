@@ -67,5 +67,7 @@ export function PercentField(props: SpecializedFieldProps) {
 }
 
 export function PhoneField(props: SpecializedFieldProps) {
-  return <FormField {...props} keyboardType="phone-pad" leftIcon="call-outline" />
+  // 10 digitos cubre el formato mas largo valido en Ecuador (celular 09 + 8 digitos);
+  // convencional son 9. Ver lib/utils/form-validators.ts::isPhoneInput para la regla completa.
+  return <FormField {...props} keyboardType="phone-pad" leftIcon="call-outline" maxLength={10} />
 }
