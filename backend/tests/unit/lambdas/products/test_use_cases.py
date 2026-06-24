@@ -61,25 +61,43 @@ def _create_cmd(**overrides):
 
 class ProductUseCaseTests(unittest.TestCase):
     def test_create_normalizes_sku_and_decimal_price(self) -> None:
+        # `sku` is the tenant's own free-form code: only trimmed, never forced
+        # to uppercase. `sku_normalized` (used for the uniqueness lock) and
+        # `invoice_code` (used as codigoPrincipal in the XML) are derived
+        # uppercase from it.
         repo = FakeProductRepository()
         product = CreateProductUseCase(repo).execute(_create_cmd(sku=" serv-001 "))
 
-        self.assertEqual(product.sku, "SERV-001")
+        self.assertEqual(product.sku, "serv-001")
+        self.assertEqual(product.sku_normalized, "SERV-001")
+        self.assertEqual(product.invoice_code, "SERV-001")
         self.assertEqual(product.unit_price, Decimal("25.50"))
         self.assertEqual(product.kind.value, "SERVICE")
         self.assertEqual(repo.commit_calls, [])
 
-    def test_create_accepts_uuid_sku(self) -> None:
+    def test_create_with_long_sku_derives_a_short_invoice_code(self) -> None:
+        # `sku` has no SRI-related limit anymore (the tenant's own catalog
+        # code, e.g. a long descriptive reference). `invoice_code` is what
+        # actually goes into codigoPrincipal (SRI caps it at 25 chars), so it
+        # falls back to a generated short code when the sku doesn't fit.
+        long_sku = "Repuesto Motor Diesel 2024 - Ref. ABC"
         repo = FakeProductRepository()
-        product = CreateProductUseCase(repo).execute(
-            _create_cmd(sku="550e8400-e29b-41d4-a716-446655440000")
-        )
+        product = CreateProductUseCase(repo).execute(_create_cmd(sku=long_sku))
 
-        self.assertEqual(product.sku, "550E8400-E29B-41D4-A716-446655440000")
+        self.assertEqual(product.sku, long_sku)
+        self.assertLessEqual(len(product.invoice_code), 25)
+        self.assertNotEqual(product.invoice_code, long_sku.upper())
 
-    def test_create_rejects_invalid_sku(self) -> None:
+    def test_create_accepts_a_sku_in_the_shape_the_frontend_generator_produces(self) -> None:
+        repo = FakeProductRepository()
+        product = CreateProductUseCase(repo).execute(_create_cmd(sku="550e8400e29b41d4a716"))
+
+        self.assertEqual(product.sku, "550e8400e29b41d4a716")
+        self.assertEqual(product.invoice_code, "550E8400E29B41D4A716")
+
+    def test_create_rejects_sku_over_max_length(self) -> None:
         with self.assertRaises(ValidationError):
-            CreateProductUseCase(FakeProductRepository()).execute(_create_cmd(sku="*bad*"))
+            CreateProductUseCase(FakeProductRepository()).execute(_create_cmd(sku="A" * 51))
 
     def test_update_changes_sku_price_and_stock(self) -> None:
         repo = FakeProductRepository()
@@ -98,9 +116,27 @@ class ProductUseCaseTests(unittest.TestCase):
             )
         )
 
-        self.assertEqual(updated.sku, "PROD-002")
+        self.assertEqual(updated.sku, "prod-002")
+        self.assertEqual(updated.sku_normalized, "PROD-002")
+        self.assertEqual(updated.invoice_code, "PROD-002")
         self.assertEqual(updated.kind.value, "PRODUCT")
         self.assertEqual(updated.stock_quantity, Decimal("5.00"))
+
+    def test_update_keeps_invoice_code_stable_when_new_sku_does_not_fit(self) -> None:
+        repo = FakeProductRepository()
+        product = CreateProductUseCase(repo).execute(_create_cmd(sku="prod-002"))
+        repo.products[product.id] = product
+        original_invoice_code = product.invoice_code
+
+        updated = UpdateProductUseCase(repo).execute(
+            UpdateProductCommand(
+                product_id=product.id,
+                updated_by="user-2",
+                sku="Repuesto Motor Diesel 2024 - Ref. ABC",
+            )
+        )
+
+        self.assertEqual(updated.invoice_code, original_invoice_code)
 
     def test_create_accepts_discount_percentage(self) -> None:
         repo = FakeProductRepository()

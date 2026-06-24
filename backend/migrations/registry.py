@@ -8,6 +8,7 @@ from migrations.versions import (
     v0002_backfill_plan_cycle_ends_at,
     v0003_backfill_onboarding_fields,
     v0004_update_plan_catalog,
+    v0005_backfill_product_invoice_code,
 )
 
 MIGRATIONS: tuple[Migration, ...] = (
@@ -30,5 +31,10 @@ MIGRATIONS: tuple[Migration, ...] = (
         id=v0004_update_plan_catalog.MIGRATION_ID,
         description=v0004_update_plan_catalog.DESCRIPTION,
         run=v0004_update_plan_catalog.run,
+    ),
+    Migration(
+        id=v0005_backfill_product_invoice_code.MIGRATION_ID,
+        description=v0005_backfill_product_invoice_code.DESCRIPTION,
+        run=v0005_backfill_product_invoice_code.run,
     ),
 )

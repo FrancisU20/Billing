@@ -2,8 +2,8 @@ function randomByte(): number {
   return Math.floor(Math.random() * 256)
 }
 
-function getRandomBytes(): Uint8Array {
-  const bytes = new Uint8Array(16)
+function getRandomBytes(length: number): Uint8Array {
+  const bytes = new Uint8Array(length)
   const cryptoSource = globalThis.crypto
   if (cryptoSource?.getRandomValues) {
     cryptoSource.getRandomValues(bytes)
@@ -15,25 +15,15 @@ function getRandomBytes(): Uint8Array {
   return bytes
 }
 
+// 10 random bytes -> 20 hex chars: well under the SRI codigoPrincipal/codigoAuxiliar
+// limit of 25 chars (the document line code is filled straight from a product's
+// sku), with enough entropy that collisions within a tenant's catalog are not a
+// practical concern.
 export function generateProductSku(): string {
-  if (globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID().toUpperCase()
-  }
-
-  const bytes = getRandomBytes()
-  bytes[6] = (bytes[6] & 0x0f) | 0x40
-  bytes[8] = (bytes[8] & 0x3f) | 0x80
-
-  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0'))
-  return [
-    hex.slice(0, 4).join(''),
-    hex.slice(4, 6).join(''),
-    hex.slice(6, 8).join(''),
-    hex.slice(8, 10).join(''),
-    hex.slice(10, 16).join(''),
-  ]
-    .join('-')
+  const bytes = getRandomBytes(10)
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
     .toUpperCase()
 }
 
-export const SKU_PLACEHOLDER = 'UUID del producto'
+export const SKU_PLACEHOLDER = 'Código del producto'

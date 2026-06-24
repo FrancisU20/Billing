@@ -12,7 +12,7 @@ from lambdas._base.idempotency import (
     completion_transact_item,
     mark_completed,
 )
-from lambdas.products.domain.entity import Product
+from lambdas.products.domain.entity import Product, _derive_invoice_code
 from lambdas.products.domain.enums import ProductKind, ProductStatus
 from lambdas.products.domain.errors import ProductDuplicateSkuError, ProductNotFoundError
 from lambdas.products.domain.repositories.i_product_repository import IProductRepository
@@ -277,6 +277,7 @@ class DynamoProductRepository(BaseRepository, IProductRepository):
             "tenant_id": product.tenant_id,
             "sku": product.sku,
             "sku_normalized": product.sku_normalized,
+            "invoice_code": product.invoice_code,
             "name": product.name,
             "description": product.description,
             "kind": product.kind.value,
@@ -316,6 +317,11 @@ class DynamoProductRepository(BaseRepository, IProductRepository):
             tenant_id=item["tenant_id"],
             sku=item["sku"],
             sku_normalized=item.get("sku_normalized", item["sku"]),
+            # Backfilled by migration v0005 for products created before invoice_code
+            # existed; derive on the fly here too so reads never see an empty code
+            # even if a particular item hasn't been migrated yet.
+            invoice_code=item.get("invoice_code")
+            or _derive_invoice_code(item["sku"], current=None),
             name=item["name"],
             description=item.get("description", ""),
             kind=ProductKind(item.get("kind", "PRODUCT")),

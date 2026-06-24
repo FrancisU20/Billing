@@ -12,6 +12,7 @@ const product = {
   id: 'product-1',
   tenant_id: 'tenant-1',
   sku: 'PROD-001',
+  invoice_code: 'PROD-001',
   name: 'Producto Demo',
   description: 'Producto de prueba',
   kind: 'PRODUCT',
@@ -30,7 +31,9 @@ const product = {
   version: '1',
 } as const
 
-const uuidSku = '550E8400-E29B-41D4-A716-446655440000'
+// Matches the shape generateProductSku() produces (20 hex chars, well under the
+// SRI 25-char limit for the document line code filled from a product's sku).
+const generatedSku = '550E8400E29B41D4A716'
 
 describe('product contract schemas', () => {
   it('accepts the backend product shape with a discount', () => {
@@ -72,9 +75,9 @@ describe('product contract schemas', () => {
     ).toThrow()
   })
 
-  it('accepts a UUID as SKU', () => {
+  it('accepts an auto-generated SKU', () => {
     const values = productFormSchema.parse({
-      sku: uuidSku,
+      sku: generatedSku,
       name: 'Producto Demo',
       description: '',
       kind: 'PRODUCT',
@@ -88,7 +91,49 @@ describe('product contract schemas', () => {
       status: 'ACTIVE',
     })
 
-    expect(createProductSchema.parse(formValuesToCreateProductInput(values)).sku).toBe(uuidSku)
+    expect(createProductSchema.parse(formValuesToCreateProductInput(values)).sku).toBe(generatedSku)
+  })
+
+  it('accepts a sku longer than the SRI 25-char invoice code limit', () => {
+    // sku is the tenant's own free-form catalog code (here 30 chars) — the
+    // backend derives a separate, SRI-compliant invoice_code from it, so the
+    // form itself only needs to enforce its own (much larger) max length.
+    const longSku = 'Repuesto Motor Diesel 2024 Ref'
+    const values = productFormSchema.parse({
+      sku: longSku,
+      name: 'Producto Demo',
+      description: '',
+      kind: 'PRODUCT',
+      unit: 'unit',
+      unit_price: '25.50',
+      iva_rate: '15',
+      discount_percentage: '',
+      stock_enabled: false,
+      stock_quantity: '',
+      low_stock_threshold: '',
+      status: 'ACTIVE',
+    })
+
+    expect(values.sku).toBe(longSku)
+  })
+
+  it('rejects a sku over the 50-char form limit', () => {
+    expect(() =>
+      productFormSchema.parse({
+        sku: 'A'.repeat(51),
+        name: 'Producto Demo',
+        description: '',
+        kind: 'PRODUCT',
+        unit: 'unit',
+        unit_price: '25.50',
+        iva_rate: '15',
+        discount_percentage: '',
+        stock_enabled: false,
+        stock_quantity: '',
+        low_stock_threshold: '',
+        status: 'ACTIVE',
+      }),
+    ).toThrow()
   })
 
   it('builds the API payload with the discount as a string, or null when empty', () => {

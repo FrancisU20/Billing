@@ -310,6 +310,8 @@ class MigrationsHandlerTests(unittest.TestCase):
         configure_unit_environment()
         os.environ["MIGRATIONS_TABLE"] = "unit-migrations"
         os.environ["PLANS_TABLE"] = "unit-plans"
+        os.environ.setdefault("TENANTS_TABLE", "unit-tenants")
+        os.environ["PRODUCTS_TABLE"] = "unit-products"
         sys.modules.pop("lambdas.workers.migrations.handler", None)
         return importlib.import_module("lambdas.workers.migrations.handler")
 

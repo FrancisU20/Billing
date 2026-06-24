@@ -398,11 +398,13 @@ class ApiStack(Stack):
                 "MIGRATIONS_TABLE": database.migrations_table.table_name,
                 "PLANS_TABLE":      database.plans_table.table_name,
                 "TENANTS_TABLE":    database.tenants_table.table_name,
+                "PRODUCTS_TABLE":   database.products_table.table_name,
             },
         )
         database.migrations_table.grant_read_write_data(migrations_fn)
         database.plans_table.grant_read_write_data(migrations_fn)
         database.tenants_table.grant_read_write_data(migrations_fn)
+        database.products_table.grant_read_write_data(migrations_fn)
 
         # ── Certificate Expiry Notifier Worker ────────────────────────────────
         # Corre diario via EventBridge: alerta a los tenants 60 y 30 dias antes

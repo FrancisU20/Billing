@@ -279,8 +279,9 @@ export function ProductForm({ mode, product, onSubmit, isLoading, apiError }: Pr
       />
 
       <Text style={[styles.note, { color: semantic.text.tertiary }]}>
-        El SKU se usará como código principal en la factura. Las facturas emitidas conservan su
-        snapshot aunque luego edites el producto.
+        El SKU es tu propio código — lo usamos solo para identificar el producto en tu catálogo.
+        Para la factura generamos automáticamente el código corto que exige el SRI. Las facturas
+        emitidas conservan su snapshot aunque luego edites el producto.
       </Text>
     </View>
   )

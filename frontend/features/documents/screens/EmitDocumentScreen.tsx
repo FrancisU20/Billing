@@ -162,7 +162,7 @@ export function EmitDocumentScreen() {
     )
     append({
       product_id: product.id,
-      code: product.sku,
+      code: product.invoice_code,
       description: product.description || product.name,
       quantity: '1',
       unit_price: product.unit_price,

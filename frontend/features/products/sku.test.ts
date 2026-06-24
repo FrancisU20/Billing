@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { generateProductSku } from './sku'
 
-const UUID_V4_RE = /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/
+// SRI caps the document line code (codigoPrincipal/codigoAuxiliar) filled from a
+// product's sku at 25 chars, so the generated SKU must always fit under that.
+const SKU_RE = /^[0-9A-F]{20}$/
 
 describe('product SKU generation', () => {
-  it('generates an uppercase UUID v4 SKU', () => {
+  it('generates an uppercase hex SKU that fits the SRI 25-char limit', () => {
     const sku = generateProductSku()
 
-    expect(sku).toMatch(UUID_V4_RE)
-    expect(sku).toHaveLength(36)
+    expect(sku).toMatch(SKU_RE)
+    expect(sku.length).toBeLessThanOrEqual(25)
   })
 
   it('generates different SKUs across calls', () => {

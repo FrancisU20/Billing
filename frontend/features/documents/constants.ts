@@ -3,6 +3,9 @@ import type { BuyerIdType, BuyerMode, DocumentStatus, IvaRate, PaymentMethod } f
 
 export const DOCUMENTS_PAGE_SIZE = 30
 
+// SRI XSD caps codigoPrincipal/codigoAuxiliar at 25 chars (Ficha Tecnica SRI Anexo 1).
+export const LINE_CODE_MAX_LENGTH = 25
+
 export const CONSUMIDOR_FINAL_ID_TYPE: BuyerIdType = '07'
 export const CONSUMIDOR_FINAL_ID = '9999999999999'
 export const CONSUMIDOR_FINAL_NAME = 'CONSUMIDOR FINAL'

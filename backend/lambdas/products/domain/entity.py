@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import secrets
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -10,7 +11,11 @@ from shared.dates import isoformat_ecuador
 from shared.domain.base_entity import TenantScopedEntity
 from shared.errors import ValidationError
 
-_SKU_RE = re.compile(r"^[A-Z0-9][A-Z0-9._\-/]{0,35}$")
+# SRI caps codigoPrincipal/codigoAuxiliar (the document line code) at 25 chars
+# (Ficha Tecnica SRI Anexo 1). `sku` itself is the tenant's own free-form catalog
+# code and is not bound by this — see `invoice_code`/`_derive_invoice_code` below.
+_INVOICE_CODE_CHARS_RE = re.compile(r"[^A-Z0-9._\-/]")
+_INVOICE_CODE_MAX_LENGTH = 25
 _UNIT_RE = re.compile(r"^[a-z][a-z0-9_/-]{0,24}$")
 _VALID_IVA_RATES = {"15", "5", "0", "EXENTO"}
 
@@ -19,6 +24,7 @@ _VALID_IVA_RATES = {"15", "5", "0", "EXENTO"}
 class Product(TenantScopedEntity):
     sku: str = ""
     sku_normalized: str = ""
+    invoice_code: str = ""
     name: str = ""
     description: str = ""
     kind: ProductKind = ProductKind.PRODUCT
@@ -38,7 +44,8 @@ class Product(TenantScopedEntity):
         return cls(
             tenant_id=cmd.tenant_id,
             sku=sku,
-            sku_normalized=sku,
+            sku_normalized=sku.upper(),
+            invoice_code=_derive_invoice_code(sku, current=None),
             name=_required_text(cmd.name, "name", max_length=160),
             description=_optional_text(cmd.description, max_length=500),
             kind=_kind(cmd.kind),
@@ -57,7 +64,8 @@ class Product(TenantScopedEntity):
     def update(self, cmd: UpdateProductCommand) -> None:
         if cmd.sku is not None:
             self.sku = _normalize_sku(cmd.sku)
-            self.sku_normalized = self.sku
+            self.sku_normalized = self.sku.upper()
+            self.invoice_code = _derive_invoice_code(self.sku, current=self.invoice_code)
         if cmd.name is not None:
             self.name = _required_text(cmd.name, "name", max_length=160)
         if cmd.description is not None:
@@ -94,7 +102,7 @@ class Product(TenantScopedEntity):
     def to_invoice_snapshot(self) -> dict:
         return {
             "product_id": self.id,
-            "code": self.sku,
+            "code": self.invoice_code,
             "description": self.description or self.name,
             "unit_price": str(self.unit_price),
             "iva_rate": self.iva_rate,
@@ -105,6 +113,7 @@ class Product(TenantScopedEntity):
             "id": self.id,
             "tenant_id": self.tenant_id,
             "sku": self.sku,
+            "invoice_code": self.invoice_code,
             "name": self.name,
             "description": self.description,
             "kind": self.kind.value,
@@ -129,10 +138,20 @@ class Product(TenantScopedEntity):
 
 
 def _normalize_sku(value: str) -> str:
-    sku = (value or "").strip().upper()
-    if not _SKU_RE.match(sku):
-        raise ValidationError("SKU inválido")
-    return sku
+    # `sku` is the tenant's own catalog code — free text, like `name`. It is
+    # NOT what gets sent to the SRI; see `_derive_invoice_code` for that.
+    return _required_text(value, "sku", max_length=50)
+
+
+def _derive_invoice_code(sku: str, *, current: str | None) -> str:
+    candidate = _INVOICE_CODE_CHARS_RE.sub("", sku.strip().upper())
+    if candidate and len(candidate) <= _INVOICE_CODE_MAX_LENGTH:
+        return candidate
+    # sku doesn't fit the SRI charset/length — keep the existing generated
+    # code stable across updates instead of reshuffling it every time.
+    if current:
+        return current
+    return secrets.token_hex(10).upper()
 
 
 def _required_text(value: str, field_name: str, *, max_length: int) -> str:

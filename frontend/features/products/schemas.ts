@@ -9,6 +9,10 @@ export const productSchema = z.object({
   id: z.string().min(1),
   tenant_id: z.string().min(1),
   sku: z.string().min(1),
+  // SRI-compliant code (<=25 chars) derived server-side from sku, used as
+  // codigoPrincipal/codigoAuxiliar when emitting a document — see
+  // features/documents. Read-only: never sent in create/update payloads.
+  invoice_code: z.string().min(1),
   name: z.string().min(1),
   description: z.string(),
   kind: productKindSchema,
@@ -36,7 +40,9 @@ export const productsPageSchema = z.object({
 
 export const productFormSchema = z
   .object({
-    sku: z.string().trim().min(1, 'Requerido').max(36, 'Máximo 36 caracteres'),
+    // sku is the tenant's own free-form catalog code — not bound by SRI
+    // limits. The backend derives a separate, SRI-compliant invoice_code.
+    sku: z.string().trim().min(1, 'Requerido').max(50, 'Máximo 50 caracteres'),
     name: z.string().trim().min(1, 'Requerido').max(160, 'Máximo 160 caracteres'),
     description: z.string().trim().max(500, 'Máximo 500 caracteres'),
     kind: productKindSchema,
@@ -60,7 +66,7 @@ export const productFormSchema = z
   .strict()
 
 const productPayloadBaseSchema = z.object({
-  sku: z.string().trim().min(1).max(36),
+  sku: z.string().trim().min(1).max(50),
   name: z.string().trim().min(1).max(160),
   description: z.string().trim().max(500),
   kind: productKindSchema,

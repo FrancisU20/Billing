@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isDecimalInput, isPositiveDecimalInput } from '@/lib/utils/form-validators'
+import { LINE_CODE_MAX_LENGTH } from './constants'
 
 export const documentStatusSchema = z.enum([
   'PENDING',
@@ -133,7 +134,11 @@ export const emitDocumentResultSchema = z.object({
 export const emitDocumentLineSchema = z
   .object({
     product_id: z.string().nullable().optional(),
-    code: z.string().trim().min(1, 'Requerido').max(25, 'Máximo 25 caracteres'),
+    code: z
+      .string()
+      .trim()
+      .min(1, 'Requerido')
+      .max(LINE_CODE_MAX_LENGTH, `Máximo ${LINE_CODE_MAX_LENGTH} caracteres`),
     description: z.string().trim().min(1, 'Requerido').max(300, 'Máximo 300 caracteres'),
     quantity: z.string().trim().refine(isDecimalInput, 'Cantidad inválida'),
     unit_price: z.string().trim().refine(isDecimalInput, 'Precio inválido'),
