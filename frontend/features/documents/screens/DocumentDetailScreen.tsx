@@ -119,14 +119,14 @@ export function DocumentDetailScreen() {
               </View>
               <View style={styles.profileActions}>
                 {document.ride_s3_key ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      isLoading={downloading}
-                      onPress={() => downloadRide()}
-                    >
-                      Descargar RIDE
-                    </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    isLoading={downloading}
+                    onPress={() => downloadRide()}
+                  >
+                    Descargar RIDE
+                  </Button>
                 ) : null}
                 {document.xml_s3_key ? (
                   <Button
