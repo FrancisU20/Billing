@@ -23,9 +23,34 @@ export function useDLocalSmartFields({
   semantic,
 }: Options): UseDLocalSmartFieldsResult {
   const fieldRef = useRef<DLocalGoField | null>(null)
-  const initializedRef = useRef(false)
+  const sdkRootRef = useRef<HTMLElement | null>(null)
   const [sdkReady, setSdkReady] = useState(false)
   const [sdkError, setSdkError] = useState<string | null>(null)
+
+  const unmountField = () => {
+    if (fieldRef.current) {
+      try {
+        fieldRef.current.unmount()
+      } catch {
+        // SDK unmount errors are non-recoverable; suppress silently
+      }
+      fieldRef.current = null
+    }
+    sdkRootRef.current?.remove()
+    sdkRootRef.current = null
+  }
+
+  const mountField = (wrapper: HTMLElement) => {
+    wrapper.innerHTML = ''
+    const fields = window.dlocalGo!.fields()
+    const cardField = fields.create('card', getDLocalCardFieldOptions(semantic))
+    const sdkRoot = document.createElement('div')
+    sdkRoot.style.cssText = 'width:100%;height:100%'
+    wrapper.appendChild(sdkRoot)
+    cardField.mount(sdkRoot)
+    fieldRef.current = cardField
+    sdkRootRef.current = sdkRoot
+  }
 
   useEffect(() => {
     setSdkReady(false)
@@ -38,38 +63,33 @@ export function useDLocalSmartFields({
       return
     }
 
-    initializedRef.current = false
     let cancelled = false
 
     const init = async () => {
-      if (initializedRef.current || cancelled) return
-      initializedRef.current = true
+      if (cancelled) return
       try {
         await window.dlocalGo!.initialize(config.dlocalgo.smartFieldsKey, checkoutToken)
         if (cancelled) return
-        const fields = window.dlocalGo!.fields()
-        const cardField = fields.create('card', getDLocalCardFieldOptions(semantic))
         const wrapper = document.getElementById(containerId)
         if (!wrapper) throw new Error(`Container #${containerId} not found`)
-        const sdkRoot = document.createElement('div')
-        sdkRoot.style.cssText = 'width:100%;height:100%'
-        wrapper.appendChild(sdkRoot)
-        cardField.mount(sdkRoot)
+        mountField(wrapper)
         if (cancelled) {
-          cardField.unmount()
+          unmountField()
           return
         }
-        fieldRef.current = cardField
         setSdkReady(true)
       } catch (e) {
         if (!cancelled) {
           console.error('[dLocal SmartFields]', e)
-          initializedRef.current = false
           setSdkError('Error al inicializar el formulario de pago.')
         }
       }
     }
 
+    // The SDK script registers a global zoid listener at load time and throws if
+    // loaded twice on the same page, so it must be injected at most once per page
+    // lifetime. `initialize()` itself is safe to call again with a new token on the
+    // existing `window.dlocalGo` instance (that's how retrying with a new order works).
     const scriptId = 'dlocalgo-smartfields-sdk'
     if (document.getElementById(scriptId)) {
       if (window.dlocalGo) init()
@@ -86,18 +106,29 @@ export function useDLocalSmartFields({
 
     return () => {
       cancelled = true
-      if (fieldRef.current) {
-        try {
-          fieldRef.current.unmount()
-        } catch {
-          // SDK unmount errors are non-recoverable; suppress silently
-        }
-        fieldRef.current = null
-      }
-      initializedRef.current = false
+      unmountField()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkoutToken, containerId])
+
+  // The container is a plain View the caller may stop rendering (e.g. while showing
+  // a 3DS verification step) and render again later without changing checkoutToken,
+  // which destroys the mounted field's DOM node without re-running the effect above.
+  // Re-attach the field whenever its container comes back. Deliberately runs after
+  // every render (no deps array) to detect that reattachment.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!sdkReady || Platform.OS !== 'web') return
+    if (sdkRootRef.current?.isConnected) return
+    const wrapper = document.getElementById(containerId)
+    if (!wrapper) return
+    try {
+      mountField(wrapper)
+    } catch (e) {
+      console.error('[dLocal SmartFields]', e)
+      setSdkError('Error al inicializar el formulario de pago.')
+    }
+  })
 
   return { fieldRef, sdkReady, sdkError }
 }
