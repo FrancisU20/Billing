@@ -5,6 +5,7 @@ import { useAuthStore, selectIsSuperadmin, selectUser } from '@/features/auth/st
 import { useTenant } from '@/features/tenants/hooks/useTenant'
 import { PendingActivationBanner } from '@/features/subscriptions/components/PendingActivationBanner'
 import { PaymentFailedBanner } from '@/features/subscriptions/components/PaymentFailedBanner'
+import { AppShell } from '@/features/navigation/components/AppShell'
 import { Routes } from '@/constants/routes'
 
 export default function TenantLayout() {
@@ -34,14 +35,16 @@ export default function TenantLayout() {
   // Payment confirmed but activation transaction failed: auto-activate via banner.
   if (hasPendingOrder) {
     return (
-      <View style={{ flex: 1 }}>
-        <PendingActivationBanner
-          tenantId={tenant!.id}
-          orderId={tenant!.pending_order_id!}
-          onActivated={refresh}
-        />
-        <Stack screenOptions={{ headerShown: false }} />
-      </View>
+      <AppShell user={user}>
+        <View style={{ flex: 1 }}>
+          <PendingActivationBanner
+            tenantId={tenant!.id}
+            orderId={tenant!.pending_order_id!}
+            onActivated={refresh}
+          />
+          <Stack screenOptions={{ headerShown: false }} />
+        </View>
+      </AppShell>
     )
   }
 
@@ -53,10 +56,12 @@ export default function TenantLayout() {
   // Recurring charge failed: stay in dashboard but show actionable banner.
   if (isPaymentFailed) {
     return (
-      <View style={{ flex: 1 }}>
-        <PaymentFailedBanner tenantId={tenant!.id} onRetried={refresh} />
-        <Stack screenOptions={{ headerShown: false }} />
-      </View>
+      <AppShell user={user}>
+        <View style={{ flex: 1 }}>
+          <PaymentFailedBanner tenantId={tenant!.id} onRetried={refresh} />
+          <Stack screenOptions={{ headerShown: false }} />
+        </View>
+      </AppShell>
     )
   }
 
@@ -66,5 +71,9 @@ export default function TenantLayout() {
     return <Redirect href={Routes.app.uploadCertificate as Href} />
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />
+  return (
+    <AppShell user={user}>
+      <Stack screenOptions={{ headerShown: false }} />
+    </AppShell>
+  )
 }
