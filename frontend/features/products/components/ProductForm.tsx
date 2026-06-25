@@ -59,9 +59,7 @@ export function ProductForm({ mode, product, onSubmit, isLoading, apiError }: Pr
                 onChangeText={onChange}
                 onBlur={onBlur}
                 value={value}
-                rightElement={
-                  mode === 'create' ? <GenerateSkuButton onPress={handleGenerateSku} /> : null
-                }
+                rightElement={<GenerateSkuButton onPress={handleGenerateSku} />}
                 required
               />
             )}

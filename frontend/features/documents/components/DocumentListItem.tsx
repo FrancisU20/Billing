@@ -14,6 +14,8 @@ interface DocumentListItemProps {
   onView: () => void
   onDownloadRide: () => void
   onDownloadXml: () => void
+  onAnnul?: () => void
+  canAnnul?: boolean
 }
 
 export function DocumentListItem({
@@ -21,6 +23,8 @@ export function DocumentListItem({
   onView,
   onDownloadRide,
   onDownloadXml,
+  onAnnul,
+  canAnnul = false,
 }: DocumentListItemProps) {
   const { semantic } = useTheme()
   const isDesktop = useIsDesktopLayout()
@@ -43,6 +47,17 @@ export function DocumentListItem({
             icon: 'code-download-outline' as const,
             label: 'Descargar XML',
             onPress: onDownloadXml,
+          },
+        ]
+      : []),
+    ...(canAnnul && onAnnul
+      ? [
+          {
+            key: 'annul-document',
+            icon: 'ban-outline' as const,
+            label: 'Anular factura',
+            danger: true,
+            onPress: onAnnul,
           },
         ]
       : []),

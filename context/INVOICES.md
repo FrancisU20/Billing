@@ -467,10 +467,11 @@ Reglas:
 - El XML y RIDE se escriben con `LegalHold=ON` al momento de guardar. No se pueden
   sobreescribir ni borrar durante los 7 anios de retension.
 - Solo `AUTHORIZED` genera archivos en S3. Documentos `REJECTED` no van a S3.
-- Descarga del RIDE: pre-signed URL con TTL 15 minutos (endpoint `GET /documents/{id}/ride`).
-  Disponible tanto en `DocumentDetailScreen` como en `DocumentListItem` (`RowActionsMenu`,
-  solo si `status === 'AUTHORIZED'` — si no hay ninguna accion disponible el kebab no se
-  renderiza) — ver "Acciones de fila" en `FRONTEND.md`.
+- Descarga XML/RIDE: pre-signed URL con TTL 15 minutos (`GET /documents/{id}/xml` y
+  `GET /documents/{id}/ride`). Disponible tanto en `DocumentDetailScreen` como en
+  `DocumentListItem` (`RowActionsMenu`) cuando existen `xml_s3_key`/`ride_s3_key`; si no
+  hay ninguna accion disponible el kebab no se renderiza — ver "Acciones de fila" en
+  `FRONTEND.md`.
 
 Estimacion de costo de almacenamiento para un enterprise de 10,000 docs/dia:
 ```
@@ -1038,7 +1039,7 @@ Stacks a crear o modificar:
 
 ```
 frontend/features/documents/
-  api.ts                 # GET/POST /documents, GET /documents/{id}, GET /documents/{id}/ride
+  api.ts                 # GET/POST /documents, GET /documents/{id}, GET /documents/{id}/xml|ride, POST /documents/{id}/annul
   schemas.ts             # Zod: documento, pagina paginada, input de emision, form values
   types.ts               # tipos derivados + DocumentListFilters
   constants.ts           # status labels/badge variant, iva rates, buyer_id_types, payment methods
@@ -1049,7 +1050,7 @@ frontend/features/documents/
     useDocument.ts         # useFetch + auto-poll cada 5s mientras PENDING/PROCESSING
   components/
     DocumentStatusBadge.tsx
-    DocumentListItem.tsx     # RowActionsMenu con "Descargar RIDE" si AUTHORIZED
+    DocumentListItem.tsx     # RowActionsMenu con descargas XML/RIDE y "Anular factura" si aplica
     DocumentsFilters.tsx
     DocumentLineRow.tsx      # fila compacta de una linea por producto (lista escaneable)
     DocumentLineEditModal.tsx # modal de detalle (cantidad/descuento/IVA/codigo/descripcion)
