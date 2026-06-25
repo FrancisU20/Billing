@@ -87,8 +87,7 @@ Reglas de elegibilidad (Res. NAC-DGERCGC25-00000014/00000017, vigente 2026), val
   cae feriado/fin de semana (calendario de feriados de Ecuador fuera de alcance) — el
   efecto es ser ligeramente mas restrictivo que el SRI en esos casos puntuales, nunca mas
   permisivo. Mismo calculo replicado en frontend (`features/documents/utils.ts`,
-  `isWithinAnnulmentWindow`) solo para UX proactiva (ocultar el boton); el backend es la
-  fuente de verdad.
+  `isWithinAnnulmentWindow`) solo para UX proactiva; el backend es la fuente de verdad.
 
 Motivo obligatorio (`AnnulDocumentRequest.reason`) guardado en `Document.annulment_reason`
 + `annulled_at`/`annulled_by`. Frontend: boton "Anular factura" en
@@ -96,6 +95,18 @@ Motivo obligatorio (`AnnulDocumentRequest.reason`) guardado en `Document.annulme
 Consumidor Final, dentro de plazo) abre un `ConfirmDialog` extendido con un slot
 `children` (nuevo prop generico, reusable para futuros modales con input) que pide el
 motivo via `FormField`.
+
+En el listado (`DocumentsListScreen.tsx` → menu de 3 puntos de `DocumentListItem.tsx`) la
+accion "Anular factura" **siempre se muestra** cuando el rol tiene permiso de escritura —
+nunca se oculta por motivo de negocio. `features/documents/utils.ts` expone
+`getAnnulBlockReason(document)` (no AUTHORIZED / Consumidor Final / plazo vencido → string
+explicativo, `null` si es elegible); `RowActionsMenu` (`components/ui/RowActionsMenu.tsx`,
+prop `RowAction.disabled`/`disabledReason`, generico para cualquier dominio) renderiza la
+accion atenuada con el motivo como segunda linea en vez de ocultarla, para que el usuario
+entienda por que no puede anular sin tener que adivinar. El gate de rol (`canWrite`) si
+sigue ocultando la accion por completo — es permiso, no una regla de negocio que comunicar.
+`DocumentDetailScreen.tsx` todavia oculta su propio boton sin explicar el motivo (no
+migrado a `getAnnulBlockReason` en este cambio, queda como inconsistencia conocida).
 
 ## Lambdas Y Responsabilidades
 
@@ -1180,3 +1191,4 @@ Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregado
 | `EstablishmentsScreen` con forms inline via `useState` plano (no react-hook-form) | Los mini-forms de alta/edicion de punto de emision son simples (2-3 campos) y no justifican el overhead de react-hook-form+zod. Si crecen en complejidad, migrar al patron `*Form.tsx` + Controller. |
 | Emails de documento al emisor sin adjuntar PDF | `DocumentAuthorizedEvent` etc. notifican al emisor sin adjuntos. El emisor descarga el RIDE desde `GET /documents/{id}/ride`. El comprador si recibe XML autorizado + RIDE adjuntos via `DocumentBuyerNotificationRequestedEvent`. |
 | `invoice_processor` SIGN/POLL sin concurrencia reservada diferenciada | Cuenta AWS en `sa-east-1` con limite de Lambda en 10 ejecuciones concurrentes totales (default no aumentado). Pedir quota increase a AWS y reintroducir `reserved_concurrent_executions=30/20` en `api_stack.py` cuando se apruebe. |
+| `DocumentDetailScreen.tsx` oculta "Anular factura" sin explicar el motivo | El listado ya usa `getAnnulBlockReason()` + `RowActionsMenu` para mostrar el boton deshabilitado con la razon (no AUTHORIZED / Consumidor Final / plazo vencido). El detalle quedo con el patron viejo (ocultar sin avisar). Migrar si se vuelve a tocar esa pantalla. |

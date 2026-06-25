@@ -10,6 +10,10 @@ export interface RowAction {
   icon: keyof typeof Ionicons.glyphMap
   label: string
   danger?: boolean
+  /** Si es true, la accion se muestra atenuada y no responde a tap/click. */
+  disabled?: boolean
+  /** Motivo mostrado debajo del label cuando `disabled` es true — comunica por que. */
+  disabledReason?: string
   onPress: () => void
 }
 
@@ -51,35 +55,58 @@ export function RowActionsMenu({ actions, triggerLabel = 'Más acciones' }: RowA
               { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
             ]}
           >
-            {actions.map((action) => (
-              <Pressable
-                key={action.key}
-                accessibilityRole="button"
-                accessibilityLabel={action.label}
-                onPress={() => {
-                  setVisible(false)
-                  action.onPress()
-                }}
-                style={({ pressed }) => [
-                  styles.row,
-                  { backgroundColor: pressed ? semantic.bg.secondary : 'transparent' },
-                ]}
-              >
-                <Ionicons
-                  name={action.icon}
-                  size={19}
-                  color={action.danger ? semantic.status.error : semantic.text.secondary}
-                />
-                <Text
-                  style={[
-                    styles.label,
-                    { color: action.danger ? semantic.status.error : semantic.text.primary },
+            {actions.map((action) => {
+              const isDisabled = Boolean(action.disabled)
+              const contentColor = isDisabled
+                ? semantic.text.tertiary
+                : action.danger
+                  ? semantic.status.error
+                  : semantic.text.secondary
+
+              return (
+                <Pressable
+                  key={action.key}
+                  accessibilityRole="button"
+                  accessibilityLabel={action.label}
+                  accessibilityState={{ disabled: isDisabled }}
+                  disabled={isDisabled}
+                  onPress={() => {
+                    setVisible(false)
+                    action.onPress()
+                  }}
+                  style={({ pressed }) => [
+                    styles.row,
+                    {
+                      backgroundColor:
+                        pressed && !isDisabled ? semantic.bg.secondary : 'transparent',
+                    },
                   ]}
                 >
-                  {action.label}
-                </Text>
-              </Pressable>
-            ))}
+                  <Ionicons name={action.icon} size={19} color={contentColor} />
+                  <View style={styles.labelGroup}>
+                    <Text
+                      style={[
+                        styles.label,
+                        {
+                          color: isDisabled
+                            ? semantic.text.tertiary
+                            : action.danger
+                              ? semantic.status.error
+                              : semantic.text.primary,
+                        },
+                      ]}
+                    >
+                      {action.label}
+                    </Text>
+                    {isDisabled && action.disabledReason ? (
+                      <Text style={[styles.reason, { color: semantic.text.tertiary }]}>
+                        {action.disabledReason}
+                      </Text>
+                    ) : null}
+                  </View>
+                </Pressable>
+              )
+            })}
           </View>
         </View>
       </Modal>
@@ -107,6 +134,9 @@ const styles = StyleSheet.create({
     gap: spacing[3],
     minHeight: 48,
     paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
   },
+  labelGroup: { flex: 1, gap: 2 },
   label: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
+  reason: { fontSize: typography.size.xs, lineHeight: typography.size.xs * 1.4 },
 })

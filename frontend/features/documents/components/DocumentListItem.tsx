@@ -16,6 +16,7 @@ interface DocumentListItemProps {
   onDownloadXml: () => void
   onAnnul?: () => void
   canAnnul?: boolean
+  annulDisabledReason?: string | null
 }
 
 export function DocumentListItem({
@@ -25,6 +26,7 @@ export function DocumentListItem({
   onDownloadXml,
   onAnnul,
   canAnnul = false,
+  annulDisabledReason = null,
 }: DocumentListItemProps) {
   const { semantic } = useTheme()
   const isDesktop = useIsDesktopLayout()
@@ -57,6 +59,8 @@ export function DocumentListItem({
             icon: 'ban-outline' as const,
             label: 'Anular factura',
             danger: true,
+            disabled: Boolean(annulDisabledReason),
+            disabledReason: annulDisabledReason ?? undefined,
             onPress: onAnnul,
           },
         ]

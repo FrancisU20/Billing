@@ -22,14 +22,13 @@ import { spacing } from '@/constants/tokens'
 import { documentsApi } from '../api'
 import { DocumentListItem } from '../components/DocumentListItem'
 import { DocumentsFilters } from '../components/DocumentsFilters'
-import { CONSUMIDOR_FINAL_ID_TYPE } from '../constants'
 import {
   emptyDocumentFilterDraft,
   toDocumentListFilters,
   type DocumentFilterDraft,
 } from '../filters'
 import { useDocuments } from '../hooks/useDocuments'
-import { isWithinAnnulmentWindow } from '../utils'
+import { getAnnulBlockReason } from '../utils'
 import type { Document, DocumentListFilters } from '../types'
 
 export function DocumentsListScreen() {
@@ -101,15 +100,6 @@ export function DocumentsListScreen() {
     await refresh()
   })
 
-  function canAnnulDocument(document: Document): boolean {
-    return (
-      canWrite(user?.role ?? null) &&
-      document.status === 'AUTHORIZED' &&
-      document.buyer_id_type !== CONSUMIDOR_FINAL_ID_TYPE &&
-      isWithinAnnulmentWindow(document.issued_at)
-    )
-  }
-
   function closeAnnulDialog() {
     setAnnulDocument(null)
     setAnnulReason('')
@@ -164,7 +154,8 @@ export function DocumentsListScreen() {
             onView={() => router.push(Routes.tenant.documentDetail(item.document_id) as Href)}
             onDownloadRide={() => downloadRide(item.document_id)}
             onDownloadXml={() => downloadXml(item.document_id)}
-            canAnnul={canAnnulDocument(item)}
+            canAnnul={canWrite(user?.role ?? null)}
+            annulDisabledReason={getAnnulBlockReason(item)}
             onAnnul={() => setAnnulDocument(item)}
           />
         )}
