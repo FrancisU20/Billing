@@ -61,6 +61,20 @@ class BuildRidePdfTests(unittest.TestCase):
 
         self.assertTrue(pdf_bytes.startswith(b"%PDF"))
 
+    def test_builds_pdf_bytes_for_a_credit_note_with_parent(self) -> None:
+        parent = make_document(document_id="parent-1")
+        document = make_document(
+            document_id="doc-2",
+            doc_type="04",
+            related_document_id="parent-1",
+            credit_note_reason="Devolución de mercadería",
+        )
+        tenant = make_invoice_tenant()
+
+        pdf_bytes = build_ride_pdf(document, tenant, parent)
+
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
+
 
 if __name__ == "__main__":
     unittest.main()

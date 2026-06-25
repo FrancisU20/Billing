@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from lxml import etree
 
-from lambdas.invoice_processor.xml_builder import build_invoice_xml
+from lambdas.invoice_processor.xml_builder import build_credit_note_xml, build_invoice_xml
 from tests.unit.lambdas.invoice_processor.fixtures import (
     ACCESS_KEY,
     make_document,
@@ -98,6 +98,74 @@ class BuildInvoiceXmlTests(unittest.TestCase):
         detalles = root.findall("detalles/detalle")
         self.assertEqual(len(detalles), 2)
         self.assertEqual(detalles[0].findtext("codigoPrincipal"), "P1")
+
+
+class BuildCreditNoteXmlTests(unittest.TestCase):
+    def test_root_is_nota_credito_with_cod_doc_04(self) -> None:
+        parent = make_document(document_id="parent-1", sequential=7)
+        document = make_document(
+            document_id="doc-2",
+            doc_type="04",
+            related_document_id="parent-1",
+            credit_note_reason="Devolución de mercadería",
+        )
+        tenant = make_invoice_tenant()
+
+        xml = build_credit_note_xml(document, tenant, parent)
+        root = etree.fromstring(xml.encode("utf-8"))
+
+        self.assertEqual(root.tag, "notaCredito")
+        self.assertEqual(root.findtext("infoTributaria/codDoc"), "04")
+
+    def test_references_parent_document(self) -> None:
+        parent = make_document(document_id="parent-1", sequential=7)
+        document = make_document(
+            document_id="doc-2",
+            doc_type="04",
+            related_document_id="parent-1",
+            credit_note_reason="Devolución de mercadería",
+        )
+        tenant = make_invoice_tenant()
+
+        xml = build_credit_note_xml(document, tenant, parent)
+        root = etree.fromstring(xml.encode("utf-8"))
+
+        self.assertEqual(root.findtext("infoNotaCredito/codDocModificado"), "01")
+        self.assertEqual(
+            root.findtext("infoNotaCredito/numDocModificado"), parent.sequential_display
+        )
+        self.assertEqual(
+            root.findtext("infoNotaCredito/fechaEmisionDocSustento"),
+            parent.issued_at.strftime("%d/%m/%Y"),
+        )
+        self.assertEqual(root.findtext("infoNotaCredito/motivo"), "Devolución de mercadería")
+
+    def test_has_no_pagos_block(self) -> None:
+        parent = make_document(document_id="parent-1")
+        document = make_document(document_id="doc-2", doc_type="04", related_document_id="parent-1")
+        tenant = make_invoice_tenant()
+
+        xml = build_credit_note_xml(document, tenant, parent)
+        root = etree.fromstring(xml.encode("utf-8"))
+
+        self.assertIsNone(root.find("infoNotaCredito/pagos"))
+
+    def test_reuses_detalles_and_total_con_impuestos_structure(self) -> None:
+        parent = make_document(document_id="parent-1")
+        document = make_document(
+            document_id="doc-2",
+            doc_type="04",
+            related_document_id="parent-1",
+            lines=[make_line(), make_line(code="P2")],
+        )
+        tenant = make_invoice_tenant()
+
+        xml = build_credit_note_xml(document, tenant, parent)
+        root = etree.fromstring(xml.encode("utf-8"))
+
+        detalles = root.findall("detalles/detalle")
+        self.assertEqual(len(detalles), 2)
+        self.assertEqual(len(root.findall("infoNotaCredito/totalConImpuestos/totalImpuesto")), 1)
 
 
 if __name__ == "__main__":

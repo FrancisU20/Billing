@@ -44,11 +44,12 @@ class ISequencesRepository(ABC):
         """Return True if at least one document has been issued for this serie (estab+punto)."""
 
     @abstractmethod
-    def reserve_next(self, tenant_id: str, serie: str) -> int:
+    def reserve_next(self, tenant_id: str, serie: str, doc_type: str = "01") -> int:
         """Atomically increment and return the next sequential number.
 
-        Raises SequenceExhaustedError if the counter has reached 999,999,999.
-        Not exposed via HTTP — called only by the documents Lambda.
+        Contador independiente por doc_type (exigencia del SRI: secuencial separado por
+        tipo de comprobante). Raises SequenceExhaustedError if the counter has reached
+        999,999,999. Not exposed via HTTP — called only by the documents Lambda.
         """
 
     @abstractmethod

@@ -8,21 +8,30 @@ from unittest.mock import patch
 
 from lambdas.documents.domain.commands import (
     AnnulDocumentCommand,
+    CreditNoteLineData,
+    EmitCreditNoteCommand,
     EmitDocumentCommand,
     GetDocumentCommand,
     GetXmlUrlCommand,
     LineData,
     ListDocumentsCommand,
 )
-from lambdas.documents.domain.entities import Document, DocumentStatus, DocumentSummary
+from lambdas.documents.domain.entities import (
+    Document,
+    DocumentStatus,
+    DocumentSummary,
+    InvoiceLine,
+)
 from lambdas.documents.domain.errors import (
     AnnulmentWindowExpiredError,
     CertificateNotUploadedError,
     ConsumerFinalCannotBeAnnulledError,
+    CreditedQuantityExceedsOriginalError,
     DocumentLimitReachedError,
     DocumentNotAuthorizedError,
     DocumentNotFoundError,
     InvalidIssuedDateError,
+    ParentDocumentNotAuthorizedError,
     RideNotAvailableError,
     XmlNotAvailableError,
 )
@@ -31,6 +40,7 @@ from lambdas.documents.domain.repositories.i_discount_campaign_port import (
 )
 from lambdas.documents.domain.repositories.i_product_catalog import InvoiceProductSnapshot
 from lambdas.documents.use_cases.annul_document import AnnulDocumentUseCase
+from lambdas.documents.use_cases.emit_credit_note import EmitCreditNoteUseCase
 from lambdas.documents.use_cases.emit_document import EmitDocumentUseCase
 from lambdas.documents.use_cases.get_document import GetDocumentUseCase
 from lambdas.documents.use_cases.get_documents_summary import GetDocumentsSummaryUseCase
@@ -106,8 +116,10 @@ class FakeDocumentsRepository:
 class FakeSequencesPort:
     def __init__(self, next_value: int = 1) -> None:
         self._next = next_value
+        self.reserve_calls: list[tuple[str, str, str]] = []
 
-    def reserve_next(self, tenant_id: str, serie: str) -> int:
+    def reserve_next(self, tenant_id: str, serie: str, doc_type: str = "01") -> int:
+        self.reserve_calls.append((tenant_id, serie, doc_type))
         val = self._next
         self._next += 1
         return val
@@ -492,6 +504,128 @@ class EmitDocumentUseCaseTests(unittest.TestCase):
     def test_override_without_reason_at_all_raises(self) -> None:
         with self.assertRaises(ValidationError):
             self._run_with(override_discount_ceiling=True, override_reason=None)
+
+
+# ── EmitCreditNoteUseCase ─────────────────────────────────────────────────────
+
+
+def _make_credit_note_cmd(**overrides: Any) -> EmitCreditNoteCommand:
+    defaults: dict[str, Any] = {
+        "tenant_id": "t-1",
+        "ruc": "1790000000001",
+        "sri_environment": "testing",
+        "certificate_secret_arn": "arn:aws:secretsmanager:us-east-1:1234:secret:cert",
+        "monthly_limit": -1,
+        "serie": "001001",
+        "issued_at": _TODAY,
+        "related_document_id": "doc-1",
+        "credit_note_reason": "Devolución de mercadería",
+        "lines": [CreditNoteLineData(parent_line_index=0, quantity=Decimal("2"))],
+        "created_by": "user-1",
+    }
+    defaults.update(overrides)
+    return EmitCreditNoteCommand(**defaults)
+
+
+def _make_parent_invoice(**overrides: Any) -> Document:
+    defaults: dict[str, Any] = {
+        "status": DocumentStatus.AUTHORIZED,
+        "lines": [
+            InvoiceLine(
+                code="001",
+                description="Producto A",
+                quantity=Decimal("2"),
+                unit_price=Decimal("10.00"),
+                discount=Decimal("0.00"),
+                subtotal=Decimal("20.00"),
+                iva_rate="15",
+                iva_amount=Decimal("3.00"),
+                total=Decimal("23.00"),
+            )
+        ],
+    }
+    defaults.update(overrides)
+    return _make_document(**defaults)
+
+
+class EmitCreditNoteUseCaseTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.repo = FakeDocumentsRepository()
+        self.seq = FakeSequencesPort(next_value=1)
+        self.repo.seed(_make_parent_invoice())
+
+    def _run(self, **overrides: Any) -> Document:
+        with patch(
+            "lambdas.documents.use_cases.emit_credit_note.today_ecuador", return_value=_TODAY
+        ):
+            return EmitCreditNoteUseCase(self.repo, self.seq).execute(
+                _make_credit_note_cmd(**overrides)
+            )
+
+    def test_full_credit_copies_parent_buyer_and_lines(self) -> None:
+        doc = self._run()
+        self.assertEqual(doc.doc_type, "04")
+        self.assertEqual(doc.status, DocumentStatus.PENDING)
+        self.assertEqual(doc.related_document_id, "doc-1")
+        self.assertEqual(doc.credit_note_reason, "Devolución de mercadería")
+        self.assertEqual(doc.buyer_id, "9999999999999")
+        self.assertEqual(doc.buyer_name, "Consumidor Final")
+        self.assertEqual(doc.subtotal, Decimal("20.00"))
+        self.assertEqual(doc.iva_15, Decimal("3.00"))
+        self.assertEqual(doc.total, Decimal("23.00"))
+        self.assertEqual(len(doc.lines), 1)
+        self.assertEqual(doc.lines[0].quantity, Decimal("2"))
+
+    def test_partial_credit_scales_amounts_proportionally(self) -> None:
+        doc = self._run(lines=[CreditNoteLineData(parent_line_index=0, quantity=Decimal("1"))])
+        # Mitad de la cantidad original (1 de 2) -> mitad de subtotal/iva/total.
+        self.assertEqual(doc.subtotal, Decimal("10.00"))
+        self.assertEqual(doc.iva_15, Decimal("1.50"))
+        self.assertEqual(doc.total, Decimal("11.50"))
+        self.assertEqual(doc.lines[0].quantity, Decimal("1"))
+
+    def test_reserves_sequential_with_doc_type_04(self) -> None:
+        self._run()
+        self.assertEqual(self.seq.reserve_calls, [("t-1", "001001", "04")])
+
+    def test_raises_without_certificate(self) -> None:
+        with self.assertRaises(CertificateNotUploadedError):
+            self._run(certificate_secret_arn=None)
+
+    def test_raises_for_future_issued_at(self) -> None:
+        with self.assertRaises(InvalidIssuedDateError):
+            self._run(issued_at=date(2027, 1, 1))
+
+    def test_raises_when_limit_reached(self) -> None:
+        self.repo.set_month_count(10)
+        with self.assertRaises(DocumentLimitReachedError):
+            self._run(monthly_limit=10)
+
+    def test_raises_empty_reason(self) -> None:
+        with self.assertRaises(ValidationError):
+            self._run(credit_note_reason="   ")
+
+    def test_raises_if_parent_not_found(self) -> None:
+        with self.assertRaises(DocumentNotFoundError):
+            self._run(related_document_id="does-not-exist")
+
+    def test_raises_if_parent_not_authorized(self) -> None:
+        self.repo.seed(_make_parent_invoice(document_id="doc-2", status=DocumentStatus.PENDING))
+        with self.assertRaises(ParentDocumentNotAuthorizedError):
+            self._run(related_document_id="doc-2")
+
+    def test_raises_if_parent_is_a_credit_note(self) -> None:
+        self.repo.seed(_make_parent_invoice(document_id="doc-2", doc_type="04"))
+        with self.assertRaises(ValidationError):
+            self._run(related_document_id="doc-2")
+
+    def test_raises_if_credited_quantity_exceeds_original(self) -> None:
+        with self.assertRaises(CreditedQuantityExceedsOriginalError):
+            self._run(lines=[CreditNoteLineData(parent_line_index=0, quantity=Decimal("3"))])
+
+    def test_raises_if_line_index_out_of_range(self) -> None:
+        with self.assertRaises(ValidationError):
+            self._run(lines=[CreditNoteLineData(parent_line_index=5, quantity=Decimal("1"))])
 
 
 # ── GetDocumentUseCase ────────────────────────────────────────────────────────

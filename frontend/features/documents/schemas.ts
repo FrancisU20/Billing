@@ -79,6 +79,8 @@ export const documentSchema = z.object({
   annulled_at: z.string().nullable().optional().default(null),
   annulled_by: z.string().optional().default(''),
   annulment_reason: z.string().nullable().optional().default(null),
+  related_document_id: z.string().nullable().optional().default(null),
+  credit_note_reason: z.string().nullable().optional().default(null),
 })
 
 export const documentsPageSchema = z.object({
@@ -109,6 +111,8 @@ export const documentsSummarySchema = z.object({
   pending_count: z.coerce.number(),
   processing_count: z.coerce.number(),
   authorized_total: z.string().min(1),
+  credit_notes_count: z.coerce.number().optional().default(0),
+  credit_notes_total: z.string().optional().default('0.00'),
   document_limit: z.coerce.number().nullable(),
   is_unlimited: z.boolean(),
   is_free_plan: z.boolean().optional().default(false),
@@ -256,6 +260,79 @@ export const emitDocumentFormValuesSchema = z
   })
   .strict()
 
+// ── Nota de Crédito ───────────────────────────────────────────────────────────
+// Campos genuinamente distintos a factura (sin buyer-picking, sin override de
+// descuento) — esquema propio en vez de forzar opcionales sobre emitDocumentSchema.
+
+export const creditNoteLineInputSchema = z
+  .object({
+    parent_line_index: z.number().int().min(0),
+    quantity: z.string().trim().refine(isPositiveDecimalInput, 'Cantidad inválida'),
+  })
+  .strict()
+
+export const emitCreditNoteSchema = z
+  .object({
+    establishment_code: z
+      .string()
+      .trim()
+      .regex(/^\d{3}$/, 'Debe tener 3 dígitos'),
+    emission_point_code: z
+      .string()
+      .trim()
+      .regex(/^\d{3}$/, 'Debe tener 3 dígitos'),
+    doc_type: z.literal('04'),
+    issued_at: z.string().trim().min(1, 'Requerido'),
+    related_document_id: z.string().min(1),
+    credit_note_reason: z.string().trim().min(1, 'Requerido').max(300, 'Máximo 300 caracteres'),
+    lines: z.array(creditNoteLineInputSchema).min(1, 'Agrega al menos una línea'),
+  })
+  .strict()
+
+// Una linea de la pantalla de NC: snapshot de la linea original (solo lectura) +
+// la cantidad a acreditar, editable salvo cuando `locked` (entrada "Anular factura").
+// original_subtotal/original_iva_amount permiten previsualizar el monto acreditado
+// (escalado por cantidad/cantidad_original, igual que el backend) sin recalcular la
+// tasa de IVA en el cliente — son solo para UI, el backend vuelve a calcular todo desde
+// la factura padre y nunca confía en estos valores.
+export const creditNoteFormLineSchema = z
+  .object({
+    parent_line_index: z.number().int().min(0),
+    code: z.string(),
+    description: z.string(),
+    unit_price: z.string(),
+    iva_rate: ivaRateSchema,
+    original_quantity: z.string(),
+    original_subtotal: z.string(),
+    original_iva_amount: z.string(),
+    quantity: z.string().trim().refine(isPositiveDecimalInput, 'Debe ser mayor a cero'),
+  })
+  .strict()
+
+export const emitCreditNoteFormValuesSchema = z
+  .object({
+    establishment_code: z.string(),
+    emission_point_code: z.string(),
+    issued_at: z.string().trim().min(1, 'Requerido'),
+    credit_note_reason: z.string().trim().min(1, 'Requerido').max(300, 'Máximo 300 caracteres'),
+    lines: z.array(creditNoteFormLineSchema).min(1),
+    locked: z.boolean(),
+  })
+  .superRefine((values, ctx) => {
+    values.lines.forEach((line, index) => {
+      const quantity = Number(line.quantity)
+      const original = Number(line.original_quantity)
+      if (quantity > original) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['lines', index, 'quantity'],
+          message: 'No puede superar la cantidad original',
+        })
+      }
+    })
+  })
+  .strict()
+
 export type DocumentStatus = z.infer<typeof documentStatusSchema>
 export type IvaRate = z.infer<typeof ivaRateSchema>
 export type BuyerIdType = z.infer<typeof buyerIdTypeSchema>
@@ -270,3 +347,7 @@ export type EmitDocumentLineInput = z.infer<typeof emitDocumentLineSchema>
 export type EmitDocumentInput = z.infer<typeof emitDocumentSchema>
 export type BuyerMode = z.infer<typeof buyerModeSchema>
 export type EmitDocumentFormValues = z.infer<typeof emitDocumentFormValuesSchema>
+export type CreditNoteLineInput = z.infer<typeof creditNoteLineInputSchema>
+export type EmitCreditNoteInput = z.infer<typeof emitCreditNoteSchema>
+export type CreditNoteFormLine = z.infer<typeof creditNoteFormLineSchema>
+export type EmitCreditNoteFormValues = z.infer<typeof emitCreditNoteFormValuesSchema>

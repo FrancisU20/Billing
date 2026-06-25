@@ -13,6 +13,7 @@ class ListDocumentsUseCase:
         return self._repo.list(
             cmd.tenant_id,
             status=cmd.status,
+            doc_type=cmd.doc_type,
             serie=cmd.serie,
             q=cmd.q,
             date_from=cmd.date_from,
@@ -25,6 +26,7 @@ class ListDocumentsUseCase:
         return self._repo.count(
             cmd.tenant_id,
             status=cmd.status,
+            doc_type=cmd.doc_type,
             serie=cmd.serie,
             q=cmd.q,
             date_from=cmd.date_from,

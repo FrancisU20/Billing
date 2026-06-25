@@ -65,6 +65,11 @@ class DocumentSummary:
     is_free_plan: bool = False
     daily_issued: list[DailyIssuedCount] = field(default_factory=list)
     top_clients: list[TopClientTotal] = field(default_factory=list)
+    # Notas de credito (doc_type="04") restan de authorized_total (ingreso neto) en vez
+    # de sumarse como factura — estos dos campos exponen ese monto por separado para
+    # transparencia en el dashboard, sin que el tenant tenga que inferirlo.
+    credit_notes_count: int = 0
+    credit_notes_total: Decimal = Decimal("0.00")
 
     def to_dict(self) -> dict:
         return {
@@ -77,6 +82,8 @@ class DocumentSummary:
             "pending_count": self.pending_count,
             "processing_count": self.processing_count,
             "authorized_total": str(self.authorized_total),
+            "credit_notes_count": self.credit_notes_count,
+            "credit_notes_total": str(self.credit_notes_total),
             "document_limit": self.document_limit,
             "is_unlimited": self.is_unlimited,
             "is_free_plan": self.is_free_plan,
@@ -176,6 +183,11 @@ class Document:
     annulled_by: str = ""
     annulment_reason: str | None = None
 
+    # Nota de Credito (doc_type="04") unicamente. FK a la factura acreditada — sus datos
+    # se buscan en vivo (nunca cambian post-autorizacion) en vez de duplicarlos aqui.
+    related_document_id: str | None = None
+    credit_note_reason: str | None = None
+
     @property
     def sequential_display(self) -> str:
         return f"{self.serie[:3]}-{self.serie[3:]}-{str(self.sequential).zfill(9)}"
@@ -223,4 +235,6 @@ class Document:
             "annulled_at": isoformat_ecuador(self.annulled_at),
             "annulled_by": self.annulled_by,
             "annulment_reason": self.annulment_reason,
+            "related_document_id": self.related_document_id,
+            "credit_note_reason": self.credit_note_reason,
         }

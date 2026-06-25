@@ -3,12 +3,13 @@ import {
   documentSchema,
   documentsPageSchema,
   documentsSummarySchema,
+  emitCreditNoteSchema,
   emitDocumentResultSchema,
   emitDocumentSchema,
   rideUrlSchema,
 } from './schemas'
 import { DEFAULT_PAGE_SIZE, type PageSize } from '@/constants/pagination'
-import type { DocumentListFilters, EmitDocumentInput } from './types'
+import type { DocumentListFilters, EmitCreditNoteInput, EmitDocumentInput } from './types'
 
 function documentsPath(
   filters: DocumentListFilters = {},
@@ -19,6 +20,7 @@ function documentsPath(
   params.set('limit', String(limit))
   if (cursor) params.set('cursor', cursor)
   if (filters.status) params.set('status', filters.status)
+  if (filters.doc_type) params.set('doc_type', filters.doc_type)
   if (filters.serie) params.set('serie', filters.serie)
   if (filters.q) params.set('q', filters.q)
   if (filters.date_from) params.set('date_from', filters.date_from)
@@ -39,12 +41,12 @@ export const documentsApi = {
       idempotencyKey,
     }),
 
+  emitCreditNote: (body: EmitCreditNoteInput, idempotencyKey: string) =>
+    api.post('/documents', emitCreditNoteSchema.parse(body), emitDocumentResultSchema, {
+      idempotencyKey,
+    }),
+
   getRideUrl: (id: string) => api.get(`/documents/${encodeURIComponent(id)}/ride`, rideUrlSchema),
 
   getXmlUrl: (id: string) => api.get(`/documents/${encodeURIComponent(id)}/xml`, rideUrlSchema),
-
-  annul: (id: string, reason: string, idempotencyKey: string) =>
-    api.post(`/documents/${encodeURIComponent(id)}/annul`, { reason }, documentSchema, {
-      idempotencyKey,
-    }),
 }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from lambdas.documents.domain.entities import DocumentStatus
 from lambdas.invoice_processor.events import (
@@ -25,8 +26,11 @@ class FakeDocumentsRepository:
     def __init__(self, document) -> None:
         self.document = document
         self.update_calls: list[dict] = []
+        self.extra_documents: dict[str, object] = {}
 
     def get(self, tenant_id, document_id):
+        if document_id in self.extra_documents:
+            return self.extra_documents[document_id]
         return self.document
 
     def update_status(self, tenant_id, document_id, **kwargs):
@@ -187,6 +191,44 @@ class PollDocumentUseCaseTests(unittest.TestCase):
         self.assertEqual(repo.update_calls, [])
         self.assertEqual(storage.stored, [])
         self.assertEqual(publisher.events_published, [])
+
+    def test_credit_note_authorized_builds_ride_with_parent(self) -> None:
+        parent = make_document(document_id="parent-1", tenant_id=self.tenant.id)
+        self.document = make_document(
+            document_id="doc-2",
+            tenant_id=self.tenant.id,
+            status=DocumentStatus.PROCESSING,
+            doc_type="04",
+            related_document_id="parent-1",
+            credit_note_reason="Devolución de mercadería",
+        )
+        repo = FakeDocumentsRepository(self.document)
+        repo.extra_documents["parent-1"] = parent
+        tenant_repo = _tenant_repo_with(self.tenant)
+        sri_client = FakeSriClient(
+            AutorizacionResult(
+                status="AUTORIZADO",
+                authorization_number="123",
+                authorized_at="2026-06-17T10:00:00Z",
+                signed_xml="<notaCredito/>",
+            )
+        )
+        storage = FakeStorage()
+        publisher = FakeQueuePublisher()
+        use_case = PollDocumentUseCase(repo, tenant_repo, sri_client, storage, publisher)
+
+        with patch(
+            "lambdas.invoice_processor.use_cases.poll_document.ride_builder.build_ride_pdf",
+            return_value=b"%PDF-fake",
+        ) as build_ride:
+            use_case.execute(
+                tenant_id=self.tenant.id,
+                document_id=self.document.document_id,
+                access_key=ACCESS_KEY,
+                attempt=1,
+            )
+
+        build_ride.assert_called_once_with(self.document, self.tenant, parent)
 
 
 if __name__ == "__main__":

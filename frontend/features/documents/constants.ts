@@ -10,6 +10,11 @@ export const CONSUMIDOR_FINAL_ID_TYPE: BuyerIdType = '07'
 export const CONSUMIDOR_FINAL_ID = '9999999999999'
 export const CONSUMIDOR_FINAL_NAME = 'CONSUMIDOR FINAL'
 
+export const DOC_TYPE_LABELS: Record<string, string> = {
+  '01': 'Factura',
+  '04': 'Nota de Crédito',
+}
+
 export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
   PENDING: 'Pendiente',
   PROCESSING: 'En proceso',

@@ -65,8 +65,30 @@ class EmitDocumentRequest(BaseModel):
         return self
 
 
+class CreditNoteLineRequest(BaseModel):
+    parent_line_index: int = Field(..., ge=0)
+    quantity: Decimal = Field(..., gt=0)
+
+
+class EmitCreditNoteRequest(BaseModel):
+    establishment_code: str = Field(..., min_length=3, max_length=3, pattern=r"^\d{3}$")
+    emission_point_code: str = Field(..., min_length=3, max_length=3, pattern=r"^\d{3}$")
+    doc_type: Literal["04"] = "04"
+    issued_at: date
+    related_document_id: str = Field(..., min_length=1)
+    credit_note_reason: str = Field(..., min_length=1, max_length=300)
+    lines: list[CreditNoteLineRequest] = Field(..., min_length=1)
+
+    @model_validator(mode="after")
+    def validate_reason(self) -> EmitCreditNoteRequest:
+        if not self.credit_note_reason.strip():
+            raise ValueError("Debes indicar el motivo de la nota de crédito.")
+        return self
+
+
 class ListDocumentsQueryParams(BaseModel):
     status: str | None = None
+    doc_type: str | None = None
     serie: str | None = None
     q: str | None = None
     date_from: str | None = None

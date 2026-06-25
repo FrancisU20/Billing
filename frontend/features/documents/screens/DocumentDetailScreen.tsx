@@ -1,40 +1,38 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { useLocalSearchParams } from 'expo-router'
+import type { Href } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DetailField, DetailSection } from '@/components/ui/DetailSection'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { FormField } from '@/components/ui/FormField'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { useToast } from '@/components/feedback/Toast'
-import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { formatDate, formatDateTime } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { canWrite } from '@/constants/roles'
+import { Routes } from '@/constants/routes'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { documentsApi } from '../api'
 import { DocumentLineSummaryRow } from '../components/DocumentLineSummaryRow'
 import { DocumentStatusBadge } from '../components/DocumentStatusBadge'
 import { TotalsSummary } from '../components/TotalsSummary'
-import { BUYER_ID_TYPE_LABELS, CONSUMIDOR_FINAL_ID_TYPE } from '../constants'
+import { BUYER_ID_TYPE_LABELS } from '../constants'
 import { useDocument } from '../hooks/useDocument'
-import { isWithinAnnulmentWindow } from '../utils'
+import { getCreditNoteBlockReason } from '../utils'
 
 export function DocumentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
+  const router = useRouter()
   const { semantic } = useTheme()
-  const toast = useToast()
   const user = useAuthStore(selectUser)
   const { document, loading, error, refresh } = useDocument(id ?? null)
-  const [annulling, setAnnulling] = useState(false)
-  const [reason, setReason] = useState('')
-  const [reasonError, setReasonError] = useState<string | null>(null)
+  const { document: relatedDocument } = useDocument(
+    document?.doc_type === '04' ? document.related_document_id : null,
+  )
 
   useRefreshOnFocus(refresh)
 
@@ -57,30 +55,8 @@ export function DocumentDetailScreen() {
     await Linking.openURL(url)
   })
 
-  const {
-    submitting: annullingSubmit,
-    error: annulError,
-    submit: confirmAnnul,
-  } = useFormSubmit(async () => {
-    if (!id) return
-    if (!reason.trim()) {
-      setReasonError('Indica el motivo de la anulación.')
-      return
-    }
-    setReasonError(null)
-    await documentsApi.annul(id, reason.trim(), createIdempotencyKey('document_annul'))
-    toast.success('Documento marcado como anulado')
-    setAnnulling(false)
-    setReason('')
-    await refresh()
-  })
-
-  const canAnnul =
-    !!document &&
-    canWrite(user?.role ?? null) &&
-    document.status === 'AUTHORIZED' &&
-    document.buyer_id_type !== CONSUMIDOR_FINAL_ID_TYPE &&
-    isWithinAnnulmentWindow(document.issued_at)
+  const canCreditNote =
+    !!document && canWrite(user?.role ?? null) && getCreditNoteBlockReason(document) === null
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando documento..." />
 
@@ -138,8 +114,34 @@ export function DocumentDetailScreen() {
                     Descargar XML
                   </Button>
                 ) : null}
-                {canAnnul ? (
-                  <Button variant="danger" size="sm" onPress={() => setAnnulling(true)}>
+                {canCreditNote ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onPress={() =>
+                      router.push(
+                        Routes.tenant.documentCreditNoteNew({
+                          parent: document.document_id,
+                        }) as Href,
+                      )
+                    }
+                  >
+                    Nota de crédito
+                  </Button>
+                ) : null}
+                {canCreditNote ? (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onPress={() =>
+                      router.push(
+                        Routes.tenant.documentCreditNoteNew({
+                          parent: document.document_id,
+                          locked: true,
+                        }) as Href,
+                      )
+                    }
+                  >
                     Anular factura
                   </Button>
                 ) : null}
@@ -148,6 +150,21 @@ export function DocumentDetailScreen() {
 
             {downloadError ? <ApiErrorBanner error={downloadError} /> : null}
             {downloadXmlError ? <ApiErrorBanner error={downloadXmlError} /> : null}
+
+            {document.doc_type === '04' ? (
+              <View
+                style={[
+                  styles.infoBanner,
+                  { backgroundColor: semantic.bg.muted, borderColor: semantic.border.default },
+                ]}
+              >
+                <Text style={[styles.infoBannerText, { color: semantic.text.secondary }]}>
+                  Nota de crédito de:{' '}
+                  {relatedDocument?.sequential_display ?? document.related_document_id}
+                  {document.credit_note_reason ? ` — ${document.credit_note_reason}` : ''}
+                </Text>
+              </View>
+            ) : null}
 
             {document.status === 'ANNULLED' ? (
               <View
@@ -242,37 +259,6 @@ export function DocumentDetailScreen() {
           </>
         ) : null}
       </ScrollView>
-
-      <ConfirmDialog
-        visible={annulling}
-        title="Anular factura"
-        message="Esta acción no se puede revertir. El trámite de anulación ante el SRI se hace por fuera de Wali (portal SRI en línea o Facturador SRI) — marca esto como anulado solo después de completarlo ahí."
-        confirmLabel="Marcar como anulado"
-        variant="danger"
-        icon="ban-outline"
-        isLoading={annullingSubmit}
-        confirmDisabled={!reason.trim()}
-        onCancel={() => {
-          setAnnulling(false)
-          setReason('')
-          setReasonError(null)
-        }}
-        onConfirm={() => confirmAnnul()}
-      >
-        <FormField
-          label="Motivo de la anulación"
-          placeholder="Ej. error en el monto facturado"
-          leftIcon="alert-circle-outline"
-          error={reasonError ?? undefined}
-          onChangeText={(value) => {
-            setReason(value)
-            setReasonError(null)
-          }}
-          value={reason}
-          required
-        />
-        {annulError ? <ApiErrorBanner error={annulError} /> : null}
-      </ConfirmDialog>
     </View>
   )
 }

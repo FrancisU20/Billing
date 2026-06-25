@@ -22,6 +22,7 @@ from lambdas.documents.domain.repositories.i_discount_campaign_port import (
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from lambdas.documents.domain.repositories.i_product_catalog import IProductCatalog
 from lambdas.documents.domain.repositories.i_sequences_port import ISequencesPort
+from lambdas.documents.domain.totals import aggregate_line_totals
 from shared.dates import today_ecuador
 from shared.errors import ValidationError
 
@@ -48,10 +49,6 @@ def _compute_totals(
     )
 
     lines: list[InvoiceLine] = []
-    subtotal = Decimal("0.00")
-    total_discount = Decimal("0.00")
-    iva_15 = Decimal("0.00")
-    iva_5 = Decimal("0.00")
 
     for raw in lines_data:
         product_id = raw.product_id
@@ -96,10 +93,8 @@ def _compute_totals(
 
         if iva_rate_str == "15":
             iva_amount = (line_subtotal * applicable_rate / 100).quantize(Decimal("0.01"))
-            iva_15 += iva_amount
         elif iva_rate_str == "5":
             iva_amount = (line_subtotal * Decimal("5") / 100).quantize(Decimal("0.01"))
-            iva_5 += iva_amount
         else:
             iva_amount = Decimal("0.00")
 
@@ -117,19 +112,9 @@ def _compute_totals(
                 product_id=product_id,
             )
         )
-        subtotal += line_subtotal
-        total_discount += discount
 
-    total = subtotal + iva_15 + iva_5
-    return (
-        lines,
-        subtotal.quantize(Decimal("0.01")),
-        total_discount.quantize(Decimal("0.01")),
-        iva_15.quantize(Decimal("0.01")),
-        iva_5.quantize(Decimal("0.01")),
-        Decimal("0.00"),
-        total.quantize(Decimal("0.01")),
-    )
+    subtotal, total_discount, iva_15, iva_5, iva_0, total = aggregate_line_totals(lines)
+    return (lines, subtotal, total_discount, iva_15, iva_5, iva_0, total)
 
 
 def _random_numeric_code() -> str:

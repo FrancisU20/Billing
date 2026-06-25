@@ -39,6 +39,11 @@ class XmlNotAvailableError(BusinessError):
     default_message = "El XML solo está disponible para documentos autorizados."
 
 
+# Las siguientes 3 clases (DocumentNotAuthorizedError en su uso de anulacion,
+# AnnulmentWindowExpiredError, ConsumerFinalCannotBeAnnulledError) son legacy: solo las usa
+# el flujo manual de anulacion local (annul_document.py / POST /documents/{id}/annul),
+# deprecado en favor de Nota de Credito (ver emit_credit_note.py). Se mantienen sin tocar
+# por compatibilidad con documentos historicos ya anulados.
 class DocumentNotAuthorizedError(BusinessError):
     code = "DOCUMENT_NOT_AUTHORIZED"
     default_message = "Solo se pueden anular documentos autorizados."
@@ -55,3 +60,15 @@ class AnnulmentWindowExpiredError(BusinessError):
 class ConsumerFinalCannotBeAnnulledError(BusinessError):
     code = "CONSUMER_FINAL_CANNOT_BE_ANNULLED"
     default_message = "Las facturas emitidas a Consumidor Final no se pueden anular ante el SRI."
+
+
+class ParentDocumentNotAuthorizedError(BusinessError):
+    code = "PARENT_DOCUMENT_NOT_AUTHORIZED"
+    default_message = (
+        "Solo se puede emitir una nota de crédito sobre un documento autorizado por el SRI."
+    )
+
+
+class CreditedQuantityExceedsOriginalError(BusinessError):
+    code = "CREDITED_QUANTITY_EXCEEDS_ORIGINAL"
+    default_message = "La cantidad a acreditar no puede superar la cantidad original de la línea."

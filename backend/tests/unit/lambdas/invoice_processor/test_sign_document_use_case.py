@@ -17,8 +17,11 @@ class FakeDocumentsRepository:
     def __init__(self, document) -> None:
         self.document = document
         self.update_calls: list[dict] = []
+        self.extra_documents: dict[str, object] = {}
 
     def get(self, tenant_id, document_id):
+        if document_id in self.extra_documents:
+            return self.extra_documents[document_id]
         return self.document
 
     def update_status(self, tenant_id, document_id, **kwargs):
@@ -133,6 +136,37 @@ class SignDocumentUseCaseTests(unittest.TestCase):
         self.assertEqual(repo.update_calls, [])
         self.assertEqual(sri_client.calls, [])
         self.assertEqual(publisher.polls_enqueued, [])
+
+    def test_credit_note_builds_xml_with_parent_lookup(self) -> None:
+        parent = make_document(document_id="parent-1", tenant_id=self.tenant.id)
+        self.document = make_document(
+            document_id="doc-2",
+            tenant_id=self.tenant.id,
+            status=DocumentStatus.PENDING,
+            doc_type="04",
+            related_document_id="parent-1",
+            credit_note_reason="Devolución de mercadería",
+        )
+        repo = FakeDocumentsRepository(self.document)
+        repo.extra_documents["parent-1"] = parent
+        tenant_repo = _tenant_repo_with(self.tenant)
+        publisher = FakeQueuePublisher()
+        sri_client = FakeSriClient(RecepcionResult(received=True, errors=[]))
+
+        with (
+            patch(
+                "lambdas.invoice_processor.use_cases.sign_document.xml_builder.build_credit_note_xml",
+                return_value="<notaCredito/>",
+            ) as build_cn,
+            patch(
+                "lambdas.invoice_processor.use_cases.sign_document.xml_builder.build_invoice_xml"
+            ) as build_invoice,
+        ):
+            use_case = SignDocumentUseCase(repo, tenant_repo, sri_client, publisher)
+            use_case.execute(tenant_id=self.tenant.id, document_id=self.document.document_id)
+
+        build_cn.assert_called_once_with(self.document, self.tenant, parent)
+        build_invoice.assert_not_called()
 
 
 if __name__ == "__main__":

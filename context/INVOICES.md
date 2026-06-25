@@ -61,52 +61,104 @@ Ambos se acumulan en el mismo loop que ya pagina el GSI `tenant-docs-index`: cer
 adicionales, `name` es el `buyer_name` ya snapshoteado en el documento (no se vuelve a
 consultar `clients`). Usados por el dashboard tenant (ver `FRONTEND.md`).
 
-**Fuera de alcance MVP:** Nota de credito (04), retencion (07), batch masivo XLSX.
-Esos se disenan en sprints posteriores pero la arquitectura actual los soporta sin
-migraciones.
+**Fuera de alcance MVP:** retencion (07), batch masivo XLSX. Nota de credito (04) ya esta
+implementada (ver seccion siguiente). Esos dos se disenan en sprints posteriores pero la
+arquitectura actual los soporta sin migraciones.
 
-### Anulacion De Documentos (2026-06-22) — Marcado Local, Sin Integracion SRI
+### Anulacion De Documentos (Historico) — Marcado Local, Reemplazado Por Nota De Credito
 
 El SRI **no expone un webservice** para anular comprobantes electronicos (a diferencia de
 recepcion/autorizacion, que si son SOAP) — confirmado contra 3 fuentes independientes
 (NMS legal, Facturero Movil, soporte Contifico/Siigo). Es un tramite manual: el
 contribuyente entra al portal SRI en linea con sus propias credenciales (o usa el
 Facturador SRI), pide la anulacion ahi, y el sistema de facturacion solo debe reflejar
-el resultado despues. Por eso `POST /documents/{id}/annul` (`AnnulDocumentUseCase` +
-`DynamoDocumentsRepository.annul()`) **no llama a ningun servicio del SRI** — solo marca
-`status=ANNULLED` con auditoria (`action="DOCUMENT_ANNULLED"`, igual patron transaccional
-que `DISCOUNT_CEILING_OVERRIDE` en `save()`), y asume que el tramite manual ya se hizo.
+el resultado despues.
 
-Reglas de elegibilidad (Res. NAC-DGERCGC25-00000014/00000017, vigente 2026), validadas en
-`AnnulDocumentUseCase.execute()`:
-- Solo documentos `AUTHORIZED` (`DocumentNotAuthorizedError` si no).
-- Facturas a Consumidor Final (`buyer_id_type == "07"`) no se pueden anular desde enero
-  2026 (`ConsumerFinalCannotBeAnnulledError`).
-- Plazo: hasta el dia 7 del mes siguiente a `issued_at` (`AnnulmentWindowExpiredError` si
-  venció). **Deuda tecnica deliberada:** no se ajusta al siguiente dia habil si ese dia 7
-  cae feriado/fin de semana (calendario de feriados de Ecuador fuera de alcance) — el
-  efecto es ser ligeramente mas restrictivo que el SRI en esos casos puntuales, nunca mas
-  permisivo. Mismo calculo replicado en frontend (`features/documents/utils.ts`,
-  `isWithinAnnulmentWindow`) solo para UX proactiva; el backend es la fuente de verdad.
+Por eso `POST /documents/{id}/annul` (`AnnulDocumentUseCase` +
+`DynamoDocumentsRepository.annul()`) nunca llamo a ningun servicio del SRI — solo marcaba
+`status=ANNULLED` con auditoria, asumiendo que el tramite manual ya se habia hecho. Esto
+se **deprecio (2026-06-24)**, no se borro: `annul_document.py`, la ruta
+`POST /documents/{id}/annul`, `DocumentStatus.ANNULLED` y los errores
+`ConsumerFinalCannotBeAnnulledError`/`AnnulmentWindowExpiredError` quedan en el codigo para
+que los documentos ya anulados antes de este cambio sigan renderizando bien
+(`DocumentDetailScreen.tsx` todavia muestra el banner "Anulado" para esos), pero **la UI ya
+no los alcanza** — ningun flujo nuevo navega a esa ruta. El reemplazo real (que si llega al
+SRI) es Nota de Credito, seccion siguiente.
 
-Motivo obligatorio (`AnnulDocumentRequest.reason`) guardado en `Document.annulment_reason`
-+ `annulled_at`/`annulled_by`. Frontend: boton "Anular factura" en
-`DocumentDetailScreen.tsx` (solo `owner`/`admin`/`superadmin`, documento `AUTHORIZED`, no
-Consumidor Final, dentro de plazo) abre un `ConfirmDialog` extendido con un slot
-`children` (nuevo prop generico, reusable para futuros modales con input) que pide el
-motivo via `FormField`.
+### Nota De Credito (04) — Implementada (2026-06-24)
 
-En el listado (`DocumentsListScreen.tsx` → menu de 3 puntos de `DocumentListItem.tsx`) la
-accion "Anular factura" **siempre se muestra** cuando el rol tiene permiso de escritura —
-nunca se oculta por motivo de negocio. `features/documents/utils.ts` expone
-`getAnnulBlockReason(document)` (no AUTHORIZED / Consumidor Final / plazo vencido → string
-explicativo, `null` si es elegible); `RowActionsMenu` (`components/ui/RowActionsMenu.tsx`,
-prop `RowAction.disabled`/`disabledReason`, generico para cualquier dominio) renderiza la
-accion atenuada con el motivo como segunda linea en vez de ocultarla, para que el usuario
-entienda por que no puede anular sin tener que adivinar. El gate de rol (`canWrite`) si
-sigue ocultando la accion por completo — es permiso, no una regla de negocio que comunicar.
-`DocumentDetailScreen.tsx` todavia oculta su propio boton sin explicar el motivo (no
-migrado a `getAnnulBlockReason` en este cambio, queda como inconsistencia conocida).
+Reemplaza la anulacion local como el mecanismo "real" de cerrar el efecto tributario de una
+factura: es un comprobante electronico mas, mismo flujo SOAP completo (firma XAdES-BES +
+`recepcion`/`autorizacion`) que Factura — a diferencia de la anulacion local, esto si llega
+al SRI.
+
+**Diseno de pantalla unica:** una sola pantalla/componente
+(`EmitCreditNoteScreen.tsx`) sirve dos puntos de entrada:
+- **"Nota de credito"** (boton secundario en el header de `DocumentsListScreen.tsx` y en
+  `DocumentDetailScreen.tsx`) — abre la pantalla sin factura preseleccionada (lista) o con
+  la factura actual (detalle), lineas **editables** (parcial o total).
+- **"Anular factura"** (la misma entrada que antes, en el menu de 3 puntos del listado y en
+  el detalle) — abre la misma pantalla preseleccionando esa factura, con
+  `locked=true` via query param (`Routes.tenant.documentCreditNoteNew({ parent, locked })`)
+  → las cantidades quedan fijas al 100%, sin edicion. Mismo mental model para el usuario
+  ("anular" sigue existiendo como concepto) aunque por debajo emite una NC real.
+
+**Elegibilidad** (`features/documents/utils.ts::getCreditNoteBlockReason`): solo
+`doc_type === '01'` (una NC no puede acreditar otra NC) y `status === 'AUTHORIZED'`. **Sin
+excepcion de Consumidor Final ni ventana de plazo** — esas dos restricciones eran
+especificas del tramite manual de anulacion en linea (Res. NAC-DGERCGC25), no de las Notas
+de Credito. Esto es un fix real: antes no se podia anular una factura a Consumidor Final;
+ahora si se puede acreditar con NC. `RowActionsMenu`
+(`disabled`/`disabledReason`) sigue mostrando la accion atenuada con el motivo en vez de
+ocultarla cuando no aplica.
+
+**Backend:**
+- `Document.related_document_id`/`credit_note_reason` (nuevos campos opcionales, solo
+  `doc_type="04"`). El resto de los datos de la factura padre (`numDocModificado`,
+  `fechaEmisionDocSustento`) se leen en vivo via `related_document_id` en vez de
+  duplicarse — son inmutables post-autorizacion.
+- `EmitCreditNoteUseCase` (`use_cases/emit_credit_note.py`) — **no** es una rama de
+  `EmitDocumentUseCase`: las lineas no se resuelven contra el catalogo de productos
+  vigente, se copian de los snapshots ya persistidos de la factura padre
+  (`parent.lines`), escalando proporcionalmente por `cantidad_acreditada/cantidad_original`
+  (incluye descuento e IVA — nunca se re-deriva la tasa de IVA aplicable, se escala el
+  monto ya calculado de la linea original). Solo permite reducir cantidad, nunca agregar
+  lineas ni cambiar precios. `domain/totals.py::aggregate_line_totals` extrae la suma de
+  IVA por linea, compartida con `EmitDocumentUseCase._compute_totals` (refactor sin cambio
+  de comportamiento).
+- Secuenciales por `doc_type`: `ISequencesPort.reserve_next(tenant_id, serie, doc_type)`.
+  SK `SEQ#{estab}#{punto}` sin cambios para `doc_type="01"` (compatibilidad); para otros
+  tipos, `SEQ#{estab}#{punto}#{doc_type}` con **bootstrap perezoso** (auto-creacion en el
+  primer uso, arranca en 1) — sin tocar la UI de establecimientos/puntos de emision.
+  **Limitacion deliberada v1:** si un tenant ya emitia NC por otro sistema antes de Wali,
+  no hay forma de fijar un secuencial inicial distinto (mismo espiritu que la limitacion ya
+  documentada para `01`).
+- `xml_builder.py`: `build_credit_note_xml(document, tenant, parent)` — root
+  `<notaCredito>`, body `<infoNotaCredito>` (codDocModificado/numDocModificado/
+  fechaEmisionDocSustento/motivo, sin bloque `<pagos>`). Comparte `_build_detalles`/
+  `_build_total_con_impuestos` con `build_invoice_xml` (extraidos como helpers).
+- `ride_builder.py`: titulo "NOTA DE CRÉDITO No. ..." + referencia "Modifica a: Factura
+  ..." cuando hay `parent`.
+- `summary_this_month`: las NC **restan** de `authorized_total` (ingreso neto) en vez de
+  sumarse como factura — bug real que se hubiera introducido si no se corregia antes de que
+  existieran NCs. Nuevos campos `DocumentSummary.credit_notes_count`/`credit_notes_total`
+  para transparencia. `top_clients` queda solo-facturas en v1 (decision, no deuda — evita
+  rankings negativos).
+- `GET /documents?doc_type=` — filtro opcional, usado por `InvoicePickerModal` para no
+  mostrarse a si misma una NC ya autorizada al buscar facturas para acreditar.
+
+**Frontend:** `InvoicePickerModal.tsx` (selector de factura, modelado sobre
+`ClientPickerModal`/`PickerModal`, sin "crear rapido"); `BuyerReadOnlySection.tsx`
+(comprador siempre viene de la factura padre, nunca se re-elige); `creditNoteForm.ts`
+(helpers puros: `defaultCreditNoteFormValues`, `creditNoteFormValuesToInput`,
+`computeCreditNoteTotals` — replica en cliente la misma logica de escalado proporcional que
+el backend, solo para preview).
+
+**Riesgo de cumplimiento SRI no verificable solo con este repo:** la estructura exacta de
+`<infoNotaCredito>` (orden de campos, si realmente no lleva `<pagos>`, version del esquema)
+se implemento con la Ficha Tecnica documentada pero **sin XSD de Nota de Credito en el
+repo** (solo existe `sri_xsd/factura_v1.xsd`) — falta validar contra el ambiente de pruebas
+real del SRI antes de habilitar en produccion, mismo proceso que ya se uso para Factura.
 
 ## Lambdas Y Responsabilidades
 
@@ -958,8 +1010,10 @@ razonSocialComprador        = "CONSUMIDOR FINAL"
 client_id                   = null
 ```
 
-Desde el 1 de enero de 2026 **no se pueden anular facturas a Consumidor Final**. La
-unica via legal es emitir una Nota de Credito (tipo 04, fuera de alcance MVP).
+Desde el 1 de enero de 2026 **no se pueden anular facturas a Consumidor Final** por el
+tramite manual de anulacion en linea del SRI. La via real para corregir/reversar su valor
+es Nota de Credito (tipo 04, implementada — ver seccion "Nota De Credito (04)"), que **no**
+tiene esa restriccion.
 
 ## Estados Del Documento
 
@@ -1004,10 +1058,12 @@ El superadmin puede hacer todo.
 
 | Metodo | Ruta | Descripcion |
 | --- | --- | --- |
-| POST | `/documents` | emitir documento (202 Accepted) |
-| GET | `/documents` | lista paginada con filtros (status, date\_from, date\_to, serie) |
+| POST | `/documents` | emitir Factura (`doc_type:"01"`) o Nota de Credito (`doc_type:"04"`) — mismo endpoint, body distinto por tipo (`EmitDocumentRequest`/`EmitCreditNoteRequest`), 202 Accepted |
+| GET | `/documents` | lista paginada con filtros (status, doc\_type, date\_from, date\_to, serie, q) |
 | GET | `/documents/{id}` | detalle + estado actual |
 | GET | `/documents/{id}/ride` | pre-signed URL S3 al RIDE (solo si AUTHORIZED) |
+| GET | `/documents/{id}/xml` | pre-signed URL S3 al XML firmado (solo si AUTHORIZED) |
+| POST | `/documents/{id}/annul` | legacy — marca local sin SRI, deprecado (ver "Anulacion De Documentos") |
 
 ### Sequences (consulta interna — no HTTP publico)
 
@@ -1050,27 +1106,32 @@ Stacks a crear o modificar:
 
 ```
 frontend/features/documents/
-  api.ts                 # GET/POST /documents, GET /documents/{id}, GET /documents/{id}/xml|ride, POST /documents/{id}/annul
-  schemas.ts             # Zod: documento, pagina paginada, input de emision, form values
-  types.ts               # tipos derivados + DocumentListFilters
-  constants.ts           # status labels/badge variant, iva rates, buyer_id_types, payment methods
-  form.ts                # defaults, formValuesToEmitDocumentInput, computeLineTotals (preview)
+  api.ts                 # GET/POST /documents (emit + emitCreditNote), GET /documents/{id}, GET /documents/{id}/xml|ride
+  schemas.ts             # Zod: documento, pagina paginada, input de emision (factura + nota de credito), form values
+  types.ts               # tipos derivados + DocumentListFilters (incluye doc_type)
+  constants.ts           # status labels/badge variant, iva rates, buyer_id_types, payment methods, DOC_TYPE_LABELS
+  form.ts                # defaults, formValuesToEmitDocumentInput, computeLineTotals (preview) — solo Factura
+  creditNoteForm.ts       # defaults/conversion/preview de totales para Nota de Credito (escalado proporcional, espeja backend)
   filters.ts             # filtros de listado; `q` busca numero SRI, cedula/RUC, access key o nombre
+  utils.ts                # getCreditNoteBlockReason (elegibilidad: doc_type 01 + AUTHORIZED)
   hooks/
     useDocuments.ts        # useCursorPagedList con paginacion 10/25/50
     useDocument.ts         # useFetch + auto-poll cada 5s mientras PENDING/PROCESSING
   components/
     DocumentStatusBadge.tsx
-    DocumentListItem.tsx     # RowActionsMenu con descargas XML/RIDE y "Anular factura" si aplica
+    DocumentListItem.tsx     # RowActionsMenu con descargas XML/RIDE y "Anular factura" (navega a credit-note locked)
     DocumentsFilters.tsx
     DocumentLineRow.tsx      # fila compacta de una linea por producto (lista escaneable)
     DocumentLineEditModal.tsx # modal de detalle (cantidad/descuento/IVA/codigo/descripcion)
     IvaRatePicker.tsx       # SegmentedControl de 4 tarifas
-    BuyerSection.tsx        # 2 modos: Consumidor Final / Cliente existente — sin "Manual"
+    BuyerSection.tsx        # 2 modos: Consumidor Final / Cliente existente — sin "Manual" (solo Factura)
+    BuyerReadOnlySection.tsx # comprador solo-lectura para Nota de Credito (siempre viene de la factura padre)
     ClientPickerModal.tsx   # busca clientsApi.list({q}) + creacion rapida (igual patron que ProductPickerModal)
+    InvoicePickerModal.tsx  # busca documentsApi.list({status:AUTHORIZED, doc_type:'01', q}) — sin creacion rapida
   screens/
     DocumentsListScreen.tsx
     EmitDocumentScreen.tsx
+    EmitCreditNoteScreen.tsx # pantalla unica Nota de Credito — locked (Anular) o editable, ver seccion de dominio
     DocumentDetailScreen.tsx
 
 frontend/features/sequences/
@@ -1184,11 +1245,12 @@ Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregado
 | Colas enterprise dedicadas sin cleanup automatico | Si un tenant enterprise es dado de baja, su cola y ESM quedan huerfanos. Necesita un proceso de deprovision. |
 | Worker SIGN sin agrupacion de tenants en cola compartida | Para clientes pequenos, cada documento = 1 llamada SOAP al SRI (no hay batching entre distintos RUCs). Aceptable hasta ~50,000 docs/dia en la cola compartida. |
 | Scans de batch\_jobs para listado | Igual que tenants/clients: aceptable para volumen bajo. |
-| Nota de Credito (04) no implementada | Los tenants no podran corregir facturas en el MVP. Alta prioridad para Sprint 6+. |
 | Literal de estado "rechazado" en autorizacion SOAP sin verificar contra SRI real | `sri_client.py` asume que todo lo que no es `AUTORIZADO`/`EN PROCESO` es rechazo; falta confirmar el literal exacto (`NO AUTORIZADO` segun Ficha Tecnica) contra el ambiente de pruebas real del SRI. Ajuste aislado a una funcion si difiere. |
+| Nota de Credito solo puede referenciar Factura (01), no otra NC | Encadenar notas de credito sobre notas de credito no esta soportado en v1 — fuera de alcance hasta que se necesite (decision deliberada, no limitacion tecnica). |
+| Secuencial inicial de Nota de Credito no configurable | El contador "04" arranca en 1 via bootstrap perezoso (ver seccion "Nota De Credito"). Un tenant que ya emitia NC por otro sistema antes de Wali no tiene forma de fijar un secuencial inicial distinto — mismo espiritu que la limitacion ya documentada para Factura, pero sin la UI equivalente para NC. |
+| Estructura de `<infoNotaCredito>` sin XSD real para validar | El repo solo tiene `sri_xsd/factura_v1.xsd`. `build_credit_note_xml` se implemento con la Ficha Tecnica documentada (sin `<pagos>`, version "1.1.0") pero sin un test de compliance XSD equivalente al de Factura — validar contra el ambiente de pruebas real del SRI antes de produccion. |
 | `Establecimiento` sin direccion propia | `dirEstablecimiento` (obligatorio en XSD) reusa `tenant.address` para todos los establecimientos del tenant. Agregar `address` a `Establecimiento` si se necesita una direccion real por sucursal. |
 | RIDE sin codigo de barras real ni logo del tenant | MVP genera PDF con todos los campos obligatorios en texto via reportlab. Agregar barcode Code128/logo es trabajo de UI, no de cumplimiento legal — evaluar si un cliente lo pide. |
 | `EstablishmentsScreen` con forms inline via `useState` plano (no react-hook-form) | Los mini-forms de alta/edicion de punto de emision son simples (2-3 campos) y no justifican el overhead de react-hook-form+zod. Si crecen en complejidad, migrar al patron `*Form.tsx` + Controller. |
 | Emails de documento al emisor sin adjuntar PDF | `DocumentAuthorizedEvent` etc. notifican al emisor sin adjuntos. El emisor descarga el RIDE desde `GET /documents/{id}/ride`. El comprador si recibe XML autorizado + RIDE adjuntos via `DocumentBuyerNotificationRequestedEvent`. |
 | `invoice_processor` SIGN/POLL sin concurrencia reservada diferenciada | Cuenta AWS en `sa-east-1` con limite de Lambda en 10 ejecuciones concurrentes totales (default no aumentado). Pedir quota increase a AWS y reintroducir `reserved_concurrent_executions=30/20` en `api_stack.py` cuando se apruebe. |
-| `DocumentDetailScreen.tsx` oculta "Anular factura" sin explicar el motivo | El listado ya usa `getAnnulBlockReason()` + `RowActionsMenu` para mostrar el boton deshabilitado con la razon (no AUTHORIZED / Consumidor Final / plazo vencido). El detalle quedo con el patron viejo (ocultar sin avisar). Migrar si se vuelve a tocar esa pantalla. |

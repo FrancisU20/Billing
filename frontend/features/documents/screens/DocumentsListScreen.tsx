@@ -4,19 +4,15 @@ import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { FormField } from '@/components/ui/FormField'
 import { ListPaginationControls } from '@/components/ui/ListPaginationControls'
 import { ListScreenHeader } from '@/components/layout/ListScreenHeader'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { useToast } from '@/components/feedback/Toast'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { canWrite } from '@/constants/roles'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
-import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { Routes } from '@/constants/routes'
 import { spacing } from '@/constants/tokens'
 import { documentsApi } from '../api'
@@ -28,19 +24,15 @@ import {
   type DocumentFilterDraft,
 } from '../filters'
 import { useDocuments } from '../hooks/useDocuments'
-import { getAnnulBlockReason } from '../utils'
-import type { Document, DocumentListFilters } from '../types'
+import { getCreditNoteBlockReason } from '../utils'
+import type { DocumentListFilters } from '../types'
 
 export function DocumentsListScreen() {
   const router = useRouter()
   const { semantic } = useTheme()
-  const toast = useToast()
   const user = useAuthStore(selectUser)
   const [draft, setDraft] = useState<DocumentFilterDraft>(emptyDocumentFilterDraft)
   const [filters, setFilters] = useState<DocumentListFilters>({})
-  const [annulDocument, setAnnulDocument] = useState<Document | null>(null)
-  const [annulReason, setAnnulReason] = useState('')
-  const [annulReasonError, setAnnulReasonError] = useState<string | null>(null)
   const {
     documents,
     loading,
@@ -83,38 +75,6 @@ export function DocumentsListScreen() {
       await Linking.openURL(url)
     },
   )
-  const {
-    submitting: annulling,
-    error: annulError,
-    submit: confirmAnnul,
-  } = useFormSubmit(async (document: Document, reason: string) => {
-    await documentsApi.annul(
-      document.document_id,
-      reason.trim(),
-      createIdempotencyKey('document_annul'),
-    )
-    toast.success('Documento marcado como anulado')
-    setAnnulDocument(null)
-    setAnnulReason('')
-    setAnnulReasonError(null)
-    await refresh()
-  })
-
-  function closeAnnulDialog() {
-    setAnnulDocument(null)
-    setAnnulReason('')
-    setAnnulReasonError(null)
-  }
-
-  function submitAnnulDialog() {
-    if (!annulDocument) return
-    if (!annulReason.trim()) {
-      setAnnulReasonError('Indica el motivo de la anulación.')
-      return
-    }
-    setAnnulReasonError(null)
-    confirmAnnul(annulDocument, annulReason)
-  }
 
   if (loading && documents.length === 0) {
     return <LoadingSpinner fullScreen label="Cargando documentos..." />
@@ -155,8 +115,15 @@ export function DocumentsListScreen() {
             onDownloadRide={() => downloadRide(item.document_id)}
             onDownloadXml={() => downloadXml(item.document_id)}
             canAnnul={canWrite(user?.role ?? null)}
-            annulDisabledReason={getAnnulBlockReason(item)}
-            onAnnul={() => setAnnulDocument(item)}
+            annulDisabledReason={getCreditNoteBlockReason(item)}
+            onAnnul={() =>
+              router.push(
+                Routes.tenant.documentCreditNoteNew({
+                  parent: item.document_id,
+                  locked: true,
+                }) as Href,
+              )
+            }
           />
         )}
         contentContainerStyle={styles.list}
@@ -169,6 +136,10 @@ export function DocumentsListScreen() {
               action={{
                 label: 'Emitir documento',
                 onPress: () => router.push(Routes.tenant.documentNew as Href),
+              }}
+              secondaryAction={{
+                label: 'Nota de crédito',
+                onPress: () => router.push(Routes.tenant.documentCreditNoteNew() as Href),
               }}
             />
 
@@ -208,33 +179,6 @@ export function DocumentsListScreen() {
         onRefresh={refresh}
         showsVerticalScrollIndicator={false}
       />
-
-      <ConfirmDialog
-        visible={annulDocument !== null}
-        title="Anular factura"
-        message="Esta acción no se puede revertir. El trámite de anulación ante el SRI se hace por fuera de Wali (portal SRI en línea o Facturador SRI) — marca esto como anulado solo después de completarlo ahí."
-        confirmLabel="Marcar como anulado"
-        variant="danger"
-        icon="ban-outline"
-        isLoading={annulling}
-        confirmDisabled={!annulReason.trim()}
-        onCancel={closeAnnulDialog}
-        onConfirm={submitAnnulDialog}
-      >
-        <FormField
-          label="Motivo de la anulación"
-          placeholder="Ej. error en el monto facturado"
-          leftIcon="alert-circle-outline"
-          error={annulReasonError ?? undefined}
-          onChangeText={(value) => {
-            setAnnulReason(value)
-            setAnnulReasonError(null)
-          }}
-          value={annulReason}
-          required
-        />
-        {annulError ? <ApiErrorBanner error={annulError} /> : null}
-      </ConfirmDialog>
     </View>
   )
 }

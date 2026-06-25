@@ -4,7 +4,7 @@ import unittest
 
 from pydantic import ValidationError
 
-from lambdas.documents.schemas import EmitDocumentRequest
+from lambdas.documents.schemas import EmitCreditNoteRequest, EmitDocumentRequest
 
 
 def _emit_body(**overrides):
@@ -89,6 +89,54 @@ class EmitDocumentRequestSchemaTests(unittest.TestCase):
 
         self.assertTrue(req.override_discount_ceiling)
         self.assertEqual(req.override_reason, "Gesto comercial autorizado")
+
+
+def _credit_note_body(**overrides):
+    base = {
+        "establishment_code": "001",
+        "emission_point_code": "001",
+        "doc_type": "04",
+        "issued_at": "2026-06-18",
+        "related_document_id": "doc-1",
+        "credit_note_reason": "Devolución de mercadería",
+        "lines": [{"parent_line_index": 0, "quantity": "1"}],
+    }
+    base.update(overrides)
+    return base
+
+
+class EmitCreditNoteRequestSchemaTests(unittest.TestCase):
+    def test_accepts_valid_body(self) -> None:
+        req = EmitCreditNoteRequest.model_validate(_credit_note_body())
+        self.assertEqual(req.doc_type, "04")
+        self.assertEqual(req.related_document_id, "doc-1")
+        self.assertEqual(len(req.lines), 1)
+
+    def test_rejects_missing_reason(self) -> None:
+        with self.assertRaises(ValidationError):
+            EmitCreditNoteRequest.model_validate(_credit_note_body(credit_note_reason=""))
+
+    def test_rejects_blank_reason(self) -> None:
+        with self.assertRaises(ValidationError):
+            EmitCreditNoteRequest.model_validate(_credit_note_body(credit_note_reason="   "))
+
+    def test_rejects_missing_related_document_id(self) -> None:
+        with self.assertRaises(ValidationError):
+            EmitCreditNoteRequest.model_validate(_credit_note_body(related_document_id=""))
+
+    def test_rejects_non_positive_quantity(self) -> None:
+        with self.assertRaises(ValidationError):
+            EmitCreditNoteRequest.model_validate(
+                _credit_note_body(lines=[{"parent_line_index": 0, "quantity": "0"}])
+            )
+
+    def test_rejects_empty_lines(self) -> None:
+        with self.assertRaises(ValidationError):
+            EmitCreditNoteRequest.model_validate(_credit_note_body(lines=[]))
+
+    def test_rejects_wrong_doc_type_literal(self) -> None:
+        with self.assertRaises(ValidationError):
+            EmitCreditNoteRequest.model_validate(_credit_note_body(doc_type="01"))
 
 
 if __name__ == "__main__":

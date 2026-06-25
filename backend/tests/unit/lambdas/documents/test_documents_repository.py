@@ -152,6 +152,43 @@ class DynamoDocumentsRepositoryCountTests(unittest.TestCase):
         self.assertEqual(summary.authorized_total, Decimal("11.50"))
         self.assertEqual(table.query_calls[0]["IndexName"], "tenant-docs-index")
 
+    def test_summary_this_month_nets_credit_notes_from_authorized_total(self) -> None:
+        repo_for_items = DynamoDocumentsRepository(FakeDocumentsTable())
+        invoice = repo_for_items._to_item(
+            _make_document(
+                document_id="doc-1",
+                status=DocumentStatus.AUTHORIZED,
+                total=Decimal("23.00"),
+                created_at=datetime(2026, 6, 18, 12, tzinfo=UTC),
+                client_id="client-a",
+                buyer_name="Cliente A",
+            )
+        )
+        credit_note = repo_for_items._to_item(
+            _make_document(
+                document_id="doc-2",
+                doc_type="04",
+                status=DocumentStatus.AUTHORIZED,
+                total=Decimal("11.50"),
+                created_at=datetime(2026, 6, 18, 13, tzinfo=UTC),
+                client_id="client-a",
+                buyer_name="Cliente A",
+            )
+        )
+        table = FakeDocumentsTable(query_responses=[{"Items": [invoice, credit_note]}])
+        repo = DynamoDocumentsRepository(table)
+
+        summary = repo.summary_this_month("tenant-1")
+
+        # 23.00 (factura) - 11.50 (nota de credito) = 11.50 neto.
+        self.assertEqual(summary.authorized_total, Decimal("11.50"))
+        self.assertEqual(summary.authorized_count, 2)
+        self.assertEqual(summary.credit_notes_count, 1)
+        self.assertEqual(summary.credit_notes_total, Decimal("11.50"))
+        # top_clients queda solo-facturas en v1 — la nota de credito no resta del ranking.
+        self.assertEqual(len(summary.top_clients), 1)
+        self.assertEqual(summary.top_clients[0].total, Decimal("23.00"))
+
     def test_summary_this_month_builds_daily_issued_and_top_clients(self) -> None:
         repo_for_items = DynamoDocumentsRepository(FakeDocumentsTable())
         day_one_authorized_client_a = repo_for_items._to_item(

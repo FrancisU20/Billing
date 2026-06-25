@@ -1,11 +1,13 @@
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
+import { Badge } from '@/components/ui/Badge'
 import { ListCell, ListItemAction, ListItemMeta } from '@/components/ui/ListItemPrimitives'
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu'
 import { useIsDesktopLayout } from '@/lib/hooks/useIsDesktopLayout'
 import { useTheme } from '@/lib/theme-context'
 import { formatDate } from '@/lib/utils/format'
 import { radius, spacing, typography } from '@/constants/tokens'
+import { DOC_TYPE_LABELS } from '../constants'
 import { DocumentStatusBadge } from './DocumentStatusBadge'
 import type { Document } from '../types'
 
@@ -93,6 +95,13 @@ function MobileRow({ document }: { document: Document }) {
         <Text style={[styles.sequential, { color: semantic.text.primary }]} numberOfLines={1}>
           {document.sequential_display}
         </Text>
+        {document.doc_type !== '01' ? (
+          <Badge
+            label={DOC_TYPE_LABELS[document.doc_type] ?? document.doc_type}
+            variant="neutral"
+            size="sm"
+          />
+        ) : null}
         <DocumentStatusBadge status={document.status} />
       </View>
       <Text style={[styles.buyer, { color: semantic.text.secondary }]} numberOfLines={1}>
@@ -116,6 +125,13 @@ function DesktopRow({ document }: { document: Document }) {
           <Text style={[styles.sequential, { color: semantic.text.primary }]} numberOfLines={1}>
             {document.sequential_display}
           </Text>
+          {document.doc_type !== '01' ? (
+            <Badge
+              label={DOC_TYPE_LABELS[document.doc_type] ?? document.doc_type}
+              variant="neutral"
+              size="sm"
+            />
+          ) : null}
           <DocumentStatusBadge status={document.status} />
         </View>
         <Text style={[styles.buyer, { color: semantic.text.secondary }]} numberOfLines={1}>

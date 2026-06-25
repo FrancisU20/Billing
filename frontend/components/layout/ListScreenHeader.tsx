@@ -10,12 +10,20 @@ interface ListScreenHeaderProps {
   kicker: string
   heading: string
   action?: { label: string; onPress: () => void }
+  secondaryAction?: { label: string; onPress: () => void }
 }
 
 /** Encabezado compartido por las pantallas de listado: icono+kicker, titulo y boton
- * primario opcional. Cada pantalla sigue armando su propia fila de metricas/filtros
- * debajo de este componente. */
-export function ListScreenHeader({ icon, kicker, heading, action }: ListScreenHeaderProps) {
+ * primario opcional (+ uno secundario opcional, ej. "Nota de credito" junto a "Emitir
+ * documento" en Documentos). Cada pantalla sigue armando su propia fila de
+ * metricas/filtros debajo de este componente. */
+export function ListScreenHeader({
+  icon,
+  kicker,
+  heading,
+  action,
+  secondaryAction,
+}: ListScreenHeaderProps) {
   const { semantic } = useTheme()
   return (
     <View style={styles.heroRow}>
@@ -26,10 +34,19 @@ export function ListScreenHeader({ icon, kicker, heading, action }: ListScreenHe
         </View>
         <Text style={[styles.heading, { color: semantic.text.primary }]}>{heading}</Text>
       </View>
-      {action ? (
-        <Button variant="primary" size="md" onPress={action.onPress}>
-          {action.label}
-        </Button>
+      {action || secondaryAction ? (
+        <View style={styles.actions}>
+          {secondaryAction ? (
+            <Button variant="outline" size="md" onPress={secondaryAction.onPress}>
+              {secondaryAction.label}
+            </Button>
+          ) : null}
+          {action ? (
+            <Button variant="primary" size="md" onPress={action.onPress}>
+              {action.label}
+            </Button>
+          ) : null}
+        </View>
       ) : null}
     </View>
   )
@@ -44,6 +61,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   heroCopy: { flex: 1, minWidth: 260, gap: spacing[1] },
+  actions: { flexDirection: 'row', gap: spacing[2] },
   kickerRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[1] },
   kicker: {
     fontSize: typography.size.xs,

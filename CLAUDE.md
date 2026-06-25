@@ -16,7 +16,7 @@ Excepcion: los **dominios publicos** (`wali-{env}.codelabsecuador.com` /
 `billing-*` a `wali-*` y ya estan desplegados en dev (2026-06-21) — los nombres fisicos de
 infra y los dominios publicos son decisiones independientes.
 
-Ultima actualizacion: 2026-06-22.
+Ultima actualizacion: 2026-06-24.
 
 ## Objetivo Del Producto
 
@@ -120,13 +120,18 @@ el widget redundante "Flujo del mes" se reemplazo por 4 widgets derivados del mi
 boton de actualizar), evolucion diaria del mes (`TrendChart`, antes `RevenueChart`,
 generalizado y reusado del dashboard superadmin), ticket promedio y top 5 clientes del
 mes por monto autorizado (excluye "Consumidor Final"); detalle en `context/INVOICES.md` y
-`context/TENANTS.md`. **Anulacion de documentos (2026-06-22):** `POST
-/documents/{id}/annul` marca un documento `AUTHORIZED` como `ANNULLED` con motivo
-obligatorio y auditoria — el SRI no expone webservice de anulacion (confirmado contra 3
-fuentes externas), es tramite manual fuera de Wali; el endpoint solo refleja ese
-resultado, nunca llama al SRI. Reglas: solo `AUTHORIZED`, no Consumidor Final, dentro del
-plazo legal (dia 7 del mes siguiente). Detalle completo en `context/INVOICES.md` seccion
-"Anulacion De Documentos". Hub "Mi empresa"
+`context/TENANTS.md`. **Nota de Credito / reemplazo de anulacion local (2026-06-24):** el
+SRI no expone webservice de anulacion (confirmado contra 3 fuentes externas) — el viejo
+`POST /documents/{id}/annul` solo marcaba `status=ANNULLED` local, sin tocar el SRI. Se
+reemplazo por Nota de Credito (`doc_type=04`, mismo flujo SOAP completo que Factura:
+firma+recepcion+autorizacion) como mecanismo real. Una sola pantalla
+(`EmitCreditNoteScreen.tsx`) con dos entradas: "Nota de credito" (editable, parcial o
+total) y "Anular factura" (misma pantalla, cantidades fijas al 100%). Sin excepcion de
+Consumidor Final ni ventana de plazo (esas eran del tramite manual, no de NC) — fix real:
+antes no se podia anular una factura a Consumidor Final, ahora si se puede acreditar. El
+flujo viejo queda deprecado (no borrado) por compatibilidad con documentos ya anulados
+antes del cambio. Detalle completo en `context/INVOICES.md` seccion "Nota De Credito (04)".
+Hub "Mi empresa"
 (`/settings/company`) agrupa datos de empresa (self-edit), certificado digital y accesos a
 establecimientos/descuento global/facturacion; menu principal tenant quedo con un solo
 item de configuracion en vez de tres; `BillingScreen` ya no permite pago manual cuando la

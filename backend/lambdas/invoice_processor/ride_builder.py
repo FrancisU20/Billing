@@ -24,6 +24,8 @@ from shared.dates import format_date_ecuador, format_datetime_ecuador
 _styles = getSampleStyleSheet()
 _small = ParagraphStyle("small", parent=_styles["Normal"], fontSize=8, leading=10)
 
+_DOC_TYPE_LABELS = {"01": "FACTURA", "04": "NOTA DE CRÉDITO"}
+
 
 def _discount_cell(line) -> str:
     """'$5.00 (20.00%)' sobre el precio original, o '—' sin descuento.
@@ -41,7 +43,7 @@ def _discount_cell(line) -> str:
     return f"${line.discount:.2f} ({pct}%)"
 
 
-def build_ride_pdf(document: Document, tenant: Tenant) -> bytes:
+def build_ride_pdf(document: Document, tenant: Tenant, parent: Document | None = None) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -66,11 +68,18 @@ def build_ride_pdf(document: Document, tenant: Tenant) -> bytes:
     )
     elements.append(Spacer(1, 0.5 * cm))
 
-    elements.append(Paragraph(f"FACTURA No. {document.sequential_display}", _styles["Heading3"]))
+    doc_label = _DOC_TYPE_LABELS.get(document.doc_type, "DOCUMENTO")
+    elements.append(
+        Paragraph(f"{doc_label} No. {document.sequential_display}", _styles["Heading3"])
+    )
     elements.append(
         Paragraph(f"Fecha de emisión: {format_date_ecuador(document.issued_at)}", _styles["Normal"])
     )
     elements.append(Paragraph(f"Clave de acceso: {document.access_key}", _small))
+    if parent is not None:
+        elements.append(Paragraph(f"Modifica a: Factura {parent.sequential_display}", _small))
+        if document.credit_note_reason:
+            elements.append(Paragraph(f"Motivo: {document.credit_note_reason}", _small))
     if document.authorization_number:
         elements.append(
             Paragraph(f"Número de autorización: {document.authorization_number}", _small)

@@ -165,6 +165,103 @@ class EmitDocumentHandlerTests(unittest.TestCase):
         self.assertEqual(resp["statusCode"], 400)
 
 
+def _credit_note_body(**overrides) -> dict:
+    base = {
+        "establishment_code": "001",
+        "emission_point_code": "001",
+        "doc_type": "04",
+        "issued_at": _TODAY.isoformat(),
+        "related_document_id": "doc-1",
+        "credit_note_reason": "Devolución de mercadería",
+        "lines": [{"parent_line_index": 0, "quantity": "1"}],
+    }
+    base.update(overrides)
+    return base
+
+
+def _make_parent_invoice() -> Document:
+    from lambdas.documents.domain.entities import InvoiceLine
+
+    return Document(
+        document_id="doc-1",
+        tenant_id="t-1",
+        doc_type="01",
+        status=DocumentStatus.AUTHORIZED,
+        serie="001001",
+        sequential=1,
+        access_key="1" * 49,
+        client_id=None,
+        buyer_id_type="07",
+        buyer_id="9999999999999",
+        buyer_name="Consumidor Final",
+        buyer_email=None,
+        issued_at=_TODAY,
+        sri_environment="testing",
+        subtotal=Decimal("10.00"),
+        total_discount=Decimal("0.00"),
+        iva_15=Decimal("1.50"),
+        iva_5=Decimal("0.00"),
+        iva_0=Decimal("0.00"),
+        total=Decimal("11.50"),
+        payment_method="01",
+        lines=[
+            InvoiceLine(
+                code="P001",
+                description="Producto Test",
+                quantity=Decimal("1"),
+                unit_price=Decimal("10.00"),
+                discount=Decimal("0.00"),
+                subtotal=Decimal("10.00"),
+                iva_rate="15",
+                iva_amount=Decimal("1.50"),
+                total=Decimal("11.50"),
+            )
+        ],
+    )
+
+
+class EmitCreditNoteHandlerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.mod = _load_handler()
+
+    def _run(self, body: dict | None = None, claims: dict | None = None) -> dict:
+        repo = FakeDocumentsRepository()
+        repo.seed(_make_parent_invoice())
+        seq = FakeSequencesPort()
+        tenant = _fake_tenant()
+        plan = _fake_plan()
+        event = api_event(
+            method="POST",
+            path="/documents",
+            body=body or _credit_note_body(),
+            claims=claims or _owner_claims(),
+            headers={"x-idempotency-key": "idem-cn-1"},
+        )
+        with (
+            patch.object(self.mod, "_repo", return_value=repo),
+            patch.object(self.mod, "_sequences_port", return_value=seq),
+            patch.object(self.mod, "_get_tenant", return_value=tenant),
+            patch.object(self.mod, "_get_plan", return_value=plan),
+            patch.object(self.mod, "_send_sign_message"),
+            patch.object(self.mod, "require_current_context", return_value=_FAKE_IDEMPOTENCY),
+        ):
+            return self.mod.handler(event, _CTX)
+
+    def test_dispatches_to_credit_note_use_case_and_returns_202(self) -> None:
+        resp = self._run()
+        self.assertEqual(resp["statusCode"], 202)
+        body = decode_response(resp)
+        self.assertIn("document_id", body["data"])
+
+    def test_invalid_credit_note_body_returns_400(self) -> None:
+        resp = self._run(body=_credit_note_body(credit_note_reason=""))
+        self.assertEqual(resp["statusCode"], 400)
+
+    def test_unknown_parent_document_returns_404(self) -> None:
+        resp = self._run(body=_credit_note_body(related_document_id="missing"))
+        self.assertEqual(resp["statusCode"], 404)
+
+
 # ── GET /documents ────────────────────────────────────────────────────────────
 
 

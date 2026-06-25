@@ -3,6 +3,8 @@ import {
   documentSchema,
   documentsPageSchema,
   documentsSummarySchema,
+  emitCreditNoteFormValuesSchema,
+  emitCreditNoteSchema,
   emitDocumentResultSchema,
   emitDocumentSchema,
 } from './schemas'
@@ -58,6 +60,8 @@ const document = {
   annulled_at: null,
   annulled_by: '',
   annulment_reason: null,
+  related_document_id: null,
+  credit_note_reason: null,
 }
 
 describe('document contract schemas', () => {
@@ -120,6 +124,8 @@ describe('document contract schemas', () => {
       pending_count: 1,
       processing_count: 0,
       authorized_total: '199.95',
+      credit_notes_count: 0,
+      credit_notes_total: '0.00',
       document_limit: 500,
       is_unlimited: false,
       is_free_plan: false,
@@ -308,5 +314,95 @@ describe('document contract schemas', () => {
         ],
       }),
     ).toThrow()
+  })
+
+  it('accepts a valid credit note request', () => {
+    const parsed = emitCreditNoteSchema.parse({
+      establishment_code: '001',
+      emission_point_code: '001',
+      doc_type: '04',
+      issued_at: '2026-06-18',
+      related_document_id: 'doc-1',
+      credit_note_reason: 'Devolución de mercadería',
+      lines: [{ parent_line_index: 0, quantity: '1' }],
+    })
+    expect(parsed.doc_type).toBe('04')
+  })
+
+  it('rejects a credit note request with an empty reason', () => {
+    expect(() =>
+      emitCreditNoteSchema.parse({
+        establishment_code: '001',
+        emission_point_code: '001',
+        doc_type: '04',
+        issued_at: '2026-06-18',
+        related_document_id: 'doc-1',
+        credit_note_reason: '   ',
+        lines: [{ parent_line_index: 0, quantity: '1' }],
+      }),
+    ).toThrow()
+  })
+
+  it('rejects a credit note request with no lines', () => {
+    expect(() =>
+      emitCreditNoteSchema.parse({
+        establishment_code: '001',
+        emission_point_code: '001',
+        doc_type: '04',
+        issued_at: '2026-06-18',
+        related_document_id: 'doc-1',
+        credit_note_reason: 'Devolución',
+        lines: [],
+      }),
+    ).toThrow()
+  })
+
+  it('rejects a credit note line quantity above the original quantity', () => {
+    expect(() =>
+      emitCreditNoteFormValuesSchema.parse({
+        establishment_code: '001',
+        emission_point_code: '001',
+        issued_at: '2026-06-18',
+        credit_note_reason: 'Devolución',
+        locked: false,
+        lines: [
+          {
+            parent_line_index: 0,
+            code: 'P1',
+            description: 'Producto 1',
+            unit_price: '10.00',
+            iva_rate: '15',
+            original_quantity: '1',
+            original_subtotal: '10.00',
+            original_iva_amount: '1.50',
+            quantity: '2',
+          },
+        ],
+      }),
+    ).toThrow()
+  })
+
+  it('accepts a credit note line quantity within the original quantity', () => {
+    const parsed = emitCreditNoteFormValuesSchema.parse({
+      establishment_code: '001',
+      emission_point_code: '001',
+      issued_at: '2026-06-18',
+      credit_note_reason: 'Devolución',
+      locked: false,
+      lines: [
+        {
+          parent_line_index: 0,
+          code: 'P1',
+          description: 'Producto 1',
+          unit_price: '10.00',
+          iva_rate: '15',
+          original_quantity: '2',
+          original_subtotal: '20.00',
+          original_iva_amount: '3.00',
+          quantity: '1',
+        },
+      ],
+    })
+    expect(parsed.lines[0].quantity).toBe('1')
   })
 })

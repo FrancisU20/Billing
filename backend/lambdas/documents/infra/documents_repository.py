@@ -93,10 +93,13 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         serie: str | None,
         date_from: str | None,
         date_to: str | None,
+        doc_type: str | None = None,
     ):
         filters = [Attr("deleted").ne(True)]
         if status:
             filters.append(Attr("status").eq(status))
+        if doc_type:
+            filters.append(Attr("doc_type").eq(doc_type))
         if serie:
             filters.append(Attr("serie").eq(serie))
         if date_from:
@@ -152,6 +155,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         tenant_id: str,
         *,
         status: str | None = None,
+        doc_type: str | None = None,
         serie: str | None = None,
         q: str | None = None,
         date_from: str | None = None,
@@ -163,7 +167,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         kwargs: dict = {
             "IndexName": _GSI,
             "KeyConditionExpression": Key("tenant_id").eq(tenant_id),
-            "FilterExpression": self._list_filter_expr(status, serie, date_from, date_to),
+            "FilterExpression": self._list_filter_expr(status, serie, date_from, date_to, doc_type),
             "ScanIndexForward": False,
         }
         if not has_search:
@@ -205,6 +209,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         tenant_id: str,
         *,
         status: str | None = None,
+        doc_type: str | None = None,
         serie: str | None = None,
         q: str | None = None,
         date_from: str | None = None,
@@ -213,7 +218,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         kwargs: dict = {
             "IndexName": _GSI,
             "KeyConditionExpression": Key("tenant_id").eq(tenant_id),
-            "FilterExpression": self._list_filter_expr(status, serie, date_from, date_to),
+            "FilterExpression": self._list_filter_expr(status, serie, date_from, date_to, doc_type),
         }
         if not (q or "").strip():
             kwargs["Select"] = "COUNT"
@@ -272,6 +277,8 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         period_end = local_now.date().isoformat()
         status_counts = {status.value: 0 for status in DocumentStatus}
         authorized_total = Decimal("0.00")
+        credit_notes_count = 0
+        credit_notes_total = Decimal("0.00")
         daily_counts: dict[str, int] = {}
         client_totals: dict[str, dict] = {}
         last_key = None
@@ -301,6 +308,16 @@ class DynamoDocumentsRepository(IDocumentsRepository):
 
                     if status == DocumentStatus.AUTHORIZED.value:
                         total = Decimal(str(item.get("total", "0.00")))
+                        doc_type = str(item.get("doc_type") or "01")
+                        if doc_type == "04":
+                            # Nota de credito: resta del ingreso neto en vez de sumarse
+                            # como si fuera una factura adicional. No afecta top_clients
+                            # en v1 (decision documentada — invoice-only, evita rankings
+                            # negativos).
+                            authorized_total -= total
+                            credit_notes_count += 1
+                            credit_notes_total += total
+                            continue
                         authorized_total += total
                         client_id = item.get("client_id")
                         if client_id:
@@ -344,6 +361,8 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             pending_count=status_counts[DocumentStatus.PENDING.value],
             processing_count=status_counts[DocumentStatus.PROCESSING.value],
             authorized_total=authorized_total.quantize(Decimal("0.01")),
+            credit_notes_count=credit_notes_count,
+            credit_notes_total=credit_notes_total.quantize(Decimal("0.01")),
             daily_issued=daily_issued,
             top_clients=top_clients,
         )
@@ -695,6 +714,8 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             "annulled_at": doc.annulled_at.isoformat() if doc.annulled_at else None,
             "annulled_by": doc.annulled_by,
             "annulment_reason": doc.annulment_reason,
+            "related_document_id": doc.related_document_id,
+            "credit_note_reason": doc.credit_note_reason,
         }
 
     def _from_item(self, item: dict) -> Document:
@@ -742,4 +763,6 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             annulled_at=_dt(item["annulled_at"]) if item.get("annulled_at") else None,
             annulled_by=item.get("annulled_by", ""),
             annulment_reason=item.get("annulment_reason"),
+            related_document_id=item.get("related_document_id"),
+            credit_note_reason=item.get("credit_note_reason"),
         )

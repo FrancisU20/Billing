@@ -91,7 +91,12 @@ class PollDocumentUseCase:
             authorized_at = _parse_authorized_at(result.authorized_at)
             document.authorization_number = result.authorization_number
             document.authorized_at = authorized_at
-            ride_pdf = ride_builder.build_ride_pdf(document, tenant)
+            parent = (
+                self._documents_repo.get(tenant_id, document.related_document_id)
+                if document.doc_type == "04" and document.related_document_id
+                else None
+            )
+            ride_pdf = ride_builder.build_ride_pdf(document, tenant, parent)
             xml_s3_key, ride_s3_key = self._storage.put_authorized_document(
                 tenant_id=tenant_id,
                 document_id=document_id,

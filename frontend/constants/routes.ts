@@ -46,6 +46,13 @@ export const Routes = {
     documents: '/(app)/(tenant)/documents' as const,
     documentNew: '/(app)/(tenant)/documents/emit' as const,
     documentDetail: (id: string) => `/(app)/(tenant)/documents/${id}` as const,
+    documentCreditNoteNew: (params?: { parent?: string; locked?: boolean }) => {
+      const query = new URLSearchParams()
+      if (params?.parent) query.set('parent', params.parent)
+      if (params?.locked) query.set('locked', '1')
+      const qs = query.toString()
+      return `/(app)/(tenant)/documents/credit-note${qs ? `?${qs}` : ''}` as const
+    },
     establishments: '/(app)/(tenant)/settings/estab' as const,
     company: '/(app)/(tenant)/settings/company' as const,
     companyEdit: '/(app)/(tenant)/settings/company/edit' as const,

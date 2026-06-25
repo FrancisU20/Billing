@@ -48,7 +48,11 @@ class SignDocumentUseCase:
         tenant = self._tenant_repo.get_by_id(tenant_id)
         private_key, certificate = load_certificate(tenant.certificate_secret_arn)
 
-        xml = xml_builder.build_invoice_xml(document, tenant)
+        if document.doc_type == "04" and document.related_document_id:
+            parent = self._documents_repo.get(tenant_id, document.related_document_id)
+            xml = xml_builder.build_credit_note_xml(document, tenant, parent)
+        else:
+            xml = xml_builder.build_invoice_xml(document, tenant)
         signed_xml = sign_xades_bes(xml, private_key, certificate)
 
         result = self._sri_client.recepcion(environment=document.sri_environment, xmls=[signed_xml])

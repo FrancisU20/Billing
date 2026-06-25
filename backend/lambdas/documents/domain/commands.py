@@ -39,6 +39,27 @@ class EmitDocumentCommand:
 
 
 @dataclass
+class CreditNoteLineData:
+    parent_line_index: int
+    quantity: Decimal
+
+
+@dataclass
+class EmitCreditNoteCommand:
+    tenant_id: str
+    ruc: str
+    sri_environment: str  # "testing" | "production"
+    certificate_secret_arn: str | None
+    monthly_limit: int
+    serie: str  # e.g. "001001" — punto de emision de la nota de credito
+    issued_at: date
+    related_document_id: str
+    credit_note_reason: str
+    lines: list[CreditNoteLineData]
+    created_by: str
+
+
+@dataclass
 class GetDocumentCommand:
     tenant_id: str
     document_id: str
@@ -48,6 +69,7 @@ class GetDocumentCommand:
 class ListDocumentsCommand:
     tenant_id: str
     status: str | None = None
+    doc_type: str | None = None
     serie: str | None = None
     q: str | None = None
     date_from: str | None = None

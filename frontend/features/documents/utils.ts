@@ -1,37 +1,20 @@
-import { CONSUMIDOR_FINAL_ID_TYPE } from './constants'
 import type { Document } from './types'
 
-// SRI Res. NAC-DGERCGC25-00000014/00000017: anulacion "en linea" solo hasta el dia 7 del
-// mes siguiente a la emision. No se ajusta al siguiente dia habil si cae feriado/fin de
-// semana (mismo criterio que el backend, ver use_cases/annul_document.py).
-const ANNULMENT_DEADLINE_DAY = 7
-
-export function isWithinAnnulmentWindow(issuedAt: string): boolean {
-  const [year, month, day] = issuedAt.split('-').map(Number)
-  if (!year || !month || !day) return false
-
-  const deadline = new Date(year, month, ANNULMENT_DEADLINE_DAY) // month is 0-indexed -> next month
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  deadline.setHours(0, 0, 0, 0)
-
-  return today <= deadline
-}
-
 /**
- * Motivo de negocio (Res. NAC-DGERCGC25) por el que un documento no se puede anular, o
- * `null` si es elegible. No evalua permisos de rol (`canWrite`) — eso lo decide la
- * pantalla para ocultar la accion por completo en vez de explicarla.
+ * Motivo de negocio por el que un documento no se puede acreditar con una Nota de
+ * Crédito, o `null` si es elegible. A diferencia de la vieja anulación local
+ * (deprecada), Nota de Crédito SÍ llega al SRI y NO tiene excepción de Consumidor
+ * Final ni ventana de plazo — esa restricción era específica del trámite manual de
+ * anulación en línea (Res. NAC-DGERCGC25), no de las Notas de Crédito. No evalúa
+ * permisos de rol (`canWrite`) — eso lo decide la pantalla para ocultar la acción por
+ * completo en vez de explicarla.
  */
-export function getAnnulBlockReason(document: Document): string | null {
+export function getCreditNoteBlockReason(document: Document): string | null {
+  if (document.doc_type !== '01') {
+    return 'Una nota de crédito solo puede acreditar una factura, no otra nota de crédito.'
+  }
   if (document.status !== 'AUTHORIZED') {
-    return 'Solo se pueden anular documentos autorizados por el SRI.'
-  }
-  if (document.buyer_id_type === CONSUMIDOR_FINAL_ID_TYPE) {
-    return 'Las facturas a Consumidor Final no se pueden anular (Res. NAC-DGERCGC25, vigente desde enero 2026).'
-  }
-  if (!isWithinAnnulmentWindow(document.issued_at)) {
-    return 'El plazo legal para anular venció (hasta el día 7 del mes siguiente a la emisión).'
+    return 'Solo se puede emitir una nota de crédito sobre documentos autorizados por el SRI.'
   }
   return null
 }

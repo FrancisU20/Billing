@@ -60,8 +60,13 @@ class DynamoSequencesRepository(ISequencesRepository):
     def _estab_sk(self, code: str) -> str:
         return f"ESTAB#{code}"
 
-    def _seq_sk(self, estab: str, punto: str) -> str:
-        return f"SEQ#{estab}#{punto}"
+    def _seq_sk(self, estab: str, punto: str, doc_type: str = "01") -> str:
+        # doc_type="01" mantiene el SK historico sin sufijo — compatibilidad con
+        # contadores de factura ya existentes. Otros tipos (ej. "04" Nota de Credito)
+        # llevan su propio contador independiente, exigencia del SRI.
+        if doc_type == "01":
+            return f"SEQ#{estab}#{punto}"
+        return f"SEQ#{estab}#{punto}#{doc_type}"
 
     # ── read ──────────────────────────────────────────────────────────────────
 
@@ -114,11 +119,20 @@ class DynamoSequencesRepository(ISequencesRepository):
             _log.error("DynamoDB get_item error (has_sequence_started)", error=str(exc))
             raise DatabaseError() from exc
 
-    def reserve_next(self, tenant_id: str, serie: str) -> int:
+    def reserve_next(self, tenant_id: str, serie: str, doc_type: str = "01") -> int:
         estab, punto = serie[:3], serie[3:]
+        sk = self._seq_sk(estab, punto, doc_type)
+
+        # Las secuencias "01" se provisionan explicitamente al crear el punto de emision
+        # (commit/_put_seq_init) — si el item no existe, es un error real y debe fallar.
+        # Las secuencias de otros doc_type (ej. "04") no tienen ese flujo de creacion en
+        # v1: se auto-crean perezosamente en su primer uso, arrancando en 1.
+        if doc_type != "01":
+            self._lazy_create_seq_item(tenant_id, sk)
+
         try:
             resp = self._table.update_item(
-                Key={"pk": self._pk(tenant_id), "sk": self._seq_sk(estab, punto)},
+                Key={"pk": self._pk(tenant_id), "sk": sk},
                 UpdateExpression="ADD #cur :one",
                 ConditionExpression="#cur < :max",
                 ExpressionAttributeNames={"#cur": "current"},
@@ -131,6 +145,24 @@ class DynamoSequencesRepository(ISequencesRepository):
             if code == "ConditionalCheckFailedException":
                 raise SequenceExhaustedError(serie) from exc
             _log.error("DynamoDB update_item error (reserve_next)", error=str(exc))
+            raise DatabaseError() from exc
+
+    def _lazy_create_seq_item(self, tenant_id: str, sk: str) -> None:
+        try:
+            self._table.put_item(
+                Item={
+                    "pk": self._pk(tenant_id),
+                    "sk": sk,
+                    "entity_type": "SEQUENCE",
+                    "current": 0,
+                    "initial": 1,
+                },
+                ConditionExpression="attribute_not_exists(pk)",
+            )
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                return  # ya existe — comportamiento idempotente esperado
+            _log.error("DynamoDB put_item error (lazy_create_seq_item)", error=str(exc))
             raise DatabaseError() from exc
 
     # ── write ─────────────────────────────────────────────────────────────────

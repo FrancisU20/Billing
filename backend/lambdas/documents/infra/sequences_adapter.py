@@ -10,5 +10,5 @@ class DynamoSequencesAdapter(ISequencesPort):
     def __init__(self, sequences_table) -> None:
         self._repo = DynamoSequencesRepository(sequences_table)
 
-    def reserve_next(self, tenant_id: str, serie: str) -> int:
-        return self._repo.reserve_next(tenant_id, serie)
+    def reserve_next(self, tenant_id: str, serie: str, doc_type: str = "01") -> int:
+        return self._repo.reserve_next(tenant_id, serie, doc_type)

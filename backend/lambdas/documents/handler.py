@@ -4,13 +4,16 @@ from __future__ import annotations
 Documents Lambda — electronic invoice emission and retrieval.
 
 Routes:
-    POST /documents                → emit_document (202 Accepted)
-    GET  /documents                → list_documents
+    POST /documents                → emit_document (doc_type 01) o emit_credit_note
+                                      (doc_type 04) — mismo endpoint, discriminado por
+                                      doc_type en el body (202 Accepted)
+    GET  /documents                → list_documents (?doc_type= opcional)
     GET  /documents/summary        → get_documents_summary
     GET  /documents/{id}           → get_document
     GET  /documents/{id}/ride      → get_ride_url (pre-signed S3 URL)
     GET  /documents/{id}/xml       → get_xml_url (pre-signed S3 URL)
-    POST /documents/{id}/annul     → annul_document (local mark only, no SRI webservice)
+    POST /documents/{id}/annul     → annul_document (legacy: marca local sin SRI,
+                                      deprecado — la UI actual usa Nota de Credito)
 
 Auth:
     - POST: owner, admin, superadmin
@@ -30,6 +33,8 @@ from lambdas._base.permissions import require_role
 from lambdas._base.response import ApiResponse
 from lambdas.documents.domain.commands import (
     AnnulDocumentCommand,
+    CreditNoteLineData,
+    EmitCreditNoteCommand,
     EmitDocumentCommand,
     GetDocumentCommand,
     GetRideUrlCommand,
@@ -46,10 +51,12 @@ from lambdas.documents.infra.product_catalog import DynamoProductCatalog
 from lambdas.documents.infra.sequences_adapter import DynamoSequencesAdapter
 from lambdas.documents.schemas import (
     AnnulDocumentRequest,
+    EmitCreditNoteRequest,
     EmitDocumentRequest,
     ListDocumentsQueryParams,
 )
 from lambdas.documents.use_cases.annul_document import AnnulDocumentUseCase
+from lambdas.documents.use_cases.emit_credit_note import EmitCreditNoteUseCase
 from lambdas.documents.use_cases.emit_document import EmitDocumentUseCase
 from lambdas.documents.use_cases.get_document import GetDocumentUseCase
 from lambdas.documents.use_cases.get_documents_summary import GetDocumentsSummaryUseCase
@@ -125,10 +132,20 @@ def _send_sign_message(document_id: str, tenant_id: str) -> None:
 @require_role("owner", "admin", "superadmin")
 @idempotent
 def _emit(request: Request, context) -> dict:
+    """POST /documents — un solo endpoint para ambos tipos de comprobante, discriminado
+    por doc_type en el body. La cola SIGN/POLL es agnostica al tipo (ver xml_builder/
+    ride_builder), asi que el unico fork esta aqui, antes de construir el Document.
+    """
     tenant_id = _resolve_tenant_id(request)
     if not request.is_superadmin and tenant_id != request.tenant_id:
         raise ForbiddenError()
 
+    if request.body.get("doc_type") == "04":
+        return _emit_credit_note(request, tenant_id)
+    return _emit_invoice(request, tenant_id)
+
+
+def _emit_invoice(request: Request, tenant_id: str) -> dict:
     body = parse(EmitDocumentRequest, request.body)
 
     tenant = _get_tenant(tenant_id)
@@ -186,6 +203,62 @@ def _emit(request: Request, context) -> dict:
         )
     )
 
+    return _finalize_emission(
+        document,
+        request,
+        repo,
+        override_reason=body.override_reason if body.override_discount_ceiling else None,
+    )
+
+
+def _emit_credit_note(request: Request, tenant_id: str) -> dict:
+    body = parse(EmitCreditNoteRequest, request.body)
+
+    tenant = _get_tenant(tenant_id)
+    plan_info = _get_plan(tenant.plan_id)
+
+    monthly_limit = (
+        plan_info.pruebas_monthly_docs_limit
+        if tenant.sri_environment == SriEnvironment.TESTING
+        else plan_info.document_limit
+    )
+
+    serie = body.establishment_code + body.emission_point_code
+
+    lines = [
+        CreditNoteLineData(parent_line_index=ln.parent_line_index, quantity=ln.quantity)
+        for ln in body.lines
+    ]
+
+    repo = _repo()
+    seq_port = _sequences_port()
+
+    document = EmitCreditNoteUseCase(repo, seq_port).execute(
+        EmitCreditNoteCommand(
+            tenant_id=tenant_id,
+            ruc=tenant.ruc,
+            sri_environment=tenant.sri_environment.value,
+            certificate_secret_arn=tenant.certificate_secret_arn,
+            monthly_limit=monthly_limit,
+            serie=serie,
+            issued_at=body.issued_at,
+            related_document_id=body.related_document_id,
+            credit_note_reason=body.credit_note_reason,
+            lines=lines,
+            created_by=request.user_id,
+        )
+    )
+
+    return _finalize_emission(document, request, repo)
+
+
+def _finalize_emission(
+    document,
+    request: Request,
+    repo: DynamoDocumentsRepository,
+    *,
+    override_reason: str | None = None,
+) -> dict:
     response = ApiResponse.accepted(
         {
             "document_id": document.document_id,
@@ -201,12 +274,12 @@ def _emit(request: Request, context) -> dict:
         document,
         idempotency=require_current_context(),
         response=response,
-        override_reason=body.override_reason if body.override_discount_ceiling else None,
+        override_reason=override_reason,
         user_id=request.user_id,
     )
 
     try:
-        _send_sign_message(document.document_id, tenant_id)
+        _send_sign_message(document.document_id, document.tenant_id)
     except Exception:
         _log.warning(
             "SQS send_message failed after document save (document stuck PENDING)",
@@ -226,6 +299,7 @@ def _list(request: Request, context) -> dict:
     command = ListDocumentsCommand(
         tenant_id=tenant_id,
         status=params.status,
+        doc_type=params.doc_type,
         serie=params.serie,
         q=params.q,
         date_from=params.date_from,
