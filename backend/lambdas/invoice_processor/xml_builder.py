@@ -49,23 +49,38 @@ def _build_total_con_impuestos(parent: etree._Element, lines: list[InvoiceLine])
         _sub(total_impuesto, "valor", _money(valor_by_rate[rate]))
 
 
-def _build_detalles(root: etree._Element, lines: list[InvoiceLine]) -> None:
+def _build_detalle_common(detalle: etree._Element, line: InvoiceLine) -> None:
+    _sub(detalle, "descripcion", line.description)
+    _sub(detalle, "cantidad", str(line.quantity))
+    _sub(detalle, "precioUnitario", _money(line.unit_price))
+    _sub(detalle, "descuento", _money(line.discount))
+    _sub(detalle, "precioTotalSinImpuesto", _money(line.subtotal))
+    impuestos = etree.SubElement(detalle, "impuestos")
+    impuesto = etree.SubElement(impuestos, "impuesto")
+    _sub(impuesto, "codigo", "2")
+    _sub(impuesto, "codigoPorcentaje", _IVA_CODIGO_PORCENTAJE[line.iva_rate])
+    _sub(impuesto, "tarifa", _IVA_TARIFA[line.iva_rate])
+    _sub(impuesto, "baseImponible", _money(line.subtotal))
+    _sub(impuesto, "valor", _money(line.iva_amount))
+
+
+def _build_detalles_factura(root: etree._Element, lines: list[InvoiceLine]) -> None:
     detalles = etree.SubElement(root, "detalles")
     for line in lines:
         detalle = etree.SubElement(detalles, "detalle")
         _sub(detalle, "codigoPrincipal", line.code)
-        _sub(detalle, "descripcion", line.description)
-        _sub(detalle, "cantidad", str(line.quantity))
-        _sub(detalle, "precioUnitario", _money(line.unit_price))
-        _sub(detalle, "descuento", _money(line.discount))
-        _sub(detalle, "precioTotalSinImpuesto", _money(line.subtotal))
-        impuestos = etree.SubElement(detalle, "impuestos")
-        impuesto = etree.SubElement(impuestos, "impuesto")
-        _sub(impuesto, "codigo", "2")
-        _sub(impuesto, "codigoPorcentaje", _IVA_CODIGO_PORCENTAJE[line.iva_rate])
-        _sub(impuesto, "tarifa", _IVA_TARIFA[line.iva_rate])
-        _sub(impuesto, "baseImponible", _money(line.subtotal))
-        _sub(impuesto, "valor", _money(line.iva_amount))
+        _build_detalle_common(detalle, line)
+
+
+def _build_detalles_nota_credito(root: etree._Element, lines: list[InvoiceLine]) -> None:
+    # XSD notaCredito (Ficha Tecnica SRI) no acepta codigoPrincipal/codigoAuxiliar;
+    # el equivalente es codigoInterno/codigoAdicional. Reusar las etiquetas de
+    # factura aqui hace que el SRI rechace el documento con error de esquema.
+    detalles = etree.SubElement(root, "detalles")
+    for line in lines:
+        detalle = etree.SubElement(detalles, "detalle")
+        _sub(detalle, "codigoInterno", line.code)
+        _build_detalle_common(detalle, line)
 
 
 def _build_info_tributaria(document: Document, tenant: Tenant) -> etree._Element:
@@ -134,7 +149,7 @@ def build_invoice_xml(document: Document, tenant: Tenant) -> str:
     _sub(pago, "formaPago", document.payment_method)
     _sub(pago, "total", _money(document.total))
 
-    _build_detalles(root, document.lines)
+    _build_detalles_factura(root, document.lines)
     _build_info_adicional(root, document)
 
     return _serialize(root)
@@ -167,7 +182,7 @@ def build_credit_note_xml(document: Document, tenant: Tenant, parent: Document) 
 
     _sub(info_nota_credito, "motivo", document.credit_note_reason or "")
 
-    _build_detalles(root, document.lines)
+    _build_detalles_nota_credito(root, document.lines)
     _build_info_adicional(root, document)
 
     return _serialize(root)

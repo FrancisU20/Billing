@@ -63,6 +63,12 @@ const tenantNavigation: AppNavigationItem[] = [
     href: Routes.tenant.documents as Href,
     activeWhen: segment(Routes.tenant.documents),
   },
+  {
+    label: 'Notas de crédito',
+    icon: 'receipt-outline',
+    href: Routes.tenant.creditNotes as Href,
+    activeWhen: segment(Routes.tenant.creditNotes),
+  },
 ]
 
 export function getAppNavigationItems(user: AuthUser | null): AppNavigationItem[] {

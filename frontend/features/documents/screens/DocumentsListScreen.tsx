@@ -16,6 +16,7 @@ import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { spacing } from '@/constants/tokens'
 import { documentsApi } from '../api'
+import { AnnulInvoiceModal } from '../components/AnnulInvoiceModal'
 import { DocumentListItem } from '../components/DocumentListItem'
 import { DocumentsFilters } from '../components/DocumentsFilters'
 import {
@@ -25,7 +26,7 @@ import {
 } from '../filters'
 import { useDocuments } from '../hooks/useDocuments'
 import { getCreditNoteBlockReason } from '../utils'
-import type { DocumentListFilters } from '../types'
+import type { Document, DocumentListFilters } from '../types'
 
 export function DocumentsListScreen() {
   const router = useRouter()
@@ -33,6 +34,7 @@ export function DocumentsListScreen() {
   const user = useAuthStore(selectUser)
   const [draft, setDraft] = useState<DocumentFilterDraft>(emptyDocumentFilterDraft)
   const [filters, setFilters] = useState<DocumentListFilters>({})
+  const [annulTarget, setAnnulTarget] = useState<Document | null>(null)
   const {
     documents,
     loading,
@@ -116,14 +118,7 @@ export function DocumentsListScreen() {
             onDownloadXml={() => downloadXml(item.document_id)}
             canAnnul={canWrite(user?.role ?? null)}
             annulDisabledReason={getCreditNoteBlockReason(item)}
-            onAnnul={() =>
-              router.push(
-                Routes.tenant.documentCreditNoteNew({
-                  parent: item.document_id,
-                  locked: true,
-                }) as Href,
-              )
-            }
+            onAnnul={() => setAnnulTarget(item)}
           />
         )}
         contentContainerStyle={styles.list}
@@ -136,10 +131,6 @@ export function DocumentsListScreen() {
               action={{
                 label: 'Emitir documento',
                 onPress: () => router.push(Routes.tenant.documentNew as Href),
-              }}
-              secondaryAction={{
-                label: 'Nota de crédito',
-                onPress: () => router.push(Routes.tenant.documentCreditNoteNew() as Href),
               }}
             />
 
@@ -178,6 +169,12 @@ export function DocumentsListScreen() {
         refreshing={loading}
         onRefresh={refresh}
         showsVerticalScrollIndicator={false}
+      />
+
+      <AnnulInvoiceModal
+        visible={!!annulTarget}
+        document={annulTarget}
+        onClose={() => setAnnulTarget(null)}
       />
     </View>
   )

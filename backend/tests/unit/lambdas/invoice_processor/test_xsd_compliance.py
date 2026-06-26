@@ -23,10 +23,11 @@ from cryptography.x509.oid import NameOID
 from lxml import etree
 
 from lambdas.invoice_processor.signing import sign_xades_bes
-from lambdas.invoice_processor.xml_builder import build_invoice_xml
+from lambdas.invoice_processor.xml_builder import build_credit_note_xml, build_invoice_xml
 from tests.unit.lambdas.invoice_processor.fixtures import make_document, make_invoice_tenant
 
 _XSD_PATH = Path(__file__).parent / "sri_xsd" / "factura_v1.xsd"
+_NOTA_CREDITO_XSD_PATH = Path(__file__).parent / "sri_xsd" / "nota_credito_v1.xsd"
 
 
 def _self_signed_certificate():
@@ -82,6 +83,40 @@ class XsdComplianceTests(unittest.TestCase):
         signed = sign_xades_bes(xml, private_key, certificate)
 
         self.assertTrue(signed.startswith('<?xml version="1.0" encoding="UTF-8"?>'))
+
+
+class NotaCreditoXsdComplianceTests(unittest.TestCase):
+    """`sri_xsd/nota_credito_v1.xsd` es el XSD oficial 1.1.0 (descargado de
+    sri.gob.ec, "XML y XSD Nota de Credito.zip") — a diferencia de
+    `factura_v1.xsd` (1.0.0 reusado), este SI coincide con `_SCHEMA_VERSION`.
+    Agregado tras un bug real: `_build_detalles` compartia `codigoPrincipal`
+    (valido solo para Factura) entre Factura y Nota de Credito, y el SRI
+    rechazaba toda Nota de Credito/anulacion con error de esquema. Los tests
+    de estructura propios (`test_xml_builder.py`) no lo detectaban porque solo
+    comparaban contra si mismos, nunca contra el esquema real del SRI.
+    """
+
+    def test_signed_credit_note_validates_against_sri_xsd(self) -> None:
+        parent = make_document(document_id="parent-1")
+        document = make_document(
+            document_id="doc-2",
+            doc_type="04",
+            related_document_id="parent-1",
+            credit_note_reason="Devolución de mercadería",
+        )
+        tenant = make_invoice_tenant()
+        private_key, certificate = _self_signed_certificate()
+
+        xml = build_credit_note_xml(document, tenant, parent)
+        signed = sign_xades_bes(xml, private_key, certificate)
+
+        schema = etree.XMLSchema(etree.parse(str(_NOTA_CREDITO_XSD_PATH)))
+        root = etree.fromstring(signed.encode("utf-8"))
+
+        self.assertTrue(
+            schema.validate(root),
+            msg="\n".join(str(e) for e in schema.error_log),
+        )
 
 
 if __name__ == "__main__":

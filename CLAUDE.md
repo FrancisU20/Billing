@@ -16,7 +16,7 @@ Excepcion: los **dominios publicos** (`wali-{env}.codelabsecuador.com` /
 `billing-*` a `wali-*` y ya estan desplegados en dev (2026-06-21) — los nombres fisicos de
 infra y los dominios publicos son decisiones independientes.
 
-Ultima actualizacion: 2026-06-24.
+Ultima actualizacion: 2026-06-26.
 
 ## Objetivo Del Producto
 
@@ -124,12 +124,20 @@ mes por monto autorizado (excluye "Consumidor Final"); detalle en `context/INVOI
 SRI no expone webservice de anulacion (confirmado contra 3 fuentes externas) — el viejo
 `POST /documents/{id}/annul` solo marcaba `status=ANNULLED` local, sin tocar el SRI. Se
 reemplazo por Nota de Credito (`doc_type=04`, mismo flujo SOAP completo que Factura:
-firma+recepcion+autorizacion) como mecanismo real. Una sola pantalla
-(`EmitCreditNoteScreen.tsx`) con dos entradas: "Nota de credito" (editable, parcial o
-total) y "Anular factura" (misma pantalla, cantidades fijas al 100%). Sin excepcion de
-Consumidor Final ni ventana de plazo (esas eran del tramite manual, no de NC) — fix real:
-antes no se podia anular una factura a Consumidor Final, ahora si se puede acreditar. El
-flujo viejo queda deprecado (no borrado) por compatibilidad con documentos ya anulados
+firma+recepcion+autorizacion) como mecanismo real. Sin excepcion de Consumidor Final ni
+ventana de plazo (esas eran del tramite manual, no de NC) — fix real: antes no se podia
+anular una factura a Consumidor Final, ahora si se puede acreditar. **Rediseno de UX
+(2026-06-26):** se detecto un bug bloqueante (`xml_builder.py` usaba la etiqueta
+`codigoPrincipal` de Factura tambien para Nota de Credito; el SRI rechazaba toda NC con
+error de esquema — fijo separando `_build_detalles_factura`/`_build_detalles_nota_credito`
+con `codigoInterno`/`codigoAdicional` para NC) y se simplifico la UX: "Anular factura" es
+ahora un modal de un solo campo (motivo, `AnnulInvoiceModal.tsx`) disparado desde
+Documentos, sin pantalla intermedia; "Nota de credito" parcial se movio a un modulo
+independiente del menu principal (`CreditNoteInvoicesListScreen.tsx`, ruta
+`/credit-notes`) que lista facturas autorizadas para elegir y acreditar — ya no es un
+boton dentro de Documentos. Ver `context/INVOICES.md` seccion "Nota De Credito (04)". El
+flujo viejo de anulacion local queda deprecado (no borrado) por compatibilidad con
+documentos ya anulados
 antes del cambio. Detalle completo en `context/INVOICES.md` seccion "Nota De Credito (04)".
 Hub "Mi empresa"
 (`/settings/company`) agrupa datos de empresa (self-edit), certificado digital y accesos a
@@ -183,7 +191,7 @@ corresponda. Estado actual por capa/dominio:
 | `context/PRODUCTS.md`      | Inventario avanzado con movimientos/reservas queda para sprint futuro                                                                                                                                                                                                                                                                           |
 | `context/ONBOARDING.md`    | Queue dedicada Enterprise automatica es alcance futuro                                                                                                                                                                                                                                                                                          |
 | `context/CERTIFICATES.md`  | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras                                                                                                                                                                                                                                                                         |
-| `context/INVOICES.md`      | Literal SOAP de rechazo sin verificar contra SRI real; RIDE sin barcode/logo; clasificacion de errores SRI parcial; colas dedicadas enterprise sin auto-provision; `invoice_processor` sin concurrencia reservada (cuenta AWS limitada a 10 ejecuciones concurrentes en `sa-east-1`); plazo de anulacion sin ajuste por feriados/fin de semana de Ecuador (deliberado, ver seccion "Anulacion De Documentos")    |
+| `context/INVOICES.md`      | Literal SOAP de rechazo sin verificar contra SRI real; RIDE sin barcode/logo; clasificacion de errores SRI parcial; colas dedicadas enterprise sin auto-provision; `invoice_processor` sin concurrencia reservada (cuenta AWS limitada a 10 ejecuciones concurrentes en `sa-east-1`); plazo de anulacion sin ajuste por feriados/fin de semana de Ecuador (deliberado, ver seccion "Anulacion De Documentos"); XSD de Nota de Credito ya agregado a `sri_xsd/` (2026-06-26) tras el bug de `codigoPrincipal`, pero sigue sin probarse contra el ambiente de pruebas real del SRI (`celcer.sri.gob.ec`)    |
 | `context/SUBSCRIPTIONS.md` | Scans en workers (aceptable hasta ~10 K); webhook sin DLQ; orders PENDING (3DS) sin limpieza automatica                                                                                                                                                                                                                                         |
 
 ## Stack

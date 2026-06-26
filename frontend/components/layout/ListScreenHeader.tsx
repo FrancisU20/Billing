@@ -10,20 +10,12 @@ interface ListScreenHeaderProps {
   kicker: string
   heading: string
   action?: { label: string; onPress: () => void }
-  secondaryAction?: { label: string; onPress: () => void }
 }
 
 /** Encabezado compartido por las pantallas de listado: icono+kicker, titulo y boton
- * primario opcional (+ uno secundario opcional, ej. "Nota de credito" junto a "Emitir
- * documento" en Documentos). Cada pantalla sigue armando su propia fila de
+ * primario opcional. Cada pantalla sigue armando su propia fila de
  * metricas/filtros debajo de este componente. */
-export function ListScreenHeader({
-  icon,
-  kicker,
-  heading,
-  action,
-  secondaryAction,
-}: ListScreenHeaderProps) {
+export function ListScreenHeader({ icon, kicker, heading, action }: ListScreenHeaderProps) {
   const { semantic } = useTheme()
   return (
     <View style={styles.heroRow}>
@@ -34,18 +26,11 @@ export function ListScreenHeader({
         </View>
         <Text style={[styles.heading, { color: semantic.text.primary }]}>{heading}</Text>
       </View>
-      {action || secondaryAction ? (
+      {action ? (
         <View style={styles.actions}>
-          {secondaryAction ? (
-            <Button variant="outline" size="md" onPress={secondaryAction.onPress}>
-              {secondaryAction.label}
-            </Button>
-          ) : null}
-          {action ? (
-            <Button variant="primary" size="md" onPress={action.onPress}>
-              {action.label}
-            </Button>
-          ) : null}
+          <Button variant="primary" size="md" onPress={action.onPress}>
+            {action.label}
+          </Button>
         </View>
       ) : null}
     </View>

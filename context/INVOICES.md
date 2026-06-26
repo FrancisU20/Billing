@@ -92,16 +92,27 @@ factura: es un comprobante electronico mas, mismo flujo SOAP completo (firma XAd
 `recepcion`/`autorizacion`) que Factura — a diferencia de la anulacion local, esto si llega
 al SRI.
 
-**Diseno de pantalla unica:** una sola pantalla/componente
-(`EmitCreditNoteScreen.tsx`) sirve dos puntos de entrada:
-- **"Nota de credito"** (boton secundario en el header de `DocumentsListScreen.tsx` y en
-  `DocumentDetailScreen.tsx`) — abre la pantalla sin factura preseleccionada (lista) o con
-  la factura actual (detalle), lineas **editables** (parcial o total).
-- **"Anular factura"** (la misma entrada que antes, en el menu de 3 puntos del listado y en
-  el detalle) — abre la misma pantalla preseleccionando esa factura, con
-  `locked=true` via query param (`Routes.tenant.documentCreditNoteNew({ parent, locked })`)
-  → las cantidades quedan fijas al 100%, sin edicion. Mismo mental model para el usuario
-  ("anular" sigue existiendo como concepto) aunque por debajo emite una NC real.
+**Diseno de UX (revisado 2026-06-26):** la version inicial (2026-06-24) usaba una sola
+pantalla con dos entradas (`locked=true`/`false`). Se reemplazo por dos flujos separados
+tras el primer uso real, porque "anular" no necesita revisar lineas/comprador y "nota de
+credito parcial" no debia vivir como boton dentro de Documentos:
+- **"Anular factura"** (en el menu de 3 puntos del listado y en el detalle de
+  `DocumentsListScreen.tsx`/`DocumentDetailScreen.tsx`) → abre `AnnulInvoiceModal.tsx`, un
+  modal con un **unico campo visible: motivo**. Las lineas se calculan en background al
+  100% con `defaultCreditNoteFormValues(document, true)` (mismo helper que usaba la
+  pantalla vieja) y se emiten directo via `documentsApi.emitCreditNote()` sin navegar. No
+  hay pantalla intermedia.
+- **Nota de credito parcial** vive en un **modulo independiente** del menu principal
+  ("Notas de credito", `CreditNoteInvoicesListScreen.tsx`, ruta
+  `Routes.tenant.creditNotes` → `/credit-notes`) que lista facturas elegibles
+  (`doc_type='01'`, `status='AUTHORIZED'`, mismo filtro que antes resolvia
+  `InvoicePickerModal`). Tocar "Acreditar" en una fila navega a
+  `EmitCreditNoteScreen.tsx` (`documents/credit-note.tsx`) con `parent` preseleccionado —
+  esa pantalla ya **no** soporta `locked`, quedo dedicada solo al flujo editable parcial.
+  El boton "Nota de credito" se quito de Documentos (listado y detalle).
+- `InvoicePickerModal.tsx` sigue existiendo solo como fallback de
+  `EmitCreditNoteScreen.tsx` si se llega a la ruta sin `parent` (deep link directo); ya no
+  es el camino principal para elegir factura.
 
 **Elegibilidad** (`features/documents/utils.ts::getCreditNoteBlockReason`): solo
 `doc_type === '01'` (una NC no puede acreditar otra NC) y `status === 'AUTHORIZED'`. **Sin
@@ -135,8 +146,14 @@ ocultarla cuando no aplica.
   documentada para `01`).
 - `xml_builder.py`: `build_credit_note_xml(document, tenant, parent)` — root
   `<notaCredito>`, body `<infoNotaCredito>` (codDocModificado/numDocModificado/
-  fechaEmisionDocSustento/motivo, sin bloque `<pagos>`). Comparte `_build_detalles`/
-  `_build_total_con_impuestos` con `build_invoice_xml` (extraidos como helpers).
+  fechaEmisionDocSustento/motivo, sin bloque `<pagos>`). Comparte
+  `_build_total_con_impuestos`/`_build_detalle_common` con `build_invoice_xml`, pero **no**
+  comparte la etiqueta de codigo de linea: `_build_detalles_factura` usa
+  `codigoPrincipal`/`codigoAuxiliar` y `_build_detalles_nota_credito` usa
+  `codigoInterno`/`codigoAdicional` — el XSD `notaCredito` del SRI rechaza
+  `codigoPrincipal` (bug real, fijo 2026-06-26: la primera version usaba una sola
+  `_build_detalles` con `codigoPrincipal` para ambos doc_type, y el SRI rechazaba **toda**
+  NC/anulacion con "Invalid content was found starting with element 'codigoPrincipal'").
 - `ride_builder.py`: titulo "NOTA DE CRÉDITO No. ..." + referencia "Modifica a: Factura
   ..." cuando hay `parent`.
 - `summary_this_month`: las NC **restan** de `authorized_total` (ingreso neto) en vez de
@@ -154,11 +171,19 @@ ocultarla cuando no aplica.
 `computeCreditNoteTotals` — replica en cliente la misma logica de escalado proporcional que
 el backend, solo para preview).
 
-**Riesgo de cumplimiento SRI no verificable solo con este repo:** la estructura exacta de
-`<infoNotaCredito>` (orden de campos, si realmente no lleva `<pagos>`, version del esquema)
-se implemento con la Ficha Tecnica documentada pero **sin XSD de Nota de Credito en el
-repo** (solo existe `sri_xsd/factura_v1.xsd`) — falta validar contra el ambiente de pruebas
-real del SRI antes de habilitar en produccion, mismo proceso que ya se uso para Factura.
+**Validacion contra XSD oficial (mitigado 2026-06-26):** se agrego
+`sri_xsd/nota_credito_v1.xsd` (descargado de sri.gob.ec, "XML y XSD Nota de Credito.zip",
+version 1.1.0 — a diferencia de `factura_v1.xsd` que es 1.0.0 reusado, este coincide
+exacto con `_SCHEMA_VERSION`) y un test
+(`test_xsd_compliance.py::NotaCreditoXsdComplianceTests`) que valida la NC firmada contra
+ese esquema, mismo patron que ya existia para Factura. Esto se agrego justamente porque
+el bug de `codigoPrincipal` (ver arriba) **no** lo detectaban los tests de estructura
+propios (`test_xml_builder.py`) — solo comparaban contra si mismos, nunca contra el
+esquema real del SRI; se confirmo manualmente que el test nuevo reproduce el mismo error
+exacto que dio el SRI en produccion si se revierte el fix. Sigue existiendo un riesgo
+residual menor: el XSD valida estructura/tipos, no reglas de negocio del propio servicio
+SOAP del SRI (eso solo se confirma probando contra el ambiente de pruebas real,
+`celcer.sri.gob.ec`).
 
 ## Lambdas Y Responsabilidades
 

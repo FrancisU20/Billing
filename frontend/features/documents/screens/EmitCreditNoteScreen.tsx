@@ -35,8 +35,7 @@ import type { CreditNoteFormLine, Document, EmitCreditNoteFormValues } from '../
 export function EmitCreditNoteScreen() {
   const router = useRouter()
   const { semantic } = useTheme()
-  const params = useLocalSearchParams<{ parent?: string; locked?: string }>()
-  const locked = params.locked === '1'
+  const params = useLocalSearchParams<{ parent?: string }>()
   const [pickedParent, setPickedParent] = useState<Document | null>(null)
   const [pickerOpen, setPickerOpen] = useState(!params.parent)
 
@@ -87,7 +86,7 @@ export function EmitCreditNoteScreen() {
         <EmptyState
           icon="document-text-outline"
           title="Elige una factura"
-          description="Busca la factura autorizada que quieres acreditar, total o parcialmente."
+          description="Busca la factura autorizada que quieres acreditar parcialmente."
           action={{ label: 'Buscar factura', onPress: () => setPickerOpen(true) }}
         />
         <InvoicePickerModal
@@ -105,10 +104,10 @@ export function EmitCreditNoteScreen() {
     )
   }
 
-  return <CreditNoteForm parent={parent} locked={locked} />
+  return <CreditNoteForm parent={parent} />
 }
 
-function CreditNoteForm({ parent, locked }: { parent: Document; locked: boolean }) {
+function CreditNoteForm({ parent }: { parent: Document }) {
   const router = useRouter()
   const toast = useToast()
   const { semantic } = useTheme()
@@ -120,7 +119,7 @@ function CreditNoteForm({ parent, locked }: { parent: Document; locked: boolean 
     formState: { errors, isValid },
   } = useForm<EmitCreditNoteFormValues>({
     resolver: zodResolver(emitCreditNoteFormValuesSchema),
-    defaultValues: defaultCreditNoteFormValues(parent, locked),
+    defaultValues: defaultCreditNoteFormValues(parent, false),
     mode: 'onChange',
   })
   const lines = useWatch({ control, name: 'lines' })
@@ -139,7 +138,7 @@ function CreditNoteForm({ parent, locked }: { parent: Document; locked: boolean 
 
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
-      <AppNavBar title={locked ? 'Anular factura' : 'Nota de crédito'} canGoBack />
+      <AppNavBar title="Nota de crédito" canGoBack />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <FormSection title="Factura acreditada" icon="document-text-outline">
           <LockedInfoRow
@@ -173,27 +172,16 @@ function CreditNoteForm({ parent, locked }: { parent: Document; locked: boolean 
           />
         </FormSection>
 
-        <FormSection
-          title={locked ? 'Líneas (100%, sin editar)' : 'Líneas a acreditar'}
-          icon="cube-outline"
-        >
-          {locked ? (
-            <Text style={[styles.note, { color: semantic.text.tertiary }]}>
-              "Anular factura" siempre acredita el 100% de cada línea. Para acreditar un monto
-              parcial, usa "Nota de crédito" en vez de "Anular factura".
-            </Text>
-          ) : (
-            <Text style={[styles.note, { color: semantic.text.tertiary }]}>
-              Puedes bajar la cantidad acreditada por línea — nunca agregar líneas nuevas ni superar
-              la cantidad original.
-            </Text>
-          )}
+        <FormSection title="Líneas a acreditar" icon="cube-outline">
+          <Text style={[styles.note, { color: semantic.text.tertiary }]}>
+            Puedes bajar la cantidad acreditada por línea — nunca agregar líneas nuevas ni superar
+            la cantidad original.
+          </Text>
           <View style={styles.linesList}>
             {(lines ?? []).map((line, index) => (
               <CreditNoteLineRow
                 key={`${line.parent_line_index}-${line.code}`}
                 line={line}
-                locked={locked}
                 error={errors.lines?.[index]?.quantity?.message}
                 onChangeQuantity={(value) =>
                   setValue(`lines.${index}.quantity`, value, {
@@ -233,12 +221,10 @@ function CreditNoteForm({ parent, locked }: { parent: Document; locked: boolean 
 
 function CreditNoteLineRow({
   line,
-  locked,
   error,
   onChangeQuantity,
 }: {
   line: CreditNoteFormLine
-  locked: boolean
   error?: string
   onChangeQuantity: (value: string) => void
 }) {
@@ -264,7 +250,6 @@ function CreditNoteLineRow({
         <FormField
           label={`Cantidad (de ${line.original_quantity})`}
           keyboardType="decimal-pad"
-          isDisabled={locked}
           value={line.quantity}
           onChangeText={onChangeQuantity}
           error={error}

@@ -1,7 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native'
-import type { Href } from 'expo-router'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
@@ -13,10 +12,10 @@ import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { formatDate, formatDateTime } from '@/lib/utils/format'
 import { useTheme } from '@/lib/theme-context'
 import { canWrite } from '@/constants/roles'
-import { Routes } from '@/constants/routes'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { documentsApi } from '../api'
+import { AnnulInvoiceModal } from '../components/AnnulInvoiceModal'
 import { DocumentLineSummaryRow } from '../components/DocumentLineSummaryRow'
 import { DocumentStatusBadge } from '../components/DocumentStatusBadge'
 import { TotalsSummary } from '../components/TotalsSummary'
@@ -26,9 +25,9 @@ import { getCreditNoteBlockReason } from '../utils'
 
 export function DocumentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
-  const router = useRouter()
   const { semantic } = useTheme()
   const user = useAuthStore(selectUser)
+  const [annulOpen, setAnnulOpen] = useState(false)
   const { document, loading, error, refresh } = useDocument(id ?? null)
   const { document: relatedDocument } = useDocument(
     document?.doc_type === '04' ? document.related_document_id : null,
@@ -115,33 +114,7 @@ export function DocumentDetailScreen() {
                   </Button>
                 ) : null}
                 {canCreditNote ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onPress={() =>
-                      router.push(
-                        Routes.tenant.documentCreditNoteNew({
-                          parent: document.document_id,
-                        }) as Href,
-                      )
-                    }
-                  >
-                    Nota de crédito
-                  </Button>
-                ) : null}
-                {canCreditNote ? (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onPress={() =>
-                      router.push(
-                        Routes.tenant.documentCreditNoteNew({
-                          parent: document.document_id,
-                          locked: true,
-                        }) as Href,
-                      )
-                    }
-                  >
+                  <Button variant="danger" size="sm" onPress={() => setAnnulOpen(true)}>
                     Anular factura
                   </Button>
                 ) : null}
@@ -259,6 +232,12 @@ export function DocumentDetailScreen() {
           </>
         ) : null}
       </ScrollView>
+
+      <AnnulInvoiceModal
+        visible={annulOpen}
+        document={document ?? null}
+        onClose={() => setAnnulOpen(false)}
+      />
     </View>
   )
 }

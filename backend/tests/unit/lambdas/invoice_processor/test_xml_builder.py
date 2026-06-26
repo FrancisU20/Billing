@@ -167,6 +167,25 @@ class BuildCreditNoteXmlTests(unittest.TestCase):
         self.assertEqual(len(detalles), 2)
         self.assertEqual(len(root.findall("infoNotaCredito/totalConImpuestos/totalImpuesto")), 1)
 
+    def test_detalle_uses_codigo_interno_not_codigo_principal(self) -> None:
+        # XSD notaCredito del SRI rechaza codigoPrincipal/codigoAuxiliar; exige
+        # codigoInterno/codigoAdicional. Ver xml_builder._build_detalles_nota_credito.
+        parent = make_document(document_id="parent-1")
+        document = make_document(
+            document_id="doc-2",
+            doc_type="04",
+            related_document_id="parent-1",
+            lines=[make_line(code="P1")],
+        )
+        tenant = make_invoice_tenant()
+
+        xml = build_credit_note_xml(document, tenant, parent)
+        root = etree.fromstring(xml.encode("utf-8"))
+
+        detalle = root.find("detalles/detalle")
+        self.assertEqual(detalle.findtext("codigoInterno"), "P1")
+        self.assertIsNone(detalle.find("codigoPrincipal"))
+
 
 if __name__ == "__main__":
     unittest.main()
