@@ -134,11 +134,19 @@ con `codigoInterno`/`codigoAdicional` para NC) y se simplifico la UX: "Anular fa
 ahora un modal de un solo campo (motivo, `AnnulInvoiceModal.tsx`) disparado desde
 Documentos, sin pantalla intermedia; "Nota de credito" parcial se movio a un modulo
 independiente del menu principal (`CreditNoteInvoicesListScreen.tsx`, ruta
-`/credit-notes`) que lista facturas autorizadas para elegir y acreditar — ya no es un
-boton dentro de Documentos. Ver `context/INVOICES.md` seccion "Nota De Credito (04)". El
-flujo viejo de anulacion local queda deprecado (no borrado) por compatibilidad con
-documentos ya anulados
-antes del cambio. Detalle completo en `context/INVOICES.md` seccion "Nota De Credito (04)".
+`/credit-notes`) — ya no es un boton dentro de Documentos. **Revisado otra vez (Sprint
+2-3, 2026-06-26):** ese modulo ya no lista facturas elegibles, lista las NC emitidas
+(cualquier estado) con boton "Crear nota de credito" que abre el picker de factura; se
+agrego ademas un mecanismo real de **reintento** (`POST /documents/{id}/retry`,
+`RetryDocumentUseCase`) para documentos `REJECTED` — reusa la misma clave de
+acceso/secuencial en vez de obligar a emitir uno nuevo (la Ficha Tecnica del SRI lo exige
+asi), visible en Documentos y en Notas de Credito (mismo `DocumentListItem.tsx`); y se
+corrigio un bug de notificacion silenciosa: el rechazo en la etapa de RECEPCION
+(`sign_document.py`, el tipo de rechazo que da un XML mal formado) no disparaba ningun
+email al tenant. El flujo viejo de anulacion local queda deprecado (no borrado) por
+compatibilidad con documentos ya anulados antes del cambio. Detalle completo en
+`context/INVOICES.md` secciones "Nota De Credito (04)" y "Reintento De Documentos
+Rechazados".
 Hub "Mi empresa"
 (`/settings/company`) agrupa datos de empresa (self-edit), certificado digital y accesos a
 establecimientos/descuento global/facturacion; menu principal tenant quedo con un solo
@@ -191,7 +199,7 @@ corresponda. Estado actual por capa/dominio:
 | `context/PRODUCTS.md`      | Inventario avanzado con movimientos/reservas queda para sprint futuro                                                                                                                                                                                                                                                                           |
 | `context/ONBOARDING.md`    | Queue dedicada Enterprise automatica es alcance futuro                                                                                                                                                                                                                                                                                          |
 | `context/CERTIFICATES.md`  | Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras                                                                                                                                                                                                                                                                         |
-| `context/INVOICES.md`      | Literal SOAP de rechazo sin verificar contra SRI real; RIDE sin barcode/logo; clasificacion de errores SRI parcial; colas dedicadas enterprise sin auto-provision; `invoice_processor` sin concurrencia reservada (cuenta AWS limitada a 10 ejecuciones concurrentes en `sa-east-1`); plazo de anulacion sin ajuste por feriados/fin de semana de Ecuador (deliberado, ver seccion "Anulacion De Documentos"); XSD de Nota de Credito ya agregado a `sri_xsd/` (2026-06-26) tras el bug de `codigoPrincipal`, pero sigue sin probarse contra el ambiente de pruebas real del SRI (`celcer.sri.gob.ec`)    |
+| `context/INVOICES.md`      | Literal SOAP de rechazo sin verificar contra SRI real; RIDE sin barcode/logo; clasificacion de errores SRI parcial; colas dedicadas enterprise sin auto-provision; `invoice_processor` sin concurrencia reservada (cuenta AWS limitada a 10 ejecuciones concurrentes en `sa-east-1`); plazo de anulacion sin ajuste por feriados/fin de semana de Ecuador (deliberado, ver seccion "Anulacion De Documentos"); XSD de Nota de Credito ya agregado a `sri_xsd/` (2026-06-26) tras el bug de `codigoPrincipal`, pero sigue sin probarse contra el ambiente de pruebas real del SRI (`celcer.sri.gob.ec`); reintento manual (`RetryDocumentUseCase`) solo cubre `REJECTED` — `FAILED_PERMANENT` queda sin mecanismo de reintento (necesitaria re-poll en vez de re-sign, deliberado, ver seccion "Reintento De Documentos Rechazados")    |
 | `context/SUBSCRIPTIONS.md` | Scans en workers (aceptable hasta ~10 K); webhook sin DLQ; orders PENDING (3DS) sin limpieza automatica                                                                                                                                                                                                                                         |
 
 ## Stack

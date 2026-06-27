@@ -111,6 +111,25 @@ class SignDocumentUseCaseTests(unittest.TestCase):
         self.assertEqual(repo.update_calls[0]["sri_errors"][0]["category"], "FIRMA")
         self.assertEqual(publisher.polls_enqueued, [])
 
+    def test_devuelta_with_permanent_error_publishes_rejected_event(self) -> None:
+        # Bug real: el tenant se quedaba sin notificar cuando el SRI rechazaba en
+        # RECEPCION (DEVUELTA) — solo el rechazo en AUTORIZACION (poll_document.py)
+        # publicaba DocumentRejectedEvent.
+        sri_client = FakeSriClient(
+            RecepcionResult(
+                received=False, errors=[SriErrorDetail(code="43", message="FIRMA INVALIDA")]
+            )
+        )
+        repo, publisher = self._execute(sri_client)
+
+        self.assertEqual(len(publisher.events_published), 1)
+        event = publisher.events_published[0]
+        self.assertEqual(event.event_type, "DocumentRejectedEvent")
+        self.assertEqual(event.document_id, self.document.document_id)
+        self.assertEqual(event.doc_type, self.document.doc_type)
+        self.assertEqual(event.tenant_email, self.tenant.email)
+        self.assertEqual(event.sri_errors[0]["category"], "FIRMA")
+
     def test_devuelta_with_retryable_error_marks_failed_and_raises(self) -> None:
         sri_client = FakeSriClient(
             RecepcionResult(

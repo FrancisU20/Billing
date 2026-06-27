@@ -10,6 +10,7 @@ es un mensaje SIGN repetido (procesado por una invocación anterior) y se ignora
 from lambdas.documents.domain.entities import DocumentStatus
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from lambdas.invoice_processor import sri_error_classifier, xml_builder
+from lambdas.invoice_processor.events import DocumentRejectedEvent
 from lambdas.invoice_processor.infra.certificate_loader import load_certificate
 from lambdas.invoice_processor.ports import IQueuePublisher, ISriClient
 from lambdas.invoice_processor.signing import sign_xades_bes
@@ -86,6 +87,17 @@ class SignDocumentUseCase:
                 sri_errors=sri_errors,
             )
             _log.warning("document permanently rejected by SRI (DEVUELTA)", document_id=document_id)
+            self._queue_publisher.publish_event(
+                DocumentRejectedEvent(
+                    tenant_id=tenant_id,
+                    document_id=document_id,
+                    doc_type=document.doc_type,
+                    access_key=document.access_key,
+                    tenant_email=tenant.email,
+                    legal_rep_name=tenant.legal_rep_name,
+                    sri_errors=sri_errors,
+                )
+            )
             return
 
         self._documents_repo.update_status(

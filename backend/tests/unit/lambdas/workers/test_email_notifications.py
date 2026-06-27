@@ -172,6 +172,7 @@ class FakeEmailSender(EmailSender):
         email: str,
         legal_rep_name: str,
         document_id: str,
+        doc_type: str,
         access_key: str,
         authorization_number: str,
         issuer_name: str,
@@ -192,6 +193,7 @@ class FakeEmailSender(EmailSender):
                 "email": email,
                 "legal_rep_name": legal_rep_name,
                 "document_id": document_id,
+                "doc_type": doc_type,
                 "access_key": access_key,
                 "authorization_number": authorization_number,
                 "issuer_name": issuer_name,
@@ -213,6 +215,7 @@ class FakeEmailSender(EmailSender):
         email: str,
         legal_rep_name: str,
         document_id: str,
+        doc_type: str,
         access_key: str,
         sri_errors: list[dict],
     ) -> None:
@@ -223,6 +226,7 @@ class FakeEmailSender(EmailSender):
                 "email": email,
                 "legal_rep_name": legal_rep_name,
                 "document_id": document_id,
+                "doc_type": doc_type,
                 "access_key": access_key,
                 "sri_errors": sri_errors,
             }
@@ -234,6 +238,7 @@ class FakeEmailSender(EmailSender):
         email: str,
         legal_rep_name: str,
         document_id: str,
+        doc_type: str,
         access_key: str,
     ) -> None:
         if self._should_fail:
@@ -243,6 +248,7 @@ class FakeEmailSender(EmailSender):
                 "email": email,
                 "legal_rep_name": legal_rep_name,
                 "document_id": document_id,
+                "doc_type": doc_type,
                 "access_key": access_key,
             }
         )
@@ -253,6 +259,7 @@ class FakeEmailSender(EmailSender):
         email: str,
         buyer_name: str,
         document_id: str,
+        doc_type: str,
         access_key: str,
         authorization_number: str,
         issuer_name: str,
@@ -274,6 +281,7 @@ class FakeEmailSender(EmailSender):
                 "email": email,
                 "buyer_name": buyer_name,
                 "document_id": document_id,
+                "doc_type": doc_type,
                 "access_key": access_key,
                 "authorization_number": authorization_number,
                 "issuer_name": issuer_name,
@@ -701,6 +709,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                 email,
                 legal_rep_name,
                 document_id,
+                doc_type,
                 access_key,
                 authorization_number,
                 issuer_name,
@@ -717,12 +726,12 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                 raise NotImplementedError
 
             def send_document_rejected(
-                self, *, email, legal_rep_name, document_id, access_key, sri_errors
+                self, *, email, legal_rep_name, document_id, doc_type, access_key, sri_errors
             ):
                 raise NotImplementedError
 
             def send_document_failed_permanent(
-                self, *, email, legal_rep_name, document_id, access_key
+                self, *, email, legal_rep_name, document_id, doc_type, access_key
             ):
                 raise NotImplementedError
 
@@ -732,6 +741,7 @@ class EmailNotificationsHandlerTests(unittest.TestCase):
                 email,
                 buyer_name,
                 document_id,
+                doc_type,
                 access_key,
                 authorization_number,
                 issuer_name,

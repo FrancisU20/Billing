@@ -9,6 +9,7 @@ from shared.domain.events.domain_event import DomainEvent
 class DocumentAuthorizedEvent(DomainEvent):
     tenant_id: str = ""
     document_id: str = ""
+    doc_type: str = "01"
     access_key: str = ""
     authorization_number: str = ""
     tenant_email: str = ""
@@ -29,6 +30,7 @@ class DocumentAuthorizedEvent(DomainEvent):
 class DocumentRejectedEvent(DomainEvent):
     tenant_id: str = ""
     document_id: str = ""
+    doc_type: str = "01"
     access_key: str = ""
     tenant_email: str = ""
     legal_rep_name: str = ""
@@ -39,6 +41,7 @@ class DocumentRejectedEvent(DomainEvent):
 class DocumentFailedPermanentEvent(DomainEvent):
     tenant_id: str = ""
     document_id: str = ""
+    doc_type: str = "01"
     access_key: str = ""
     tenant_email: str = ""
     legal_rep_name: str = ""

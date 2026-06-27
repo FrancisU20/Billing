@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -15,6 +16,7 @@ from lambdas.documents.domain.commands import (
     GetXmlUrlCommand,
     LineData,
     ListDocumentsCommand,
+    RetryDocumentCommand,
 )
 from lambdas.documents.domain.entities import (
     Document,
@@ -30,6 +32,7 @@ from lambdas.documents.domain.errors import (
     DocumentLimitReachedError,
     DocumentNotAuthorizedError,
     DocumentNotFoundError,
+    DocumentRetryNotEligibleError,
     InvalidIssuedDateError,
     ParentDocumentNotAuthorizedError,
     RideNotAvailableError,
@@ -47,6 +50,7 @@ from lambdas.documents.use_cases.get_documents_summary import GetDocumentsSummar
 from lambdas.documents.use_cases.get_ride_url import GetRideUrlUseCase
 from lambdas.documents.use_cases.get_xml_url import GetXmlUrlUseCase
 from lambdas.documents.use_cases.list_documents import ListDocumentsUseCase
+from lambdas.documents.use_cases.retry_document import RetryDocumentUseCase
 from shared.errors import ValidationError
 from tests.unit.support import configure_unit_environment
 
@@ -105,6 +109,15 @@ class FakeDocumentsRepository:
     def save(self, document: Document, **kwargs: Any) -> None:
         self.save_calls.append(document)
         self.documents[f"{document.tenant_id}#{document.document_id}"] = document
+
+    def retry(self, tenant_id: str, document_id: str, **kwargs: Any) -> None:
+        key = f"{tenant_id}#{document_id}"
+        doc = self.documents.get(key)
+        if doc is None or doc.status != DocumentStatus.REJECTED:
+            raise DocumentRetryNotEligibleError()
+        self.documents[key] = replace(
+            doc, status=DocumentStatus.PENDING, manual_retry_count=doc.manual_retry_count + 1
+        )
 
     def seed(self, document: Document) -> None:
         self.documents[f"{document.tenant_id}#{document.document_id}"] = document
@@ -874,3 +887,45 @@ class AnnulDocumentUseCaseTests(unittest.TestCase):
     def test_raises_if_window_expired(self) -> None:
         with self.assertRaises(AnnulmentWindowExpiredError):
             self._run(issued_at=date(2026, 1, 1))
+
+
+class RetryDocumentUseCaseTests(unittest.TestCase):
+    def _run(self, **overrides: Any) -> Document:
+        repo = FakeDocumentsRepository()
+        defaults: dict[str, Any] = {
+            "status": DocumentStatus.REJECTED,
+            "manual_retry_count": 0,
+        }
+        doc = _make_document(**{**defaults, **overrides})
+        repo.seed(doc)
+        return RetryDocumentUseCase(repo).execute(
+            RetryDocumentCommand(tenant_id="t-1", document_id="doc-1", user_id="user-1")
+        )
+
+    def test_retries_rejected_document_back_to_pending(self) -> None:
+        result = self._run()
+
+        self.assertEqual(result.status, DocumentStatus.PENDING)
+        self.assertEqual(result.manual_retry_count, 1)
+        self.assertIsNotNone(result.retried_at)
+        # Misma clave de acceso/secuencial — el reintento NUNCA genera numeros nuevos.
+        self.assertEqual(result.access_key, "1" * 49)
+        self.assertEqual(result.sequential, 1)
+
+    def test_increments_manual_retry_count_on_each_retry(self) -> None:
+        result = self._run(manual_retry_count=2)
+
+        self.assertEqual(result.manual_retry_count, 3)
+
+    def test_raises_if_not_rejected(self) -> None:
+        with self.assertRaises(DocumentRetryNotEligibleError):
+            self._run(status=DocumentStatus.AUTHORIZED)
+
+    def test_raises_if_pending(self) -> None:
+        with self.assertRaises(DocumentRetryNotEligibleError):
+            self._run(status=DocumentStatus.PENDING)
+
+    def test_raises_if_failed_permanent(self) -> None:
+        # Deliberado: FAILED_PERMANENT necesita re-poll, no re-sign — fuera de alcance.
+        with self.assertRaises(DocumentRetryNotEligibleError):
+            self._run(status=DocumentStatus.FAILED_PERMANENT)

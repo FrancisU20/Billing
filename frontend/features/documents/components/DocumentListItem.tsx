@@ -19,6 +19,8 @@ interface DocumentListItemProps {
   onAnnul?: () => void
   canAnnul?: boolean
   annulDisabledReason?: string | null
+  onRetry?: () => void
+  canRetry?: boolean
 }
 
 export function DocumentListItem({
@@ -29,6 +31,8 @@ export function DocumentListItem({
   onAnnul,
   canAnnul = false,
   annulDisabledReason = null,
+  onRetry,
+  canRetry = false,
 }: DocumentListItemProps) {
   const { semantic } = useTheme()
   const isDesktop = useIsDesktopLayout()
@@ -51,6 +55,16 @@ export function DocumentListItem({
             icon: 'code-download-outline' as const,
             label: 'Descargar XML',
             onPress: onDownloadXml,
+          },
+        ]
+      : []),
+    ...(canRetry && onRetry && document.status === 'REJECTED'
+      ? [
+          {
+            key: 'retry-document',
+            icon: 'refresh-outline' as const,
+            label: 'Reintentar',
+            onPress: onRetry,
           },
         ]
       : []),

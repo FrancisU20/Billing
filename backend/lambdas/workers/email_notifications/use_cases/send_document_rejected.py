@@ -21,6 +21,7 @@ class SendDocumentRejectedUseCase:
         document_id: str,
         access_key: str,
         sri_errors: list[dict],
+        doc_type: str = "01",
     ) -> None:
         if not email:
             raise ValidationError("email is required to send the document rejected notice")
@@ -30,6 +31,7 @@ class SendDocumentRejectedUseCase:
                 email=email,
                 legal_rep_name=legal_rep_name,
                 document_id=document_id,
+                doc_type=doc_type,
                 access_key=access_key,
                 sri_errors=sri_errors,
             )

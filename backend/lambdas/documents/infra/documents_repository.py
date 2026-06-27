@@ -31,7 +31,11 @@ from lambdas.documents.domain.entities import (
     InvoiceLine,
     TopClientTotal,
 )
-from lambdas.documents.domain.errors import DocumentNotAuthorizedError, DocumentNotFoundError
+from lambdas.documents.domain.errors import (
+    DocumentNotAuthorizedError,
+    DocumentNotFoundError,
+    DocumentRetryNotEligibleError,
+)
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.dates import current_ecuador_month_utc_bounds, now_ecuador, now_utc, to_ecuador
@@ -509,6 +513,80 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             _log.error("DynamoDB annul document error", error=str(exc))
             raise DatabaseError() from exc
 
+    def retry(
+        self,
+        tenant_id: str,
+        document_id: str,
+        *,
+        user_id: str,
+        access_key: str,
+        idempotency: IdempotencyContext | None = None,
+        response: dict | None = None,
+    ) -> None:
+        now = now_utc().isoformat()
+
+        transact_items: list[dict] = [
+            {
+                "Update": {
+                    "TableName": self._table.table_name,
+                    "Key": {"pk": self._pk(tenant_id), "sk": self._sk(document_id)},
+                    "UpdateExpression": (
+                        "SET #status = :new_status, #updated_at = :updated_at, "
+                        "#retried_at = :retried_at "
+                        "ADD #manual_retry_count :one"
+                    ),
+                    "ConditionExpression": "#status = :expected_status",
+                    "ExpressionAttributeNames": {
+                        "#status": "status",
+                        "#updated_at": "updated_at",
+                        "#retried_at": "retried_at",
+                        "#manual_retry_count": "manual_retry_count",
+                    },
+                    "ExpressionAttributeValues": {
+                        ":new_status": DocumentStatus.PENDING.value,
+                        ":expected_status": DocumentStatus.REJECTED.value,
+                        ":updated_at": now,
+                        ":retried_at": now,
+                        ":one": 1,
+                    },
+                }
+            }
+        ]
+        if self._audit_table:
+            transact_items.append(
+                audit_put_transact_item(
+                    self._audit_table.table_name,
+                    audit_item(
+                        pk=f"AUDIT#{tenant_id}",
+                        entity_type="DOCUMENT",
+                        entity_id=document_id,
+                        action="DOCUMENT_RETRIED",
+                        changed_by=user_id,
+                        before={"status": DocumentStatus.REJECTED.value},
+                        after={"status": DocumentStatus.PENDING.value, "access_key": access_key},
+                    ),
+                )
+            )
+        if idempotency is not None:
+            if response is None:
+                raise ValueError("response is required when idempotency context is provided")
+            transact_items.append(completion_transact_item(idempotency, response))
+
+        try:
+            self._table.meta.client.transact_write_items(TransactItems=transact_items)
+            if idempotency is not None:
+                mark_completed()
+        except ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
+                _log.warning(
+                    "retry no-op: document status already changed",
+                    document_id=document_id,
+                )
+                raise DocumentRetryNotEligibleError() from exc
+            _log.error("DynamoDB retry document error", error=str(exc))
+            raise DatabaseError() from exc
+
     def update_status(
         self,
         tenant_id: str,
@@ -716,6 +794,8 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             "annulment_reason": doc.annulment_reason,
             "related_document_id": doc.related_document_id,
             "credit_note_reason": doc.credit_note_reason,
+            "manual_retry_count": doc.manual_retry_count,
+            "retried_at": doc.retried_at.isoformat() if doc.retried_at else None,
         }
 
     def _from_item(self, item: dict) -> Document:
@@ -765,4 +845,6 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             annulment_reason=item.get("annulment_reason"),
             related_document_id=item.get("related_document_id"),
             credit_note_reason=item.get("credit_note_reason"),
+            manual_retry_count=int(item.get("manual_retry_count", 0)),
+            retried_at=_dt(item["retried_at"]) if item.get("retried_at") else None,
         )

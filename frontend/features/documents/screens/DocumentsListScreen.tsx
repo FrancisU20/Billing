@@ -25,15 +25,21 @@ import {
   type DocumentFilterDraft,
 } from '../filters'
 import { useDocuments } from '../hooks/useDocuments'
+import { useRetryDocument } from '../hooks/useRetryDocument'
 import { getCreditNoteBlockReason } from '../utils'
 import type { Document, DocumentListFilters } from '../types'
+
+// "Documentos" es solo Facturas — las Notas de Credito (doc_type='04') tienen su propio
+// modulo independiente (CreditNoteInvoicesListScreen). Fijo, no expuesto en
+// DocumentsFilters (que no tiene selector de doc_type).
+const FACTURA_ONLY_FILTERS: DocumentListFilters = { doc_type: '01' }
 
 export function DocumentsListScreen() {
   const router = useRouter()
   const { semantic } = useTheme()
   const user = useAuthStore(selectUser)
   const [draft, setDraft] = useState<DocumentFilterDraft>(emptyDocumentFilterDraft)
-  const [filters, setFilters] = useState<DocumentListFilters>({})
+  const [filters, setFilters] = useState<DocumentListFilters>(FACTURA_ONLY_FILTERS)
   const [annulTarget, setAnnulTarget] = useState<Document | null>(null)
   const {
     documents,
@@ -53,16 +59,16 @@ export function DocumentsListScreen() {
   useRefreshOnFocus(refresh)
 
   function applyFilters() {
-    setFilters(toDocumentListFilters(draft))
+    setFilters({ ...FACTURA_ONLY_FILTERS, ...toDocumentListFilters(draft) })
   }
 
   const applySearchFilters = useCallback((nextDraft: DocumentFilterDraft) => {
-    setFilters(toDocumentListFilters(nextDraft))
+    setFilters({ ...FACTURA_ONLY_FILTERS, ...toDocumentListFilters(nextDraft) })
   }, [])
 
   function resetFilters() {
     setDraft(emptyDocumentFilterDraft)
-    setFilters({})
+    setFilters(FACTURA_ONLY_FILTERS)
   }
 
   const { error: downloadError, submit: downloadRide } = useFormSubmit(
@@ -77,6 +83,7 @@ export function DocumentsListScreen() {
       await Linking.openURL(url)
     },
   )
+  const { error: retryError, submit: retryDocument } = useRetryDocument(refresh)
 
   if (loading && documents.length === 0) {
     return <LoadingSpinner fullScreen label="Cargando documentos..." />
@@ -119,6 +126,8 @@ export function DocumentsListScreen() {
             canAnnul={canWrite(user?.role ?? null)}
             annulDisabledReason={getCreditNoteBlockReason(item)}
             onAnnul={() => setAnnulTarget(item)}
+            canRetry={canWrite(user?.role ?? null)}
+            onRetry={() => retryDocument(item.document_id)}
           />
         )}
         contentContainerStyle={styles.list}
@@ -145,6 +154,7 @@ export function DocumentsListScreen() {
             {error ? <ApiErrorBanner error={error} /> : null}
             {downloadError ? <ApiErrorBanner error={downloadError} /> : null}
             {downloadXmlError ? <ApiErrorBanner error={downloadXmlError} /> : null}
+            {retryError ? <ApiErrorBanner error={retryError} /> : null}
 
             <ListPaginationControls {...paginationProps} />
           </View>

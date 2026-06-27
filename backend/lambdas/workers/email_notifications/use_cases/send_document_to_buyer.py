@@ -74,6 +74,7 @@ class SendDocumentToBuyerUseCase:
                 email=document.buyer_email,
                 buyer_name=document.buyer_name,
                 document_id=document_id,
+                doc_type=document.doc_type,
                 access_key=document.access_key,
                 authorization_number=document.authorization_number or "",
                 issuer_name=issuer_name,

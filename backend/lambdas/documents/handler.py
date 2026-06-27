@@ -14,6 +14,8 @@ Routes:
     GET  /documents/{id}/xml       → get_xml_url (pre-signed S3 URL)
     POST /documents/{id}/annul     → annul_document (legacy: marca local sin SRI,
                                       deprecado — la UI actual usa Nota de Credito)
+    POST /documents/{id}/retry     → retry_document (solo status REJECTED — reusa la
+                                      misma clave de acceso/secuencial, vuelve a SIGN)
 
 Auth:
     - POST: owner, admin, superadmin
@@ -41,6 +43,7 @@ from lambdas.documents.domain.commands import (
     GetXmlUrlCommand,
     LineData,
     ListDocumentsCommand,
+    RetryDocumentCommand,
 )
 from lambdas.documents.domain.entities import DocumentStatus
 from lambdas.documents.domain.errors import DocumentNotFoundError
@@ -63,6 +66,7 @@ from lambdas.documents.use_cases.get_documents_summary import GetDocumentsSummar
 from lambdas.documents.use_cases.get_ride_url import GetRideUrlUseCase
 from lambdas.documents.use_cases.get_xml_url import GetXmlUrlUseCase
 from lambdas.documents.use_cases.list_documents import ListDocumentsUseCase
+from lambdas.documents.use_cases.retry_document import RetryDocumentUseCase
 from lambdas.tenants.domain.enums import SriEnvironment
 from lambdas.tenants.infra.tenant_repository import DynamoTenantRepository
 from shared.config import env
@@ -425,6 +429,48 @@ def _annul(request: Request, context) -> dict:
     return response
 
 
+@lambda_handler
+@require_role("owner", "admin", "superadmin")
+@idempotent
+def _retry(request: Request, context) -> dict:
+    """POST /documents/{id}/retry — reenvia un documento REJECTED reusando la misma
+    clave de acceso/secuencial (ver RetryDocumentUseCase). Reusa _send_sign_message: el
+    reintento vuelve a pasar por SIGN, no por POLL.
+    """
+    tenant_id = _resolve_tenant_id(request)
+    document_id = require_path_param(request, "id")
+    repo = _repo()
+
+    document = RetryDocumentUseCase(repo).execute(
+        RetryDocumentCommand(
+            tenant_id=tenant_id,
+            document_id=document_id,
+            user_id=request.user_id,
+        )
+    )
+
+    response = ApiResponse.ok(document.to_dict(), request.request_id)
+
+    repo.retry(
+        tenant_id,
+        document_id,
+        user_id=request.user_id,
+        access_key=document.access_key,
+        idempotency=require_current_context(),
+        response=response,
+    )
+
+    try:
+        _send_sign_message(document.document_id, document.tenant_id)
+    except Exception:
+        _log.warning(
+            "SQS send_message failed after document retry (document stuck PENDING)",
+            document_id=document.document_id,
+        )
+
+    return response
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 _DOCUMENTS_PATTERN = re.compile(r"^/documents$")
@@ -433,6 +479,7 @@ _DOCUMENT_PATTERN = re.compile(r"^/documents/[^/]+$")
 _RIDE_PATTERN = re.compile(r"^/documents/[^/]+/ride$")
 _XML_PATTERN = re.compile(r"^/documents/[^/]+/xml$")
 _ANNUL_PATTERN = re.compile(r"^/documents/[^/]+/annul$")
+_RETRY_PATTERN = re.compile(r"^/documents/[^/]+/retry$")
 
 
 def handler(event: dict, context) -> dict:
@@ -463,6 +510,10 @@ def handler(event: dict, context) -> dict:
     if _ANNUL_PATTERN.match(path):
         if method == "POST":
             return _annul(event, context)
+
+    if _RETRY_PATTERN.match(path):
+        if method == "POST":
+            return _retry(event, context)
 
     if _DOCUMENT_PATTERN.match(path):
         if method == "GET":

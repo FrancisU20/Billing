@@ -4,6 +4,7 @@ import importlib
 import os
 import sys
 import unittest
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
@@ -259,6 +260,88 @@ class EmitCreditNoteHandlerTests(unittest.TestCase):
 
     def test_unknown_parent_document_returns_404(self) -> None:
         resp = self._run(body=_credit_note_body(related_document_id="missing"))
+        self.assertEqual(resp["statusCode"], 404)
+
+
+# ── POST /documents/{id}/retry ────────────────────────────────────────────────
+
+
+def _make_rejected_document() -> Document:
+    return Document(
+        document_id="doc-1",
+        tenant_id="t-1",
+        doc_type="04",
+        status=DocumentStatus.REJECTED,
+        serie="001001",
+        sequential=1,
+        access_key="1" * 49,
+        client_id=None,
+        buyer_id_type="07",
+        buyer_id="9999999999999",
+        buyer_name="Consumidor Final",
+        buyer_email=None,
+        issued_at=_TODAY,
+        sri_environment="testing",
+        subtotal=Decimal("10.00"),
+        total_discount=Decimal("0.00"),
+        iva_15=Decimal("1.50"),
+        iva_5=Decimal("0.00"),
+        iva_0=Decimal("0.00"),
+        total=Decimal("11.50"),
+        payment_method="01",
+        lines=[],
+    )
+
+
+class RetryDocumentHandlerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.mod = _load_handler()
+
+    def _run(self, *, claims: dict | None = None, seed: Document | None = "default") -> dict:
+        repo = FakeDocumentsRepository()
+        if seed == "default":
+            seed = _make_rejected_document()
+        if seed is not None:
+            repo.seed(seed)
+        event = api_event(
+            method="POST",
+            path="/documents/doc-1/retry",
+            body={},
+            claims=claims or _owner_claims(),
+            headers={"x-idempotency-key": "idem-retry-1"},
+        )
+        with (
+            patch.object(self.mod, "_repo", return_value=repo),
+            patch.object(self.mod, "_send_sign_message"),
+            patch.object(self.mod, "require_current_context", return_value=_FAKE_IDEMPOTENCY),
+        ):
+            return self.mod.handler(event, _CTX)
+
+    def test_returns_200_with_pending_status(self) -> None:
+        resp = self._run()
+        self.assertEqual(resp["statusCode"], 200)
+        body = decode_response(resp)
+        self.assertEqual(body["data"]["status"], DocumentStatus.PENDING.value)
+        self.assertEqual(body["data"]["access_key"], "1" * 49)
+
+    def test_requires_owner_or_admin_role(self) -> None:
+        resp = self._run(
+            claims={
+                "custom:tenant_id": "t-1",
+                "custom:role": "viewer",
+                "custom:is_superadmin": "false",
+                "sub": "user-1",
+            }
+        )
+        self.assertEqual(resp["statusCode"], 403)
+
+    def test_returns_422_when_not_rejected(self) -> None:
+        authorized = replace(_make_rejected_document(), status=DocumentStatus.AUTHORIZED)
+        resp = self._run(seed=authorized)
+        self.assertEqual(resp["statusCode"], 422)
+
+    def test_returns_404_when_document_missing(self) -> None:
+        resp = self._run(seed=None)
         self.assertEqual(resp["statusCode"], 404)
 
 

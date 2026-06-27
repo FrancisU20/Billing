@@ -81,6 +81,8 @@ export const documentSchema = z.object({
   annulment_reason: z.string().nullable().optional().default(null),
   related_document_id: z.string().nullable().optional().default(null),
   credit_note_reason: z.string().nullable().optional().default(null),
+  manual_retry_count: z.coerce.number().optional().default(0),
+  retried_at: z.string().nullable().optional().default(null),
 })
 
 export const documentsPageSchema = z.object({

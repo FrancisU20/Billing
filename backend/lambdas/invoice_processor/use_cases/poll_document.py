@@ -121,6 +121,7 @@ class PollDocumentUseCase:
                 DocumentAuthorizedEvent(
                     tenant_id=tenant_id,
                     document_id=document_id,
+                    doc_type=document.doc_type,
                     access_key=access_key,
                     authorization_number=result.authorization_number or "",
                     tenant_email=tenant.email,
@@ -168,6 +169,7 @@ class PollDocumentUseCase:
                 DocumentFailedPermanentEvent(
                     tenant_id=tenant_id,
                     document_id=document_id,
+                    doc_type=document.doc_type,
                     access_key=access_key,
                     tenant_email=tenant.email,
                     legal_rep_name=tenant.legal_rep_name,
@@ -188,6 +190,7 @@ class PollDocumentUseCase:
             DocumentRejectedEvent(
                 tenant_id=tenant_id,
                 document_id=document_id,
+                doc_type=document.doc_type,
                 access_key=access_key,
                 tenant_email=tenant.email,
                 legal_rep_name=tenant.legal_rep_name,

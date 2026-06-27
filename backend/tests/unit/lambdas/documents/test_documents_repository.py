@@ -7,7 +7,10 @@ from decimal import Decimal
 from botocore.exceptions import ClientError
 
 from lambdas.documents.domain.entities import Document, DocumentStatus
-from lambdas.documents.domain.errors import DocumentNotAuthorizedError
+from lambdas.documents.domain.errors import (
+    DocumentNotAuthorizedError,
+    DocumentRetryNotEligibleError,
+)
 from lambdas.documents.infra.documents_repository import DynamoDocumentsRepository
 from shared.errors import DatabaseError
 
@@ -394,6 +397,45 @@ class DynamoDocumentsRepositoryAnnulTests(unittest.TestCase):
 
         with self.assertRaises(DocumentNotAuthorizedError):
             repo.annul("tenant-1", "doc-1", reason="Motivo", user_id="user-1", access_key="1" * 49)
+
+
+class DynamoDocumentsRepositoryRetryTests(unittest.TestCase):
+    def test_retry_updates_status_and_writes_audit(self) -> None:
+        table = FakeTransactTable()
+        repo = DynamoDocumentsRepository(table, FakeAuditTable())
+
+        repo.retry("tenant-1", "doc-1", user_id="user-1", access_key="1" * 49)
+
+        transact_items = table.client.transact_write_calls[0]["TransactItems"]
+        self.assertEqual(len(transact_items), 2)
+        update = transact_items[0]["Update"]
+        self.assertEqual(
+            update["ExpressionAttributeValues"][":new_status"], DocumentStatus.PENDING.value
+        )
+        self.assertEqual(
+            update["ExpressionAttributeValues"][":expected_status"],
+            DocumentStatus.REJECTED.value,
+        )
+        self.assertIn("ADD #manual_retry_count :one", update["UpdateExpression"])
+        audit_put = transact_items[1]["Put"]
+        self.assertEqual(audit_put["Item"]["action"], "DOCUMENT_RETRIED")
+        self.assertEqual(audit_put["Item"]["changed_by"], "user-1")
+
+    def test_retry_skips_audit_without_audit_table(self) -> None:
+        table = FakeTransactTable()
+        repo = DynamoDocumentsRepository(table)
+
+        repo.retry("tenant-1", "doc-1", user_id="user-1", access_key="1" * 49)
+
+        transact_items = table.client.transact_write_calls[0]["TransactItems"]
+        self.assertEqual(len(transact_items), 1)
+
+    def test_retry_raises_not_eligible_on_condition_failure(self) -> None:
+        table = FakeTransactTable(error_code="TransactionCanceledException")
+        repo = DynamoDocumentsRepository(table, FakeAuditTable())
+
+        with self.assertRaises(DocumentRetryNotEligibleError):
+            repo.retry("tenant-1", "doc-1", user_id="user-1", access_key="1" * 49)
 
 
 class DynamoDocumentsRepositoryUpdateStatusTests(unittest.TestCase):

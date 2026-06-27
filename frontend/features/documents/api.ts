@@ -49,4 +49,11 @@ export const documentsApi = {
   getRideUrl: (id: string) => api.get(`/documents/${encodeURIComponent(id)}/ride`, rideUrlSchema),
 
   getXmlUrl: (id: string) => api.get(`/documents/${encodeURIComponent(id)}/xml`, rideUrlSchema),
+
+  // Solo elegible si status='REJECTED' — reusa la misma clave de acceso/secuencial,
+  // vuelve a pasar por SIGN (ver RetryDocumentUseCase en backend).
+  retry: (id: string, idempotencyKey: string) =>
+    api.post(`/documents/${encodeURIComponent(id)}/retry`, {}, documentSchema, {
+      idempotencyKey,
+    }),
 }

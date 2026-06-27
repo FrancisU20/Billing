@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { FlatList, StyleSheet, View } from 'react-native'
+import React, { useCallback, useState } from 'react'
+import { FlatList, Linking, StyleSheet, View } from 'react-native'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
@@ -11,30 +11,37 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { canWrite } from '@/constants/roles'
+import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { spacing } from '@/constants/tokens'
-import { CreditNoteEligibleInvoiceItem } from '../components/CreditNoteEligibleInvoiceItem'
+import { documentsApi } from '../api'
+import { DocumentListItem } from '../components/DocumentListItem'
+import { InvoicePickerModal } from '../components/InvoicePickerModal'
 import { useDocuments } from '../hooks/useDocuments'
-import type { DocumentListFilters } from '../types'
+import { useRetryDocument } from '../hooks/useRetryDocument'
+import type { Document, DocumentListFilters } from '../types'
 
-const ELIGIBLE_BASE_FILTERS: DocumentListFilters = { doc_type: '01', status: 'AUTHORIZED' }
+// Modulo independiente "Notas de Credito" — lista las NC ya emitidas (cualquier
+// status, para que las rechazadas sean visibles y se puedan reintentar). Fijo, igual
+// patron que FACTURA_ONLY_FILTERS en DocumentsListScreen.
+const CREDIT_NOTE_ONLY_FILTERS: DocumentListFilters = { doc_type: '04' }
 
 /**
- * Modulo independiente "Notas de Credito": lista facturas autorizadas (elegibles) en
- * vez de vivir como boton dentro de Documentos. Tocar "Acreditar" en una fila navega
- * al formulario parcial existente (`documents/credit-note.tsx`) con esa factura
- * preseleccionada. La anulacion 100% NO vive aqui — sigue siendo una accion de
- * Documentos (ver AnnulInvoiceModal).
+ * Modulo independiente "Notas de Credito": lista las NC ya emitidas/rechazadas (ya no
+ * lista facturas elegibles — eso ahora es un picker aparte). Botón "Crear nota de
+ * crédito" abre `InvoicePickerModal` (factura autorizada a acreditar) y navega al
+ * formulario parcial existente (`documents/credit-note.tsx`). La anulación 100% NO
+ * vive aquí — sigue siendo una acción de Documentos (ver AnnulInvoiceModal).
  */
 export function CreditNoteInvoicesListScreen() {
   const router = useRouter()
   const { semantic } = useTheme()
   const user = useAuthStore(selectUser)
-  const canCreate = canWrite(user?.role ?? null)
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState<DocumentListFilters>(ELIGIBLE_BASE_FILTERS)
+  const [filters, setFilters] = useState<DocumentListFilters>(CREDIT_NOTE_ONLY_FILTERS)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const {
     documents,
     loading,
@@ -52,8 +59,30 @@ export function CreditNoteInvoicesListScreen() {
   } = useDocuments(filters)
   useRefreshOnFocus(refresh)
 
+  const { error: downloadError, submit: downloadRide } = useFormSubmit(
+    async (documentId: string) => {
+      const { url } = await documentsApi.getRideUrl(documentId)
+      await Linking.openURL(url)
+    },
+  )
+  const { error: downloadXmlError, submit: downloadXml } = useFormSubmit(
+    async (documentId: string) => {
+      const { url } = await documentsApi.getXmlUrl(documentId)
+      await Linking.openURL(url)
+    },
+  )
+  const { error: retryError, submit: retryDocument } = useRetryDocument(refresh)
+
+  function applySearch(q: string) {
+    setFilters({ ...CREDIT_NOTE_ONLY_FILTERS, q: q || undefined })
+  }
+
+  const applySearchImmediate = useCallback((q: string) => {
+    setFilters({ ...CREDIT_NOTE_ONLY_FILTERS, q: q || undefined })
+  }, [])
+
   if (loading && documents.length === 0) {
-    return <LoadingSpinner fullScreen label="Cargando facturas..." />
+    return <LoadingSpinner fullScreen label="Cargando notas de crédito..." />
   }
 
   const paginationProps = {
@@ -70,18 +99,14 @@ export function CreditNoteInvoicesListScreen() {
     onPageSizeChange: setPageSize,
   }
 
-  function applySearch(q: string) {
-    setFilters({ ...ELIGIBLE_BASE_FILTERS, q: q || undefined })
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar
         title="Notas de crédito"
         subtitle={
           documents.length
-            ? `Página ${page} · ${documents.length} facturas`
-            : 'Acredita una factura autorizada'
+            ? `Página ${page} · ${documents.length} registros`
+            : 'Acreditaciones emitidas al SRI'
         }
       />
 
@@ -89,12 +114,13 @@ export function CreditNoteInvoicesListScreen() {
         data={documents}
         keyExtractor={(document) => document.document_id}
         renderItem={({ item }) => (
-          <CreditNoteEligibleInvoiceItem
+          <DocumentListItem
             document={item}
-            canCreate={canCreate}
-            onPress={() =>
-              router.push(Routes.tenant.documentCreditNoteNew({ parent: item.document_id }) as Href)
-            }
+            onView={() => router.push(Routes.tenant.documentDetail(item.document_id) as Href)}
+            onDownloadRide={() => downloadRide(item.document_id)}
+            onDownloadXml={() => downloadXml(item.document_id)}
+            canRetry={canWrite(user?.role ?? null)}
+            onRetry={() => retryDocument(item.document_id)}
           />
         )}
         contentContainerStyle={styles.list}
@@ -103,7 +129,11 @@ export function CreditNoteInvoicesListScreen() {
             <ListScreenHeader
               icon="receipt-outline"
               kicker="Comprobantes electrónicos"
-              heading="Elige la factura a acreditar"
+              heading="Notas de crédito emitidas al SRI"
+              action={{
+                label: 'Crear nota de crédito',
+                onPress: () => setPickerOpen(true),
+              }}
             />
 
             <SearchInput
@@ -111,11 +141,14 @@ export function CreditNoteInvoicesListScreen() {
               placeholder="Serie, cédula/RUC o nombre"
               value={search}
               onChangeText={setSearch}
-              onSearchChange={applySearch}
+              onSearchChange={applySearchImmediate}
               onSubmitEditing={() => applySearch(search)}
             />
 
             {error ? <ApiErrorBanner error={error} /> : null}
+            {downloadError ? <ApiErrorBanner error={downloadError} /> : null}
+            {downloadXmlError ? <ApiErrorBanner error={downloadXmlError} /> : null}
+            {retryError ? <ApiErrorBanner error={retryError} /> : null}
 
             <ListPaginationControls {...paginationProps} />
           </View>
@@ -124,8 +157,9 @@ export function CreditNoteInvoicesListScreen() {
         ListEmptyComponent={
           <EmptyState
             icon="receipt-outline"
-            title="Sin facturas para acreditar"
-            description="No hay facturas autorizadas que coincidan con la búsqueda."
+            title="Sin notas de crédito"
+            description="No hay notas de crédito que coincidan con la búsqueda."
+            action={{ label: 'Crear nota de crédito', onPress: () => setPickerOpen(true) }}
           />
         }
         ListFooterComponent={
@@ -136,6 +170,15 @@ export function CreditNoteInvoicesListScreen() {
         refreshing={loading}
         onRefresh={refresh}
         showsVerticalScrollIndicator={false}
+      />
+
+      <InvoicePickerModal
+        visible={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={(document: Document) => {
+          setPickerOpen(false)
+          router.push(Routes.tenant.documentCreditNoteNew({ parent: document.document_id }) as Href)
+        }}
       />
     </View>
   )

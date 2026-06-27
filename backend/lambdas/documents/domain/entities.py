@@ -188,6 +188,12 @@ class Document:
     related_document_id: str | None = None
     credit_note_reason: str | None = None
 
+    # Reintento manual (REJECTED -> PENDING, ver RetryDocumentUseCase). Distinto de
+    # `retry_count` (reintentos tecnicos automaticos FAILED->backoff en invoice_processor)
+    # — este es para auditoria/UI: cuantas veces un usuario reintento a mano.
+    manual_retry_count: int = 0
+    retried_at: datetime | None = None
+
     @property
     def sequential_display(self) -> str:
         return f"{self.serie[:3]}-{self.serie[3:]}-{str(self.sequential).zfill(9)}"
@@ -237,4 +243,6 @@ class Document:
             "annulment_reason": self.annulment_reason,
             "related_document_id": self.related_document_id,
             "credit_note_reason": self.credit_note_reason,
+            "manual_retry_count": self.manual_retry_count,
+            "retried_at": isoformat_ecuador(self.retried_at),
         }

@@ -157,6 +157,7 @@ def handler(record: SQSRecord, context) -> None:
             email=data.get("tenant_email", ""),
             legal_rep_name=data.get("legal_rep_name", ""),
             document_id=data.get("document_id", ""),
+            doc_type=data.get("doc_type", "01"),
             access_key=data.get("access_key", ""),
             authorization_number=data.get("authorization_number", ""),
             issuer_name=data.get("issuer_name", ""),
@@ -190,6 +191,7 @@ def handler(record: SQSRecord, context) -> None:
             email=data.get("tenant_email", ""),
             legal_rep_name=data.get("legal_rep_name", ""),
             document_id=data.get("document_id", ""),
+            doc_type=data.get("doc_type", "01"),
             access_key=data.get("access_key", ""),
             sri_errors=data.get("sri_errors") or [],
         )
@@ -200,6 +202,7 @@ def handler(record: SQSRecord, context) -> None:
             email=data.get("tenant_email", ""),
             legal_rep_name=data.get("legal_rep_name", ""),
             document_id=data.get("document_id", ""),
+            doc_type=data.get("doc_type", "01"),
             access_key=data.get("access_key", ""),
         )
         return

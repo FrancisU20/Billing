@@ -98,3 +98,10 @@ class AnnulDocumentCommand:
     document_id: str
     reason: str
     user_id: str
+
+
+@dataclass
+class RetryDocumentCommand:
+    tenant_id: str
+    document_id: str
+    user_id: str

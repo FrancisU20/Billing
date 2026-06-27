@@ -21,6 +21,7 @@ import { DocumentStatusBadge } from '../components/DocumentStatusBadge'
 import { TotalsSummary } from '../components/TotalsSummary'
 import { BUYER_ID_TYPE_LABELS } from '../constants'
 import { useDocument } from '../hooks/useDocument'
+import { useRetryDocument } from '../hooks/useRetryDocument'
 import { getCreditNoteBlockReason } from '../utils'
 
 export function DocumentDetailScreen() {
@@ -54,8 +55,15 @@ export function DocumentDetailScreen() {
     await Linking.openURL(url)
   })
 
+  const {
+    submitting: retrying,
+    error: retryError,
+    submit: retryDocument,
+  } = useRetryDocument(refresh)
+
   const canCreditNote =
     !!document && canWrite(user?.role ?? null) && getCreditNoteBlockReason(document) === null
+  const canRetry = !!document && canWrite(user?.role ?? null) && document.status === 'REJECTED'
 
   if (loading) return <LoadingSpinner fullScreen label="Cargando documento..." />
 
@@ -113,6 +121,16 @@ export function DocumentDetailScreen() {
                     Descargar XML
                   </Button>
                 ) : null}
+                {canRetry ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    isLoading={retrying}
+                    onPress={() => retryDocument(document.document_id)}
+                  >
+                    Reintentar
+                  </Button>
+                ) : null}
                 {canCreditNote ? (
                   <Button variant="danger" size="sm" onPress={() => setAnnulOpen(true)}>
                     Anular factura
@@ -123,6 +141,7 @@ export function DocumentDetailScreen() {
 
             {downloadError ? <ApiErrorBanner error={downloadError} /> : null}
             {downloadXmlError ? <ApiErrorBanner error={downloadXmlError} /> : null}
+            {retryError ? <ApiErrorBanner error={retryError} /> : null}
 
             {document.doc_type === '04' ? (
               <View

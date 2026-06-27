@@ -62,6 +62,8 @@ const document = {
   annulment_reason: null,
   related_document_id: null,
   credit_note_reason: null,
+  manual_retry_count: 0,
+  retried_at: null,
 }
 
 describe('document contract schemas', () => {

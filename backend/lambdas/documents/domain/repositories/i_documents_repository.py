@@ -114,6 +114,25 @@ class IDocumentsRepository(ABC):
         """
 
     @abstractmethod
+    def retry(
+        self,
+        tenant_id: str,
+        document_id: str,
+        *,
+        user_id: str,
+        access_key: str,
+        idempotency: IdempotencyContext | None = None,
+        response: dict | None = None,
+    ) -> None:
+        """Transition REJECTED -> PENDING atomically with an audit record, incrementing
+        manual_retry_count. Reuses the existing access_key/sequential — no new ones are
+        generated.
+
+        Raises DocumentRetryNotEligibleError if the document's current status isn't
+        REJECTED (lost a race, or already retried by another request).
+        """
+
+    @abstractmethod
     def mark_buyer_notification_status(
         self,
         tenant_id: str,

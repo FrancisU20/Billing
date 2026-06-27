@@ -38,6 +38,18 @@ _SALES_EMAIL = env("BREVO_SALES_EMAIL", "sales@codelabsecuador.com")
 _SUPPORT_EMAIL = env("BREVO_SUPPORT_EMAIL", "support@codelabsecuador.com")
 _TESTING_EMAIL = env("BREVO_TESTING_EMAIL", "testing@codelabsecuador.com")
 _FRONTEND_URL = env("FRONTEND_URL", "")
+
+# Mismo mapeo que frontend/features/documents/constants.ts (DOC_TYPE_LABELS) — los
+# emails de documento (autorizado/rechazado/no confirmado/comprador) hardcodeaban
+# "factura" sin importar el doc_type real, dando wording incorrecto para Notas de
+# Credito (bug real: ya se enviaban sin filtro de doc_type, solo decian mal el tipo).
+_DOC_TYPE_LABELS = {"01": "Factura", "04": "Nota de Crédito"}
+
+
+def _doc_type_label(doc_type: str) -> str:
+    return _DOC_TYPE_LABELS.get(doc_type, "Documento")
+
+
 # Logotipo Wali servido por el frontend desplegado (frontend/public/wordmark-dark.png) —
 # evita duplicar el asset en el backend y los clientes de correo no renderizan SVG.
 _WORDMARK_URL = f"{_FRONTEND_URL}/wordmark-dark.png"
@@ -741,6 +753,7 @@ def _build_orphan_payment_alert_html(
 def _build_document_authorized_html(
     legal_rep_name: str,
     document_id: str,
+    doc_type: str,
     access_key: str,
     authorization_number: str,
     issuer_name: str,
@@ -754,6 +767,7 @@ def _build_document_authorized_html(
     total: str,
     currency: str,
 ) -> str:
+    doc_label = _doc_type_label(doc_type)
     safe_name = escape(legal_rep_name, quote=True)
     safe_document_id = escape(document_id, quote=True)
     safe_access_key = escape(access_key, quote=True)
@@ -789,14 +803,14 @@ def _build_document_authorized_html(
                 Hola, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
-                Tu factura electrónica fue <strong>autorizada</strong> por el SRI.
-                Este es el resumen del documento emitido.
+                Tu {doc_label.lower()} electrónica fue <strong>autorizada</strong> por
+                el SRI. Este es el resumen del documento emitido.
               </p>
 
               <div style="background:#ecfdf5;border-left:4px solid #059669;
                           border-radius:4px;padding:18px;margin:0 0 24px">
                 <p style="margin:0;color:#065f46;font-size:13px;font-weight:700">
-                  Factura autorizada
+                  {doc_label} autorizada
                 </p>
               </div>
 
@@ -806,7 +820,7 @@ def _build_document_authorized_html(
                   Resumen
                 </p>
                 <table width="100%" cellpadding="0" cellspacing="0">
-                  {_summary_row("Tipo", "Factura")}
+                  {_summary_row("Tipo", doc_label)}
                   {_summary_row("Secuencial", display_sequential)}
                   {_summary_row("Fecha de emisión", display_issued_at)}
                   {_summary_row("Fecha de autorización", display_authorized_at)}
@@ -872,6 +886,7 @@ def _build_document_authorized_html(
 def _build_document_buyer_html(
     buyer_name: str,
     buyer_id: str,
+    doc_type: str,
     access_key: str,
     authorization_number: str,
     issuer_name: str,
@@ -881,6 +896,7 @@ def _build_document_buyer_html(
     total: str,
     currency: str,
 ) -> str:
+    doc_label = _doc_type_label(doc_type)
     safe_name = escape(buyer_name or "cliente", quote=True)
     safe_buyer_id = escape(buyer_id, quote=True)
     safe_issuer = escape(issuer_name or "Emisor", quote=True)
@@ -919,7 +935,7 @@ def _build_document_buyer_html(
                 </p>
                 <table width="100%" cellpadding="0" cellspacing="0">
                   {_summary_row("Emitido por", f"{issuer_name or 'Emisor'} ({issuer_ruc})")}
-                  {_summary_row("Tipo", "Factura")}
+                  {_summary_row("Tipo", doc_label)}
                   {_summary_row("Identificador", access_key)}
                   {_summary_row("Fecha de emisión", display_issued_at)}
                   {_summary_row("Fecha de autorización", display_authorized_at)}
@@ -937,8 +953,9 @@ def _build_document_buyer_html(
                 <p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6">
                   <strong>Nota:</strong> Este correo electrónico ha sido enviado
                   automáticamente. Por favor no responda a esta dirección. Si requiere
-                  cualquier aclaración o información adicional sobre la factura electrónica
-                  debe comunicarse directamente con {safe_issuer}.
+                  cualquier aclaración o información adicional sobre la
+                  {doc_label.lower()} electrónica debe comunicarse directamente con
+                  {safe_issuer}.
                 </p>
               </div>
 
@@ -967,8 +984,9 @@ def _build_document_buyer_html(
 
 
 def _build_document_rejected_html(
-    legal_rep_name: str, access_key: str, sri_errors: list[dict]
+    legal_rep_name: str, doc_type: str, access_key: str, sri_errors: list[dict]
 ) -> str:
+    doc_label = _doc_type_label(doc_type)
     safe_name = escape(legal_rep_name, quote=True)
     safe_access_key = escape(access_key, quote=True)
     errors_html = "".join(
@@ -999,8 +1017,8 @@ def _build_document_rejected_html(
                 Hola, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
-                El SRI <strong>rechazó</strong> la factura con clave de acceso
-                {safe_access_key}. Corrige los datos y vuelve a emitirla.
+                El SRI <strong>rechazó</strong> la {doc_label.lower()} con clave de
+                acceso {safe_access_key}. Corrige los datos y vuelve a emitirla.
               </p>
 
               <div style="background:#fff1f2;border-left:4px solid #b91c1c;
@@ -1027,7 +1045,10 @@ def _build_document_rejected_html(
 </html>"""
 
 
-def _build_document_failed_permanent_html(legal_rep_name: str, access_key: str) -> str:
+def _build_document_failed_permanent_html(
+    legal_rep_name: str, doc_type: str, access_key: str
+) -> str:
+    doc_label = _doc_type_label(doc_type)
     safe_name = escape(legal_rep_name, quote=True)
     safe_access_key = escape(access_key, quote=True)
 
@@ -1052,9 +1073,10 @@ def _build_document_failed_permanent_html(legal_rep_name: str, access_key: str) 
                 Hola, {safe_name}
               </h2>
               <p style="margin:0 0 24px;color:#444;line-height:1.6">
-                No pudimos confirmar la autorización del SRI para la factura con
-                clave de acceso <strong>{safe_access_key}</strong> tras varios
-                intentos. Nuestro equipo revisará el caso — contáctanos si es urgente.
+                No pudimos confirmar la autorización del SRI para la
+                {doc_label.lower()} con clave de acceso <strong>{safe_access_key}</strong>
+                tras varios intentos. Nuestro equipo revisará el caso — contáctanos si es
+                urgente.
               </p>
             </td>
           </tr>
@@ -1219,6 +1241,7 @@ class BrevoEmailSender(EmailSender):
         email: str,
         legal_rep_name: str,
         document_id: str,
+        doc_type: str,
         access_key: str,
         authorization_number: str,
         issuer_name: str,
@@ -1233,13 +1256,15 @@ class BrevoEmailSender(EmailSender):
         currency: str,
     ) -> None:
         api_key = _get_api_key()
+        doc_label = _doc_type_label(doc_type)
         payload = {
             "sender": _sender(_BILLING_EMAIL),
             "to": [{"email": email, "name": legal_rep_name}],
-            "subject": "Tu factura fue autorizada por el SRI — Wali",
+            "subject": f"Tu {doc_label.lower()} fue autorizada por el SRI — Wali",
             "htmlContent": _build_document_authorized_html(
                 legal_rep_name,
                 document_id,
+                doc_type,
                 access_key,
                 authorization_number,
                 issuer_name,
@@ -1262,15 +1287,19 @@ class BrevoEmailSender(EmailSender):
         email: str,
         legal_rep_name: str,
         document_id: str,
+        doc_type: str,
         access_key: str,
         sri_errors: list[dict],
     ) -> None:
         api_key = _get_api_key()
+        doc_label = _doc_type_label(doc_type)
         payload = {
             "sender": _sender(_BILLING_EMAIL),
             "to": [{"email": email, "name": legal_rep_name}],
-            "subject": "El SRI rechazó tu factura — Wali",
-            "htmlContent": _build_document_rejected_html(legal_rep_name, access_key, sri_errors),
+            "subject": f"El SRI rechazó tu {doc_label.lower()} — Wali",
+            "htmlContent": _build_document_rejected_html(
+                legal_rep_name, doc_type, access_key, sri_errors
+            ),
         }
         _send(api_key, payload, log_email=email)
 
@@ -1280,14 +1309,18 @@ class BrevoEmailSender(EmailSender):
         email: str,
         legal_rep_name: str,
         document_id: str,
+        doc_type: str,
         access_key: str,
     ) -> None:
         api_key = _get_api_key()
+        doc_label = _doc_type_label(doc_type)
         payload = {
             "sender": _sender(_BILLING_EMAIL),
             "to": [{"email": email, "name": legal_rep_name}],
-            "subject": "No pudimos confirmar tu factura con el SRI — Wali",
-            "htmlContent": _build_document_failed_permanent_html(legal_rep_name, access_key),
+            "subject": f"No pudimos confirmar tu {doc_label.lower()} con el SRI — Wali",
+            "htmlContent": _build_document_failed_permanent_html(
+                legal_rep_name, doc_type, access_key
+            ),
         }
         _send(api_key, payload, log_email=email)
 
@@ -1297,6 +1330,7 @@ class BrevoEmailSender(EmailSender):
         email: str,
         buyer_name: str,
         document_id: str,
+        doc_type: str,
         access_key: str,
         authorization_number: str,
         issuer_name: str,
@@ -1312,13 +1346,15 @@ class BrevoEmailSender(EmailSender):
         ride_filename: str,
     ) -> None:
         api_key = _get_api_key()
+        doc_label = _doc_type_label(doc_type)
         payload = {
             "sender": _sender(_BILLING_EMAIL),
             "to": [{"email": email, "name": buyer_name}],
-            "subject": "Factura electrónica autorizada — XML y RIDE adjuntos",
+            "subject": f"{doc_label} electrónica autorizada — XML y RIDE adjuntos",
             "htmlContent": _build_document_buyer_html(
                 buyer_name,
                 buyer_id,
+                doc_type,
                 access_key,
                 authorization_number,
                 issuer_name,

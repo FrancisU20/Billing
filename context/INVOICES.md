@@ -104,15 +104,20 @@ credito parcial" no debia vivir como boton dentro de Documentos:
   hay pantalla intermedia.
 - **Nota de credito parcial** vive en un **modulo independiente** del menu principal
   ("Notas de credito", `CreditNoteInvoicesListScreen.tsx`, ruta
-  `Routes.tenant.creditNotes` → `/credit-notes`) que lista facturas elegibles
-  (`doc_type='01'`, `status='AUTHORIZED'`, mismo filtro que antes resolvia
-  `InvoicePickerModal`). Tocar "Acreditar" en una fila navega a
-  `EmitCreditNoteScreen.tsx` (`documents/credit-note.tsx`) con `parent` preseleccionado —
-  esa pantalla ya **no** soporta `locked`, quedo dedicada solo al flujo editable parcial.
-  El boton "Nota de credito" se quito de Documentos (listado y detalle).
-- `InvoicePickerModal.tsx` sigue existiendo solo como fallback de
-  `EmitCreditNoteScreen.tsx` si se llega a la ruta sin `parent` (deep link directo); ya no
-  es el camino principal para elegir factura.
+  `Routes.tenant.creditNotes` → `/credit-notes`). El boton "Nota de credito" se quito de
+  Documentos (listado y detalle).
+  - **Revisado otra vez (Sprint 3, 2026-06-26):** esta pantalla ya no lista facturas
+    elegibles — lista las **NC ya emitidas** (`doc_type='04'`, cualquier `status`, mismo
+    patron de paginacion/busqueda que `DocumentsListScreen.tsx`, reusando
+    `DocumentListItem.tsx`) para que las rechazadas sean visibles y reintentables (ver
+    "Reintento De Documentos Rechazados" abajo). Boton "Crear nota de credito" en el
+    header abre `InvoicePickerModal.tsx` (factura autorizada a acreditar) y al
+    seleccionar navega a `EmitCreditNoteScreen.tsx` (`documents/credit-note.tsx`) con
+    `parent` preseleccionado — esa pantalla ya **no** soporta `locked`, quedo dedicada
+    solo al flujo editable parcial.
+- `InvoicePickerModal.tsx` ahora tiene dos callers: el boton "Crear nota de credito" del
+  modulo independiente (camino principal) y `EmitCreditNoteScreen.tsx` como fallback si
+  se llega a la ruta sin `parent` (deep link directo).
 
 **Elegibilidad** (`features/documents/utils.ts::getCreditNoteBlockReason`): solo
 `doc_type === '01'` (una NC no puede acreditar otra NC) y `status === 'AUTHORIZED'`. **Sin
@@ -184,6 +189,57 @@ exacto que dio el SRI en produccion si se revierte el fix. Sigue existiendo un r
 residual menor: el XSD valida estructura/tipos, no reglas de negocio del propio servicio
 SOAP del SRI (eso solo se confirma probando contra el ambiente de pruebas real,
 `celcer.sri.gob.ec`).
+
+### Reintento De Documentos Rechazados (Sprint 2-3, implementado 2026-06-26)
+
+Antes de esto, un documento (Factura o NC) en `status=REJECTED` era un callejon sin
+salida: la unica forma de corregirlo era emitir un documento nuevo, con secuencial nuevo
+— desperdicia numeracion para errores corregibles (ej. el bug de `codigoPrincipal`) y la
+Ficha Tecnica del SRI (seccion 10, nota 1) es explicita en que un comprobante rechazado
+**debe** reenviarse con la **misma** clave de acceso/secuencial una vez corregido el
+error, sin generar numeros nuevos.
+
+**Hallazgo adicional corregido en el mismo cambio:** cuando el SRI rechaza en la etapa de
+RECEPCION (`sign_document.py`, clasificacion `PERMANENT` → DEVUELTA — el tipo de rechazo
+que hubiera dado nuestro propio bug de `codigoPrincipal`), el codigo marcaba
+`status=REJECTED` pero **nunca publicaba `DocumentRejectedEvent`** → el tenant no se
+enteraba nunca. Solo el rechazo en la etapa de AUTORIZACION (`poll_document.py`, NAT) si
+notificaba. Se agrego la publicacion del evento que faltaba en `sign_document.py`
+(`tests/.../test_sign_document_use_case.py::test_devuelta_with_permanent_error_publishes_rejected_event`).
+
+**Backend — `RetryDocumentUseCase`** (`use_cases/retry_document.py`), mismo patron que
+`tenants/use_cases/retry_payment.py` (estados elegibles explicitos, reusa datos
+existentes, sin "nueva orden"):
+- Elegibilidad: **solo `status == REJECTED`**. Lanza `DocumentRetryNotEligibleError`
+  (422) en cualquier otro estado.
+- **Deliberadamente excluye `FAILED_PERMANENT`** (polling agotado sin respuesta
+  definitiva): ese estado necesita re-consultar `autorizacionComprobante` con la misma
+  clave de acceso, NO reenviar `recepcion` — la recepcion ahi si fue exitosa, reenviarla
+  arriesga error 43 "clave acceso registrada". Distinta estrategia de reintento, fuera de
+  alcance de este cambio (deuda tecnica explicita).
+- Accion: **no** reserva secuencial nuevo, **no** genera `access_key` nuevo — resetea
+  `status=PENDING`, incrementa `Document.manual_retry_count` (campo de auditoria,
+  distinto de `retry_count` — el contador interno de reintentos tecnicos FAILED→backoff
+  del propio `invoice_processor`) y setea `retried_at`. Re-encola al mismo paso SIGN
+  (nunca a POLL): la mayoria de rechazos ocurren en recepcion, la clave de acceso nunca
+  quedo "recibida" por el SRI; volver a SIGN reconstruye el XML con el `xml_builder.py`
+  actual (si el rechazo fue un bug nuestro ya corregido, como `codigoPrincipal`, el
+  reintento simplemente funciona sin tocar el documento).
+- `repo.retry()` (`documents_repository.py`): mismo patron transaccional que
+  `repo.annul()` — update condicional (`status` REJECTED→PENDING + `ADD
+  manual_retry_count`) + registro de auditoria `DOCUMENT_RETRIED` + item de idempotencia,
+  todo en un solo `transact_write_items`.
+- Endpoint `POST /documents/{id}/retry` (`owner|admin|superadmin`, mismo
+  `X-Idempotency-Key` que el resto de mutaciones) reusa `_send_sign_message` — el mismo
+  helper que usa la emision normal para encolar SIGN.
+
+**Frontend:** `documentsApi.retry()` + hook `useRetryDocument()`
+(`features/documents/hooks/`) comparten la logica de submit/toast/refresh entre
+`DocumentsListScreen.tsx` y `CreditNoteInvoicesListScreen.tsx` — ambos modulos reusan el
+mismo `DocumentListItem.tsx`, asi que la accion "Reintentar" (en el menu de 3 puntos,
+visible solo si `status === 'REJECTED'`) se agrego una sola vez y cubre Facturas y Notas
+de Credito. `DocumentDetailScreen.tsx` tiene el mismo boton "Reintentar" junto a "Anular
+factura".
 
 ## Lambdas Y Responsabilidades
 
@@ -1048,12 +1104,17 @@ PENDING
 PROCESSING
   ↓ POLL: SRI acepto
 AUTHORIZED      (terminal exitoso)
-  ↓ POLL: SRI rechazo
-REJECTED        (terminal, error de negocio permanente)
+  ↓ SIGN (recepcion/DEVUELTA) o POLL (autorizacion/NAT): SRI rechazo
+REJECTED        (error de negocio permanente — NO es terminal, ver mas abajo)
   ↓ SIGN/POLL: error tecnico reintentable
 FAILED          (retry_count < 5 → se reintenta via DLQ)
   ↓ retry_count >= 5
 FAILED_PERMANENT  (terminal, requiere intervencion manual)
+
+REJECTED ↓ RetryDocumentUseCase (manual, "Reintentar" en UI) → vuelve a PENDING,
+            reusando la MISMA clave de acceso/secuencial (ver seccion "Reintento De
+            Documentos Rechazados"). FAILED_PERMANENT queda fuera a proposito: necesita
+            re-poll, no re-sign.
 ```
 
 Clasificacion de errores:

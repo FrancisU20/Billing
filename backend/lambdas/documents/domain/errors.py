@@ -72,3 +72,8 @@ class ParentDocumentNotAuthorizedError(BusinessError):
 class CreditedQuantityExceedsOriginalError(BusinessError):
     code = "CREDITED_QUANTITY_EXCEEDS_ORIGINAL"
     default_message = "La cantidad a acreditar no puede superar la cantidad original de la línea."
+
+
+class DocumentRetryNotEligibleError(BusinessError):
+    code = "DOCUMENT_RETRY_NOT_ELIGIBLE"
+    default_message = "Solo se pueden reintentar documentos rechazados por el SRI (REJECTED)."

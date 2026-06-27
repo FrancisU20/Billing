@@ -110,6 +110,7 @@ class EmailSender(ABC):
         email: str,
         legal_rep_name: str,
         document_id: str,
+        doc_type: str,
         access_key: str,
         authorization_number: str,
         issuer_name: str,
@@ -132,6 +133,7 @@ class EmailSender(ABC):
         email: str,
         legal_rep_name: str,
         document_id: str,
+        doc_type: str,
         access_key: str,
         sri_errors: list[dict],
     ) -> None:
@@ -144,6 +146,7 @@ class EmailSender(ABC):
         email: str,
         legal_rep_name: str,
         document_id: str,
+        doc_type: str,
         access_key: str,
     ) -> None:
         """Notify the tenant that authorization could not be confirmed after retries."""
@@ -155,6 +158,7 @@ class EmailSender(ABC):
         email: str,
         buyer_name: str,
         document_id: str,
+        doc_type: str,
         access_key: str,
         authorization_number: str,
         issuer_name: str,
