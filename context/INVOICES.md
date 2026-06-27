@@ -243,9 +243,47 @@ cliente (inseguro) y no aporta nada.
 **Deuda tecnica explicita (no resuelta):** si la NC de anulacion cae en
 `FAILED_PERMANENT` (polling agotado, sin mecanismo de reintento per diseno de Sprint 2),
 la factura queda con `annulled_by_credit_note_id` apuntando a un documento sin salida —
-bloqueada para siempre sin poder reintentar. Caso raro. `InvoicePickerModal`/el listado
-del modulo de Notas de Credito tampoco filtran facturas ya anuladas de sus resultados de
-busqueda — seguiran apareciendo seleccionables, el backend rechaza con 422 al confirmar.
+bloqueada para siempre sin poder reintentar. Caso raro.
+
+### Visibilidad De Anulacion En Listados (implementado 2026-06-27)
+
+El fix anterior (banner de anulacion) solo vivia en `DocumentDetailScreen.tsx` — ningun
+listado (`DocumentListItem.tsx`, compartido por Documentos y Notas de Credito) mostraba
+indicio alguno. Reporte real del usuario: "no lo veo", mas el pedido de que el picker de
+NC no deje seleccionar facturas ya anuladas (antes solo documentado como deuda, nunca
+resuelto).
+
+**Backend — enriquecer en lectura, no snapshot al crear:** se evaluo guardar el
+secuencial del documento vinculado como snapshot en el momento de creacion (mismo patron
+que ya usan `buyer_name`/`lines` en la NC), pero eso dejaria sin dato a todo lo emitido
+antes del cambio. Se eligio en cambio resolver en la lectura del listado:
+- `repo.get_many(tenant_id, document_ids) -> dict[str, Document]` — lookup best-effort
+  (nunca lanza, omite ids faltantes/borrados/con error) via `get_item` individual por id
+  unico solicitado (deduplicado). No usa `BatchGetItem` para mantenerse en el mismo
+  mecanismo de deserializacion que ya usa `get()` (`Table` resource de alto nivel);
+  aceptable porque el conjunto de ids a resolver esta acotado al tamano de pagina del
+  listado (max 50, ver `PAGE_SIZE_OPTIONS`).
+- `handler.py::_attach_linked_sequentials` (usado por `_list`) recolecta, por cada
+  documento de la pagina, el id de su contraparte (`related_document_id` si es NC,
+  `annulled_by_credit_note_id` si es factura), resuelve todos en una sola tanda con
+  `get_many`, y agrega dos campos solo-lectura a cada item de la respuesta:
+  `related_document_sequential_display` y `annulled_by_credit_note_sequential_display`.
+  Vive en el handler, no en `Document.to_dict()` — es forma de respuesta HTTP de listado,
+  no un dato del dominio.
+
+**Frontend:**
+- `getLinkedDocumentLabel` (`utils.ts`) — texto corto para la fila: en una NC, "Acredita
+  a factura: {secuencial}"; en una factura anulada, "Anulada por NC: {secuencial}". Cae
+  al id crudo si el documento es anterior al enriquecimiento (sin backfill necesario).
+- `DocumentListItem.tsx` — fix real de layout: el secuencial compartia fila con 2 badges
+  en una columna de 260px y se truncaba (`numberOfLines={1}`, ej. "001-09..."); ahora el
+  secuencial tiene su propia linea, badges debajo. Badge nuevo "Anulada por NC" (variant
+  `error`) junto al status cuando `annulled_by_credit_note_id` esta seteado. Linea
+  `getLinkedDocumentLabel` agregada bajo el nombre del comprador (no lo reemplaza).
+- `InvoicePickerModal.tsx` filtra del lado del cliente los resultados con
+  `annulled_by_credit_note_id` seteado — ya no aparecen seleccionables en "Crear nota de
+  credito". `EmitCreditNoteScreen.tsx` ya bloqueaba con mensaje claro si de todos modos se
+  llegaba a una factura bloqueada (deep link directo); eso sigue como red de seguridad.
 
 ### Reintento De Documentos Rechazados (Sprint 2-3, implementado 2026-06-26)
 

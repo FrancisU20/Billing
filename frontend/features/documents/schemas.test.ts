@@ -65,6 +65,8 @@ const document = {
   manual_retry_count: 0,
   retried_at: null,
   annulled_by_credit_note_id: null,
+  related_document_sequential_display: null,
+  annulled_by_credit_note_sequential_display: null,
 }
 
 describe('document contract schemas', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { documentSchema } from './schemas'
-import { getAnnulmentBannerText, getCreditNoteBlockReason } from './utils'
+import { getAnnulmentBannerText, getCreditNoteBlockReason, getLinkedDocumentLabel } from './utils'
 
 function makeDocument(overrides: Record<string, unknown> = {}) {
   return documentSchema.parse({
@@ -103,5 +103,38 @@ describe('getAnnulmentBannerText', () => {
   it('shows the failed-permanent message asking to contact support', () => {
     const cn = makeDocument({ doc_type: '04', status: 'FAILED_PERMANENT' })
     expect(getAnnulmentBannerText(cn)).toContain('Contacta soporte')
+  })
+})
+
+describe('getLinkedDocumentLabel', () => {
+  it('returns null for an invoice that is not annulled', () => {
+    expect(getLinkedDocumentLabel(makeDocument())).toBeNull()
+  })
+
+  it('shows the credited invoice sequential for a credit note', () => {
+    const cn = makeDocument({
+      doc_type: '04',
+      related_document_id: 'doc-parent',
+      related_document_sequential_display: '001-001-000000007',
+    })
+    expect(getLinkedDocumentLabel(cn)).toBe('Acredita a factura: 001-001-000000007')
+  })
+
+  it('falls back to the raw id when the credit note predates the enrichment', () => {
+    const cn = makeDocument({ doc_type: '04', related_document_id: 'doc-parent' })
+    expect(getLinkedDocumentLabel(cn)).toBe('Acredita a factura: doc-parent')
+  })
+
+  it('shows the annulling credit note sequential for an annulled invoice', () => {
+    const invoice = makeDocument({
+      annulled_by_credit_note_id: 'cn-1',
+      annulled_by_credit_note_sequential_display: '001-001-000000009',
+    })
+    expect(getLinkedDocumentLabel(invoice)).toBe('Anulada por NC: 001-001-000000009')
+  })
+
+  it('falls back to the raw id when the invoice predates the enrichment', () => {
+    const invoice = makeDocument({ annulled_by_credit_note_id: 'cn-1' })
+    expect(getLinkedDocumentLabel(invoice)).toBe('Anulada por NC: cn-1')
   })
 })

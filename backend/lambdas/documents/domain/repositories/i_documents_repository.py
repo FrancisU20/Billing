@@ -34,6 +34,16 @@ class IDocumentsRepository(ABC):
         """Return (documents sorted newest-first, next_cursor)."""
 
     @abstractmethod
+    def get_many(self, tenant_id: str, document_ids: list[str]) -> dict[str, Document]:
+        """Best-effort batch lookup keyed by document_id.
+
+        Missing/deleted/errored ids are silently omitted (never raises) — used to
+        enrich list responses with a linked document's display fields (eg. the
+        invoice a credit note credits) without failing the whole list if one lookup
+        fails. Duplicates in `document_ids` are looked up once.
+        """
+
+    @abstractmethod
     def count_this_month(self, tenant_id: str, sri_environment: str) -> int:
         """Count non-deleted documents emitted this calendar month."""
 

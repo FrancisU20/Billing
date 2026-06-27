@@ -8,6 +8,7 @@ import { useTheme } from '@/lib/theme-context'
 import { formatDate } from '@/lib/utils/format'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { DOC_TYPE_LABELS } from '../constants'
+import { getLinkedDocumentLabel } from '../utils'
 import { DocumentStatusBadge } from './DocumentStatusBadge'
 import type { Document } from '../types'
 
@@ -101,26 +102,47 @@ export function DocumentListItem({
   )
 }
 
+function DocBadgeRow({ document }: { document: Document }) {
+  return (
+    <View style={styles.badgeRow}>
+      {document.doc_type !== '01' ? (
+        <Badge
+          label={DOC_TYPE_LABELS[document.doc_type] ?? document.doc_type}
+          variant="neutral"
+          size="sm"
+        />
+      ) : null}
+      <DocumentStatusBadge status={document.status} />
+      {document.doc_type === '01' && document.annulled_by_credit_note_id ? (
+        <Badge label="Anulada por NC" variant="error" size="sm" />
+      ) : null}
+    </View>
+  )
+}
+
+function LinkedDocumentLabel({ document }: { document: Document }) {
+  const { semantic } = useTheme()
+  const label = getLinkedDocumentLabel(document)
+  if (!label) return null
+  return (
+    <Text style={[styles.linked, { color: semantic.text.tertiary }]} numberOfLines={1}>
+      {label}
+    </Text>
+  )
+}
+
 function MobileRow({ document }: { document: Document }) {
   const { semantic } = useTheme()
   return (
     <>
-      <View style={styles.nameRow}>
-        <Text style={[styles.sequential, { color: semantic.text.primary }]} numberOfLines={1}>
-          {document.sequential_display}
-        </Text>
-        {document.doc_type !== '01' ? (
-          <Badge
-            label={DOC_TYPE_LABELS[document.doc_type] ?? document.doc_type}
-            variant="neutral"
-            size="sm"
-          />
-        ) : null}
-        <DocumentStatusBadge status={document.status} />
-      </View>
+      <Text style={[styles.sequential, { color: semantic.text.primary }]} numberOfLines={1}>
+        {document.sequential_display}
+      </Text>
+      <DocBadgeRow document={document} />
       <Text style={[styles.buyer, { color: semantic.text.secondary }]} numberOfLines={1}>
         {document.buyer_name}
       </Text>
+      <LinkedDocumentLabel document={document} />
       <View style={styles.metaRow}>
         <ListItemMeta icon="calendar-outline" text={formatDate(document.issued_at)} />
         <ListItemMeta icon="cash-outline" text={`$${document.total}`} />
@@ -135,22 +157,14 @@ function DesktopRow({ document }: { document: Document }) {
   return (
     <View style={styles.desktopRow}>
       <View style={styles.colDoc}>
-        <View style={styles.nameRow}>
-          <Text style={[styles.sequential, { color: semantic.text.primary }]} numberOfLines={1}>
-            {document.sequential_display}
-          </Text>
-          {document.doc_type !== '01' ? (
-            <Badge
-              label={DOC_TYPE_LABELS[document.doc_type] ?? document.doc_type}
-              variant="neutral"
-              size="sm"
-            />
-          ) : null}
-          <DocumentStatusBadge status={document.status} />
-        </View>
+        <Text style={[styles.sequential, { color: semantic.text.primary }]} numberOfLines={1}>
+          {document.sequential_display}
+        </Text>
+        <DocBadgeRow document={document} />
         <Text style={[styles.buyer, { color: semantic.text.secondary }]} numberOfLines={1}>
           {document.buyer_name}
         </Text>
+        <LinkedDocumentLabel document={document} />
       </View>
       <ListCell label="Fecha" value={formatDate(document.issued_at)} style={styles.colDate} />
       <ListCell label="Total" value={`$${document.total}`} style={styles.colTotal} />
@@ -169,18 +183,18 @@ const styles = StyleSheet.create({
     padding: spacing[4],
   },
   main: { flex: 1, gap: spacing[1], minWidth: 0 },
-  nameRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   sequential: {
-    flex: 1,
     fontFamily: typography.fontFamily.mono,
     fontSize: typography.size.base,
     fontWeight: typography.weight.bold,
   },
   buyer: { fontSize: typography.size.sm },
+  linked: { fontSize: typography.size.xs },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   actions: { flexDirection: 'row', gap: spacing[2] },
   desktopRow: { alignItems: 'center', flexDirection: 'row', gap: spacing[5] },
-  colDoc: { flexBasis: 260, gap: spacing[1], minWidth: 200 },
+  colDoc: { flexBasis: 320, gap: spacing[1], minWidth: 240 },
   colDate: { flexBasis: 120 },
   colTotal: { flexBasis: 110 },
   colKey: { flex: 1, minWidth: 200 },

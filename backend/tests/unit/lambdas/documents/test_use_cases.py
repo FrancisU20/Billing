@@ -98,6 +98,14 @@ class FakeDocumentsRepository:
         docs = [d for d in self.documents.values() if d.tenant_id == tenant_id]
         return docs, None
 
+    def get_many(self, tenant_id: str, document_ids: list[str]) -> dict[str, Document]:
+        result = {}
+        for document_id in dict.fromkeys(document_ids):
+            doc = self.documents.get(f"{tenant_id}#{document_id}")
+            if doc is not None:
+                result[document_id] = doc
+        return result
+
     def count_this_month(self, tenant_id: str, sri_environment: str) -> int:
         return self._month_count
 

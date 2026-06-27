@@ -57,3 +57,23 @@ export function getAnnulmentBannerText(creditNote: Document | null | undefined):
       )
   }
 }
+
+/**
+ * Texto corto para la fila de un listado (Documentos o Notas de Crédito) que vincula el
+ * documento con su contraparte: en una NC, qué factura acredita; en una factura ya
+ * anulada, qué NC la anula. Usa `*_sequential_display` (resuelto por el backend en el
+ * listado, ver `handler.py::_attach_linked_sequentials`) y cae al id crudo si el
+ * documento es anterior a ese enriquecimiento. `null` si no aplica.
+ */
+export function getLinkedDocumentLabel(document: Document): string | null {
+  if (document.doc_type === '04' && document.related_document_id) {
+    const value = document.related_document_sequential_display ?? document.related_document_id
+    return `Acredita a factura: ${value}`
+  }
+  if (document.doc_type === '01' && document.annulled_by_credit_note_id) {
+    const value =
+      document.annulled_by_credit_note_sequential_display ?? document.annulled_by_credit_note_id
+    return `Anulada por NC: ${value}`
+  }
+  return null
+}

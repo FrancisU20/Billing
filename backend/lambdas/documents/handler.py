@@ -316,7 +316,8 @@ def _list(request: Request, context) -> dict:
     tenant_id = _resolve_tenant_id(request)
     params = parse(ListDocumentsQueryParams, request.query_params)
 
-    use_case = ListDocumentsUseCase(_repo())
+    repo = _repo()
+    use_case = ListDocumentsUseCase(repo)
     command = ListDocumentsCommand(
         tenant_id=tenant_id,
         status=params.status,
@@ -330,11 +331,43 @@ def _list(request: Request, context) -> dict:
     )
     documents, next_cursor = use_case.execute(command)
     return ApiResponse.paginated(
-        items=[d.to_dict() for d in documents],
+        items=_attach_linked_sequentials(documents, repo, tenant_id),
         next_token=next_cursor,
         request_id=request.request_id,
         total=use_case.count(command),
     )
+
+
+def _attach_linked_sequentials(documents: list, repo: DynamoDocumentsRepository, tenant_id: str):
+    """Agrega a cada item del listado el secuencial legible del documento vinculado
+    (la factura que una NC acredita, o la NC que anula una factura) en una sola tanda
+    de lecturas — evita que el frontend tenga que pedir cada documento relacionado por
+    separado (N+1) solo para mostrar un numero en la fila. A diferencia de guardar un
+    snapshot al crear el documento, esto tambien resuelve documentos historicos creados
+    antes de este enriquecimiento, sin necesidad de backfill.
+    """
+    linked_ids = {
+        (d.related_document_id if d.doc_type == "04" else d.annulled_by_credit_note_id)
+        for d in documents
+    }
+    linked_ids.discard(None)
+    linked = repo.get_many(tenant_id, list(linked_ids)) if linked_ids else {}
+
+    items = []
+    for d in documents:
+        item = d.to_dict()
+        related = linked.get(d.related_document_id) if d.doc_type == "04" else None
+        item["related_document_sequential_display"] = (
+            related.sequential_display if related else None
+        )
+        credit_note = (
+            linked.get(d.annulled_by_credit_note_id) if d.annulled_by_credit_note_id else None
+        )
+        item["annulled_by_credit_note_sequential_display"] = (
+            credit_note.sequential_display if credit_note else None
+        )
+        items.append(item)
+    return items
 
 
 def _resolve_monthly_limit(tenant_id: str) -> tuple[int | None, bool]:

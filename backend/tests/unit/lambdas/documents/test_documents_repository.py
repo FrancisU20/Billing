@@ -22,11 +22,14 @@ class FakeDocumentsTable:
         self,
         error_code: str | None = None,
         query_responses: list[dict] | None = None,
+        items: dict[str, dict] | None = None,
     ) -> None:
         self.error_code = error_code
         self.update_calls: list[dict] = []
         self.query_responses = query_responses or []
         self.query_calls: list[dict] = []
+        self.items = items or {}
+        self.get_calls: list[dict] = []
 
     def update_item(self, **kwargs) -> dict:
         self.update_calls.append(kwargs)
@@ -39,6 +42,14 @@ class FakeDocumentsTable:
         if self.query_responses:
             return self.query_responses.pop(0)
         return {"Count": 0}
+
+    def get_item(self, **kwargs) -> dict:
+        self.get_calls.append(kwargs)
+        if self.error_code:
+            raise ClientError({"Error": {"Code": self.error_code, "Message": "boom"}}, "GetItem")
+        sk = kwargs["Key"]["sk"]
+        item = self.items.get(sk)
+        return {"Item": item} if item else {}
 
 
 class _FakeDynamoClient:
@@ -540,6 +551,57 @@ class DynamoDocumentsRepositoryMarkAnnulledByCreditNoteTests(unittest.TestCase):
 
         with self.assertRaises(DatabaseError):
             repo.mark_annulled_by_credit_note("tenant-1", "doc-1", credit_note_id="cn-1")
+
+
+class DynamoDocumentsRepositoryGetManyTests(unittest.TestCase):
+    def test_returns_found_documents_keyed_by_id(self) -> None:
+        table = FakeDocumentsTable()
+        repo = DynamoDocumentsRepository(table)
+        doc = _make_document(document_id="doc-1")
+        table.items["DOC#doc-1"] = repo._to_item(doc)
+
+        result = repo.get_many("tenant-1", ["doc-1"])
+
+        self.assertEqual(set(result), {"doc-1"})
+        self.assertEqual(result["doc-1"].document_id, "doc-1")
+
+    def test_omits_missing_documents_without_raising(self) -> None:
+        table = FakeDocumentsTable()
+        repo = DynamoDocumentsRepository(table)
+
+        result = repo.get_many("tenant-1", ["does-not-exist"])
+
+        self.assertEqual(result, {})
+
+    def test_omits_soft_deleted_documents(self) -> None:
+        table = FakeDocumentsTable()
+        repo = DynamoDocumentsRepository(table)
+        doc = _make_document(document_id="doc-1")
+        item = repo._to_item(doc)
+        item["deleted"] = True
+        table.items["DOC#doc-1"] = item
+
+        result = repo.get_many("tenant-1", ["doc-1"])
+
+        self.assertEqual(result, {})
+
+    def test_dedupes_requested_ids(self) -> None:
+        table = FakeDocumentsTable()
+        repo = DynamoDocumentsRepository(table)
+        doc = _make_document(document_id="doc-1")
+        table.items["DOC#doc-1"] = repo._to_item(doc)
+
+        repo.get_many("tenant-1", ["doc-1", "doc-1"])
+
+        self.assertEqual(len(table.get_calls), 1)
+
+    def test_client_errors_are_swallowed_not_raised(self) -> None:
+        table = FakeDocumentsTable(error_code="InternalServerError")
+        repo = DynamoDocumentsRepository(table)
+
+        result = repo.get_many("tenant-1", ["doc-1"])
+
+        self.assertEqual(result, {})
 
 
 if __name__ == "__main__":

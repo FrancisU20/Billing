@@ -51,7 +51,10 @@ export function InvoicePickerModal({ visible, onClose, onSelect }: InvoicePicker
     try {
       const page = await documentsApi.list({ status: 'AUTHORIZED', doc_type: '01', q })
       if (requestId !== searchRequestId.current) return
-      setResults(page.items)
+      // Ya hay una factura con NC de anulacion en curso/hecha si annulled_by_credit_note_id
+      // esta seteado — no deberia poder elegirse de nuevo (EmitCreditNoteUseCase la
+      // rechazaria con 422 igual, pero no debe ni aparecer como opcion seleccionable).
+      setResults(page.items.filter((document) => !document.annulled_by_credit_note_id))
       setSearched(true)
     } catch (e) {
       if (requestId !== searchRequestId.current) return

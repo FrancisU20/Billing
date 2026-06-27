@@ -436,6 +436,58 @@ class ListDocumentsHandlerTests(unittest.TestCase):
             resp = self.mod.handler(event, _CTX)
         self.assertEqual(resp["statusCode"], 200)
 
+    def test_credit_note_item_includes_related_invoice_sequential(self) -> None:
+        repo = FakeDocumentsRepository()
+        repo.seed(_make_parent_invoice())
+        repo.seed(
+            replace(
+                _make_parent_invoice(),
+                document_id="cn-1",
+                doc_type="04",
+                related_document_id="doc-1",
+            )
+        )
+        event = api_event(method="GET", path="/documents", claims=_owner_claims("t-1"))
+        with patch.object(self.mod, "_repo", return_value=repo):
+            resp = self.mod.handler(event, _CTX)
+        body = decode_response(resp)
+        cn_item = next(item for item in body["data"]["items"] if item["document_id"] == "cn-1")
+        self.assertEqual(cn_item["related_document_sequential_display"], "001-001-000000001")
+
+    def test_annulled_invoice_item_includes_credit_note_sequential(self) -> None:
+        repo = FakeDocumentsRepository()
+        repo.seed(replace(_make_parent_invoice(), annulled_by_credit_note_id="cn-1"))
+        repo.seed(
+            replace(
+                _make_parent_invoice(),
+                document_id="cn-1",
+                doc_type="04",
+                sequential=2,
+                related_document_id="doc-1",
+            )
+        )
+        event = api_event(method="GET", path="/documents", claims=_owner_claims("t-1"))
+        with patch.object(self.mod, "_repo", return_value=repo):
+            resp = self.mod.handler(event, _CTX)
+        body = decode_response(resp)
+        invoice_item = next(
+            item for item in body["data"]["items"] if item["document_id"] == "doc-1"
+        )
+        self.assertEqual(
+            invoice_item["annulled_by_credit_note_sequential_display"], "001-001-000000002"
+        )
+
+    def test_unlinked_document_has_null_linked_sequentials(self) -> None:
+        repo = FakeDocumentsRepository()
+        repo.seed(_make_parent_invoice())
+        event = api_event(method="GET", path="/documents", claims=_owner_claims("t-1"))
+        with patch.object(self.mod, "_repo", return_value=repo):
+            resp = self.mod.handler(event, _CTX)
+        body = decode_response(resp)
+        item = body["data"]["items"][0]
+        self.assertIsNone(item["related_document_sequential_display"])
+        self.assertIsNone(item["annulled_by_credit_note_sequential_display"])
+
 
 # ── GET /documents/summary ────────────────────────────────────────────────────
 

@@ -91,6 +91,22 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             raise DocumentNotFoundError()
         return self._from_item(item)
 
+    def get_many(self, tenant_id: str, document_ids: list[str]) -> dict[str, Document]:
+        result: dict[str, Document] = {}
+        for document_id in dict.fromkeys(document_ids):
+            try:
+                resp = self._table.get_item(
+                    Key={"pk": self._pk(tenant_id), "sk": self._sk(document_id)}
+                )
+            except ClientError as exc:
+                _log.warning("DynamoDB get_item error (get_many)", error=str(exc))
+                continue
+            item = resp.get("Item")
+            if not item or item.get("deleted"):
+                continue
+            result[document_id] = self._from_item(item)
+        return result
+
     def _list_filter_expr(
         self,
         status: str | None,

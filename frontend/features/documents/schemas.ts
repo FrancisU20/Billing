@@ -84,6 +84,11 @@ export const documentSchema = z.object({
   manual_retry_count: z.coerce.number().optional().default(0),
   retried_at: z.string().nullable().optional().default(null),
   annulled_by_credit_note_id: z.string().nullable().optional().default(null),
+  // Solo presentes en items de GET /documents (listado) — resueltos en el handler en
+  // una sola tanda para evitar N+1 fetches por fila. GET /documents/{id} no los incluye
+  // porque el detalle ya resuelve el documento vinculado en vivo (ver useDocument).
+  related_document_sequential_display: z.string().nullable().optional().default(null),
+  annulled_by_credit_note_sequential_display: z.string().nullable().optional().default(null),
 })
 
 export const documentsPageSchema = z.object({
