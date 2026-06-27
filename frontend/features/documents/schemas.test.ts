@@ -64,6 +64,7 @@ const document = {
   credit_note_reason: null,
   manual_retry_count: 0,
   retried_at: null,
+  annulled_by_credit_note_id: null,
 }
 
 describe('document contract schemas', () => {

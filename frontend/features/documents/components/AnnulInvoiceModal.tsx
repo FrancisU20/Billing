@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { StyleSheet, Text } from 'react-native'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
@@ -7,6 +8,8 @@ import { FormField } from '@/components/ui/FormField'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
+import { useTheme } from '@/lib/theme-context'
+import { spacing, typography } from '@/constants/tokens'
 import { Routes } from '@/constants/routes'
 import { documentsApi } from '../api'
 import { creditNoteFormValuesToInput, defaultCreditNoteFormValues } from '../creditNoteForm'
@@ -27,6 +30,7 @@ interface AnnulInvoiceModalProps {
 export function AnnulInvoiceModal({ visible, document, onClose }: AnnulInvoiceModalProps) {
   const router = useRouter()
   const toast = useToast()
+  const { semantic } = useTheme()
   const [reason, setReason] = useState('')
 
   const { submitting, error, submit } = useFormSubmit(async () => {
@@ -64,6 +68,11 @@ export function AnnulInvoiceModal({ visible, document, onClose }: AnnulInvoiceMo
       }}
       onConfirm={submit}
     >
+      <Text style={[styles.disclaimer, { color: semantic.text.secondary }]}>
+        La factura quedará marcada como anulada en Wali, pero ante el SRI sigue siendo un documento
+        autorizado — no existe un trámite automático de anulación. Si necesitas anularla
+        formalmente, debes ingresar al portal del SRI con tus propias credenciales.
+      </Text>
       <FormField
         label="Motivo de la anulación"
         placeholder="Ej. error en datos del comprador"
@@ -77,3 +86,11 @@ export function AnnulInvoiceModal({ visible, document, onClose }: AnnulInvoiceMo
     </ConfirmDialog>
   )
 }
+
+const styles = StyleSheet.create({
+  disclaimer: {
+    fontSize: typography.size.sm,
+    lineHeight: typography.size.sm * 1.4,
+    marginBottom: spacing[3],
+  },
+})

@@ -225,9 +225,14 @@ class EmitCreditNoteHandlerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.mod = _load_handler()
 
-    def _run(self, body: dict | None = None, claims: dict | None = None) -> dict:
+    def _run(
+        self,
+        body: dict | None = None,
+        claims: dict | None = None,
+        parent: Document | None = "default",
+    ) -> tuple[dict, FakeDocumentsRepository]:
         repo = FakeDocumentsRepository()
-        repo.seed(_make_parent_invoice())
+        repo.seed(_make_parent_invoice() if parent == "default" else parent)
         seq = FakeSequencesPort()
         tenant = _fake_tenant()
         plan = _fake_plan()
@@ -246,21 +251,48 @@ class EmitCreditNoteHandlerTests(unittest.TestCase):
             patch.object(self.mod, "_send_sign_message"),
             patch.object(self.mod, "require_current_context", return_value=_FAKE_IDEMPOTENCY),
         ):
-            return self.mod.handler(event, _CTX)
+            return self.mod.handler(event, _CTX), repo
 
     def test_dispatches_to_credit_note_use_case_and_returns_202(self) -> None:
-        resp = self._run()
+        resp, _ = self._run()
         self.assertEqual(resp["statusCode"], 202)
         body = decode_response(resp)
         self.assertIn("document_id", body["data"])
 
     def test_invalid_credit_note_body_returns_400(self) -> None:
-        resp = self._run(body=_credit_note_body(credit_note_reason=""))
+        resp, _ = self._run(body=_credit_note_body(credit_note_reason=""))
         self.assertEqual(resp["statusCode"], 400)
 
     def test_unknown_parent_document_returns_404(self) -> None:
-        resp = self._run(body=_credit_note_body(related_document_id="missing"))
+        resp, _ = self._run(body=_credit_note_body(related_document_id="missing"))
         self.assertEqual(resp["statusCode"], 404)
+
+    def test_full_annulment_marks_parent_invoice(self) -> None:
+        # _credit_note_body() por defecto acredita quantity="1" sobre la unica linea
+        # (quantity=1) de _make_parent_invoice() -> es 100%, debe marcar al padre.
+        resp, repo = self._run()
+        self.assertEqual(resp["statusCode"], 202)
+        body = decode_response(resp)
+        self.assertEqual(repo.mark_annulled_calls, [("t-1", "doc-1", body["data"]["document_id"])])
+
+    def test_partial_annulment_does_not_mark_parent_invoice(self) -> None:
+        parent = replace(
+            _make_parent_invoice(),
+            lines=[
+                replace(_make_parent_invoice().lines[0], quantity=Decimal("2")),
+            ],
+        )
+        resp, repo = self._run(
+            body=_credit_note_body(lines=[{"parent_line_index": 0, "quantity": "1"}]),
+            parent=parent,
+        )
+        self.assertEqual(resp["statusCode"], 202)
+        self.assertEqual(repo.mark_annulled_calls, [])
+
+    def test_second_full_annulment_attempt_returns_422(self) -> None:
+        parent = replace(_make_parent_invoice(), annulled_by_credit_note_id="existing-cn-1")
+        resp, _ = self._run(parent=parent)
+        self.assertEqual(resp["statusCode"], 422)
 
 
 # ── POST /documents/{id}/retry ────────────────────────────────────────────────

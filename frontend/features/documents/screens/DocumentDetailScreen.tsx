@@ -22,7 +22,7 @@ import { TotalsSummary } from '../components/TotalsSummary'
 import { BUYER_ID_TYPE_LABELS } from '../constants'
 import { useDocument } from '../hooks/useDocument'
 import { useRetryDocument } from '../hooks/useRetryDocument'
-import { getCreditNoteBlockReason } from '../utils'
+import { getAnnulmentBannerText, getCreditNoteBlockReason } from '../utils'
 
 export function DocumentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -32,6 +32,9 @@ export function DocumentDetailScreen() {
   const { document, loading, error, refresh } = useDocument(id ?? null)
   const { document: relatedDocument } = useDocument(
     document?.doc_type === '04' ? document.related_document_id : null,
+  )
+  const { document: annullingCreditNote } = useDocument(
+    document?.doc_type === '01' ? document.annulled_by_credit_note_id : null,
   )
 
   useRefreshOnFocus(refresh)
@@ -154,6 +157,19 @@ export function DocumentDetailScreen() {
                   Nota de crédito de:{' '}
                   {relatedDocument?.sequential_display ?? document.related_document_id}
                   {document.credit_note_reason ? ` — ${document.credit_note_reason}` : ''}
+                </Text>
+              </View>
+            ) : null}
+
+            {document.doc_type === '01' && document.annulled_by_credit_note_id ? (
+              <View
+                style={[
+                  styles.infoBanner,
+                  { backgroundColor: semantic.bg.muted, borderColor: semantic.border.default },
+                ]}
+              >
+                <Text style={[styles.infoBannerText, { color: semantic.text.secondary }]}>
+                  {getAnnulmentBannerText(annullingCreditNote)}
                 </Text>
               </View>
             ) : null}

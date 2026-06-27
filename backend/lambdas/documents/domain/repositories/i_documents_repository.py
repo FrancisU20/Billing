@@ -133,6 +133,23 @@ class IDocumentsRepository(ABC):
         """
 
     @abstractmethod
+    def mark_annulled_by_credit_note(
+        self,
+        tenant_id: str,
+        document_id: str,
+        *,
+        credit_note_id: str,
+    ) -> None:
+        """Link a Factura (doc_type='01') to the Nota de Credito that annuls it 100%.
+
+        `status` never changes — the invoice stays AUTHORIZED forever (that is what the
+        SRI actually recognizes). Called right when the credit note is CREATED (not when
+        it's authorized), so `EmitCreditNoteUseCase` can immediately block a second
+        full-annulment credit note against the same invoice. The UI derives a banner by
+        looking up the referenced credit note's live status.
+        """
+
+    @abstractmethod
     def mark_buyer_notification_status(
         self,
         tenant_id: str,

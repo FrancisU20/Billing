@@ -707,6 +707,34 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             _log.error("DynamoDB mark_buyer_notification_status error", error=str(exc))
             raise DatabaseError() from exc
 
+    def mark_annulled_by_credit_note(
+        self,
+        tenant_id: str,
+        document_id: str,
+        *,
+        credit_note_id: str,
+    ) -> None:
+        # Sin ConditionExpression: EmitCreditNoteUseCase ya bloquea crear una segunda NC
+        # de anulacion (parent.annulled_by_credit_note_id is not None), asi que sobreescribir
+        # aqui siempre es seguro — nunca hay dos llamadas validas en paralelo para la
+        # misma factura.
+        try:
+            self._table.update_item(
+                Key={"pk": self._pk(tenant_id), "sk": self._sk(document_id)},
+                UpdateExpression="SET #annulled_by_cn = :credit_note_id, #updated_at = :updated_at",
+                ExpressionAttributeNames={
+                    "#annulled_by_cn": "annulled_by_credit_note_id",
+                    "#updated_at": "updated_at",
+                },
+                ExpressionAttributeValues={
+                    ":credit_note_id": credit_note_id,
+                    ":updated_at": now_utc().isoformat(),
+                },
+            )
+        except ClientError as exc:
+            _log.error("DynamoDB mark_annulled_by_credit_note error", error=str(exc))
+            raise DatabaseError() from exc
+
     def begin_buyer_notification(self, tenant_id: str, document_id: str) -> bool:
         now = now_utc().isoformat()
         names = {
@@ -796,6 +824,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             "credit_note_reason": doc.credit_note_reason,
             "manual_retry_count": doc.manual_retry_count,
             "retried_at": doc.retried_at.isoformat() if doc.retried_at else None,
+            "annulled_by_credit_note_id": doc.annulled_by_credit_note_id,
         }
 
     def _from_item(self, item: dict) -> Document:
@@ -847,4 +876,5 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             credit_note_reason=item.get("credit_note_reason"),
             manual_retry_count=int(item.get("manual_retry_count", 0)),
             retried_at=_dt(item["retried_at"]) if item.get("retried_at") else None,
+            annulled_by_credit_note_id=item.get("annulled_by_credit_note_id"),
         )

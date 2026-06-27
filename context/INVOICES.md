@@ -190,6 +190,63 @@ residual menor: el XSD valida estructura/tipos, no reglas de negocio del propio 
 SOAP del SRI (eso solo se confirma probando contra el ambiente de pruebas real,
 `celcer.sri.gob.ec`).
 
+### Marcado De Factura Anulada Por NC (implementado 2026-06-27)
+
+Antes de esto, nada impedia anular la misma factura dos veces ni mostraba indicio visual
+de que ya estaba anulada — `getCreditNoteBlockReason` solo validaba `doc_type='01'` +
+`status='AUTHORIZED'`. Bug real reportado por el usuario.
+
+**Decision de diseno:** la factura **nunca** cambia su `status` a algo distinto de
+`AUTHORIZED` — ante el SRI sigue siendo un documento autorizado para siempre (la NC
+neutraliza su efecto economico, no su validez). Se agrega un campo que vincula la
+factura con la NC que la anula; la UI deriva de ahi un banner "anulada" sin falsear el
+`status` real. La regla aplica a **cualquier** NC que cubra el 100% de todas las lineas
+de la factura, sin importar si se creo desde "Anular factura" o desde el picker del
+modulo de Notas de Credito — contablemente una NC al 100% siempre anula el efecto de la
+factura sin importar como se creo; distinguir por origen requeriria un flag confiado al
+cliente (inseguro) y no aporta nada.
+
+**Backend:**
+- `Document.annulled_by_credit_note_id: str | None` (nuevo campo, solo `doc_type='01'`,
+  simetrico a `related_document_id` que solo aplica a `doc_type='04'`).
+- `ParentAlreadyAnnulledError` (422) — `EmitCreditNoteUseCase` la lanza si
+  `parent.annulled_by_credit_note_id is not None`, bloqueando cualquier NC nueva (parcial
+  o total) contra una factura que ya tiene una anulacion en curso/hecha.
+- `EmitCreditNoteUseCase.execute()` retorna `tuple[Document, bool]` (documento,
+  `is_full_annulment`) en vez de solo `Document` — `_is_full_annulment` compara
+  `cmd.lines` (con `parent_line_index` explicito) contra `parent.lines`, **no** las
+  lineas ya construidas por `_build_credit_lines` (esas pierden el indice si el orden del
+  request no coincide con el de la factura — comparar por posicion ahi seria un bug).
+- `repo.mark_annulled_by_credit_note(tenant_id, document_id, *, credit_note_id)` — update
+  no transaccional simple (mismo patron que `mark_buyer_notification_status`, sin
+  condicion porque el use case ya bloqueo la creacion de una segunda NC de anulacion).
+  `handler.py::_emit_credit_note` la llama tras `_finalize_emission` si
+  `is_full_annulment`, en un try/except best-effort (mismo nivel de tolerancia que
+  `_send_sign_message` — no debe tumbar la respuesta 202 si falla).
+- El marcador se setea al **crear** la NC, no al autorizarla — necesario para bloquear
+  intentos duplicados de inmediato. El frontend refleja el estado real consultando la NC
+  referenciada en vivo, nunca "miente" sobre una anulacion todavia no autorizada.
+
+**Frontend:**
+- `getCreditNoteBlockReason` bloquea si `document.annulled_by_credit_note_id` esta
+  seteado — un solo cambio oculta "Anular factura" en `DocumentDetailScreen.tsx` y
+  `DocumentsListScreen.tsx` (ambos ya leen esta funcion).
+- `getAnnulmentBannerText` (`utils.ts`) deriva el texto del banner del `status` en vivo de
+  la NC referenciada (via `useDocument`, que ya hace polling automatico mientras
+  PENDING/PROCESSING): PENDING/PROCESSING/FAILED → "siendo anulada"; AUTHORIZED → "fue
+  anulada" + fecha; REJECTED → invita a reintentar desde el modulo de Notas de Credito;
+  FAILED_PERMANENT → invita a contactar soporte.
+- `AnnulInvoiceModal.tsx` agrega disclaimer fijo: anular en Wali no anula ante el SRI:
+  el usuario debe ingresar al portal del SRI con sus propias credenciales si necesita el
+  tramite formal.
+
+**Deuda tecnica explicita (no resuelta):** si la NC de anulacion cae en
+`FAILED_PERMANENT` (polling agotado, sin mecanismo de reintento per diseno de Sprint 2),
+la factura queda con `annulled_by_credit_note_id` apuntando a un documento sin salida —
+bloqueada para siempre sin poder reintentar. Caso raro. `InvoicePickerModal`/el listado
+del modulo de Notas de Credito tampoco filtran facturas ya anuladas de sus resultados de
+busqueda — seguiran apareciendo seleccionables, el backend rechaza con 422 al confirmar.
+
 ### Reintento De Documentos Rechazados (Sprint 2-3, implementado 2026-06-26)
 
 Antes de esto, un documento (Factura o NC) en `status=REJECTED` era un callejon sin

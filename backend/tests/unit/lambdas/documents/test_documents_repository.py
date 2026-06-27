@@ -520,5 +520,27 @@ class DynamoDocumentsRepositoryUpdateStatusTests(unittest.TestCase):
             )
 
 
+class DynamoDocumentsRepositoryMarkAnnulledByCreditNoteTests(unittest.TestCase):
+    def test_sets_annulled_by_credit_note_id(self) -> None:
+        table = FakeDocumentsTable()
+        repo = DynamoDocumentsRepository(table)
+
+        repo.mark_annulled_by_credit_note("tenant-1", "doc-1", credit_note_id="cn-1")
+
+        self.assertEqual(len(table.update_calls), 1)
+        call = table.update_calls[0]
+        self.assertEqual(call["ExpressionAttributeValues"][":credit_note_id"], "cn-1")
+        self.assertEqual(
+            call["ExpressionAttributeNames"]["#annulled_by_cn"], "annulled_by_credit_note_id"
+        )
+
+    def test_other_client_errors_raise_database_error(self) -> None:
+        table = FakeDocumentsTable(error_code="InternalServerError")
+        repo = DynamoDocumentsRepository(table)
+
+        with self.assertRaises(DatabaseError):
+            repo.mark_annulled_by_credit_note("tenant-1", "doc-1", credit_note_id="cn-1")
+
+
 if __name__ == "__main__":
     unittest.main()

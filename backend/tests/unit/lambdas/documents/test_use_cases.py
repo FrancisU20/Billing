@@ -34,6 +34,7 @@ from lambdas.documents.domain.errors import (
     DocumentNotFoundError,
     DocumentRetryNotEligibleError,
     InvalidIssuedDateError,
+    ParentAlreadyAnnulledError,
     ParentDocumentNotAuthorizedError,
     RideNotAvailableError,
     XmlNotAvailableError,
@@ -80,6 +81,7 @@ class FakeDocumentsRepository:
         )
         self.list_calls: list[dict[str, Any]] = []
         self.count_calls: list[dict[str, Any]] = []
+        self.mark_annulled_calls: list[tuple[str, str, str]] = []
 
     def get(self, tenant_id: str, document_id: str) -> Document:
         doc = self.documents.get(f"{tenant_id}#{document_id}")
@@ -118,6 +120,15 @@ class FakeDocumentsRepository:
         self.documents[key] = replace(
             doc, status=DocumentStatus.PENDING, manual_retry_count=doc.manual_retry_count + 1
         )
+
+    def mark_annulled_by_credit_note(
+        self, tenant_id: str, document_id: str, *, credit_note_id: str
+    ) -> None:
+        self.mark_annulled_calls.append((tenant_id, document_id, credit_note_id))
+        key = f"{tenant_id}#{document_id}"
+        doc = self.documents.get(key)
+        if doc is not None:
+            self.documents[key] = replace(doc, annulled_by_credit_note_id=credit_note_id)
 
     def seed(self, document: Document) -> None:
         self.documents[f"{document.tenant_id}#{document.document_id}"] = document
@@ -567,7 +578,7 @@ class EmitCreditNoteUseCaseTests(unittest.TestCase):
         self.seq = FakeSequencesPort(next_value=1)
         self.repo.seed(_make_parent_invoice())
 
-    def _run(self, **overrides: Any) -> Document:
+    def _run(self, **overrides: Any) -> tuple[Document, bool]:
         with patch(
             "lambdas.documents.use_cases.emit_credit_note.today_ecuador", return_value=_TODAY
         ):
@@ -576,7 +587,7 @@ class EmitCreditNoteUseCaseTests(unittest.TestCase):
             )
 
     def test_full_credit_copies_parent_buyer_and_lines(self) -> None:
-        doc = self._run()
+        doc, is_full_annulment = self._run()
         self.assertEqual(doc.doc_type, "04")
         self.assertEqual(doc.status, DocumentStatus.PENDING)
         self.assertEqual(doc.related_document_id, "doc-1")
@@ -588,14 +599,19 @@ class EmitCreditNoteUseCaseTests(unittest.TestCase):
         self.assertEqual(doc.total, Decimal("23.00"))
         self.assertEqual(len(doc.lines), 1)
         self.assertEqual(doc.lines[0].quantity, Decimal("2"))
+        # Acredita el 100% de la unica linea de la factura -> es anulacion completa.
+        self.assertTrue(is_full_annulment)
 
     def test_partial_credit_scales_amounts_proportionally(self) -> None:
-        doc = self._run(lines=[CreditNoteLineData(parent_line_index=0, quantity=Decimal("1"))])
+        doc, is_full_annulment = self._run(
+            lines=[CreditNoteLineData(parent_line_index=0, quantity=Decimal("1"))]
+        )
         # Mitad de la cantidad original (1 de 2) -> mitad de subtotal/iva/total.
         self.assertEqual(doc.subtotal, Decimal("10.00"))
         self.assertEqual(doc.iva_15, Decimal("1.50"))
         self.assertEqual(doc.total, Decimal("11.50"))
         self.assertEqual(doc.lines[0].quantity, Decimal("1"))
+        self.assertFalse(is_full_annulment)
 
     def test_reserves_sequential_with_doc_type_04(self) -> None:
         self._run()
@@ -639,6 +655,91 @@ class EmitCreditNoteUseCaseTests(unittest.TestCase):
     def test_raises_if_line_index_out_of_range(self) -> None:
         with self.assertRaises(ValidationError):
             self._run(lines=[CreditNoteLineData(parent_line_index=5, quantity=Decimal("1"))])
+
+    def test_raises_if_parent_already_annulled(self) -> None:
+        self.repo.seed(_make_parent_invoice(annulled_by_credit_note_id="existing-cn-1"))
+        with self.assertRaises(ParentAlreadyAnnulledError):
+            self._run()
+
+    def test_full_annulment_with_lines_out_of_order(self) -> None:
+        # Factura con 2 lineas; la NC las acredita en orden inverso (indice 1 antes que
+        # el 0) — el calculo de is_full_annulment usa parent_line_index explicito, no la
+        # posicion en la lista resultante, asi que esto SI debe contar como 100%.
+        self.repo.seed(
+            _make_parent_invoice(
+                document_id="doc-2",
+                lines=[
+                    InvoiceLine(
+                        code="001",
+                        description="Producto A",
+                        quantity=Decimal("2"),
+                        unit_price=Decimal("10.00"),
+                        discount=Decimal("0.00"),
+                        subtotal=Decimal("20.00"),
+                        iva_rate="15",
+                        iva_amount=Decimal("3.00"),
+                        total=Decimal("23.00"),
+                    ),
+                    InvoiceLine(
+                        code="002",
+                        description="Producto B",
+                        quantity=Decimal("1"),
+                        unit_price=Decimal("5.00"),
+                        discount=Decimal("0.00"),
+                        subtotal=Decimal("5.00"),
+                        iva_rate="15",
+                        iva_amount=Decimal("0.75"),
+                        total=Decimal("5.75"),
+                    ),
+                ],
+            )
+        )
+        _, is_full_annulment = self._run(
+            related_document_id="doc-2",
+            lines=[
+                CreditNoteLineData(parent_line_index=1, quantity=Decimal("1")),
+                CreditNoteLineData(parent_line_index=0, quantity=Decimal("2")),
+            ],
+        )
+        self.assertTrue(is_full_annulment)
+
+    def test_not_full_annulment_when_a_line_is_missing(self) -> None:
+        # Misma factura de 2 lineas, pero la NC solo acredita la linea 0 al 100% —
+        # la linea 1 queda sin acreditar, no es anulacion completa de la factura.
+        self.repo.seed(
+            _make_parent_invoice(
+                document_id="doc-2",
+                lines=[
+                    InvoiceLine(
+                        code="001",
+                        description="Producto A",
+                        quantity=Decimal("2"),
+                        unit_price=Decimal("10.00"),
+                        discount=Decimal("0.00"),
+                        subtotal=Decimal("20.00"),
+                        iva_rate="15",
+                        iva_amount=Decimal("3.00"),
+                        total=Decimal("23.00"),
+                    ),
+                    InvoiceLine(
+                        code="002",
+                        description="Producto B",
+                        quantity=Decimal("1"),
+                        unit_price=Decimal("5.00"),
+                        discount=Decimal("0.00"),
+                        subtotal=Decimal("5.00"),
+                        iva_rate="15",
+                        iva_amount=Decimal("0.75"),
+                        total=Decimal("5.75"),
+                    ),
+                ],
+            )
+        )
+        _, is_full_annulment = self._run(
+            related_document_id="doc-2",
+            lines=[CreditNoteLineData(parent_line_index=0, quantity=Decimal("2"))],
+        )
+        self.assertFalse(is_full_annulment)
 
 
 # ── GetDocumentUseCase ────────────────────────────────────────────────────────

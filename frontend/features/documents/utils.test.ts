@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { documentSchema } from './schemas'
-import { getCreditNoteBlockReason } from './utils'
+import { getAnnulmentBannerText, getCreditNoteBlockReason } from './utils'
 
 function makeDocument(overrides: Record<string, unknown> = {}) {
   return documentSchema.parse({
@@ -65,5 +65,43 @@ describe('getCreditNoteBlockReason', () => {
 
   it('does not block invoices issued long ago (no plazo window)', () => {
     expect(getCreditNoteBlockReason(makeDocument({ issued_at: '2020-01-01' }))).toBeNull()
+  })
+
+  it('blocks an invoice already annulled by a credit note', () => {
+    expect(
+      getCreditNoteBlockReason(makeDocument({ annulled_by_credit_note_id: 'cn-1' })),
+    ).not.toBeNull()
+  })
+})
+
+describe('getAnnulmentBannerText', () => {
+  it('shows a generic message while the credit note is still loading', () => {
+    expect(getAnnulmentBannerText(undefined)).toContain('siendo anulada')
+  })
+
+  it('shows the in-progress message while the credit note is pending/processing', () => {
+    const cn = makeDocument({ doc_type: '04', status: 'PENDING' })
+    expect(getAnnulmentBannerText(cn)).toContain('esperando autorización del SRI')
+  })
+
+  it('shows the authorized message with the authorization date', () => {
+    const cn = makeDocument({
+      doc_type: '04',
+      status: 'AUTHORIZED',
+      authorized_at: '2026-06-20T10:00:00+00:00',
+    })
+    const text = getAnnulmentBannerText(cn)
+    expect(text).toContain('fue anulada')
+    expect(text).toContain('001-001-000000001')
+  })
+
+  it('shows the rejected message pointing to the Notas de Crédito module', () => {
+    const cn = makeDocument({ doc_type: '04', status: 'REJECTED' })
+    expect(getAnnulmentBannerText(cn)).toContain('módulo de Notas de Crédito')
+  })
+
+  it('shows the failed-permanent message asking to contact support', () => {
+    const cn = makeDocument({ doc_type: '04', status: 'FAILED_PERMANENT' })
+    expect(getAnnulmentBannerText(cn)).toContain('Contacta soporte')
   })
 })

@@ -237,7 +237,7 @@ def _emit_credit_note(request: Request, tenant_id: str) -> dict:
     repo = _repo()
     seq_port = _sequences_port()
 
-    document = EmitCreditNoteUseCase(repo, seq_port).execute(
+    document, is_full_annulment = EmitCreditNoteUseCase(repo, seq_port).execute(
         EmitCreditNoteCommand(
             tenant_id=tenant_id,
             ruc=tenant.ruc,
@@ -253,7 +253,24 @@ def _emit_credit_note(request: Request, tenant_id: str) -> dict:
         )
     )
 
-    return _finalize_emission(document, request, repo)
+    response = _finalize_emission(document, request, repo)
+
+    if is_full_annulment:
+        # Best-effort: mismo nivel de tolerancia que _send_sign_message — es una mejora
+        # de UX (banner + bloqueo de doble anulacion), no debe tumbar la respuesta 202 si
+        # falla. EmitCreditNoteUseCase ya valido que no exista una anulacion previa.
+        try:
+            repo.mark_annulled_by_credit_note(
+                tenant_id, body.related_document_id, credit_note_id=document.document_id
+            )
+        except Exception:
+            _log.warning(
+                "failed to mark parent invoice as annulled_by_credit_note",
+                document_id=document.document_id,
+                related_document_id=body.related_document_id,
+            )
+
+    return response
 
 
 def _finalize_emission(

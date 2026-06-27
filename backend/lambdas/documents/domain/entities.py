@@ -194,6 +194,15 @@ class Document:
     manual_retry_count: int = 0
     retried_at: datetime | None = None
 
+    # Factura (doc_type="01") unicamente. FK a la Nota de Credito que la anula al 100%
+    # (ver EmitCreditNoteUseCase). El `status` de la factura NUNCA cambia a algo distinto
+    # de AUTHORIZED por esto — ante el SRI sigue siendo un documento autorizado para
+    # siempre, la NC neutraliza su efecto economico, no su validez. Este campo es solo
+    # para que la UI derive un banner "anulada" y bloquee una segunda NC de anulacion;
+    # el estado real de la anulacion se consulta en vivo sobre la NC referenciada (puede
+    # estar PENDING/PROCESSING/REJECTED/AUTHORIZED).
+    annulled_by_credit_note_id: str | None = None
+
     @property
     def sequential_display(self) -> str:
         return f"{self.serie[:3]}-{self.serie[3:]}-{str(self.sequential).zfill(9)}"
@@ -245,4 +254,5 @@ class Document:
             "credit_note_reason": self.credit_note_reason,
             "manual_retry_count": self.manual_retry_count,
             "retried_at": isoformat_ecuador(self.retried_at),
+            "annulled_by_credit_note_id": self.annulled_by_credit_note_id,
         }

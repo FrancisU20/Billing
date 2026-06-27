@@ -69,6 +69,13 @@ class ParentDocumentNotAuthorizedError(BusinessError):
     )
 
 
+class ParentAlreadyAnnulledError(BusinessError):
+    code = "PARENT_ALREADY_ANNULLED"
+    default_message = (
+        "Esta factura ya tiene una nota de crédito de anulación en curso o autorizada."
+    )
+
+
 class CreditedQuantityExceedsOriginalError(BusinessError):
     code = "CREDITED_QUANTITY_EXCEEDS_ORIGINAL"
     default_message = "La cantidad a acreditar no puede superar la cantidad original de la línea."

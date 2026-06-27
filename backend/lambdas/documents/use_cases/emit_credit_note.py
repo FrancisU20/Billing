@@ -12,6 +12,7 @@ from lambdas.documents.domain.errors import (
     CreditedQuantityExceedsOriginalError,
     DocumentLimitReachedError,
     InvalidIssuedDateError,
+    ParentAlreadyAnnulledError,
     ParentDocumentNotAuthorizedError,
 )
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
@@ -39,7 +40,12 @@ class EmitCreditNoteUseCase:
         self._docs_repo = docs_repo
         self._sequences_port = sequences_port
 
-    def execute(self, cmd: EmitCreditNoteCommand) -> Document:
+    def execute(self, cmd: EmitCreditNoteCommand) -> tuple[Document, bool]:
+        """Retorna `(documento, is_full_annulment)`. `is_full_annulment` es True cuando
+        esta NC acredita el 100% de TODAS las lineas de la factura padre — el caller
+        (handler.py) lo usa para marcar `parent.annulled_by_credit_note_id` sin tener que
+        releer al padre (este use case ya lo tiene cargado).
+        """
         if not cmd.certificate_secret_arn:
             raise CertificateNotUploadedError()
 
@@ -63,6 +69,9 @@ class EmitCreditNoteUseCase:
                 "nota de crédito."
             )
 
+        if parent.annulled_by_credit_note_id is not None:
+            raise ParentAlreadyAnnulledError()
+
         if cmd.monthly_limit != -1:
             count = self._docs_repo.count_this_month(cmd.tenant_id, cmd.sri_environment)
             if count >= cmd.monthly_limit:
@@ -85,7 +94,7 @@ class EmitCreditNoteUseCase:
             numeric_code=numeric_code,
         )
 
-        return Document(
+        document = Document(
             document_id=str(uuid4()),
             tenant_id=cmd.tenant_id,
             doc_type=_CREDIT_NOTE_DOC_TYPE,
@@ -112,6 +121,7 @@ class EmitCreditNoteUseCase:
             related_document_id=parent.document_id,
             credit_note_reason=cmd.credit_note_reason.strip(),
         )
+        return document, _is_full_annulment(parent.lines, cmd.lines)
 
     def _build_credit_lines(
         self,
@@ -153,3 +163,22 @@ class EmitCreditNoteUseCase:
                 )
             )
         return lines
+
+
+def _is_full_annulment(
+    parent_lines: list[InvoiceLine], requested: list[CreditNoteLineData]
+) -> bool:
+    """True si `requested` acredita el 100% de TODAS las lineas de `parent_lines` — cada
+    indice de `parent_lines` debe aparecer exactamente una vez en `requested` con
+    `quantity` igual a la cantidad original (ratio == 1, ver `_build_credit_lines`). Usa
+    `requested` (no las `InvoiceLine` ya construidas) porque ahi `parent_line_index` esta
+    explicito — las lineas construidas no preservan el indice si el orden del request no
+    coincide con el de la factura. Una NC que omite una linea, duplica un indice, o
+    acredita menos del 100% de alguna, no anula la factura por completo.
+    """
+    if len(requested) != len(parent_lines):
+        return False
+    covered_indexes = {item.parent_line_index for item in requested}
+    if covered_indexes != set(range(len(parent_lines))):
+        return False
+    return all(item.quantity == parent_lines[item.parent_line_index].quantity for item in requested)
