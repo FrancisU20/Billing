@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { documentSchema } from './schemas'
-import { getAnnulmentBannerText, getCreditNoteBlockReason, getLinkedDocumentLabel } from './utils'
+import {
+  getAnnulmentBannerText,
+  getCreditNoteBlockReason,
+  getLinkedDocumentLabel,
+  round2,
+  toNumber,
+} from './utils'
 
 function makeDocument(overrides: Record<string, unknown> = {}) {
   return documentSchema.parse({
@@ -40,6 +46,20 @@ function makeDocument(overrides: Record<string, unknown> = {}) {
     ...overrides,
   })
 }
+
+describe('document preview numeric helpers', () => {
+  it('treats invalid numeric strings as zero', () => {
+    expect(toNumber('')).toBe(0)
+    expect(toNumber('abc')).toBe(0)
+    expect(toNumber('12.50')).toBe(12.5)
+  })
+
+  it('rounds money previews with the same half-even rule used by backend Decimal', () => {
+    expect(round2(1.425)).toBe(1.42)
+    expect(round2(30.015)).toBe(30.02)
+    expect(round2(1.426)).toBe(1.43)
+  })
+})
 
 describe('getCreditNoteBlockReason', () => {
   it('allows an authorized invoice', () => {

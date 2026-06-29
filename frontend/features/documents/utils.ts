@@ -1,6 +1,24 @@
 import { formatDateTime } from '@/lib/utils/format'
 import type { Document } from './types'
 
+export function toNumber(value: string): number {
+  const n = parseFloat(value)
+  return Number.isFinite(n) ? n : 0
+}
+
+export function round2(value: number): number {
+  const sign = value < 0 ? -1 : 1
+  const scaled = Math.abs(value) * 100
+  const floor = Math.floor(scaled)
+  const fraction = scaled - floor
+
+  if (Math.abs(fraction - 0.5) < 1e-9) {
+    return (sign * (floor % 2 === 0 ? floor : floor + 1)) / 100
+  }
+
+  return (sign * Math.round(scaled)) / 100
+}
+
 /**
  * Motivo de negocio por el que un documento no se puede acreditar con una Nota de
  * Crédito, o `null` si es elegible. A diferencia de la vieja anulación local

@@ -1,6 +1,7 @@
 import { emitDocumentSchema } from './schemas'
 import { CONSUMIDOR_FINAL_ID, CONSUMIDOR_FINAL_ID_TYPE, CONSUMIDOR_FINAL_NAME } from './constants'
 import { ecuadorDateTimeDisplay, ecuadorTodayISO } from '@/lib/utils/ecuador-time'
+import { round2, toNumber } from './utils'
 import type { EmitDocumentFormValues, EmitDocumentInput, EmitDocumentLineInput } from './types'
 
 export function ecuadorIssuedAtDate(now?: Date): string {
@@ -133,21 +134,12 @@ export interface LineTotalsPreview {
   total: number
 }
 
-function toNumber(value: string): number {
-  const n = parseFloat(value)
-  return Number.isFinite(n) ? n : 0
-}
-
 function normalizeMoney(value: string | undefined): string {
   return round2(toNumber(value ?? '0')).toFixed(2)
 }
 
 function noDiscountPolicy(): DiscountPolicyPreview {
   return { amount: '0.00', percentage: 0, source: 'none', label: 'Sin descuento' }
-}
-
-function round2(value: number): number {
-  return Math.round(value * 100) / 100
 }
 
 /**

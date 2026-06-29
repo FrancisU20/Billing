@@ -1,5 +1,6 @@
 import { emitCreditNoteSchema } from './schemas'
 import { ecuadorIssuedAtDate } from './form'
+import { round2, toNumber } from './utils'
 import type {
   CreditNoteFormLine,
   Document,
@@ -103,13 +104,4 @@ export function computeCreditNoteTotals(lines: CreditNoteFormLine[]): CreditNote
   iva5 = round2(iva5)
 
   return { subtotal, iva15, iva5, total: round2(subtotal + iva15 + iva5) }
-}
-
-function toNumber(value: string): number {
-  const n = parseFloat(value)
-  return Number.isFinite(n) ? n : 0
-}
-
-function round2(value: number): number {
-  return Math.round(value * 100) / 100
 }
