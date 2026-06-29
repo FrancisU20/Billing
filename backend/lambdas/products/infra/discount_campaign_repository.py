@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from botocore.exceptions import ClientError
-
 from lambdas._base.idempotency import (
     IdempotencyContext,
     completion_transact_item,
@@ -18,11 +16,7 @@ from lambdas.products.domain.repositories.i_discount_campaign_repository import 
 )
 from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.db.base_repository import BaseRepository
-from shared.db.transactions import cancellation_reasons, is_transaction_condition_error
-from shared.errors import DatabaseError, OptimisticLockError
-from shared.logger import get_logger
 
-_log = get_logger(__name__)
 _SINGLETON_ID = "default"
 
 
@@ -81,28 +75,12 @@ class DynamoDiscountCampaignRepository(BaseRepository, IDiscountCampaignReposito
                 )
             )
 
-        try:
-            self._table.meta.client.transact_write_items(TransactItems=transact_items)
-            if idempotency is not None:
-                mark_completed()
-        except ClientError as exc:
-            if is_transaction_condition_error(exc):
-                _log.error(
-                    "DynamoDB transact_write_items cancelled",
-                    reasons=cancellation_reasons(exc),
-                    error=str(exc),
-                )
-                raise OptimisticLockError() from exc
-            _log.error("DynamoDB transact_write_items error", error=str(exc))
-            raise DatabaseError() from exc
+        self._transact_write_items(transact_items)
+        if idempotency is not None:
+            mark_completed()
 
     def _raw_by_key(self) -> dict | None:
-        try:
-            response = self._table.get_item(Key={"pk": self._pk(), "sk": self._sk(_SINGLETON_ID)})
-            return response.get("Item")
-        except ClientError as exc:
-            _log.error("DynamoDB get_item error", error=str(exc))
-            raise DatabaseError() from exc
+        return self._get_raw(_SINGLETON_ID, include_deleted=True)
 
     def _to_item(self, campaign: DiscountCampaign) -> dict:
         return {

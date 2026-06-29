@@ -26,6 +26,7 @@ Note on pagination and soft delete:
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any
 
 from boto3.dynamodb.conditions import Attr
@@ -35,6 +36,7 @@ from botocore.exceptions import ClientError
 from shared.audit.writer import audit_item
 from shared.db.counts import paginated_count
 from shared.db.paginator import decode_cursor, encode_cursor
+from shared.db.transactions import cancellation_reasons, is_transaction_condition_error
 from shared.domain.base_entity import TenantScopedEntity
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
@@ -62,11 +64,11 @@ class BaseRepository(ABC):
 
     # ── base operations ───────────────────────────────────────────────────────
 
-    def _get_raw(self, entity_id: str) -> dict | None:
+    def _get_raw(self, entity_id: str, *, include_deleted: bool = False) -> dict | None:
         try:
             resp = self._table.get_item(Key={"pk": self._pk(), "sk": self._sk(entity_id)})
             item = resp.get("Item")
-            if not item or item.get("deleted"):
+            if not item or (item.get("deleted") and not include_deleted):
                 return None
             return item
         except ClientError as e:
@@ -151,6 +153,30 @@ class BaseRepository(ABC):
         except ClientError as e:
             _log.error("DynamoDB count query error", error=str(e))
             raise DatabaseError() from e
+
+    def _transact_write_items(
+        self,
+        transact_items: list[dict],
+        *,
+        on_condition_error: Callable[[ClientError, list[dict]], None] | None = None,
+        log_context: dict[str, Any] | None = None,
+    ) -> None:
+        try:
+            self._table.meta.client.transact_write_items(TransactItems=transact_items)
+        except ClientError as exc:
+            if is_transaction_condition_error(exc):
+                reasons = cancellation_reasons(exc)
+                _log.error(
+                    "DynamoDB transact_write_items cancelled",
+                    reasons=reasons,
+                    error=str(exc),
+                    **(log_context or {}),
+                )
+                if on_condition_error is not None:
+                    on_condition_error(exc, reasons)
+                raise OptimisticLockError() from exc
+            _log.error("DynamoDB transact_write_items error", error=str(exc))
+            raise DatabaseError() from exc
 
     # ── audit log ─────────────────────────────────────────────────────────────
 

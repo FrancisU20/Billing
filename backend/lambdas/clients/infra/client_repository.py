@@ -42,11 +42,7 @@ from shared.db.locks import (
     unique_lock_item,
 )
 from shared.db.paginator import decode_cursor, encode_cursor
-from shared.db.transactions import (
-    cancellation_reasons,
-    failed_put_item_entity_type,
-    is_transaction_condition_error,
-)
+from shared.db.transactions import failed_put_item_entity_type
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
 from shared.search import matches_search_query, normalize_search_query
@@ -339,23 +335,27 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
         idempotency: IdempotencyContext | None,
         is_create: bool,
     ) -> None:
-        try:
-            self._table.meta.client.transact_write_items(TransactItems=transact_items)
-            if idempotency is not None:
-                mark_completed()
-        except ClientError as exc:
-            if is_transaction_condition_error(exc):
-                reasons = cancellation_reasons(exc)
-                _log.error(
-                    "DynamoDB transact_write_items cancelled",
-                    is_create=is_create,
-                    reasons=reasons,
-                )
-                if self._identification_lock_failed(transact_items, exc, is_create):
-                    raise ClientDuplicateIdentificationError() from exc
-                raise OptimisticLockError() from exc
-            _log.error("DynamoDB transact_write_items error", error=str(exc))
-            raise DatabaseError() from exc
+        self._transact_write_items(
+            transact_items,
+            on_condition_error=lambda exc, _reasons: self._raise_client_transaction_error(
+                transact_items,
+                exc,
+                is_create,
+            ),
+            log_context={"is_create": is_create},
+        )
+        if idempotency is not None:
+            mark_completed()
+
+    def _raise_client_transaction_error(
+        self,
+        transact_items: list[dict],
+        exc: ClientError,
+        is_create: bool,
+    ) -> None:
+        if self._identification_lock_failed(transact_items, exc, is_create):
+            raise ClientDuplicateIdentificationError() from exc
+        raise OptimisticLockError() from exc
 
     def _identification_lock_failed(
         self,

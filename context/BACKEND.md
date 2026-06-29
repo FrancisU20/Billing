@@ -390,10 +390,14 @@ deberia absorber pero no absorbe todavia.
 
 ### shared/db
 
-- `BaseRepository` no soporta `transact_write_items`: cualquier repo con side effects
-  transaccionales (`documents`, `tenants`, `sequences`, `plans`, `discount_campaign`) sale
-  del contrato base y reimplementa `_pk`/`_get_raw`/manejo de `ConditionalCheckFailedException`
-  a mano. `backend/shared/db/base_repository.py`.
+- Solventado 2026-06-29: `BaseRepository` expone `_transact_write_items()` para repos
+  tenant-scoped con transacciones DynamoDB, logging uniforme de `CancellationReasons`,
+  mapeo default a `OptimisticLockError`/`DatabaseError` y hook por repositorio para errores
+  de negocio como SKU/identificacion duplicada. `clients`, `products` y
+  `discount_campaign` lo usan; `_get_raw(..., include_deleted=True)` elimina el escape
+  manual de `DynamoDiscountCampaignRepository._raw_by_key()`. Repos globales/no
+  tenant-scoped (`tenants`, `plans`, `documents`, `sequences`) conservan transacciones
+  propias porque no heredan de `BaseRepository`.
 - Solventado 2026-06-29: `shared/db/transactions.py` es la unica fuente para parsear
   `CancellationReasons`, reconocer errores condicionales transaccionales y detectar indices
   fallidos. `documents`, `sequences`, `plans`, `clients`, `products`,
@@ -415,11 +419,8 @@ deberia absorber pero no absorbe todavia.
 - Solventado 2026-06-29: `shared/db/counts.py::paginated_count()` centraliza
   `Select=COUNT` paginado. Lo usan `BaseRepository._count_raw()`, counts especiales de
   `clients`, `tenants`, y los counts de `documents` que no requieren filtrar `q` en memoria.
-- `DynamoDiscountCampaignRepository._raw_by_key()`
-  (`backend/lambdas/products/infra/discount_campaign_repository.py:95-101`) reimplementa
-  exactamente `BaseRepository._get_raw()` solo porque necesita el item sin filtro de
-  `deleted` para el audit `before` — evaluar exponer `_get_raw(entity_id,
-  include_deleted=True)` en la base.
+- Solventado 2026-06-29: `DynamoDiscountCampaignRepository._raw_by_key()` usa
+  `BaseRepository._get_raw(_SINGLETON_ID, include_deleted=True)`.
 
 ### lambdas/_base
 
