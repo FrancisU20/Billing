@@ -9,6 +9,7 @@ from lambdas.tenants.domain.dashboard_summary import (
     SuperadminDashboardSummary,
     TopPlanSummary,
 )
+from lambdas.tenants.domain.enums import SubscriptionStatus
 from lambdas.tenants.domain.repositories.i_payment_reader import IPaymentReader
 from lambdas.tenants.domain.repositories.i_plan_catalog import IPlanCatalog
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
@@ -39,6 +40,8 @@ class GetSuperadminDashboardUseCase:
         )
         pricing = self._plan_catalog.get_pricing(set(tenant_stats.active_by_plan_id))
 
+        active_status = SubscriptionStatus.ACTIVE.value
+
         return SuperadminDashboardSummary(
             generated_at=to_ecuador(now).isoformat(),
             tenants_total=tenant_stats.total,
@@ -47,9 +50,9 @@ class GetSuperadminDashboardUseCase:
                 tenant_stats.new_this_month, tenant_stats.new_previous_month
             ),
             tenants_by_environment=tenant_stats.by_environment,
-            memberships_active=tenant_stats.by_subscription_status.get("active", 0),
+            memberships_active=tenant_stats.by_subscription_status.get(active_status, 0),
             memberships_inactive=tenant_stats.total
-            - tenant_stats.by_subscription_status.get("active", 0),
+            - tenant_stats.by_subscription_status.get(active_status, 0),
             revenue_this_month=revenue_stats.gross_this_month,
             revenue_this_month_trend_pct=self._trend_pct(
                 revenue_stats.gross_this_month, revenue_stats.gross_previous_month

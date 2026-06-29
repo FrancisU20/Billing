@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from lambdas.tenants.domain.enums import SubscriptionStatus
 from lambdas.tenants.domain.errors import (
     SubscriptionAlreadyActiveError,
     SubscriptionRenewalPaymentAlreadyAppliedError,
@@ -37,7 +38,7 @@ class ActivateSubscriptionUseCase:
         if tenant.deleted:
             raise TenantNotFoundError()
 
-        if tenant.subscription_status == "active":
+        if tenant.subscription_status == SubscriptionStatus.ACTIVE:
             raise SubscriptionAlreadyActiveError()
 
         payment = self._payment_reader.get_by_order_id(order_id)
@@ -69,6 +70,6 @@ class ActivateSubscriptionUseCase:
         result = ActivateSubscriptionResult(
             tenant_id=tenant.id,
             plan_cycle_ends_at=isoformat_ecuador(tenant.plan_cycle_ends_at) or "",
-            subscription_status=tenant.subscription_status or "active",
+            subscription_status=(tenant.subscription_status or SubscriptionStatus.ACTIVE).value,
         )
         return tenant, result, payment_transact

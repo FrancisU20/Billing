@@ -25,7 +25,7 @@ from lambdas._base.idempotency import (
     mark_completed,
 )
 from lambdas.tenants.domain.dashboard_summary import RecentTenant, TenantAggregateStats
-from lambdas.tenants.domain.enums import SriEnvironment, TenantStatus
+from lambdas.tenants.domain.enums import SriEnvironment, SubscriptionStatus, TenantStatus
 from lambdas.tenants.domain.errors import TenantNotFoundError, TenantRucAlreadyExistsError
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.tenants.domain.tenant import Tenant
@@ -220,11 +220,13 @@ class DynamoTenantRepository(ITenantRepository):
                         new_previous_month += 1
                     env = tenant.sri_environment.value
                     by_environment[env] = by_environment.get(env, 0) + 1
-                    sub_status = tenant.subscription_status or "none"
+                    sub_status = (
+                        tenant.subscription_status.value if tenant.subscription_status else "none"
+                    )
                     by_subscription_status[sub_status] = (
                         by_subscription_status.get(sub_status, 0) + 1
                     )
-                    if tenant.subscription_status == "active":
+                    if tenant.subscription_status == SubscriptionStatus.ACTIVE:
                         active_by_plan_id[tenant.plan_id] = (
                             active_by_plan_id.get(tenant.plan_id, 0) + 1
                         )
@@ -263,8 +265,8 @@ class DynamoTenantRepository(ITenantRepository):
             & Attr("deleted").eq(False)
             & Attr("status").eq(TenantStatus.ACTIVE.value)
             & (
-                Attr("subscription_status").eq("active")
-                | Attr("subscription_status").eq("payment_failed")
+                Attr("subscription_status").eq(SubscriptionStatus.ACTIVE.value)
+                | Attr("subscription_status").eq(SubscriptionStatus.PAYMENT_FAILED.value)
             )
             & Attr("plan_cycle_ends_at").exists()
             & Attr("plan_cycle_ends_at").lte(before.isoformat())
@@ -321,7 +323,7 @@ class DynamoTenantRepository(ITenantRepository):
         filter_expr = (
             Attr("entity_type").eq("TENANT")
             & Attr("deleted").eq(False)
-            & Attr("subscription_status").eq("pending_payment")
+            & Attr("subscription_status").eq(SubscriptionStatus.PENDING_PAYMENT.value)
             & Attr("pending_order_id").exists()
         )
 
@@ -356,7 +358,7 @@ class DynamoTenantRepository(ITenantRepository):
                 ExpressionAttributeNames={"#id": "id"},
                 ExpressionAttributeValues={
                     ":oid": order_id,
-                    ":status": "pending_payment",
+                    ":status": SubscriptionStatus.PENDING_PAYMENT.value,
                 },
             )
         except ClientError as exc:
@@ -653,7 +655,9 @@ class DynamoTenantRepository(ITenantRepository):
                 tenant.plan_confirmed_at.isoformat() if tenant.plan_confirmed_at else None
             ),
             "dlocal_payer_id": tenant.dlocal_payer_id,
-            "subscription_status": tenant.subscription_status,
+            "subscription_status": tenant.subscription_status.value
+            if tenant.subscription_status
+            else None,
             "subscription_renewal_reminder_sent_at": (
                 tenant.subscription_renewal_reminder_sent_at.isoformat()
                 if tenant.subscription_renewal_reminder_sent_at
@@ -708,7 +712,7 @@ class DynamoTenantRepository(ITenantRepository):
             if item.get("plan_confirmed_at")
             else None,
             dlocal_payer_id=item.get("dlocal_payer_id"),
-            subscription_status=item.get("subscription_status"),
+            subscription_status=SubscriptionStatus.from_value(item.get("subscription_status")),
             subscription_renewal_reminder_sent_at=_dt(item["subscription_renewal_reminder_sent_at"])
             if item.get("subscription_renewal_reminder_sent_at")
             else None,

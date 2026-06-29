@@ -3,8 +3,33 @@ from __future__ import annotations
 import unittest
 from datetime import UTC, datetime, timedelta
 
+from lambdas.tenants.domain.enums import SubscriptionStatus
+from lambdas.tenants.domain.tenant import Tenant
 from shared.certificates.metadata import CertificateMetadata
 from tests.unit.support import VALID_RUC, make_tenant
+
+
+class SubscriptionStatusTenantTests(unittest.TestCase):
+    def test_normalizes_persisted_string_to_domain_enum(self) -> None:
+        tenant = Tenant(
+            ruc=VALID_RUC,
+            trade_name="CodeLabs",
+            legal_name="CodeLabs S.A.",
+            legal_rep_name="Francis Ulloa",
+            email="owner@codelabs.com",
+            subscription_status="active",
+        )
+
+        self.assertIs(tenant.subscription_status, SubscriptionStatus.ACTIVE)
+        self.assertEqual(tenant.to_dict()["subscription_status"], "active")
+
+    def test_business_methods_assign_domain_enum_and_serialize_string(self) -> None:
+        tenant = make_tenant()
+
+        tenant.expire_subscription(updated_by="system")
+
+        self.assertIs(tenant.subscription_status, SubscriptionStatus.EXPIRED)
+        self.assertEqual(tenant.to_dict()["subscription_status"], "expired")
 
 
 class DueCertificateExpiryAlertsTests(unittest.TestCase):

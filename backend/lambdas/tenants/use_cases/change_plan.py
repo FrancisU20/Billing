@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from lambdas.tenants.domain.commands import ChangeTenantPlanCommand
-from lambdas.tenants.domain.errors import TenantPlanChangeNotAllowedError
+from lambdas.tenants.domain.enums import SubscriptionStatus
+from lambdas.tenants.domain.errors import (
+    TenantPlanChangeNotAllowedError,
+    TenantPlanChangePaymentInProgressError,
+)
 from lambdas.tenants.domain.repositories.i_plan_catalog import IPlanCatalog
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.tenants.domain.tenant import Tenant
 from shared.domain.events.domain_event import DomainEvent
 
-_ELIGIBLE_STATUSES = {None, "pending_payment"}
+_ELIGIBLE_STATUSES = {None, SubscriptionStatus.PENDING_PAYMENT}
 
 
 class ChangePlanUseCase:
@@ -22,6 +26,8 @@ class ChangePlanUseCase:
         tenant = self._repo.get_by_id(cmd.tenant_id)
         if tenant.subscription_status not in _ELIGIBLE_STATUSES:
             raise TenantPlanChangeNotAllowedError()
+        if tenant.pending_order_id:
+            raise TenantPlanChangePaymentInProgressError()
 
         plan_info = self._plan_catalog.ensure_self_service_active(cmd.plan_id)
         tenant.confirm_plan_selection(

@@ -6,7 +6,12 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
 from lambdas.tenants.domain.commands import CreateTenantCommand, UpdateTenantCommand
-from lambdas.tenants.domain.enums import PlanStatus, SriEnvironment, TenantStatus
+from lambdas.tenants.domain.enums import (
+    PlanStatus,
+    SriEnvironment,
+    SubscriptionStatus,
+    TenantStatus,
+)
 from lambdas.tenants.domain.errors import InvalidSriEnvironmentError
 from shared.certificates.expiry import CERTIFICATE_EXPIRY_ALERT_THRESHOLDS_DAYS
 from shared.certificates.metadata import CertificateMetadata
@@ -69,12 +74,15 @@ class Tenant(GlobalEntity):
     onboarding_completed_at: datetime | None = None
     plan_confirmed_at: datetime | None = None
     dlocal_payer_id: str | None = None
-    subscription_status: str | None = None
+    subscription_status: SubscriptionStatus | None = None
     subscription_renewal_reminder_sent_at: datetime | None = None
     pending_order_id: str | None = None
     billing_cycle: str = "month"  # "month" | "year" — elegido por el cliente al pagar
 
     # ── factory ───────────────────────────────────────────────────────────────
+
+    def __post_init__(self) -> None:
+        self.subscription_status = SubscriptionStatus.from_value(self.subscription_status)
 
     @classmethod
     def create(cls, cmd: CreateTenantCommand, *, plan_limit_cycle: str) -> Tenant:
@@ -180,7 +188,7 @@ class Tenant(GlobalEntity):
             self.subscription_status = None
             self.plan_cycle_ends_at = now_utc() + _cycle_duration(plan_limit_cycle)
         else:
-            self.subscription_status = "pending_payment"
+            self.subscription_status = SubscriptionStatus.PENDING_PAYMENT
             self.plan_cycle_ends_at = None
         self.plan_confirmed_at = now_utc()
         self.touch(updated_by)
@@ -202,7 +210,7 @@ class Tenant(GlobalEntity):
         self.plan_cycle_ends_at = now + _cycle_duration(plan_cycle)
         self.billing_cycle = plan_cycle
         self.dlocal_payer_id = payer_id
-        self.subscription_status = "active"
+        self.subscription_status = SubscriptionStatus.ACTIVE
         self.subscription_renewal_reminder_sent_at = None
         self.pending_order_id = None
         self.touch(updated_by)
@@ -214,14 +222,14 @@ class Tenant(GlobalEntity):
         self.plan_cycle_ends_at = base + _cycle_duration(plan_cycle)
         self.billing_cycle = plan_cycle
         self.dlocal_payer_id = payer_id
-        self.subscription_status = "active"
+        self.subscription_status = SubscriptionStatus.ACTIVE
         self.subscription_renewal_reminder_sent_at = None
         if self.status == TenantStatus.SUSPENDED:
             self.status = TenantStatus.ACTIVE
         self.touch(updated_by)
 
     def expire_subscription(self, *, updated_by: str) -> None:
-        self.subscription_status = "expired"
+        self.subscription_status = SubscriptionStatus.EXPIRED
         self.status = TenantStatus.SUSPENDED
         self.touch(updated_by)
 
@@ -230,7 +238,7 @@ class Tenant(GlobalEntity):
         self.touch(updated_by)
 
     def mark_payment_failed(self, *, updated_by: str) -> None:
-        self.subscription_status = "payment_failed"
+        self.subscription_status = SubscriptionStatus.PAYMENT_FAILED
         self.touch(updated_by)
 
     def mark_certificate_expiry_alert_sent(
@@ -278,7 +286,9 @@ class Tenant(GlobalEntity):
             "onboarding_completed_at": isoformat_ecuador(self.onboarding_completed_at),
             "plan_confirmed_at": isoformat_ecuador(self.plan_confirmed_at),
             "dlocal_payer_id": self.dlocal_payer_id,
-            "subscription_status": self.subscription_status,
+            "subscription_status": self.subscription_status.value
+            if self.subscription_status
+            else None,
             "subscription_renewal_reminder_sent_at": isoformat_ecuador(
                 self.subscription_renewal_reminder_sent_at
             ),

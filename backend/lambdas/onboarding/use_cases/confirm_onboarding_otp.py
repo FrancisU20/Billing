@@ -14,6 +14,7 @@ from lambdas.onboarding.domain.repositories.i_onboarding_verification_repository
 from lambdas.onboarding.domain.repositories.i_plan_catalog import IPlanCatalog
 from lambdas.onboarding.use_cases.payload_signature import onboarding_payload_hash
 from lambdas.tenants.domain.commands import CreateTenantCommand
+from lambdas.tenants.domain.enums import SubscriptionStatus
 from lambdas.tenants.domain.errors import (
     TenantAccountAlreadyExistsError,
     TenantRucAlreadyExistsError,
@@ -104,7 +105,7 @@ class ConfirmOnboardingOtpUseCase:
         if not plan_is_free:
             # Netflix model: cycle starts at first payment, not at registration.
             tenant.plan_cycle_ends_at = None
-            tenant.subscription_status = "pending_payment"
+            tenant.subscription_status = SubscriptionStatus.PENDING_PAYMENT
         # The certificate is uploaded later, after payment — see context/CERTIFICATES.md.
         tenant.onboarding_completed_at = now_utc()
         events = [

@@ -21,6 +21,7 @@ from lambdas.tenants.domain.errors import (
     SubscriptionRenewalPlanMismatchError,
     TenantNotFoundError,
     TenantPlanChangeNotAllowedError,
+    TenantPlanChangePaymentInProgressError,
     TenantPlanNotSelfServiceError,
     TenantRucAlreadyExistsError,
 )
@@ -333,6 +334,27 @@ class ChangePlanUseCaseTests(unittest.TestCase):
                     updated_by="user-1",
                 )
             )
+
+    def test_rejects_change_when_payment_is_in_progress(self) -> None:
+        repo = FakeTenantRepository()
+        tenant = make_tenant(
+            id="tenant-1",
+            subscription_status="pending_payment",
+            pending_order_id="DP-1",
+        )
+        repo.tenants[tenant.id] = tenant
+
+        with self.assertRaises(TenantPlanChangePaymentInProgressError):
+            ChangePlanUseCase(repo, FakePlanCatalog()).execute(
+                ChangeTenantPlanCommand(
+                    tenant_id="tenant-1",
+                    plan_id="uuid-pro",
+                    billing_cycle="month",
+                    updated_by="user-1",
+                )
+            )
+
+        self.assertEqual(tenant.pending_order_id, "DP-1")
 
     def test_rejects_enterprise_plan(self) -> None:
         repo = FakeTenantRepository()

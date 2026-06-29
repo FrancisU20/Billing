@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from lambdas.tenants.domain.enums import SubscriptionStatus
 from lambdas.tenants.domain.errors import (
     SubscriptionRenewalPaymentAlreadyAppliedError,
     SubscriptionRenewalPaymentNotConfirmedError,
@@ -60,6 +61,6 @@ class ApplySubscriptionRenewalUseCase:
         result = ApplySubscriptionRenewalResult(
             tenant_id=tenant.id,
             plan_cycle_ends_at=isoformat_ecuador(tenant.plan_cycle_ends_at) or "",
-            subscription_status=tenant.subscription_status or "active",
+            subscription_status=(tenant.subscription_status or SubscriptionStatus.ACTIVE).value,
         )
         return tenant, result, payment_transact

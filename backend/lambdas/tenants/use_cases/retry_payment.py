@@ -7,6 +7,7 @@ from lambdas.subscriptions.domain.entities.payment import Payment
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import IDLocalClient
 from lambdas.subscriptions.domain.repositories.i_payment_repository import IPaymentRepository
 from lambdas.subscriptions.domain.repositories.i_plan_catalog import IPlanCatalog
+from lambdas.tenants.domain.enums import SubscriptionStatus
 from lambdas.tenants.domain.errors import (
     NoSavedPaymentMethodError,
     RetryPaymentNotEligibleError,
@@ -14,7 +15,7 @@ from lambdas.tenants.domain.errors import (
 )
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
 from lambdas.tenants.domain.tenant import Tenant
-from shared.billing import gross_price
+from shared.billing import gross_price, plan_net_price
 from shared.dates import isoformat_ecuador, now_utc
 from shared.logger import get_logger
 
@@ -22,7 +23,10 @@ _log = get_logger(__name__)
 
 _COUNTRY = "EC"
 _CURRENCY = "USD"
-_ELIGIBLE_STATUSES = {"payment_failed", "expired"}
+_ELIGIBLE_STATUSES = {
+    SubscriptionStatus.PAYMENT_FAILED,
+    SubscriptionStatus.EXPIRED,
+}
 
 
 @dataclass(frozen=True)
@@ -56,9 +60,7 @@ class RetryPaymentUseCase:
 
         plan = self._plans.get(tenant.plan_id)
         billing_cycle = tenant.billing_cycle
-        price = plan.annual_price if billing_cycle == "year" else plan.monthly_price
-        net = f"{price:.2f}"
-        amount = gross_price(net)
+        amount = gross_price(plan_net_price(plan.monthly_price, plan.annual_price, billing_cycle))
 
         try:
             charge = self._dlocal.charge_saved_payer(
@@ -109,7 +111,7 @@ class RetryPaymentUseCase:
             RetryPaymentResult(
                 tenant_id=tenant_id,
                 plan_cycle_ends_at=isoformat_ecuador(tenant.plan_cycle_ends_at) or "",
-                subscription_status=tenant.subscription_status or "active",
+                subscription_status=(tenant.subscription_status or SubscriptionStatus.ACTIVE).value,
             ),
             payment_transact,
         )

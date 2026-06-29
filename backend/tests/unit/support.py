@@ -9,6 +9,7 @@ from lambdas.clients.domain.commands import CreateClientCommand
 from lambdas.clients.domain.entity import Client
 from lambdas.clients.domain.errors import ClientNotFoundError
 from lambdas.tenants.domain.commands import CreateTenantCommand
+from lambdas.tenants.domain.enums import SubscriptionStatus
 from lambdas.tenants.domain.errors import TenantPlanNotSelfServiceError
 from lambdas.tenants.domain.repositories.i_plan_catalog import SelfServicePlanInfo
 from lambdas.tenants.domain.tenant import Tenant
@@ -58,6 +59,8 @@ def create_tenant_command(**overrides: Any) -> CreateTenantCommand:
 def make_tenant(*, plan_limit_cycle: str = "month", **overrides: Any) -> Tenant:
     tenant = Tenant.create(create_tenant_command(), plan_limit_cycle=plan_limit_cycle)
     for key, value in overrides.items():
+        if key == "subscription_status":
+            value = SubscriptionStatus.from_value(value)
         setattr(tenant, key, value)
     return tenant
 

@@ -86,6 +86,14 @@ class TenantPlanChangeNotAllowedError(BusinessError):
     )
 
 
+class TenantPlanChangePaymentInProgressError(BusinessError):
+    code = "TENANT_PLAN_CHANGE_PAYMENT_IN_PROGRESS"
+    default_message = (
+        "Ya existe un pago en proceso para el plan actual. Finaliza o espera la conciliación "
+        "del pago antes de cambiar de plan."
+    )
+
+
 class TenantPlanNotSelfServiceError(BusinessError):
     code = "TENANT_PLAN_NOT_SELF_SERVICE"
     default_message = "Este plan requiere contacto con ventas y no está disponible aquí."

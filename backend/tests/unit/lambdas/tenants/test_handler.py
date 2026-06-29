@@ -296,6 +296,36 @@ class TenantsHandlerTests(unittest.TestCase):
         self.assertEqual(response["statusCode"], 422)
         self.assertEqual(body["error"]["code"], "TENANT_PLAN_CHANGE_NOT_ALLOWED")
 
+    def test_change_plan_rejects_when_payment_is_in_progress(self) -> None:
+        from tests.unit.support import FakePlanCatalog
+
+        repo = FakeTenantRepository()
+        tenant = make_tenant(
+            id="t-plan-3",
+            subscription_status="pending_payment",
+            pending_order_id="DP-1",
+        )
+        repo.tenants[tenant.id] = tenant
+        event = api_event(
+            method="PATCH",
+            path="/tenants/t-plan-3/plan",
+            body={"plan_id": "uuid-pro"},
+            headers={"X-Idempotency-Key": "plan-3"},
+        )
+
+        with (
+            patch.object(self.handler, "_repo", return_value=repo),
+            patch.object(self.handler, "_plan_catalog", return_value=FakePlanCatalog()),
+            patch.object(self.handler, "require_current_context", return_value=object()),
+        ):
+            response = self.handler.handler(event, self.context)
+
+        body = decode_response(response)
+        self.assertEqual(response["statusCode"], 422)
+        self.assertEqual(body["error"]["code"], "TENANT_PLAN_CHANGE_PAYMENT_IN_PROGRESS")
+        self.assertEqual(repo.commit_calls, [])
+        self.assertEqual(tenant.pending_order_id, "DP-1")
+
     def test_toggle_status_commits_status_change(self) -> None:
         repo = FakeTenantRepository()
         tenant = make_tenant(id="t-tog-1")

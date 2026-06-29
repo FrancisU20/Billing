@@ -14,6 +14,19 @@ class TenantStatus(StrEnum):
     INACTIVE = "inactive"
 
 
+class SubscriptionStatus(StrEnum):
+    PENDING_PAYMENT = "pending_payment"
+    ACTIVE = "active"
+    PAYMENT_FAILED = "payment_failed"
+    EXPIRED = "expired"
+
+    @classmethod
+    def from_value(cls, value: str | SubscriptionStatus | None) -> SubscriptionStatus | None:
+        if value is None:
+            return None
+        return cls(value)
+
+
 class PlanStatus(StrEnum):
     """Computed at read time from Tenant.plan_cycle_ends_at — never persisted.
 

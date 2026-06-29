@@ -7,6 +7,8 @@ Intentionally does NOT import from lambdas.plans.* to keep lambda bundles
 independent (same convention as lambdas.tenants.infra.plan_catalog).
 """
 
+from decimal import Decimal
+
 from botocore.exceptions import ClientError
 
 from lambdas.onboarding.domain.errors import PlanNotActiveError, PlanNotFoundError
@@ -35,12 +37,12 @@ class DynamoPlanCatalog(IPlanCatalog):
         if not item.get("active", True):
             raise PlanNotActiveError()
 
-        monthly = float(item.get("monthly_price", 0) or 0)
-        annual = float(item.get("annual_price", 0) or 0)
+        monthly = Decimal(str(item.get("monthly_price", 0) or 0))
+        annual = Decimal(str(item.get("annual_price", 0) or 0))
         return PlanSummary(
             id=item["id"],
             self_service=bool(item.get("self_service", True)),
             limit_cycle=item.get("limit_cycle", "month"),
-            is_free=monthly == 0 and annual == 0,
+            is_free=monthly == Decimal("0") and annual == Decimal("0"),
             name=item.get("name", ""),
         )
