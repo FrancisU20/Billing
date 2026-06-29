@@ -449,3 +449,105 @@ lo pidio. Mientras tanto, lo testeable son funciones puras extraidas del compone
   `begins_with()`, ver `CLIENTS.md`); `products.sku`, `tenants.ruc` y el `q` general de
   `clients`/`products`/`documents` siguen sin indexacion dedicada — ver el `## Deuda
 Tecnica` de cada dominio para el detalle especifico.
+
+### Auditoria profunda 2026-06-27
+
+Colores: **limpio**. Cero coincidencias de hex/`rgb(`/nombres CSS sueltos fuera de
+`constants/tokens.ts` en toda la app (`features/`, `app/`, `components/`, `lib/`) — la
+disciplina de `semantic`/`colors` es real, no solo aspiracional. La deuda real esta en
+tamanos/spacing sin token y en adopcion desigual de los componentes ya centralizados. Los
+hallazgos especificos de cada dominio (ej. `ProductListItem` sin `EntityAvatar`,
+`PlanCard`/`TenantCard` sin `Card`) viven en el `.md` de ese dominio; aqui solo el patron
+transversal y lo que vive directamente en el design system.
+
+**Spacing/tamanos sin token, dentro del propio design system:**
+- `sizes` en `tokens.ts` no cubre alturas de control (inputs/botones/chips): `minHeight: 52`
+  duplicado identico en `components/ui/Input.tsx` y `DateRangePicker.tsx`, `36` duplicado en
+  `ListPaginationControls.tsx`/`ListItemPrimitives.tsx`, y mas numeros magicos sueltos (`44`,
+  `34`, `28`, `48`, `92`) repartidos en `components/ui/`. Evaluar `sizes.control{Sm,Md,Lg}`.
+- Tamanos de icono (`Ionicons size={N}`) sin escala centralizada: 95 ocurrencias con 13
+  valores distintos en toda la app. Candidato a `iconSize.sm/md/lg` en `tokens.ts`.
+- `DiscountInput.tsx`, `Badge.tsx`, `RowActionsMenu.tsx`, `DateRangePicker.tsx` tienen
+  `padding`/`gap`/`borderRadius` sueltos (`2`, `6`, `8`); `EmptyState.tsx` hardcodea
+  `width/height: 72` + `borderRadius: 36` para simular un circulo en vez de usar un token de
+  tamano grande. `subscriptions/PriceBreakdown.tsx:82` (`borderRadius: 8`) y
+  `PaymentFailedBanner.tsx:126` (`borderRadius: 6`) deberian ser `radius.md`/`radius.sm`.
+
+**Componentes centralizados con adopcion incompleta (codigo muerto o reinvencion):**
+- `components/layout/Screen.tsx` es codigo muerto: cero imports reales en el repo. La doc de
+  este archivo (linea ~284 antes de esta auditoria) seguia recomendandolo pero ninguna
+  pantalla lo usa — todas rearman `View`+`StyleSheet` a mano porque `AppNavBar` ya cubre el
+  area segura. Eliminar o revalidar el patron migrando al menos una pantalla.
+- `Card.tsx` esta infrautilizado: solo 2 pantallas reales lo importan
+  (`TenantDashboardScreen`, `SuperadminDashboardScreen`) mas el showcase. El mismo "card
+  shell" (`radius.md`+`borderWidth:1`+`bg.card/elevated`+`spacing[5]`) se reimplementa a mano
+  en `TenantCard.tsx`, `PlanCard.tsx`, `EstablishmentCard.tsx` y la mayoria de pantallas de
+  detalle — no migrar todo de una vez (varios necesitan layout custom anidado), evaluar caso
+  por caso al tocar cada pantalla.
+- `FormSection` (header+icon+body sobre `Card`) se reinvento de forma local **5 veces**
+  caracter-por-caracter o casi: `features/plans/components/PlanForm.tsx`,
+  `features/tenants/components/TenantForm.tsx`, `features/onboarding/components/
+  RegistrationForm.tsx`, `features/documents/screens/EmitDocumentScreen.tsx` y
+  `EmitCreditNoteScreen.tsx`. Nunca se extrajo al design system pese a triplicarse y
+  cuadriplicarse — extraer a `components/ui/FormSection.tsx` antes de que aparezca una sexta
+  copia.
+- `Badge` reinventado en `features/subscriptions/screens/ConfirmPlanScreen.tsx`
+  (`currentBadge`/`currentBadgeText`) y en `EstablishmentCard.tsx` (pills `testingPill`/
+  `codePill`) en vez de `<Badge variant=... size="sm" />`.
+- `Button` reinventado con `TouchableOpacity` a mano en `PaymentFailedBanner.tsx` y
+  `PendingActivationBanner.tsx` (`features/subscriptions`) — unicos casos del repo que no
+  siguen el estandar `Pressable`/`Button` del resto de la app.
+- `EntityAvatar`/`ListCell` (`components/ui/ListItemPrimitives.tsx`) adoptados de forma
+  desigual: `clients`/`tenants` los usan en su `*ListItem`; `products` los ignora en
+  `ProductListItem.tsx` (avatar a mano con `height/width: 40`, que no coincide con ningun
+  token); `sequences` los ignora en `EstablishmentCard.tsx`. No hay regla de negocio que
+  explique la diferencia.
+- Catalogo visual (`features/design-system/screens/ComponentsScreen.tsx`) desactualizado: no
+  muestra `SpecializedFields`, `FormActions`, `SearchInput`, `DateRangePicker`,
+  `RowActionsMenu`, `ListItemPrimitives`, `ListPaginationControls`, `ConfirmDialog`,
+  `FilterBar`/`FilterBlock`, `DetailHeader` ni `CertificateUploadField`, todos ya
+  documentados como centralizados en este archivo. Mantenerlo actualizado es justamente lo
+  que evita los casos de reinvencion listados arriba.
+- `DateRangePicker.tsx` (404 lineas) es el componente mas monolitico de `components/ui/`
+  (trigger+modal+calendario+presets+seleccion de rango en un solo archivo, sin
+  sub-componentes internos a diferencia de `ListPaginationControls`). No es incorrecto hoy;
+  dividir si crece mas.
+
+**Strings/mensajes sin centralizar:**
+- Mensajes de validacion Zod repetidos como literal crudo en distintos `features/*/schemas.ts`:
+  `'Requerido'` (17x), `'Email invalido'` (12x), `'Telefono invalido'` (7x), `'Precio
+  invalido'` (5x). `lib/utils/form-validators.ts` centraliza regex/funciones pero no los
+  mensajes — candidato a `lib/utils/validation-messages.ts`.
+
+**Patrones de hook/estado repetidos sin abstraerse (transversal a varias features):**
+- `useFormSubmit`/`useFetch` de `lib/hooks/` ya encapsulan `{loading, error, submit}` y los
+  usan `documents`/`subscriptions`/`onboarding` — pero `auth` no lo adopto: `useLogin`,
+  `useChallenge`, `useForgotPassword` y `useResetPassword` reimplementan el mismo patron a
+  mano en los 4 hooks.
+- Polling: 3 features con necesidad real (`documents` via `useDocument` con `setInterval`
+  continuo sin techo de intentos, `subscriptions` via `use-3ds-flow` con loop `for`+
+  `setTimeout` con techo de 10 intentos pero sin proteccion de desmontaje) implementaron cada
+  una su propio mecanismo por separado. No hay un hook base `usePollUntil` que unifique el
+  patron — el proximo dominio que necesite polling volvera a reinventarlo a su manera.
+- Banners de "auto-retry al montar" (`PaymentFailedBanner`/`PendingActivationBanner` en
+  `subscriptions`): mismo esqueleto (estado `Phase` local + `useRef` idempotency key +
+  auto-attempt en `useEffect` + banner warning/error con boton reintentar) duplicado entre
+  los 2 — candidato a hook `useAutoRetryOnMount` + componente `StatusActionBanner`.
+- `NavigationMenu.tsx`/`SidebarNav.tsx` (`features/navigation`) duplican logica real (no solo
+  estilos): ambos llaman `getAppNavigationItems(user)` + `usePathname()` + el mismo `map` con
+  el mismo calculo de `active`. Extraible a un hook `useNavigationItems(user)` que devuelva
+  `{items, isActive}`, dejando solo el shell visual (modal vs sidebar fijo) distinto. Es la
+  unica duplicacion de logica de control encontrada en la auditoria (el resto es duplicacion
+  visual/JSX).
+- Pantallas de "flujo largo" que violan SRP mezclando fetch+calculo de negocio+presentacion
+  en un solo archivo de 300-580 lineas: `TenantDashboardScreen.tsx` (584, ademas reimplementa
+  `formatCurrency` local con `Intl.NumberFormat` pese a que `lib/utils/format.ts` ya lo
+  expone y si lo usa `SuperadminDashboardScreen.tsx` de la misma feature),
+  `ActivateSubscriptionScreen.tsx` (~330), `EmitDocumentScreen.tsx` (~400) y
+  `EmitCreditNoteScreen.tsx` (~350). Patron repetido en al menos 3 features distintas — el
+  fix puntual (extraer metricas/orquestacion a un hook) vive en el `.md` de cada dominio;
+  aqui se deja constancia de que es un patron transversal, no un caso aislado.
+- Paginacion de catalogos chicos sin criterio unico: `clients`/`tenants`/`products` usan
+  `useEagerPagedList`; `plans` reimplementa el mismo patron a mano con `useFetch`+
+  `useLocalPagedItems` pese a que el propio comentario de diseno de `useEagerPagedList`
+  menciona ese caso de uso como el previsto (ver `context/PLANS.md`).

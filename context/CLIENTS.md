@@ -198,3 +198,21 @@ endpoint cursor-paginado existente.
   tenants empiezan a tener mas de 10k clientes.
 - No hay endpoint de busqueda por multiples identificaciones en batch (util para validar
   XLSX en carga masiva).
+- Auditoria 2026-06-27 — `client_repository.py::_transact_write` (lineas 337-363)
+  reimplementa inline la extraccion de `CancellationReasons` en vez de usar
+  `shared/db/transactions.py::cancellation_reasons` (ver `context/BACKEND.md`).
+- `domain/entity.py::_derive_person_type` (lineas 130-159) tiene una regla de negocio fina
+  (3er digito del RUC determina natural/juridica) atada a `IdentificationType`/`PersonType`
+  de `clients` — no es reutilizable si `tenants` necesita derivar tipo de persona del RUC
+  del tenant en el futuro (hoy `tenants` valida/parsea RUC con su propio value object sin
+  esta regla).
+- `domain/value_objects/address.py::__post_init__` usa `object.__setattr__` para mutar un
+  dataclass `frozen=True` despues de normalizar (strip) — funciona pero es un patron
+  contorsionado; un classmethod factory `Address.create(...)` seria mas claro que normalizar
+  dentro de `__post_init__` de un frozen dataclass.
+- Frontend: `CLIENTS_PAGE_SIZE` en `features/clients/constants.ts:4` es codigo muerto (la
+  paginacion real va por `DEFAULT_PAGE_SIZE` via `useEagerPagedList`). `ClientDetailScreen.tsx`
+  y `EditClientScreen.tsx` no cubren el caso "id inexistente sin error explicito"
+  (`!error && !client`): la pantalla queda en blanco. `ClientsFilters.tsx` define
+  `styles.label`/`styles.section` propios para el bloque de busqueda en vez de usar
+  `FilterBlock` que el mismo archivo ya usa para Estado/Tipo/Creacion.

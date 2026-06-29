@@ -215,3 +215,26 @@ Diseno futuro (no implementar como parte de onboarding):
 - No hay tests de integracion contra Cognito real; los tests usan fakes.
 - El token refresh no rota el refresh_token actualmente; evaluar si el User Pool debe tener
   rotacion activada para mayor seguridad.
+- Auditoria 2026-06-27: `reset.register_failed_attempt()` (`domain/password_reset.py:81-84`)
+  siempre lanza `InvalidChallengeResponseError` tras incrementar `attempts`; el
+  `try/finally` que la envuelve en `confirm_forgot_password.py:26-30` no agrega valor
+  porque no hay ninguna ruta donde el codigo continue tras un intento fallido. Limpiar la
+  firma (que no deberia lanzar, solo registrar) o eliminar el `try/finally` enganoso.
+- `cognito_auth_provider.py::user_exists()` usa `admin_get_user` (operacion de
+  administrador) solo para comprobar existencia previo al OTP de forgot-password —
+  acopla el flujo publico a permisos IAM de admin mas amplios de lo necesario. Evaluar
+  `list_users` con filtro si el rol IAM no esta ya acotado al pool.
+- Constantes de OTP (`PASSWORD_RESET_TTL_MINUTES`, `PASSWORD_RESET_MAX_ATTEMPTS`,
+  `PASSWORD_RESET_DIGITS`, `_HASH_ITERATIONS` en `domain/password_reset.py:11-14`) viven
+  solo en este dominio sin contraparte en `shared/`. `onboarding` ya tiene su propio flujo
+  de OTP independiente (ver `context/ONBOARDING.md`) — si aparece un tercer flujo de
+  codigo OTP, hay riesgo de reinventar el mismo patron hash+salt+TTL+intentos una vez mas
+  en vez de extraerlo a `shared/` ahora que ya son 2 implementaciones.
+- Frontend: `useLogin`/`useChallenge`/`useForgotPassword`/`useResetPassword` (
+  `frontend/features/auth/hooks/`) reimplementan a mano el patron `{loading, error}` +
+  try/catch + `toApiError` que el resto de la app (documents, subscriptions, onboarding)
+  resuelve con `useFormSubmit` de `lib/hooks/` — auth quedo fuera de esa convencion.
+  `LoginScreen.tsx:37` y `ForgotPasswordScreen.tsx:30` tienen un ternario
+  `isDark ? semantic.bg.page : semantic.bg.page` con ambas ramas identicas (resto de un
+  rename mal hecho). `LoginForm.tsx` es el unico de los 4 forms hermanos que expone prop
+  `dark?: boolean`, inconsistencia de API entre forms de la misma feature.

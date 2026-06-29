@@ -377,3 +377,120 @@ seguir el patron mas cercano.
   (Sprint 3) era `grant_read_data`, pero `reserve_next()` hace `UpdateItem` (ADD atómico).
   Corregido a `grant_write_data` en `infra/stacks/api_stack.py` (es write-only: nunca lee
   la tabla `sequences` directamente).
+
+## Deuda Tecnica
+
+Auditoria profunda 2026-06-27. La capa `_base`/`lambdas/_base` esta solida (idempotencia,
+parser, permisos, response, sqs_handler) y la auditoria de seguridad (regla #1 `tenant_id`
+del JWT, #2 constructor con `tenant_id` obligatorio, #4 sin stacktrace, #6 sin loguear
+secretos, #9 Decimal) no encontro violaciones nuevas salvo lo anotado en "Decimal vs float"
+abajo. El grueso de la deuda es duplicacion entre los 5 lambdas CRUD (`tenants`, `plans`,
+`clients`, `products`, y por extension `documents`/`sequences`) que `shared/`/`_base/`
+deberia absorber pero no absorbe todavia.
+
+### shared/db
+
+- `BaseRepository` no soporta `transact_write_items`: cualquier repo con side effects
+  transaccionales (`documents`, `tenants`, `sequences`, `plans`, `discount_campaign`) sale
+  del contrato base y reimplementa `_pk`/`_get_raw`/manejo de `ConditionalCheckFailedException`
+  a mano. `backend/shared/db/base_repository.py`.
+- `cancellation_reasons()`/`has_conditional_failure_at()` (`backend/shared/db/transactions.py:16`)
+  ya centralizan el parseo de `CancellationReasons` de DynamoDB, pero solo los usa
+  `tenants/infra/tenant_repository.py`. El mismo bloque
+  (`[{"code": r.get("Code","None"), "msg": r.get("Message","")} for r in
+  exc.response.get("CancellationReasons", [])]`) esta copiado literal en
+  `documents/infra/documents_repository.py:440-443`, `sequences/infra/sequences_repository.py:347-350`,
+  `plans/infra/plan_repository.py:218-221`, `clients/infra/client_repository.py:337-363` y
+  `products/infra/product_repository.py:211-255`. Migrar los 5 al helper compartido.
+- Patron de "lock item" para unicidad reimplementado 4 veces con la misma forma sin
+  abstraccion comun: `tenants` (RUC), `plans` (slug), `clients` (identificacion), `products`
+  (SKU) implementan independientemente `Put` condicional `attribute_not_exists` + deteccion
+  de cual indice del array de `CancellationReasons` fallo para distinguir "duplicado" de
+  "optimistic lock". Candidato real a un mixin `UniqueFieldLockMixin` en `shared/db/`.
+- Filtro `q` (busqueda libre) resuelto siempre en Python, nunca en DynamoDB, reimplementado
+  independientemente en `tenants`, `plans`, `clients` y `products`
+  (`_TenantListFilters`/`_PlanListFilters`/`_ClientListFilters`/`_ProductListFilters`, cada
+  uno con su propio `needle = q.strip().lower()` + metodo `matches()`). Mas alla de la
+  escalabilidad ya conocida por dominio, es candidato a una clase base generica
+  `BaseListFilters` con `matches_text(*fields)` reutilizable.
+- `clamp_list_limit()` (`backend/shared/db/limits.py:7`) solo acota el techo, no valida que
+  `limit < 1`; cada handler que la usa (`tenants`, `clients`, `products`) reimplementa ademas
+  el mismo try/except de `int(params.get("limit", DEFAULT_LIST_LIMIT))` con el mismo mensaje
+  literal duplicado 3 veces. `documents/schemas.py:96` resuelve el mismo problema una cuarta
+  forma distinta, vía Pydantic (`Field(default=20, ge=1, le=100)`), hardcodeando `20`/`100` de
+  nuevo en vez de reusar `DEFAULT_LIST_LIMIT`/`MAX_LIST_LIMIT`. Unificar en un solo
+  `parse_list_limit(params)` en `shared/db/limits.py`.
+- `_count_raw()` (`backend/shared/db/base_repository.py:130`) y los `count()` de `documents`/
+  `tenants` resuelven el mismo problema (contar con `Select=COUNT` paginando) con 3 loops
+  independientes en vez de una sola funcion compartida parametrizada por
+  `KeyConditionExpression`/`IndexName`.
+- `DynamoDiscountCampaignRepository._raw_by_key()`
+  (`backend/lambdas/products/infra/discount_campaign_repository.py:95-101`) reimplementa
+  exactamente `BaseRepository._get_raw()` solo porque necesita el item sin filtro de
+  `deleted` para el audit `before` — evaluar exponer `_get_raw(entity_id,
+  include_deleted=True)` en la base.
+
+### lambdas/_base
+
+- El bloque `_parse_list_query` (parseo de `limit` con `clamp_list_limit`, validacion de
+  enum via `try: Enum(value) except ValueError`, `parse_date_boundary` para
+  `created_from`/`created_to`) se repite literalmente entre `tenants/handler.py`,
+  `clients/handler.py` y `products/handler.py` con solo los nombres de campo/enum
+  cambiando (~15 lineas duplicadas x 3 handlers). Candidato a helpers genericos
+  `parse_enum_query_param(params, name, enum_cls)` / `parse_limit_query_param(params)` en
+  `_base/`.
+
+### shared/domain
+
+- `EventPublisher.publish()` (`backend/shared/domain/events/publisher.py:71`) hace
+  fire-and-forget directo a SQS fuera de la transaccion DynamoDB, mientras `outbox.py`
+  existe especificamente para evitar ese problema. Conviven 2 mecanismos de publicacion de
+  eventos sin que el codigo indique cuando usar cada uno — documentar la regla
+  explicitamente (cuando es aceptable fire-and-forget vs cuando debe ir por outbox).
+- `GlobalEntity`/`TenantScopedEntity` (`backend/shared/domain/base_entity.py`) son
+  `@dataclass` mutables sin slots ni frozen: una mutacion de campo fuera de
+  `touch()`/`soft_delete()` no incrementa `version` ni dispara optimistic locking. El
+  contrato de "siempre usar `touch()`" depende 100% de disciplina, no del tipo.
+- Solventado 2026-06-28: `Tenant.subscription_status` ahora usa
+  `SubscriptionStatus(StrEnum)` en dominio/use cases/workers. Los bordes de DynamoDB y API
+  siguen serializando los mismos strings para no romper datos existentes.
+
+### Decimal vs float (regla de seguridad #9)
+
+Solventado 2026-06-28: `DLocalClient` conserva `Decimal` hasta el borde externo; centraliza
+la salida a JSON number en `_json_amount()`, cuantiza a centavos con `ROUND_HALF_UP` y solo
+despues convierte a `float` porque dLocal exige number, no string. Ver
+`context/SUBSCRIPTIONS.md`.
+
+Solventado 2026-06-28: `DynamoPlanCatalog.get()` en `onboarding` dejo de usar `float()` para
+decidir `is_free`; ahora usa `Decimal(str(...))`, alineado con los catalogos de
+`subscriptions` y `tenants`. Ver `context/ONBOARDING.md`.
+
+### shared/secrets
+
+- `get_secret()` (`backend/shared/secrets/client.py:26`) cachea en un dict modulo-level sin
+  limite de tamano ni invalidacion por nombre. Bajo impacto hoy (pocos secrets por lambda),
+  pero crece sin techo si aparecen mas integraciones tipo dLocal/Brevo.
+
+### shared/certificates
+
+- El prefix de secret `f"/codelabs-billing/{env}/tenant"` esta hardcodeado como fallback en
+  `CertificateStore.__init__` (`shared/certificates/store.py:18-21`) Y vive tambien en CDK
+  (`infra/stacks/api_stack.py:205`). Misma convencion de nombres duplicada en 2 capas sin una
+  sola fuente de verdad — si CDK deja de pasar la env var, el fallback puede divergir
+  silenciosamente del prefix real desplegado.
+
+### migrations
+
+- `v0002_backfill_plan_cycle_ends_at.py`, `v0003_backfill_onboarding_fields.py` y
+  `v0005_backfill_product_invoice_code.py` reimplementan letra por letra el mismo bucle
+  `scan_kwargs={}` + `while True` + `LastEvaluatedKey`. Con 3 migraciones ya repitiendolo,
+  vale un helper `scan_all(table, predicate, update_fn)` compartido en `migrations/`.
+
+### Cobertura de tests en shared/
+
+- `base_repository.py`, `paginator.py`, `transactions.py`, `domain/events/outbox.py`,
+  `domain/events/publisher.py`, `audit/writer.py`, `secrets/client.py` y `billing.py` no
+  tienen test unitario propio en `tests/unit/shared/` — se ejercitan solo indirectamente via
+  los tests de cada lambda que los consume, dificultando detectar una regresion en la pieza
+  compartida antes de que se propague a varios dominios a la vez.

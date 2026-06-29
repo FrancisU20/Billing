@@ -11,6 +11,8 @@ cada 5 min), **markup 12%** sobre el precio neto del plan, **cobro automatico** 
 renovacion via `dlocal_payer_id` guardado, estado `payment_failed` con banner de accion
 requerida y endpoint `retry-payment` para reintentar tarjeta guardada. Desde 2026-06-21,
 pantalla de **confirmar/cambiar plan** post-registro antes de pagar (`PATCH /tenants/{id}/plan`).
+Desde 2026-06-28, `stale_payment_cleaner` cancela localmente orders `CREATED/PENDING`
+abandonadas tras 24h; webhooks `PAID` tardios aun pueden recuperar el pago.
 
 ## Lee Tambien Antes De Empezar
 
@@ -191,8 +193,13 @@ El worker diario `subscription_renewal_notifier` extiende su logica cuando el te
 
 ```
 tenant vencido + dlocal_payer_id SET
+  → intenta crear marcador AUTO_RENEWAL_RECONCILIATION para tenant+ciclo
+       si ya existe: no llama dLocal, alerta a billing y reporta reconciliacion requerida
   → POST /v1/payments { payer: { id: payer_id }, amount: gross_price(plan), ... }
-  → PAID  → payment.save() + apply_subscription_renewal() + repo.save(tenant)
+  → PAID  → payment.save_transact_item() + apply_subscription_renewal()
+            + tenant_repo.commit(..., extra_transact_items=[payment])
+            si el commit falla: guarda marcador AUTO_RENEWAL_RECONCILIATION
+            + alerta a billing, bloqueando cobros duplicados del mismo ciclo
   → FAILED / REJECTED → tenant.mark_payment_failed() + repo.save() + send_payment_failed email
 
 tenant vencido + sin dlocal_payer_id
@@ -334,6 +341,9 @@ backend/lambdas/workers/pending_activation_reconciler/
   handler.py             EventBridge rate(5 minutes) — activa tenants con pending_order_id
   use_case.py            PendingActivationReconcilerUseCase
 
+backend/lambdas/workers/dlocal_webhook_processor/
+  handler.py             SQS dlocal-webhooks — procesa payloads HMAC ya aceptados
+
 # Frontend:
 frontend/lib/utils/retry.ts                                   retryWithBackoff()
 frontend/features/subscriptions/components/PendingActivationBanner.tsx
@@ -413,8 +423,13 @@ Request:
   "client_last_name": "Pérez",
   "client_email": "buyer@example.com",
   "client_document_type": "CI",
-  "client_document": "1712345678"
+  "client_document": "1710034065"
 }
+```
+
+Header requerido:
+```text
+X-Checkout-Token: <checkout_token devuelto por POST /subscriptions/payments>
 ```
 
 Response 200:
@@ -422,7 +437,8 @@ Response 200:
 { "data": { "order_id": "DP-12345", "status": "PAID", "payer_id": "...", "payer_email": "...", "redirect_url": null } }
 ```
 
-Errores: 404 `PAYMENT_NOT_FOUND`, 409 `PAYMENT_ALREADY_CONFIRMED`, 502 `PAYMENT_CONFIRM_FAILED`.
+Errores: 403 `PAYMENT_ACCESS_DENIED`, 404 `PAYMENT_NOT_FOUND`,
+409 `PAYMENT_ALREADY_CONFIRMED`, 502 `PAYMENT_CONFIRM_FAILED`.
 
 409 se retorna si el pago ya tiene status `PAID`, `AUTHORIZED` o `PENDING`. El estado `PENDING`
 bloquea re-confirmacion porque el proceso 3DS ya esta en vuelo — la resolucion llega via webhook,
@@ -440,6 +456,11 @@ abre la URL en nueva pestaña (preserva estado de la app). El usuario vuelve y p
 
 ### GET /subscriptions/payments/{order_id}
 
+Header requerido:
+```text
+X-Checkout-Token: <checkout_token devuelto por POST /subscriptions/payments>
+```
+
 Response 200:
 ```json
 { "data": { "order_id": "DP-12345", "status": "CREATED|PAID|FAILED|PENDING",
@@ -447,7 +468,10 @@ Response 200:
             "tenant_id": null, "created_at": "...", "confirmed_at": "..." } }
 ```
 
-Errores: 404 `PAYMENT_NOT_FOUND`.
+La respuesta publica es una proyeccion segura para polling: no incluye `payer_id` ni
+`payer_email`.
+
+Errores: 403 `PAYMENT_ACCESS_DENIED`, 404 `PAYMENT_NOT_FOUND`.
 
 ### POST /subscriptions/payments/{order_id}/refund
 
@@ -471,12 +495,16 @@ Payload esperado (eventos `PAYMENT`):
 { "type": "PAYMENT", "data": { "order_id": "DP-12345", "status": "PAID|REJECTED|FAILED|CANCELLED" } }
 ```
 
-Comportamiento: actualiza el status del Payment en DynamoDB solo si el status es terminal
-(`PAID`/`APPROVED`→`PAID`, `REJECTED`, `FAILED`, `CANCELLED`) y distinto al actual.
-Eventos con `type != "PAYMENT"`, sin `order_id`, o con `status` vacio se responden 200 sin
-procesar (se loguea warning si falta `order_id`). No se usa ningun campo alternativo como
-fallback: `order_id` es obligatorio en el payload de dLocal.
-Pagos no encontrados se ignoran (idempotente).
+Comportamiento: el endpoint HTTP solo verifica firma y encola el `raw_body` en SQS
+`dlocal-webhooks`. El worker `dlocal_webhook_processor` actualiza el status del Payment en
+DynamoDB solo si el status es terminal (`PAID`/`APPROVED`→`PAID`, `REJECTED`, `FAILED`,
+`CANCELLED`) y distinto al actual. Eventos con `type != "PAYMENT"`, sin `order_id`, o con
+`status` vacio se aceptan y el worker los ignora (se loguea warning si falta `order_id`).
+No se usa ningun campo alternativo como fallback: `order_id` es obligatorio en el payload de
+dLocal. Pagos no encontrados se ignoran (idempotente).
+
+La cola `dlocal-webhooks` tiene DLQ y alarma CloudWatch. Si el worker falla, SQS reintenta
+con partial batch failure; un mensaje solo llega a DLQ tras agotar reintentos.
 
 ### POST /tenants/{id}/subscription/activate
 
@@ -766,6 +794,7 @@ campos esten completos.
 | --- | --- | --- |
 | `subscription_renewal_notifier` | `cron(0 10 * * ? *)` (diario) | Recordatorio 7d antes; vencimiento; cobro automatico si tiene payer_id |
 | `pending_activation_reconciler` | `rate(5 minutes)` | Activa tenants con `pending_payment + pending_order_id` |
+| `stale_payment_cleaner` | `cron(15 * * * ? *)` (horario) | Cancela localmente pagos `CREATED/PENDING` antiguos |
 
 El `subscription_renewal_notifier` requiere `PLANS_TABLE`, `PAYMENTS_TABLE` y
 `DLOCALGO_CREDENTIALS_NAME` para habilitar el cobro automatico. Si alguna variable
@@ -783,17 +812,74 @@ Email de pago fallido: una sola vez por ciclo (no se reenvía en reintentos).
 - Scans en workers (`list_with_subscription_expiry_due`, `list_with_pending_activation`)
   usan scan completo — aceptables hasta ~10 K tenants activos; migrar a GSI cuando la
   cardinalidad lo requiera.
-- Webhook dLocal no tiene DLQ ni alerta: si el handler falla repetidamente, no hay
-  mecanismo para detectar perdida de eventos mas alla de los logs de Lambda.
-- Orders con status `PENDING` (3DS iniciado pero no completado) no tienen limpieza
-  automatica — quedan indefinidamente en DynamoDB sin un worker que los expire o notifique.
-- `PATCH /tenants/{id}/plan` no tiene rate limit ni tope de cambios — un tenant podria
-  alternar entre planes repetidamente antes de pagar. Cada cambio a un plan gratis
-  resetea `plan_cycle_ends_at` a `now + ciclo`, lo cual es inocuo en este punto del flujo
-  (el tenant todavia no emitio nada), pero no hay un test que documente ese
-  comportamiento como deliberado vs. casual.
-- Si un `Payment` quedo `CREATED`/`PENDING` con `tenant_id` vacio (creado desde
-  `ActivateSubscriptionScreen` antes de cambiar de plan) y el tenant cambia de plan via
-  `PATCH /tenants/{id}/plan`, ese payment queda huerfano (mismo patron que pagos
-  abandonados sin confirmar) — no hay limpieza automatica, mismo punto que el de arriba
-  sobre orders `PENDING`.
+- dLocal si esta bien abstraido detras de `IDLocalClient` (todos los use cases dependen de
+  la interfaz, no de `DLocalClient`/`urllib` directo) — buen cumplimiento DIP, sin
+  hallazgos adicionales en ese punto.
+- Frontend: `PaymentFailedBanner.tsx` y `PendingActivationBanner.tsx` duplican el mismo
+  esqueleto (estado `Phase` local, `useRef` con `createIdempotencyKey`, auto-attempt en
+  `useEffect` al montar, banner warning/error con boton "Reintentar") — candidato a un hook
+  `useAutoRetryOnMount` + componente `StatusActionBanner` parametrizable.
+- Frontend: `ActivateSubscriptionScreen.tsx` (~330 lineas) orquesta fetch + auto-trigger
+  de orden + SmartFields + confirmacion + 3 fases de 3DS + form normal en un solo
+  componente, violando SRP (mismo patron que pantallas largas de "flujo de emision/pago" en
+  otras features, ver `context/FRONTEND.md`). Mensajes de error de pago repartidos sin
+  centralizar en 3 archivos distintos (`ActivateSubscriptionScreen.tsx`, `use-3ds-flow.ts`,
+  `PaymentFailedBanner.tsx`).
+
+## Deuda Solventada
+
+- 2026-06-28: `GET /subscriptions/payments/{order_id}` y
+  `POST /subscriptions/payments/{order_id}/confirm` ahora requieren `X-Checkout-Token`
+  igual al `checkout_token` opaco emitido al crear la orden. El polling publico devuelve
+  una proyeccion segura sin `payer_id`/`payer_email`, cerrando la exposicion de PII y la
+  consulta/confirmacion por solo conocer `order_id`.
+- 2026-06-28: el cobro automatico del worker de renovacion ya no guarda `Payment=PAID` y
+  tenant en dos escrituras separadas. Ahora reutiliza `save_transact_item(payment)` y
+  `tenant_repo.commit(..., extra_transact_items=[payment_transact])`, igual que el retry
+  manual, para persistir pago y renovacion en una sola transaccion DynamoDB local.
+- 2026-06-28: mitigado el riesgo residual dLocal-antes-de-DynamoDB del cobro automatico:
+  antes de llamar a dLocal, el worker crea un marcador deterministico
+  `AUTO_RENEWAL_RECONCILIATION#{tenant_id}#{cycle_ends_at}` en `payments`. Si el marcador
+  no puede crearse, no cobra. Si dLocal devuelve `PAID` pero falla el commit local, el
+  marcador se enriquece con el order externo y se envia alerta a billing. Si la Lambda
+  muere en cualquier punto posterior al lock, la siguiente corrida detecta el marcador,
+  alerta y salta el cargo externo para ese mismo tenant+ciclo hasta reconciliacion manual.
+- 2026-06-28: webhook dLocal endurecido contra concurrencia y regresiones de estado:
+  `ProcessWebhookUseCase` delega en `DynamoPaymentRepository.apply_webhook_status`, que usa
+  `UpdateItem` condicional. `PAID` puede confirmar pagos no reembolsados, estados negativos
+  solo cierran `CREATED/PENDING`, y ningun webhook degrada `PAID` o `REFUNDED`.
+- 2026-06-28: `stale_payment_cleaner` corre cada hora y cancela localmente pagos
+  `CREATED/PENDING` con mas de `STALE_PAYMENT_GRACE_MINUTES` (default 1440 min). La
+  cancelacion usa `UpdateItem` condicional sobre estado abierto + `created_at <= cutoff`;
+  si un webhook `PAID` llega tarde, la transicion condicional del webhook puede recuperar
+  `CANCELLED -> PAID`.
+- 2026-06-28: `orphan_payment_notifier` dejo de reenviar indefinidamente la misma alerta.
+  El scan excluye pagos con `orphan_alerted_at`; tras email exitoso marca
+  `orphan_alerted_at` y suma `orphan_alert_count` con update condicional sobre
+  `status=PAID`, `tenant_id` ausente y alerta previa ausente.
+- 2026-06-28: `refund_payment` ya no pierde el detalle operativo de fallos dLocal. El use
+  case distingue `HTTPError`, `URLError` y errores inesperados, loguea `order_id` y detalle
+  antes de mapear a `PaymentRefundError`, y conserva el pago sin cambios si el reembolso
+  externo falla.
+- 2026-06-28: `ConfirmPaymentRequest.client_document` valida cedula/RUC ecuatorianos con
+  `shared.domain.value_objects.ecuador_identification` antes de reenviar datos a dLocal;
+  el borde HTTP rechaza payloads invalidos con 400 y normaliza espacios del documento.
+- 2026-06-28: `use3dsFlow` cancela logicamente el polling activo al desmontar, resetear o
+  iniciar otro redirect. El hook ya no ejecuta `onPaid` ni `setState` cuando la respuesta
+  del polling 3DS llega despues de desmontar o tras invalidar el flujo.
+- 2026-06-28: `DLocalClient` centraliza la conversion de montos a JSON number en
+  `_json_amount()`: recibe el `str` Decimal-safe del dominio, cuantiza explicitamente a
+  centavos (`ROUND_HALF_UP`) y recien ahi convierte a `float` para cumplir el contrato de
+  dLocal en `create_payment`, `refund_payment` y `charge_saved_payer`.
+- 2026-06-28: webhook dLocal movido a ingestion durable. El endpoint HTTP solo verifica
+  HMAC-SHA256 y encola el raw payload firmado en `dlocal-webhooks`; el worker
+  `dlocal_webhook_processor` procesa con `ProcessWebhookUseCase` via SQS partial batch
+  failure. La cola tiene DLQ, alarma CloudWatch y reintentos antes de fallo permanente.
+- 2026-06-28: el calculo de precio neto de plan por ciclo se centralizo en
+  `shared.billing.plan_net_price()`. `create_payment`, `retry_payment` y el auto-renewal
+  worker ya no duplican `annual_price if billing_cycle == "year" else monthly_price` ni el
+  formateo previo a `gross_price()`.
+- 2026-06-28: `PATCH /tenants/{id}/plan` sigue permitiendo cambiar plan antes de iniciar
+  pago, pero bloquea el cambio si el tenant ya tiene `pending_order_id`. Esto evita que una
+  orden confirmada quede huérfana por limpiar la referencia durante un pago en curso; la API
+  responde `TENANT_PLAN_CHANGE_PAYMENT_IN_PROGRESS` y no muta el tenant.

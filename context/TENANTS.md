@@ -76,7 +76,7 @@ deleted            bool, soft delete
 
 # Suscripcion SaaS (dLocal Go como pasarela, ver SUBSCRIPTIONS.md):
 dlocal_payer_id      str | None  — payer_id guardado; habilita cobro automatico y retry-payment
-subscription_status  str | None  — "active" | "expired" | "pending_payment" | "payment_failed" | None
+subscription_status  SubscriptionStatus | None  — persiste/API como "active" | "expired" | "pending_payment" | "payment_failed" | None
 pending_order_id     str | None  — order_id PAID aun no vinculado al tenant (Phase 1 de activacion);
                                    se limpia a None al completar activate_subscription()
 ```
@@ -289,8 +289,49 @@ queda fuera de alcance, no se tocó.
   compartido — quedo fuera de alcance de la Fase 2 del dashboard superadmin. Ya tiene un
   tercer consumidor ("Top clientes" del dashboard tenant, ver `INVOICES.md`); sigue siendo
   oportunidad de unificar, ahora con mas urgencia al tener 3 lugares con el mismo patron.
+- Auditoria 2026-06-27 — `tenant_repository.py::_transact_write` (lineas 562-598) es el
+  unico de los 4 repos con escritura transaccional que ya usa el helper compartido
+  `shared/db/transactions.py::cancellation_reasons` correctamente; `plans`/`clients`/
+  `products` lo reimplementan inline (ver `context/BACKEND.md`).
+- `lambdas/tenants/handler.py:90-99` (`_dlocal_client`) construye un cliente dLocal
+  completo dentro del handler de `tenants` para soportar `retry_payment`, importando
+  `lambdas.subscriptions.infra.dlocal_client`/`payment_repository` — acopla el bundle de
+  `tenants` al de `subscriptions`. Necesario por la relacion 1:1 tenant-suscripcion, pero
+  viola SRP a nivel de lambda.
+- `Tenant._certificate_expiry_alert_attr` (`domain/tenant.py:42-45`) usa
+  `getattr`/`setattr` dinamico sobre nombres de atributo construidos por string
+  (`cert_expiry_alert_{threshold}_sent_at`) en vez de un dict `{threshold: timestamp}` —
+  fragil ante refactors (un rename no lo detecta el type-checker) y obliga a agregar un
+  campo dataclass nuevo por cada umbral (ya son 2: 60 y 30 dias).
+- Solventado 2026-06-28: `Tenant.subscription_status` se modelo como
+  `SubscriptionStatus(StrEnum)`. `Tenant.__post_init__` normaliza valores string leidos de
+  DynamoDB, los metodos de negocio asignan enum, y `Tenant.to_dict()`/
+  `DynamoTenantRepository._to_item()` conservan el contrato persistido/API como string.
+- `ActivateSubscriptionResult`/`ApplySubscriptionRenewalResult`/`RetryPaymentResult` son 3
+  dataclasses estructuralmente identicas (`tenant_id`, `plan_cycle_ends_at`,
+  `subscription_status`); `handler.py:332-339,364-371,399-406` construye el mismo dict de
+  respuesta 3 veces. Candidato a un unico `SubscriptionStateResult` compartido.
+- `_PAID_STATUSES = frozenset({"PAID", "AUTHORIZED"})` esta duplicado literal en
+  `activate_subscription.py` y `apply_subscription_renewal.py` en vez de vivir una sola
+  vez en `domain/`.
+- `lambdas/plans/domain/plan.py` (catalogo, no es entidad de este dominio pero la
+  comparacion aplica): `Plan` es la unica entidad global del proyecto que no hereda de
+  `GlobalEntity` como si hace `Tenant` — ver detalle en `context/PLANS.md`.
+- Frontend: `TenantCard.tsx` es codigo muerto confirmado (cero imports en todo el repo,
+  duplica lo que ya hace `TenantListItem`). `TenantDashboardScreen.tsx` (584 lineas) mezcla
+  3 fuentes de fetch + metricas derivadas inline (`authorizedRate`, `limitRate`,
+  `averageTicket`, `maxTopClientTotal`) + helpers de formato reimplementados localmente
+  (`formatInteger`, `formatCurrency` con `Intl.NumberFormat` manual, `formatCivilDate`)
+  pese a que `lib/utils/format.ts` ya expone `formatCurrency` (si usado correctamente en
+  `SuperadminDashboardScreen.tsx` de la misma feature). Extraer metricas a un hook
+  `useTenantDashboardMetrics` y reusar `formatCurrency` centralizado.
 
 ## Deuda Solventada
+
+- 2026-06-28: `ChangePlanUseCase` bloquea `PATCH /tenants/{id}/plan` cuando
+  `pending_order_id` ya esta seteado. El cambio de plan sigue permitido antes de iniciar
+  pago, pero una orden en curso ya no puede quedar huerfana por limpiar `pending_order_id`;
+  se devuelve `TENANT_PLAN_CHANGE_PAYMENT_IN_PROGRESS`.
 
 - 2026-06-14: los metadatos de certificado se serializan sin exponer
   `certificate_secret_arn`.

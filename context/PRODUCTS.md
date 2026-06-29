@@ -168,3 +168,37 @@ Integracion en facturador:
 - Paquetes/membresias con composicion de items internos.
 - Historial de precios por producto si se requiere auditoria comercial fuera del
   snapshot legal de factura.
+- Auditoria 2026-06-27 — `product_repository.py::_transact_write`/`_sku_lock_failed`
+  (lineas 211-255) reimplementa inline la extraccion de `CancellationReasons` en vez de
+  usar `shared/db/transactions.py::cancellation_reasons` (ver `context/BACKEND.md`).
+- `domain/entity.py::_derive_invoice_code` (lineas 146-154): si el `sku` no cabe en el
+  charset/longitud del SRI, genera un codigo aleatorio con `secrets.token_hex(10)` no
+  determinista; el fallback de `_from_item` (`product_repository.py:323-324`) para
+  productos sin `invoice_code` persistido podria generar un codigo nuevo y distinto en
+  cada `GET` si algun producto quedo sin backfill (migracion v0005) — confirmar que todos
+  los productos existentes ya tienen `invoice_code` persistido para que esta rama nunca
+  se ejecute en produccion.
+- `DiscountCampaign` extiende `TenantScopedEntity` completo (con `deleted`/`deleted_at`/
+  `deleted_by`) para un singleton (`id="default"`) que nunca se borra — campos heredados
+  que siempre quedan en default y nunca se exponen en `to_dict()`. Herencia de
+  conveniencia mas que de necesidad real.
+- `DynamoDiscountCampaignRepository.save()` (`infra/discount_campaign_repository.py:37`)
+  es el unico repo de los 5 dominios donde el metodo de escritura transaccional se llama
+  `save` en vez de `commit`, pese a tener la misma forma/responsabilidad que `commit` en
+  `product_repository.py` del mismo dominio. Nombrado inconsistente sin razon funcional.
+- Frontend: `PRODUCTS_PAGE_SIZE` en `features/products/constants.ts:3` es codigo muerto
+  (mismo patron que `CLIENTS_PAGE_SIZE`, ver `context/CLIENTS.md`). `ProductPickerModal.tsx`
+  duplica casi linea por linea `features/documents/components/ClientPickerModal.tsx`
+  (mismos 8 states, `resetState()`/`close()`, `search()` con request-id manual anti-carrera,
+  `createQuick()`); ninguno usa `useDebouncedSearch` ya existente — candidato a hook
+  compartido `useQuickCreatePicker`. El calculo del techo de descuento
+  `max(producto%, campana%)` (`ProductPickerModal.tsx::resolvePickerDiscount`, lineas
+  339-355) vive en el componente de UI en vez de un helper de dominio — logica de negocio
+  en presentacion. `formatCurrency` centralizado nunca se usa en `products`: 5 sitios
+  (`ProductListItem.tsx`, `ProductPickerModal.tsx`, `ProductDetailScreen.tsx`) usan
+  `${Number(x).toFixed(2)}` manual. `ProductListItem.tsx` monta su propio `<View>`+
+  `Ionicons` con `height/width: 40` hardcodeado (no coincide con ningun token de `tokens.ts`)
+  en vez de `EntityAvatar`, que si usa `ClientListItem.tsx` de la feature hermana.
+  Mensajes de confirmacion de borrado inconsistentes dentro de la misma feature: "se
+  eliminara del catalogo" (lista) vs "se desactivara... SKU reutilizable" (detalle) para
+  la misma operacion de soft-delete.

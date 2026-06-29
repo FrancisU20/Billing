@@ -241,6 +241,22 @@ por eso se usa `canWrite(role)` de `constants/roles.ts`, que cubre el mismo conj
   bajo/medio; re-evaluar Parameter Store SecureString si el costo por tenant se vuelve
   material.
 
+## Deuda Tecnica
+
+- Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras (ver arriba).
+- Auditoria 2026-06-27 — `shared/certificates/store.py:43-44` registra el error de
+  Secrets Manager sin incluir `error=str(exc)`, a diferencia de casi todos los demas logs
+  del repo que si incluyen el detalle de la excepcion — dificulta diagnostico en
+  CloudWatch sin exponer nada sensible.
+- El prefix de secret `f"/codelabs-billing/{env}/tenant"` esta hardcodeado como fallback
+  en `CertificateStore.__init__` Y vive tambien en CDK (`infra/stacks/api_stack.py:205`) —
+  misma convencion duplicada en 2 capas sin una sola fuente de verdad (ver
+  `context/BACKEND.md`).
+- Resto del flujo limpio: password p12 nunca se loguea, se valida RUC/cedula contra el
+  certificado antes de guardar, y el reintento por `OptimisticLockError`
+  (`certificates/handler.py:98-118`) reaplica metadata ya validada sin volver a tocar el
+  secret.
+
 ## Deuda Solventada
 
 - 2026-06-14: `GET /tenants/{id}/certificate` permite `viewer` para metadata, mientras

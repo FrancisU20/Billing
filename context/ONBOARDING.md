@@ -664,7 +664,37 @@ Frontend:
 - Si aparecen nuevas CAs reconocidas por el SRI, actualizar la lista central de emisores
   permitidos en `backend/shared/certificates/validator.py` y cubrir la variante con tests.
 
+## Deuda Tecnica
+
+- Queue dedicada Enterprise automatica es alcance futuro (ver "Decisiones Futuras" arriba).
+- Auditoria 2026-06-27 — codigo muerto confirmado: `domain/repositories/i_payment_verifier.py`,
+  `infra/payment_verifier.py` (`DynamoPaymentVerifier`) y los errores
+  `OnboardingPaymentRequiredError`/`OnboardingPaymentNotConfirmedError`/
+  `OnboardingPaymentNotFoundError` (`domain/errors.py:41-53`) no se referencian desde
+  ningun handler ni use case — vestigio del flujo previo al modelo Netflix (pago antes
+  del registro). Cero usos externos confirmados por grep.
+- `request_onboarding_otp.py` y `confirm_onboarding_otp.py` duplican casi exactamente la
+  misma validacion de pre-existencia (`get_by_ruc` + `email_exists`) — aceptable porque el
+  OTP puede expirar entre request y confirm, pero candidato a helper compartido si crece
+  mas logica de validacion previa.
+- `infra/identity_provider.py::CognitoIdentityProvider.email_exists` usa `admin_get_user`:
+  cualquier `ClientError` que no sea `UserNotFoundException` (ej. throttling) se propaga
+  sin capturar ni loguear adicionalmente — no es un catch generico que traga la excepcion,
+  pero falta manejo explicito en ese borde.
+- Frontend: `RegistrationForm.tsx::FormSection` (lineas 217-243) reimplementa a mano el
+  mismo wrapper header+icon+body que ya cubren `Card`/`DetailSection` de `components/ui/`
+  — el mismo patron se reinventa tambien en `EmitDocumentScreen.tsx`/
+  `EmitCreditNoteScreen.tsx` de `documents`, ver `context/FRONTEND.md`. `RegisterOtpScreen.tsx`
+  muestra un texto estatico de expiracion sin countdown pese a que `expires_at` ya llega en
+  `OnboardingOtpRequestResult` (`schemas.ts:38`) — el dato existe en el contrato pero no se
+  usa para avisar cuando expira realmente.
+
 ## Deuda Solventada
+
+- 2026-06-28: `infra/plan_catalog.py::DynamoPlanCatalog.get()` ya calcula `is_free` con
+  `Decimal(str(...))`, igual que los catalogos de `subscriptions` y `tenants`. Se agrego
+  test de regresion contra underflow de `float` (`Decimal("1E-325")`) para evitar marcar
+  como gratuito un plan con precio no cero.
 
 - 2026-06-14: la confirmacion OTP consume `ONBOARDING_VERIFICATION` en la misma transaccion
   que crea el tenant o el `ENTERPRISE_LEAD`; reintentos concurrentes ya no pueden duplicar
