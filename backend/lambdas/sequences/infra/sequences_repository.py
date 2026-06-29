@@ -36,6 +36,7 @@ from lambdas.sequences.domain.errors import (
     SequenceExhaustedError,
 )
 from lambdas.sequences.domain.repositories.i_sequences_repository import ISequencesRepository
+from shared.db.transactions import cancellation_reasons, is_transaction_condition_error
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
 
@@ -342,12 +343,8 @@ class DynamoSequencesRepository(ISequencesRepository):
             if idempotency is not None:
                 mark_completed()
         except ClientError as exc:
-            code = exc.response["Error"]["Code"]
-            if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
-                reasons = [
-                    {"code": r.get("Code", "None"), "msg": r.get("Message", "")}
-                    for r in exc.response.get("CancellationReasons", [])
-                ]
+            if is_transaction_condition_error(exc):
+                reasons = cancellation_reasons(exc)
                 _log.error(
                     "DynamoDB transact_write_items cancelled",
                     is_create=is_create,

@@ -35,7 +35,13 @@ from lambdas.clients.domain.repositories.i_client_repository import IClientRepos
 from lambdas.clients.domain.value_objects.address import Address
 from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.db.base_repository import BaseRepository
+from shared.db.counts import paginated_count
 from shared.db.paginator import decode_cursor, encode_cursor
+from shared.db.transactions import (
+    cancellation_reasons,
+    failed_put_item_entity_type,
+    is_transaction_condition_error,
+)
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
 
@@ -192,19 +198,11 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
             "FilterExpression": filters.to_dynamo_filter() & Attr("deleted").eq(False),
             "Select": "COUNT",
         }
-        total = 0
         try:
-            while True:
-                resp = self._table.query(**kwargs)
-                total += resp.get("Count", 0)
-                last_key = resp.get("LastEvaluatedKey")
-                if not last_key:
-                    break
-                kwargs["ExclusiveStartKey"] = last_key
+            return paginated_count(self._table.query, **kwargs)
         except ClientError as exc:
             _log.error("DynamoDB identification-index prefix count error", error=str(exc))
             raise DatabaseError() from exc
-        return total
 
     def save(self, client: Client, user_id: str) -> None:
         self.commit(
@@ -345,18 +343,14 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
             if idempotency is not None:
                 mark_completed()
         except ClientError as exc:
-            code = exc.response["Error"]["Code"]
-            if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
-                reasons = [
-                    {"code": r.get("Code", "None"), "msg": r.get("Message", "")}
-                    for r in exc.response.get("CancellationReasons", [])
-                ]
+            if is_transaction_condition_error(exc):
+                reasons = cancellation_reasons(exc)
                 _log.error(
                     "DynamoDB transact_write_items cancelled",
                     is_create=is_create,
                     reasons=reasons,
                 )
-                if self._identification_lock_failed(transact_items, reasons, is_create):
+                if self._identification_lock_failed(transact_items, exc, is_create):
                     raise ClientDuplicateIdentificationError() from exc
                 raise OptimisticLockError() from exc
             _log.error("DynamoDB transact_write_items error", error=str(exc))
@@ -365,21 +359,15 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
     def _identification_lock_failed(
         self,
         transact_items: list[dict],
-        reasons: list[dict],
+        exc: ClientError,
         is_create: bool,
     ) -> bool:
-        if not reasons:
-            return is_create
-        for index, reason in enumerate(reasons):
-            if reason.get("code") != "ConditionalCheckFailed":
-                continue
-            if index >= len(transact_items):
-                continue
-            operation = transact_items[index]
-            put = operation.get("Put")
-            if put and put.get("Item", {}).get("entity_type") == "CLIENT_IDENTIFICATION_LOCK":
-                return True
-        return False
+        return failed_put_item_entity_type(
+            transact_items,
+            exc,
+            "CLIENT_IDENTIFICATION_LOCK",
+            default_when_unindexed=is_create,
+        )
 
     def _lock_sk(self, identification: str) -> str:
         return f"{self._lock_prefix}#{identification}"

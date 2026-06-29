@@ -18,6 +18,7 @@ from lambdas.products.domain.repositories.i_discount_campaign_repository import 
 )
 from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.db.base_repository import BaseRepository
+from shared.db.transactions import cancellation_reasons, is_transaction_condition_error
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
 
@@ -85,9 +86,12 @@ class DynamoDiscountCampaignRepository(BaseRepository, IDiscountCampaignReposito
             if idempotency is not None:
                 mark_completed()
         except ClientError as exc:
-            code = exc.response["Error"]["Code"]
-            if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
-                _log.error("DynamoDB transact_write_items cancelled", error=str(exc))
+            if is_transaction_condition_error(exc):
+                _log.error(
+                    "DynamoDB transact_write_items cancelled",
+                    reasons=cancellation_reasons(exc),
+                    error=str(exc),
+                )
                 raise OptimisticLockError() from exc
             _log.error("DynamoDB transact_write_items error", error=str(exc))
             raise DatabaseError() from exc

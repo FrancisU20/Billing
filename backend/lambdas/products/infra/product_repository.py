@@ -18,6 +18,11 @@ from lambdas.products.domain.errors import ProductDuplicateSkuError, ProductNotF
 from lambdas.products.domain.repositories.i_product_repository import IProductRepository
 from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.db.base_repository import BaseRepository
+from shared.db.transactions import (
+    cancellation_reasons,
+    failed_put_item_entity_type,
+    is_transaction_condition_error,
+)
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
 
@@ -219,18 +224,14 @@ class DynamoProductRepository(BaseRepository, IProductRepository):
             if idempotency is not None:
                 mark_completed()
         except ClientError as exc:
-            code = exc.response["Error"]["Code"]
-            if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
-                reasons = [
-                    {"code": r.get("Code", "None"), "msg": r.get("Message", "")}
-                    for r in exc.response.get("CancellationReasons", [])
-                ]
+            if is_transaction_condition_error(exc):
+                reasons = cancellation_reasons(exc)
                 _log.error(
                     "DynamoDB transact_write_items cancelled",
                     is_create=is_create,
                     reasons=reasons,
                 )
-                if self._sku_lock_failed(transact_items, reasons, is_create):
+                if self._sku_lock_failed(transact_items, exc, is_create):
                     raise ProductDuplicateSkuError() from exc
                 raise OptimisticLockError() from exc
             _log.error("DynamoDB transact_write_items error", error=str(exc))
@@ -239,20 +240,15 @@ class DynamoProductRepository(BaseRepository, IProductRepository):
     def _sku_lock_failed(
         self,
         transact_items: list[dict],
-        reasons: list[dict],
+        exc: ClientError,
         is_create: bool,
     ) -> bool:
-        if not reasons:
-            return is_create
-        for index, reason in enumerate(reasons):
-            if reason.get("code") != "ConditionalCheckFailed":
-                continue
-            if index >= len(transact_items):
-                continue
-            put = transact_items[index].get("Put")
-            if put and put.get("Item", {}).get("entity_type") == "PRODUCT_SKU_LOCK":
-                return True
-        return False
+        return failed_put_item_entity_type(
+            transact_items,
+            exc,
+            "PRODUCT_SKU_LOCK",
+            default_when_unindexed=is_create,
+        )
 
     def _lock_sk(self, sku_normalized: str) -> str:
         return f"{self._lock_prefix}#{sku_normalized}"

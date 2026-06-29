@@ -27,6 +27,7 @@ from lambdas.plans.domain.errors import PlanNotFoundError, PlanSlugExistsError
 from lambdas.plans.domain.plan import Plan
 from lambdas.plans.domain.repositories.i_plan_repository import IPlanRepository
 from shared.audit.writer import audit_item, audit_put_transact_item
+from shared.db.transactions import cancellation_reasons, is_transaction_condition_error
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
 
@@ -213,12 +214,8 @@ class DynamoPlanRepository(IPlanRepository):
             if idempotency is not None:
                 mark_completed()
         except ClientError as exc:
-            code = exc.response["Error"]["Code"]
-            if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
-                reasons = [
-                    {"code": r.get("Code", "None"), "msg": r.get("Message", "")}
-                    for r in exc.response.get("CancellationReasons", [])
-                ]
+            if is_transaction_condition_error(exc):
+                reasons = cancellation_reasons(exc)
                 _log.error(
                     "DynamoDB transact_write_items cancelled",
                     is_create=is_create,

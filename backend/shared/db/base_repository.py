@@ -33,6 +33,7 @@ from boto3.dynamodb.conditions import Key as DKey
 from botocore.exceptions import ClientError
 
 from shared.audit.writer import audit_item
+from shared.db.counts import paginated_count
 from shared.db.paginator import decode_cursor, encode_cursor
 from shared.domain.base_entity import TenantScopedEntity
 from shared.errors import DatabaseError, OptimisticLockError
@@ -145,19 +146,11 @@ class BaseRepository(ABC):
             "Select": "COUNT",
         }
 
-        total = 0
         try:
-            while True:
-                resp = self._table.query(**kwargs)
-                total += resp.get("Count", 0)
-                last_key = resp.get("LastEvaluatedKey")
-                if not last_key:
-                    break
-                kwargs["ExclusiveStartKey"] = last_key
+            return paginated_count(self._table.query, **kwargs)
         except ClientError as e:
             _log.error("DynamoDB count query error", error=str(e))
             raise DatabaseError() from e
-        return total
 
     # ── audit log ─────────────────────────────────────────────────────────────
 

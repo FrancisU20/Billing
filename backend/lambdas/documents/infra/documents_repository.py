@@ -40,7 +40,9 @@ from lambdas.documents.domain.errors import (
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.dates import current_ecuador_month_utc_bounds, now_ecuador, now_utc, to_ecuador
+from shared.db.counts import paginated_count
 from shared.db.paginator import decode_cursor, encode_cursor
+from shared.db.transactions import cancellation_reasons, is_transaction_condition_error
 from shared.errors import DatabaseError
 from shared.logger import get_logger
 
@@ -243,16 +245,17 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         }
         if not (q or "").strip():
             kwargs["Select"] = "COUNT"
+            try:
+                return paginated_count(self._table.query, **kwargs)
+            except ClientError as exc:
+                _log.error("DynamoDB count error (documents)", error=str(exc))
+                raise DatabaseError() from exc
+
         total = 0
         try:
             while True:
                 resp = self._table.query(**kwargs)
-                if (q or "").strip():
-                    total += sum(
-                        1 for item in resp.get("Items", []) if self._matches_search(item, q)
-                    )
-                else:
-                    total += resp.get("Count", 0)
+                total += sum(1 for item in resp.get("Items", []) if self._matches_search(item, q))
                 last_key = resp.get("LastEvaluatedKey")
                 if not last_key:
                     break
@@ -264,32 +267,21 @@ class DynamoDocumentsRepository(IDocumentsRepository):
 
     def count_this_month(self, tenant_id: str, sri_environment: str) -> int:
         start_utc, end_utc = current_ecuador_month_utc_bounds()
-        total = 0
-        last_key = None
         try:
-            while True:
-                kwargs: dict = {
-                    "IndexName": _GSI,
-                    "KeyConditionExpression": (
-                        Key("tenant_id").eq(tenant_id)
-                        & Key("created_at").between(start_utc, end_utc)
-                    ),
-                    "FilterExpression": (
-                        Attr("sri_environment").eq(sri_environment) & Attr("deleted").ne(True)
-                    ),
-                    "Select": "COUNT",
-                }
-                if last_key:
-                    kwargs["ExclusiveStartKey"] = last_key
-                resp = self._table.query(**kwargs)
-                total += resp.get("Count", 0)
-                last_key = resp.get("LastEvaluatedKey")
-                if not last_key:
-                    break
+            return paginated_count(
+                self._table.query,
+                IndexName=_GSI,
+                KeyConditionExpression=(
+                    Key("tenant_id").eq(tenant_id) & Key("created_at").between(start_utc, end_utc)
+                ),
+                FilterExpression=(
+                    Attr("sri_environment").eq(sri_environment) & Attr("deleted").ne(True)
+                ),
+                Select="COUNT",
+            )
         except ClientError as exc:
             _log.error("DynamoDB count_this_month error", error=str(exc))
             raise DatabaseError() from exc
-        return total
 
     def summary_this_month(self, tenant_id: str) -> DocumentSummary:
         start_utc, end_utc = current_ecuador_month_utc_bounds()
@@ -436,12 +428,8 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             if idempotency is not None:
                 mark_completed()
         except ClientError as exc:
-            code = exc.response["Error"]["Code"]
-            if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
-                reasons = [
-                    {"code": r.get("Code", "None"), "msg": r.get("Message", "")}
-                    for r in exc.response.get("CancellationReasons", [])
-                ]
+            if is_transaction_condition_error(exc):
+                reasons = cancellation_reasons(exc)
                 _log.error(
                     "DynamoDB save document transaction cancelled",
                     reasons=reasons,
@@ -525,8 +513,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             if idempotency is not None:
                 mark_completed()
         except ClientError as exc:
-            code = exc.response["Error"]["Code"]
-            if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
+            if is_transaction_condition_error(exc):
                 try:
                     current = self.get(tenant_id, document_id)
                 except (DocumentNotFoundError, DatabaseError):
@@ -609,8 +596,7 @@ class DynamoDocumentsRepository(IDocumentsRepository):
             if idempotency is not None:
                 mark_completed()
         except ClientError as exc:
-            code = exc.response["Error"]["Code"]
-            if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
+            if is_transaction_condition_error(exc):
                 _log.warning(
                     "retry no-op: document status already changed",
                     document_id=document_id,

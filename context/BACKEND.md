@@ -394,19 +394,15 @@ deberia absorber pero no absorbe todavia.
   transaccionales (`documents`, `tenants`, `sequences`, `plans`, `discount_campaign`) sale
   del contrato base y reimplementa `_pk`/`_get_raw`/manejo de `ConditionalCheckFailedException`
   a mano. `backend/shared/db/base_repository.py`.
-- `cancellation_reasons()`/`has_conditional_failure_at()` (`backend/shared/db/transactions.py:16`)
-  ya centralizan el parseo de `CancellationReasons` de DynamoDB, pero solo los usa
-  `tenants/infra/tenant_repository.py`. El mismo bloque
-  (`[{"code": r.get("Code","None"), "msg": r.get("Message","")} for r in
-  exc.response.get("CancellationReasons", [])]`) esta copiado literal en
-  `documents/infra/documents_repository.py:440-443`, `sequences/infra/sequences_repository.py:347-350`,
-  `plans/infra/plan_repository.py:218-221`, `clients/infra/client_repository.py:337-363` y
-  `products/infra/product_repository.py:211-255`. Migrar los 5 al helper compartido.
-- Patron de "lock item" para unicidad reimplementado 4 veces con la misma forma sin
-  abstraccion comun: `tenants` (RUC), `plans` (slug), `clients` (identificacion), `products`
-  (SKU) implementan independientemente `Put` condicional `attribute_not_exists` + deteccion
-  de cual indice del array de `CancellationReasons` fallo para distinguir "duplicado" de
-  "optimistic lock". Candidato real a un mixin `UniqueFieldLockMixin` en `shared/db/`.
+- Solventado 2026-06-29: `shared/db/transactions.py` es la unica fuente para parsear
+  `CancellationReasons`, reconocer errores condicionales transaccionales y detectar indices
+  fallidos. `documents`, `sequences`, `plans`, `clients`, `products`,
+  `discount_campaign` y `tenants` ya usan ese helper; `clients`/`products` tambien usan
+  `failed_put_item_entity_type()` para distinguir lock duplicado vs optimistic lock.
+- Patron de "lock item" para unicidad aun reimplementado en la construccion de items:
+  `tenants` (RUC), `plans` (slug), `clients` (identificacion), `products` (SKU) crean a
+  mano el `Put` condicional. La deteccion repetida por `CancellationReasons` ya se redujo,
+  pero sigue pendiente un builder/mixin comun si aparecen mas locks.
 - Filtro `q` (busqueda libre) resuelto siempre en Python, nunca en DynamoDB, reimplementado
   independientemente en `tenants`, `plans`, `clients` y `products`
   (`_TenantListFilters`/`_PlanListFilters`/`_ClientListFilters`/`_ProductListFilters`, cada
@@ -420,10 +416,9 @@ deberia absorber pero no absorbe todavia.
   forma distinta, vía Pydantic (`Field(default=20, ge=1, le=100)`), hardcodeando `20`/`100` de
   nuevo en vez de reusar `DEFAULT_LIST_LIMIT`/`MAX_LIST_LIMIT`. Unificar en un solo
   `parse_list_limit(params)` en `shared/db/limits.py`.
-- `_count_raw()` (`backend/shared/db/base_repository.py:130`) y los `count()` de `documents`/
-  `tenants` resuelven el mismo problema (contar con `Select=COUNT` paginando) con 3 loops
-  independientes en vez de una sola funcion compartida parametrizada por
-  `KeyConditionExpression`/`IndexName`.
+- Solventado 2026-06-29: `shared/db/counts.py::paginated_count()` centraliza
+  `Select=COUNT` paginado. Lo usan `BaseRepository._count_raw()`, counts especiales de
+  `clients`, `tenants`, y los counts de `documents` que no requieren filtrar `q` en memoria.
 - `DynamoDiscountCampaignRepository._raw_by_key()`
   (`backend/lambdas/products/infra/discount_campaign_repository.py:95-101`) reimplementa
   exactamente `BaseRepository._get_raw()` solo porque necesita el item sin filtro de

@@ -31,11 +31,13 @@ from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepos
 from lambdas.tenants.domain.tenant import Tenant
 from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.dates import current_ecuador_month_utc_bounds, current_ecuador_previous_month_utc_bounds
+from shared.db.counts import paginated_count
 from shared.db.paginator import decode_cursor, encode_cursor
 from shared.db.transactions import (
     ExtraTransactionConditionFailedError,
     cancellation_reasons,
     has_conditional_failure_at,
+    is_transaction_condition_error,
 )
 from shared.domain.events.domain_event import DomainEvent
 from shared.domain.events.outbox import outbox_put_transact_item
@@ -171,19 +173,11 @@ class DynamoTenantRepository(ITenantRepository):
             created_to=created_to,
         )
         kwargs: dict = {"FilterExpression": filters.to_dynamo_filter(), "Select": "COUNT"}
-        total = 0
         try:
-            while True:
-                resp = self._table.scan(**kwargs)
-                total += resp.get("Count", 0)
-                last_key = resp.get("LastEvaluatedKey")
-                if not last_key:
-                    break
-                kwargs["ExclusiveStartKey"] = last_key
+            return paginated_count(self._table.scan, **kwargs)
         except ClientError as e:
             _log.error("DynamoDB count scan error", error=str(e))
             raise DatabaseError() from e
-        return total
 
     def aggregate_dashboard_stats(self, now: datetime) -> TenantAggregateStats:
         """Single full-table Scan (same cost class as `count()` — small B2B catalog),
@@ -574,8 +568,7 @@ class DynamoTenantRepository(ITenantRepository):
             if idempotency is not None:
                 mark_completed()
         except ClientError as e:
-            code = e.response["Error"]["Code"]
-            if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
+            if is_transaction_condition_error(e):
                 reasons = cancellation_reasons(e)
                 _log.error(
                     "DynamoDB transact_write_items cancelled",
