@@ -460,9 +460,10 @@ decidir `is_free`; ahora usa `Decimal(str(...))`, alineado con los catalogos de
 
 ### shared/secrets
 
-- `get_secret()` (`backend/shared/secrets/client.py:26`) cachea en un dict modulo-level sin
-  limite de tamano ni invalidacion por nombre. Bajo impacto hoy (pocos secrets por lambda),
-  pero crece sin techo si aparecen mas integraciones tipo dLocal/Brevo.
+- Solventado 2026-06-29: `get_secret()` usa cache LRU acotado con TTL configurable
+  (`backend/shared/secrets/client.py`). El default mantiene compatibilidad, pero evita
+  crecimiento sin techo si aparecen mas secrets por Lambda. Tests unitarios cubren cache hit,
+  expiracion, eviction LRU, cache deshabilitado y `get_secret_json()`.
 
 ### shared/certificates
 
