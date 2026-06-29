@@ -41,7 +41,11 @@ class CertificateStore:
             return response["ARN"]
         except ClientError as exc:
             if exc.response["Error"]["Code"] != "ResourceExistsException":
-                _log.error("Secrets Manager create_secret error", tenant_id=tenant_id)
+                _log.error(
+                    "Secrets Manager create_secret error",
+                    tenant_id=tenant_id,
+                    error=str(exc),
+                )
                 raise ExternalServiceError("no se pudo guardar el certificado") from exc
 
         try:
@@ -52,7 +56,11 @@ class CertificateStore:
             response = self._client.describe_secret(SecretId=secret_name)
             return response["ARN"]
         except ClientError as exc:
-            _log.error("Secrets Manager put_secret_value error", tenant_id=tenant_id)
+            _log.error(
+                "Secrets Manager put_secret_value error",
+                tenant_id=tenant_id,
+                error=str(exc),
+            )
             raise ExternalServiceError("no se pudo guardar el certificado") from exc
 
     def secret_name(self, tenant_id: str) -> str:

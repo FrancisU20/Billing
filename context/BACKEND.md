@@ -472,6 +472,8 @@ decidir `is_free`; ahora usa `Decimal(str(...))`, alineado con los catalogos de
   (`infra/stacks/api_stack.py:205`). Misma convencion de nombres duplicada en 2 capas sin una
   sola fuente de verdad — si CDK deja de pasar la env var, el fallback puede divergir
   silenciosamente del prefix real desplegado.
+- Solventado 2026-06-29: `CertificateStore` incluye `error=str(exc)` en logs de fallos de
+  Secrets Manager y tiene tests que verifican diagnostico sin filtrar password/certificado.
 
 ### migrations
 

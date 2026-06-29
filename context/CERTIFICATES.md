@@ -244,10 +244,6 @@ por eso se usa `canWrite(role)` de `constants/roles.ts`, que cubre el mismo conj
 ## Deuda Tecnica
 
 - Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras (ver arriba).
-- Auditoria 2026-06-27 — `shared/certificates/store.py:43-44` registra el error de
-  Secrets Manager sin incluir `error=str(exc)`, a diferencia de casi todos los demas logs
-  del repo que si incluyen el detalle de la excepcion — dificulta diagnostico en
-  CloudWatch sin exponer nada sensible.
 - El prefix de secret `f"/codelabs-billing/{env}/tenant"` esta hardcodeado como fallback
   en `CertificateStore.__init__` Y vive tambien en CDK (`infra/stacks/api_stack.py:205`) —
   misma convencion duplicada en 2 capas sin una sola fuente de verdad (ver
@@ -270,6 +266,8 @@ por eso se usa `canWrite(role)` de `constants/roles.ts`, que cubre el mismo conj
 - 2026-06-14: `validator.py` acepta cedula (10 digitos) en el Subject del p12 para
   personas naturales, ademas del RUC completo (13 digitos) — ver "Personas naturales"
   arriba.
+- 2026-06-29: `CertificateStore` loguea `error=str(exc)` en fallos de Secrets Manager
+  (`create_secret` y `put_secret_value`) manteniendo fuera del log el p12 y password.
 - 2026-06-14: se elimino la validacion de emisor (`CertificateUntrustedIssuerError` /
   whitelist `ALLOWED_ISSUER_NAMES`) por las razones descritas en "Errores".
 - 2026-06-21: el certificado se desacoplo del onboarding — el tenant se crea sin p12 y
