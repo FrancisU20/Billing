@@ -44,6 +44,7 @@ from shared.db.transactions import (
 )
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
+from shared.search import matches_search_query, normalize_search_query
 
 _log = get_logger(__name__)
 
@@ -448,7 +449,7 @@ class _ClientListFilters:
         created_to: str | None,
     ) -> None:
         self.status = status
-        self.needle = q.strip().lower() if q else ""
+        self.needle = normalize_search_query(q)
         self.identification_type = identification_type
         self.created_from = created_from
         self.created_to = created_to
@@ -478,10 +479,9 @@ class _ClientListFilters:
             return False
         if self.created_to and created_at > self.created_to:
             return False
-        if not self.needle:
-            return True
-        return (
-            self.needle in client.legal_name.lower()
-            or self.needle in client.trade_name.lower()
-            or self.needle in client.identification.lower()
+        return matches_search_query(
+            self.needle,
+            client.legal_name,
+            client.trade_name,
+            client.identification,
         )

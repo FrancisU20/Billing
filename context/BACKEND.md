@@ -403,12 +403,11 @@ deberia absorber pero no absorbe todavia.
   `tenants` (RUC), `plans` (slug), `clients` (identificacion), `products` (SKU) crean a
   mano el `Put` condicional. La deteccion repetida por `CancellationReasons` ya se redujo,
   pero sigue pendiente un builder/mixin comun si aparecen mas locks.
-- Filtro `q` (busqueda libre) resuelto siempre en Python, nunca en DynamoDB, reimplementado
-  independientemente en `tenants`, `plans`, `clients` y `products`
-  (`_TenantListFilters`/`_PlanListFilters`/`_ClientListFilters`/`_ProductListFilters`, cada
-  uno con su propio `needle = q.strip().lower()` + metodo `matches()`). Mas alla de la
-  escalabilidad ya conocida por dominio, es candidato a una clase base generica
-  `BaseListFilters` con `matches_text(*fields)` reutilizable.
+- Solventado 2026-06-29: la normalizacion y coincidencia textual de `q` vive en
+  `shared/search.py` (`normalize_search_query()` + `matches_search_query()`). `tenants`,
+  `plans`, `clients` y `products` conservan filtros propios por dominio, pero ya no duplican
+  `q.strip().lower()` ni la cadena de `field.lower()` en cada `matches()`. La escalabilidad
+  de busqueda libre sigue siendo una decision por dominio porque hoy se resuelve en memoria.
 - Solventado 2026-06-29: el parseo HTTP de `limit` vive en
   `lambdas/_base/query_params.py::parse_list_limit()`: valida entero, rechaza valores `< 1`
   y aplica `clamp_list_limit()`. `tenants`, `clients` y `products` lo usan; `documents`

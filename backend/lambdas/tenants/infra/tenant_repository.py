@@ -43,6 +43,7 @@ from shared.domain.events.domain_event import DomainEvent
 from shared.domain.events.outbox import outbox_put_transact_item
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
+from shared.search import matches_search_query, normalize_search_query
 
 _log = get_logger(__name__)
 
@@ -734,7 +735,7 @@ class _TenantListFilters:
         created_to: str | None,
     ) -> None:
         self.status = status
-        self.needle = q.strip().lower() if q else ""
+        self.needle = normalize_search_query(q)
         self.sri_environment = sri_environment
         self.plan_status = plan_status
         self.created_from = created_from
@@ -767,11 +768,10 @@ class _TenantListFilters:
             return False
         if self.created_to and created_at > self.created_to:
             return False
-        if not self.needle:
-            return True
-        return (
-            self.needle in tenant.trade_name.lower()
-            or self.needle in tenant.legal_rep_name.lower()
-            or self.needle in tenant.email.lower()
-            or self.needle in tenant.ruc.lower()
+        return matches_search_query(
+            self.needle,
+            tenant.trade_name,
+            tenant.legal_rep_name,
+            tenant.email,
+            tenant.ruc,
         )

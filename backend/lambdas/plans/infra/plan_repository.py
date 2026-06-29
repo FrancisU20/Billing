@@ -30,6 +30,7 @@ from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.db.transactions import cancellation_reasons, is_transaction_condition_error
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
+from shared.search import matches_search_query, normalize_search_query
 
 _log = get_logger(__name__)
 
@@ -322,7 +323,7 @@ class _PlanListFilters:
     ) -> None:
         self.active = {"active": True, "inactive": False}.get(status)
         self.slug = slug.strip().lower() if slug else None
-        self.needle = q.strip().lower() if q else ""
+        self.needle = normalize_search_query(q)
         self.limit_cycle = limit_cycle
         self.created_from = created_from
         self.created_to = created_to
@@ -353,10 +354,4 @@ class _PlanListFilters:
             return False
         if self.created_to and created_at > self.created_to:
             return False
-        if not self.needle:
-            return True
-        return (
-            self.needle in plan.name.lower()
-            or self.needle in plan.description.lower()
-            or self.needle in plan.slug.lower()
-        )
+        return matches_search_query(self.needle, plan.name, plan.description, plan.slug)

@@ -25,6 +25,7 @@ from shared.db.transactions import (
 )
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
+from shared.search import matches_search_query, normalize_search_query
 
 _log = get_logger(__name__)
 
@@ -358,7 +359,7 @@ class _ProductListFilters:
     def __init__(self, *, status: str | None, kind: str | None, q: str | None) -> None:
         self.status = status
         self.kind = kind
-        self.needle = q.strip().lower() if q else ""
+        self.needle = normalize_search_query(q)
 
     def to_dynamo_filter(self):
         filter_expr = Attr("entity_type").eq("PRODUCT")
@@ -373,13 +374,7 @@ class _ProductListFilters:
             return False
         if self.kind and product.kind.value != self.kind:
             return False
-        if not self.needle:
-            return True
-        return (
-            self.needle in product.sku.lower()
-            or self.needle in product.name.lower()
-            or self.needle in product.description.lower()
-        )
+        return matches_search_query(self.needle, product.sku, product.name, product.description)
 
 
 def _normalize_sku_for_lookup(value: str) -> str:
