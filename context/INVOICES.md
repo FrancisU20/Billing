@@ -139,9 +139,10 @@ ocultarla cuando no aplica.
   (`parent.lines`), escalando proporcionalmente por `cantidad_acreditada/cantidad_original`
   (incluye descuento e IVA — nunca se re-deriva la tasa de IVA aplicable, se escala el
   monto ya calculado de la linea original). Solo permite reducir cantidad, nunca agregar
-  lineas ni cambiar precios. `domain/totals.py::aggregate_line_totals` extrae la suma de
-  IVA por linea, compartida con `EmitDocumentUseCase._compute_totals` (refactor sin cambio
-  de comportamiento).
+  lineas ni cambiar precios. `domain/totals.py` centraliza el redondeo monetario, el
+  calculo de subtotal/IVA/total por linea y la suma de buckets IVA; Factura deriva IVA
+  desde la tasa vigente de la fecha de emision, mientras NC escala montos ya persistidos
+  de la factura padre para no re-derivar impuestos historicos.
 - Secuenciales por `doc_type`: `ISequencesPort.reserve_next(tenant_id, serie, doc_type)`.
   SK `SEQ#{estab}#{punto}` sin cambios para `doc_type="01"` (compatibilidad); para otros
   tipos, `SEQ#{estab}#{punto}#{doc_type}` con **bootstrap perezoso** (auto-creacion en el
@@ -1439,7 +1440,6 @@ Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregado
 | Emails de documento al emisor sin adjuntar PDF | `DocumentAuthorizedEvent` etc. notifican al emisor sin adjuntos. El emisor descarga el RIDE desde `GET /documents/{id}/ride`. El comprador si recibe XML autorizado + RIDE adjuntos via `DocumentBuyerNotificationRequestedEvent`. |
 | `invoice_processor` SIGN/POLL sin concurrencia reservada diferenciada | Cuenta AWS en `sa-east-1` con limite de Lambda en 10 ejecuciones concurrentes totales (default no aumentado). Pedir quota increase a AWS y reintroducir `reserved_concurrent_executions=30/20` en `api_stack.py` cuando se apruebe. |
 | Eventos del `invoice_processor` se publican por SQS directo, no por outbox transaccional | `infra/sqs_event_publisher.py:50-51` y los `_queue_publisher.publish_event(...)` en `sign_document.py:90`/`poll_document.py:120,141,168,189` ocurren en una llamada SQS separada del `update_status` de DynamoDB — sin transaccion ni outbox. Mitigado en la practica porque `update_status` es idempotente y SQS reintenta el mensaje completo si la lambda falla a medias, pero contradice formalmente la regla "mutaciones con side effects usan outbox transaccional" que si respetan `tenants`/`onboarding`. `outbox_relay/handler.py::_queue_for` (lineas 32-37) solo conoce eventos de `tenants`/`onboarding` — ningun evento de `invoice_processor` (`DocumentAuthorizedEvent`, etc.) pasa por outbox. El dominio mas critico del sistema es el unico que no usa el mecanismo transaccional que protege a los demas — documentar la excepcion explicitamente como deliberada o evaluar moverlos a outbox. |
-| `_compute_totals` (Factura) y `_build_credit_lines` (NC) calculan IVA con logica duplicada y ligeramente asimetrica | `emit_document.py:94-99` deriva el IVA desde `iva_rate_for(issued_at)`; `emit_credit_note.py:142-149` escala por `ratio` los montos ya persistidos de la linea original (deliberado y correcto, documentado en comentario). Ambos repiten el patron `(qty*price - discount).quantize(Decimal("0.01"))` sin una funcion compartida en `domain/totals.py` (que si centraliza `aggregate_line_totals`, pero no el calculo por linea). Bajo riesgo de divergencia futura si se toca uno sin replicar en el otro. |
 | `xml_builder.py` separado correctamente tras el fix de `codigoPrincipal`, pero sin garantia para un futuro 3er `doc_type` | Verificado linea por linea: `_build_detalles_factura` vs `_build_detalles_nota_credito`, y `build_invoice_xml` (con `<pagos>`) vs `build_credit_note_xml` (sin `<pagos>`) ya estan bien separados, sin restos de copy-paste. `_build_detalle_common`/`_build_total_con_impuestos` son comunes legitimamente segun el XSD del SRI. Riesgo: si se agrega Nota de Debito (05) u otro `doc_type`, no asumir que los builders compartidos siguen siendo validos sin revisar el XSD de ese tipo tambien — el bug original surgio exactamente de esa suposicion. |
 | Frontend: polling inconsistente entre listado y detalle de documentos | `useDocument.ts` hace `setInterval(refresh, 5000)` con cleanup correcto mientras `status` esta en `{PENDING, PROCESSING}` (sin leak, pero sin techo de intentos/timeout maximo) — `useDocuments.ts` (listado) NO hace ningun poll, es un wrapper directo de `useCursorPagedList`. Un documento PENDING visto en el listado no se autoactualiza; el mismo documento en el detalle si. |
 | Frontend: `DocumentsListScreen.tsx` y `CreditNoteInvoicesListScreen.tsx` casi duplicados | ~190 lineas cada uno con estructura casi identica (mismo `AppNavBar`+`ListScreenHeader`+`FlatList`+`DocumentListItem`+`ListPaginationControls`+3 `ApiErrorBanner`, mismos hooks `useDocuments`/`useRetryDocument`/`useFormSubmit`). Solo difieren en el filtro fijo de `doc_type`, el modal de accion (`AnnulInvoiceModal` vs `InvoicePickerModal`) y los filtros (`DocumentsFilters` vs `SearchInput` simple). Candidato a `DocumentListScreenBase` parametrizable — la correccion reciente de visibilidad de anulacion por NC ya tuvo que tocarse a mano en ambos listados por esta duplicacion. |
@@ -1455,3 +1455,8 @@ Nav (`features/navigation/items.ts`): "Documentos" y "Establecimientos" agregado
   carreras entre lectura y escritura.
 - 2026-06-29: RIDE muestra tambien la fila `IVA 0% / Exento` en la tabla de totales,
   usando `document.iva_0`; `ride_builder._totals_rows()` queda cubierto por test unitario.
+- 2026-06-29: `domain/totals.py` centraliza calculos monetarios por linea
+  (`line_gross_amount`, `line_subtotal_amount`, `iva_amount_for_rate`,
+  `line_total_amount`) y escalado proporcional de NC (`scale_credit_line_amounts`).
+  `EmitDocumentUseCase` y `EmitCreditNoteUseCase` ya no duplican redondeo ni suma de
+  buckets IVA; el helper queda cubierto por tests unitarios.

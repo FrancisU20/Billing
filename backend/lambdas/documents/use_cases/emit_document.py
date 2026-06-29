@@ -22,7 +22,13 @@ from lambdas.documents.domain.repositories.i_discount_campaign_port import (
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from lambdas.documents.domain.repositories.i_product_catalog import IProductCatalog
 from lambdas.documents.domain.repositories.i_sequences_port import ISequencesPort
-from lambdas.documents.domain.totals import aggregate_line_totals
+from lambdas.documents.domain.totals import (
+    aggregate_line_totals,
+    iva_amount_for_rate,
+    line_gross_amount,
+    line_subtotal_amount,
+    line_total_amount,
+)
 from shared.dates import today_ecuador
 from shared.errors import ValidationError
 
@@ -77,7 +83,7 @@ def _compute_totals(
             raise ValidationError("Cada línea debe tener cantidad y precio mayor a cero.")
         if discount < 0:
             raise ValidationError("El descuento no puede ser negativo.")
-        gross = (qty * unit_price).quantize(Decimal("0.01"))
+        gross = line_gross_amount(qty, unit_price)
         if discount > gross:
             raise ValidationError("El descuento no puede superar el subtotal bruto de la línea.")
 
@@ -89,14 +95,12 @@ def _compute_totals(
                     "El descuento supera el máximo permitido por el catálogo o la campaña activa."
                 )
 
-        line_subtotal = (qty * unit_price - discount).quantize(Decimal("0.01"))
-
-        if iva_rate_str == "15":
-            iva_amount = (line_subtotal * applicable_rate / 100).quantize(Decimal("0.01"))
-        elif iva_rate_str == "5":
-            iva_amount = (line_subtotal * Decimal("5") / 100).quantize(Decimal("0.01"))
-        else:
-            iva_amount = Decimal("0.00")
+        line_subtotal = line_subtotal_amount(qty, unit_price, discount)
+        iva_amount = iva_amount_for_rate(
+            subtotal=line_subtotal,
+            iva_rate=iva_rate_str,
+            applicable_15_rate=applicable_rate,
+        )
 
         lines.append(
             InvoiceLine(
@@ -108,7 +112,7 @@ def _compute_totals(
                 subtotal=line_subtotal,
                 iva_rate=iva_rate_str,
                 iva_amount=iva_amount,
-                total=(line_subtotal + iva_amount).quantize(Decimal("0.01")),
+                total=line_total_amount(line_subtotal, iva_amount),
                 product_id=product_id,
             )
         )

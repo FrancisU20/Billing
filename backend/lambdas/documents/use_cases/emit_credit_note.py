@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import secrets
-from decimal import Decimal
 from uuid import uuid4
 
 from lambdas.documents.domain.access_key import generate_access_key
@@ -17,7 +16,7 @@ from lambdas.documents.domain.errors import (
 )
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from lambdas.documents.domain.repositories.i_sequences_port import ISequencesPort
-from lambdas.documents.domain.totals import aggregate_line_totals
+from lambdas.documents.domain.totals import aggregate_line_totals, scale_credit_line_amounts
 from shared.dates import today_ecuador
 from shared.errors import ValidationError
 
@@ -143,10 +142,10 @@ class EmitCreditNoteUseCase:
             # tasa de IVA aplicable) — garantiza que la nota de credito refleje
             # exactamente lo facturado originalmente, sin importar si la tabla de tasas
             # de IVA cambio entre la fecha de la factura y la de esta nota de credito.
-            ratio = item.quantity / parent_line.quantity
-            discount = (parent_line.discount * ratio).quantize(Decimal("0.01"))
-            line_subtotal = (parent_line.subtotal * ratio).quantize(Decimal("0.01"))
-            iva_amount = (parent_line.iva_amount * ratio).quantize(Decimal("0.01"))
+            discount, line_subtotal, iva_amount, line_total = scale_credit_line_amounts(
+                parent_line=parent_line,
+                credited_quantity=item.quantity,
+            )
 
             lines.append(
                 InvoiceLine(
@@ -158,7 +157,7 @@ class EmitCreditNoteUseCase:
                     subtotal=line_subtotal,
                     iva_rate=parent_line.iva_rate,
                     iva_amount=iva_amount,
-                    total=(line_subtotal + iva_amount).quantize(Decimal("0.01")),
+                    total=line_total,
                     product_id=parent_line.product_id,
                 )
             )
