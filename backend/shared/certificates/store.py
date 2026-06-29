@@ -14,11 +14,8 @@ _log = get_logger(__name__)
 
 class CertificateStore:
     def __init__(self, client=None, *, secret_prefix: str | None = None) -> None:
+        self._secret_prefix = secret_prefix or env("CERTIFICATE_SECRET_PREFIX")
         self._client = client or boto3.client("secretsmanager")
-        self._secret_prefix = secret_prefix or env(
-            "CERTIFICATE_SECRET_PREFIX",
-            f"/codelabs-billing/{env('ENV', 'dev')}/tenant",
-        )
 
     def put_certificate(
         self,

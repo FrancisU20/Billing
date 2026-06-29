@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from botocore.exceptions import ClientError
 
@@ -34,6 +35,10 @@ class FailingPutClient:
         raise _client_error("ThrottlingException", "throttled")
 
 
+class NoopClient:
+    pass
+
+
 class CertificateStoreTests(unittest.TestCase):
     def setUp(self) -> None:
         self.original_log = store_module._log
@@ -57,6 +62,22 @@ class CertificateStoreTests(unittest.TestCase):
         self.assertEqual(self.fake_log.errors[0][1]["tenant_id"], "tenant-1")
         self.assertIn("AccessDeniedException", self.fake_log.errors[0][1]["error"])
         self.assertNotIn("secret-password", self.fake_log.errors[0][1]["error"])
+
+    def test_secret_prefix_comes_from_environment_when_not_explicit(self) -> None:
+        with patch.dict("os.environ", {"CERTIFICATE_SECRET_PREFIX": "/from/env"}):
+            store = CertificateStore(NoopClient())
+
+        self.assertEqual(store.secret_name("tenant-1"), "/from/env/tenant-1/certificate")
+
+    def test_secret_prefix_is_required_when_not_explicit(self) -> None:
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "Required environment variable not set: CERTIFICATE_SECRET_PREFIX",
+            ),
+        ):
+            CertificateStore(NoopClient())
 
     def test_logs_put_secret_value_client_error_detail(self) -> None:
         store = CertificateStore(FailingPutClient(), secret_prefix="/unit")

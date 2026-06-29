@@ -244,10 +244,6 @@ por eso se usa `canWrite(role)` de `constants/roles.ts`, que cubre el mismo conj
 ## Deuda Tecnica
 
 - Movil nativo, ampliacion de CAs y costo a escala son decisiones futuras (ver arriba).
-- El prefix de secret `f"/codelabs-billing/{env}/tenant"` esta hardcodeado como fallback
-  en `CertificateStore.__init__` Y vive tambien en CDK (`infra/stacks/api_stack.py:205`) —
-  misma convencion duplicada en 2 capas sin una sola fuente de verdad (ver
-  `context/BACKEND.md`).
 - Resto del flujo limpio: password p12 nunca se loguea, se valida RUC/cedula contra el
   certificado antes de guardar, y el reintento por `OptimisticLockError`
   (`certificates/handler.py:98-118`) reaplica metadata ya validada sin volver a tocar el
@@ -268,6 +264,8 @@ por eso se usa `canWrite(role)` de `constants/roles.ts`, que cubre el mismo conj
   arriba.
 - 2026-06-29: `CertificateStore` loguea `error=str(exc)` en fallos de Secrets Manager
   (`create_secret` y `put_secret_value`) manteniendo fuera del log el p12 y password.
+- 2026-06-29: el prefix de Secrets Manager es una configuracion inyectada por CDK
+  (`CERTIFICATE_SECRET_PREFIX`); `CertificateStore` ya no tiene fallback duplicado.
 - 2026-06-14: se elimino la validacion de emisor (`CertificateUntrustedIssuerError` /
   whitelist `ALLOWED_ISSUER_NAMES`) por las razones descritas en "Errores".
 - 2026-06-21: el certificado se desacoplo del onboarding — el tenant se crea sin p12 y

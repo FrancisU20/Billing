@@ -81,7 +81,16 @@ class _PythonLocalBundler:
 
 class ApiStack(Stack):
     @staticmethod
-    def _grant_certificate_secrets(fn: lmb.Function, *, env: str, region: str) -> None:
+    def _certificate_secret_prefix(env: str) -> str:
+        return f"/codelabs-billing/{env}/tenant"
+
+    @staticmethod
+    def _grant_certificate_secrets(
+        fn: lmb.Function,
+        *,
+        certificate_secret_prefix: str,
+        region: str,
+    ) -> None:
         """Allow a Lambda to manage tenant certificate secrets in Secrets Manager.
 
         Used by `certificates` — the certificate is uploaded after payment, from the
@@ -94,7 +103,7 @@ class ApiStack(Stack):
                 "secretsmanager:PutSecretValue",
             ],
             resources = [
-                f"arn:aws:secretsmanager:{region}:*:secret:/codelabs-billing/{env}/tenant/*"
+                f"arn:aws:secretsmanager:{region}:*:secret:{certificate_secret_prefix}/*"
             ],
         ))
 
@@ -123,6 +132,7 @@ class ApiStack(Stack):
         cors_origins = cors_cfg.get("origins", ["*"] if env != "prod" else [])
         cors_headers = cors_cfg.get("headers", ["authorization", "content-type", "x-idempotency-key"])
         throttling_cfg = api_cfg.get("throttling", {})
+        certificate_secret_prefix = self._certificate_secret_prefix(env)
 
         _common_env = {
             "ENV":       env,
@@ -202,7 +212,7 @@ class ApiStack(Stack):
                 "TENANTS_TABLE":             database.tenants_table.table_name,
                 "AUDIT_LOG_TABLE":           database.audit_table.table_name,
                 "IDEMPOTENCY_TABLE":         database.idempotency_table.table_name,
-                "CERTIFICATE_SECRET_PREFIX": f"/codelabs-billing/{env}/tenant",
+                "CERTIFICATE_SECRET_PREFIX": certificate_secret_prefix,
                 "SEQUENCES_TABLE":           database.sequences_table.table_name,
             },
         )
@@ -210,7 +220,11 @@ class ApiStack(Stack):
         database.audit_table.grant_read_write_data(certificates_fn)
         database.idempotency_table.grant_read_write_data(certificates_fn)
         database.sequences_table.grant_read_write_data(certificates_fn)
-        self._grant_certificate_secrets(certificates_fn, env=env, region=region)
+        self._grant_certificate_secrets(
+            certificates_fn,
+            certificate_secret_prefix=certificate_secret_prefix,
+            region=region,
+        )
 
         # ── Clients Lambda ─────────────────────────────────────────────────────
         clients_fn = lmb.Function(
@@ -851,7 +865,7 @@ class ApiStack(Stack):
         invoice_processor_sign_fn.add_to_role_policy(iam.PolicyStatement(
             actions   = ["secretsmanager:GetSecretValue"],
             resources = [
-                f"arn:aws:secretsmanager:{region}:*:secret:/codelabs-billing/{env}/tenant/*"
+                f"arn:aws:secretsmanager:{region}:*:secret:{certificate_secret_prefix}/*"
             ],
         ))
         invoice_processor_sign_fn.add_event_source(event_sources.SqsEventSource(

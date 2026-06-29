@@ -468,11 +468,10 @@ decidir `is_free`; ahora usa `Decimal(str(...))`, alineado con los catalogos de
 
 ### shared/certificates
 
-- El prefix de secret `f"/codelabs-billing/{env}/tenant"` esta hardcodeado como fallback en
-  `CertificateStore.__init__` (`shared/certificates/store.py:18-21`) Y vive tambien en CDK
-  (`infra/stacks/api_stack.py:205`). Misma convencion de nombres duplicada en 2 capas sin una
-  sola fuente de verdad — si CDK deja de pasar la env var, el fallback puede divergir
-  silenciosamente del prefix real desplegado.
+- Solventado 2026-06-29: `CertificateStore` ya no reconstruye un fallback hardcodeado para
+  el prefix de Secrets Manager; exige `CERTIFICATE_SECRET_PREFIX` y falla en cold start si
+  falta. CDK centraliza el valor en `ApiStack._certificate_secret_prefix()` y lo reutiliza
+  para environment + policies IAM.
 - Solventado 2026-06-29: `CertificateStore` incluye `error=str(exc)` en logs de fallos de
   Secrets Manager y tiene tests que verifican diagnostico sin filtrar password/certificado.
 
