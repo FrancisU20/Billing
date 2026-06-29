@@ -9,6 +9,7 @@ from lambdas.documents.domain.errors import (
     AnnulmentWindowExpiredError,
     ConsumerFinalCannotBeAnnulledError,
     DocumentNotAuthorizedError,
+    InvoiceAlreadyCreditedCannotBeAnnulledError,
 )
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from shared.dates import now_utc, today_ecuador
@@ -37,6 +38,8 @@ class AnnulDocumentUseCase:
 
         if document.status != DocumentStatus.AUTHORIZED:
             raise DocumentNotAuthorizedError()
+        if (document.annulled_by_credit_note_id or "").strip():
+            raise InvoiceAlreadyCreditedCannotBeAnnulledError()
         if document.buyer_id_type == _CONSUMIDOR_FINAL_ID_TYPE:
             raise ConsumerFinalCannotBeAnnulledError()
         if today_ecuador() > _annulment_deadline(document.issued_at):

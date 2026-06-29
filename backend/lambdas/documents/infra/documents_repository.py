@@ -35,6 +35,7 @@ from lambdas.documents.domain.errors import (
     DocumentNotAuthorizedError,
     DocumentNotFoundError,
     DocumentRetryNotEligibleError,
+    InvoiceAlreadyCreditedCannotBeAnnulledError,
 )
 from lambdas.documents.domain.repositories.i_documents_repository import IDocumentsRepository
 from shared.audit.writer import audit_item, audit_put_transact_item
@@ -471,17 +472,22 @@ class DynamoDocumentsRepository(IDocumentsRepository):
                         "#annulled_at = :annulled_at, #annulled_by = :annulled_by, "
                         "#annulment_reason = :annulment_reason"
                     ),
-                    "ConditionExpression": "#status = :expected_status",
+                    "ConditionExpression": (
+                        "#status = :expected_status AND "
+                        "(attribute_not_exists(#annulled_by_cn) OR #annulled_by_cn = :empty)"
+                    ),
                     "ExpressionAttributeNames": {
                         "#status": "status",
                         "#updated_at": "updated_at",
                         "#annulled_at": "annulled_at",
                         "#annulled_by": "annulled_by",
                         "#annulment_reason": "annulment_reason",
+                        "#annulled_by_cn": "annulled_by_credit_note_id",
                     },
                     "ExpressionAttributeValues": {
                         ":new_status": DocumentStatus.ANNULLED.value,
                         ":expected_status": DocumentStatus.AUTHORIZED.value,
+                        ":empty": "",
                         ":updated_at": now,
                         ":annulled_at": now,
                         ":annulled_by": user_id,
@@ -521,6 +527,16 @@ class DynamoDocumentsRepository(IDocumentsRepository):
         except ClientError as exc:
             code = exc.response["Error"]["Code"]
             if code in ("TransactionCanceledException", "ConditionalCheckFailedException"):
+                try:
+                    current = self.get(tenant_id, document_id)
+                except (DocumentNotFoundError, DatabaseError):
+                    current = None
+                if current and (current.annulled_by_credit_note_id or "").strip():
+                    _log.warning(
+                        "annul blocked: document already credited by credit note",
+                        document_id=document_id,
+                    )
+                    raise InvoiceAlreadyCreditedCannotBeAnnulledError() from exc
                 _log.warning(
                     "annul no-op: document status already changed",
                     document_id=document_id,

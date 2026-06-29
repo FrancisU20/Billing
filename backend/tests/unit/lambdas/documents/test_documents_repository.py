@@ -10,6 +10,7 @@ from lambdas.documents.domain.entities import Document, DocumentStatus
 from lambdas.documents.domain.errors import (
     DocumentNotAuthorizedError,
     DocumentRetryNotEligibleError,
+    InvoiceAlreadyCreditedCannotBeAnnulledError,
 )
 from lambdas.documents.infra.documents_repository import DynamoDocumentsRepository
 from shared.errors import DatabaseError
@@ -74,9 +75,16 @@ class _FakeMeta:
 class FakeTransactTable:
     table_name = "unit-documents"
 
-    def __init__(self, error_code: str | None = None) -> None:
+    def __init__(self, error_code: str | None = None, items: dict[str, dict] | None = None) -> None:
         self.client = _FakeDynamoClient(error_code)
         self.meta = _FakeMeta(self.client)
+        self.items = items or {}
+        self.get_calls: list[dict] = []
+
+    def get_item(self, **kwargs) -> dict:
+        self.get_calls.append(kwargs)
+        item = self.items.get(kwargs["Key"]["sk"])
+        return {"Item": item} if item else {}
 
 
 class FakeAuditTable:
@@ -388,6 +396,16 @@ class DynamoDocumentsRepositoryAnnulTests(unittest.TestCase):
             update["ExpressionAttributeValues"][":expected_status"],
             DocumentStatus.AUTHORIZED.value,
         )
+        self.assertEqual(
+            update["ConditionExpression"],
+            "#status = :expected_status AND "
+            "(attribute_not_exists(#annulled_by_cn) OR #annulled_by_cn = :empty)",
+        )
+        self.assertEqual(
+            update["ExpressionAttributeNames"]["#annulled_by_cn"],
+            "annulled_by_credit_note_id",
+        )
+        self.assertEqual(update["ExpressionAttributeValues"][":empty"], "")
         audit_put = transact_items[1]["Put"]
         self.assertEqual(audit_put["Item"]["action"], "DOCUMENT_ANNULLED")
         self.assertEqual(audit_put["Item"]["changed_by"], "user-1")
@@ -407,6 +425,24 @@ class DynamoDocumentsRepositoryAnnulTests(unittest.TestCase):
         repo = DynamoDocumentsRepository(table, FakeAuditTable())
 
         with self.assertRaises(DocumentNotAuthorizedError):
+            repo.annul("tenant-1", "doc-1", reason="Motivo", user_id="user-1", access_key="1" * 49)
+
+    def test_annul_raises_already_credited_when_condition_failure_finds_credit_note(self) -> None:
+        item_repo = DynamoDocumentsRepository(FakeDocumentsTable())
+        table = FakeTransactTable(
+            error_code="TransactionCanceledException",
+            items={
+                "DOC#doc-1": item_repo._to_item(
+                    _make_document(
+                        status=DocumentStatus.AUTHORIZED,
+                        annulled_by_credit_note_id="cn-1",
+                    )
+                )
+            },
+        )
+        repo = DynamoDocumentsRepository(table, FakeAuditTable())
+
+        with self.assertRaises(InvoiceAlreadyCreditedCannotBeAnnulledError):
             repo.annul("tenant-1", "doc-1", reason="Motivo", user_id="user-1", access_key="1" * 49)
 
 

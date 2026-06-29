@@ -62,6 +62,14 @@ class ConsumerFinalCannotBeAnnulledError(BusinessError):
     default_message = "Las facturas emitidas a Consumidor Final no se pueden anular ante el SRI."
 
 
+class InvoiceAlreadyCreditedCannotBeAnnulledError(BusinessError):
+    code = "INVOICE_ALREADY_CREDITED_CANNOT_BE_ANNULLED"
+    default_message = (
+        "Esta factura ya fue anulada/acreditada mediante una nota de crédito y no puede "
+        "ser anulada por el flujo legacy."
+    )
+
+
 class ParentDocumentNotAuthorizedError(BusinessError):
     code = "PARENT_DOCUMENT_NOT_AUTHORIZED"
     default_message = (

@@ -34,6 +34,7 @@ from lambdas.documents.domain.errors import (
     DocumentNotFoundError,
     DocumentRetryNotEligibleError,
     InvalidIssuedDateError,
+    InvoiceAlreadyCreditedCannotBeAnnulledError,
     ParentAlreadyAnnulledError,
     ParentDocumentNotAuthorizedError,
     RideNotAvailableError,
@@ -82,6 +83,7 @@ class FakeDocumentsRepository:
         self.list_calls: list[dict[str, Any]] = []
         self.count_calls: list[dict[str, Any]] = []
         self.mark_annulled_calls: list[tuple[str, str, str]] = []
+        self.annul_calls: list[dict[str, Any]] = []
 
     def get(self, tenant_id: str, document_id: str) -> Document:
         doc = self.documents.get(f"{tenant_id}#{document_id}")
@@ -127,6 +129,19 @@ class FakeDocumentsRepository:
             raise DocumentRetryNotEligibleError()
         self.documents[key] = replace(
             doc, status=DocumentStatus.PENDING, manual_retry_count=doc.manual_retry_count + 1
+        )
+
+    def annul(self, tenant_id: str, document_id: str, **kwargs: Any) -> None:
+        self.annul_calls.append({"tenant_id": tenant_id, "document_id": document_id, **kwargs})
+        key = f"{tenant_id}#{document_id}"
+        doc = self.documents.get(key)
+        if doc is None or doc.status != DocumentStatus.AUTHORIZED:
+            raise DocumentNotAuthorizedError()
+        self.documents[key] = replace(
+            doc,
+            status=DocumentStatus.ANNULLED,
+            annulled_by=kwargs["user_id"],
+            annulment_reason=kwargs["reason"],
         )
 
     def mark_annulled_by_credit_note(
@@ -988,6 +1003,10 @@ class AnnulDocumentUseCaseTests(unittest.TestCase):
     def test_raises_if_not_authorized(self) -> None:
         with self.assertRaises(DocumentNotAuthorizedError):
             self._run(status=DocumentStatus.PENDING)
+
+    def test_raises_if_invoice_already_credited_by_credit_note(self) -> None:
+        with self.assertRaises(InvoiceAlreadyCreditedCannotBeAnnulledError):
+            self._run(annulled_by_credit_note_id="cn-1")
 
     def test_raises_for_consumidor_final(self) -> None:
         with self.assertRaises(ConsumerFinalCannotBeAnnulledError):

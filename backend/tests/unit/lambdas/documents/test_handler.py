@@ -295,6 +295,89 @@ class EmitCreditNoteHandlerTests(unittest.TestCase):
         self.assertEqual(resp["statusCode"], 422)
 
 
+# ── POST /documents/{id}/annul ────────────────────────────────────────────────
+
+
+class AnnulDocumentHandlerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.mod = _load_handler()
+
+    def _run(
+        self,
+        *,
+        document: Document | None = None,
+        credit_note: Document | None = None,
+    ) -> tuple[dict, FakeDocumentsRepository, MagicMock]:
+        repo = FakeDocumentsRepository()
+        repo.seed(
+            document
+            or replace(
+                _make_parent_invoice(),
+                buyer_id_type="05",
+                buyer_id="0912345678",
+                buyer_name="Cliente normal",
+            )
+        )
+        if credit_note is not None:
+            repo.seed(credit_note)
+        event = api_event(
+            method="POST",
+            path="/documents/doc-1/annul",
+            path_params={"id": "doc-1"},
+            body={"reason": "Anulación manual confirmada en SRI"},
+            claims=_owner_claims("t-1"),
+            headers={"x-idempotency-key": "idem-annul-1"},
+        )
+        with (
+            patch.object(self.mod, "_repo", return_value=repo),
+            patch.object(self.mod, "_send_sign_message") as send_sign_message,
+            patch.object(self.mod, "require_current_context", return_value=_FAKE_IDEMPOTENCY),
+        ):
+            return self.mod.handler(event, _CTX), repo, send_sign_message
+
+    def test_rejects_invoice_already_credited_by_authorized_credit_note(self) -> None:
+        invoice = replace(
+            _make_parent_invoice(),
+            buyer_id_type="05",
+            buyer_id="0912345678",
+            buyer_name="Cliente normal",
+            annulled_by_credit_note_id="cn-1",
+        )
+        credit_note = replace(
+            _make_parent_invoice(),
+            document_id="cn-1",
+            doc_type="04",
+            status=DocumentStatus.AUTHORIZED,
+            sequential=2,
+            related_document_id="doc-1",
+        )
+
+        resp, repo, send_sign_message = self._run(document=invoice, credit_note=credit_note)
+
+        body = decode_response(resp)
+        self.assertEqual(resp["statusCode"], 422)
+        self.assertEqual(body["error"]["code"], "INVOICE_ALREADY_CREDITED_CANNOT_BE_ANNULLED")
+        self.assertIn("nota de crédito", body["error"]["message"])
+        self.assertEqual(repo.get("t-1", "doc-1").status, DocumentStatus.AUTHORIZED)
+        self.assertEqual(repo.get("t-1", "doc-1").annulled_by_credit_note_id, "cn-1")
+        self.assertEqual(repo.get("t-1", "cn-1").status, DocumentStatus.AUTHORIZED)
+        self.assertEqual(repo.annul_calls, [])
+        self.assertEqual(repo.mark_annulled_calls, [])
+        send_sign_message.assert_not_called()
+
+    def test_allows_normal_legacy_annulment(self) -> None:
+        resp, repo, send_sign_message = self._run()
+
+        body = decode_response(resp)
+        self.assertEqual(resp["statusCode"], 200)
+        self.assertEqual(body["data"]["status"], DocumentStatus.ANNULLED.value)
+        self.assertEqual(repo.get("t-1", "doc-1").status, DocumentStatus.ANNULLED)
+        self.assertEqual(len(repo.annul_calls), 1)
+        self.assertEqual(repo.annul_calls[0]["reason"], "Anulación manual confirmada en SRI")
+        self.assertEqual(repo.mark_annulled_calls, [])
+        send_sign_message.assert_not_called()
+
+
 # ── POST /documents/{id}/retry ────────────────────────────────────────────────
 
 
