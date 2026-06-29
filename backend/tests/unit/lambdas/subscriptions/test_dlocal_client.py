@@ -53,8 +53,28 @@ class DLocalClientTests(unittest.TestCase):
         self.assertEqual(captured["request"].get_header("Accept"), "application/json")
         self.assertEqual(captured["request"].get_header("Content-type"), "application/json")
         self.assertEqual(captured["request"].get_header("User-agent"), "WaliBilling/1.0")
+        self.assertEqual(body["amount"], 5.99)
         self.assertNotIn("payment_method_id", body)
         self.assertNotIn("payment_method_flow", body)
+
+    def test_create_payment_quantizes_amount_to_cents_before_json_number(self) -> None:
+        captured = {}
+
+        def fake_urlopen(req, timeout):
+            captured["request"] = req
+            return _FakeResponse()
+
+        client = DLocalClient(
+            base_url="https://api-sbx.dlocalgo.com",
+            api_key="api-key",
+            secret_key="secret-key",
+        )
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            client.create_payment("1.005", "USD", "EC")
+
+        body = json.loads(captured["request"].data.decode())
+        self.assertEqual(body["amount"], 1.01)
 
     def test_confirm_payment_accepts_sample_success_response(self) -> None:
         captured = {}
@@ -133,6 +153,46 @@ class DLocalClientTests(unittest.TestCase):
         self.assertEqual(result.payment_id, "DP-123")
         self.assertEqual(result.status, "PENDING")
         self.assertEqual(result.redirect_url, "https://3ds.example.test/auth")
+
+    def test_refund_payment_quantizes_amount_to_cents_before_json_number(self) -> None:
+        captured = {}
+
+        def fake_urlopen(req, timeout):
+            captured["request"] = req
+            return _FakeResponse({"id": "REF-123", "status": "REFUNDED"})
+
+        client = DLocalClient(
+            base_url="https://api-sbx.dlocalgo.com",
+            api_key="api-key",
+            secret_key="secret-key",
+        )
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = client.refund_payment("DP-123", "1.005", "USD")
+
+        body = json.loads(captured["request"].data.decode())
+        self.assertEqual(result.refund_id, "REF-123")
+        self.assertEqual(body["amount"], 1.01)
+
+    def test_charge_saved_payer_quantizes_amount_to_cents_before_json_number(self) -> None:
+        captured = {}
+
+        def fake_urlopen(req, timeout):
+            captured["request"] = req
+            return _FakeResponse({"id": "DP-123", "status": "PAID"})
+
+        client = DLocalClient(
+            base_url="https://api-sbx.dlocalgo.com",
+            api_key="api-key",
+            secret_key="secret-key",
+        )
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            result = client.charge_saved_payer("payer-123", "1.005", "USD", "EC")
+
+        body = json.loads(captured["request"].data.decode())
+        self.assertEqual(result.payment_id, "DP-123")
+        self.assertEqual(body["amount"], 1.01)
 
 
 if __name__ == "__main__":

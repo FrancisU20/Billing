@@ -750,6 +750,105 @@ def _build_orphan_payment_alert_html(
 </html>"""
 
 
+def _build_auto_renewal_reconciliation_alert_html(
+    tenant_id: str,
+    tenant_email: str,
+    trade_name: str,
+    order_id: str,
+    plan_id: str,
+    amount: str,
+    currency: str,
+    confirmed_at: str,
+    reason: str,
+) -> str:
+    safe_tenant_id = escape(tenant_id, quote=True)
+    safe_tenant_email = escape(tenant_email, quote=True)
+    safe_trade_name = escape(trade_name, quote=True)
+    safe_order_id = escape(order_id, quote=True)
+    safe_plan_id = escape(plan_id, quote=True)
+    safe_amount = escape(amount, quote=True)
+    safe_currency = escape(currency, quote=True)
+    safe_confirmed_at = escape(_format_datetime(confirmed_at), quote=True)
+    safe_reason = escape(reason, quote=True)
+
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:40px 20px">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:8px;overflow:hidden">
+
+          {_render_header("Alerta operacional", danger=True)}
+
+          <tr>
+            <td style="padding:40px">
+              <h2 style="margin:0 0 16px;color:#0D1126;font-size:20px">
+                Cobro automático requiere reconciliación
+              </h2>
+              <p style="margin:0 0 24px;color:#444;line-height:1.6">
+                dLocal confirmó un cobro recurrente en estado <strong>PAID</strong>,
+                pero Wali no pudo persistir la renovación local del tenant. El worker
+                bloqueó nuevos cobros automáticos para este ciclo hasta que se resuelva
+                la reconciliación.
+              </p>
+
+              <div style="background:#fff1f2;border-left:4px solid #b91c1c;
+                          border-radius:4px;padding:20px;margin:0 0 24px">
+                <p style="margin:0 0 6px;color:#0D1126">
+                  <strong>Tenant:</strong> {safe_tenant_id} — {safe_trade_name}
+                </p>
+                <p style="margin:0 0 6px;color:#0D1126">
+                  <strong>Email tenant:</strong> {safe_tenant_email}
+                </p>
+                <p style="margin:0 0 6px;color:#0D1126">
+                  <strong>Order ID (dLocal):</strong> {safe_order_id}
+                </p>
+                <p style="margin:0 0 6px;color:#0D1126">
+                  <strong>Plan:</strong> {safe_plan_id}
+                </p>
+                <p style="margin:0 0 6px;color:#0D1126">
+                  <strong>Monto:</strong> {safe_amount} {safe_currency}
+                </p>
+                <p style="margin:0 0 6px;color:#0D1126">
+                  <strong>Confirmado el:</strong> {safe_confirmed_at}
+                </p>
+                <p style="margin:0;color:#0D1126">
+                  <strong>Fallo local:</strong> {safe_reason}
+                </p>
+              </div>
+
+              <p style="margin:0;color:#888;font-size:13px">
+                Runbook: verificar el cobro en dLocal y el marcador
+                <code>AUTO_RENEWAL_RECONCILIATION</code> en DynamoDB. Si el cobro es válido,
+                aplicar la renovación local o reembolsar el pago; luego eliminar el marcador
+                de reconciliación del ciclo.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f8f9fa;padding:20px 40px;
+                       border-top:1px solid #e9ecef">
+              <p style="margin:0;color:#aaa;font-size:12px;text-align:center">
+                © Wali · Ecuador
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
 def _build_document_authorized_html(
     legal_rep_name: str,
     document_id: str,
@@ -1403,3 +1502,36 @@ class BrevoEmailSender(EmailSender):
             ),
         }
         _send(api_key, payload, log_email=superadmin_email)
+
+    def send_auto_renewal_reconciliation_alert(
+        self,
+        *,
+        billing_email: str,
+        tenant_id: str,
+        tenant_email: str,
+        trade_name: str,
+        order_id: str,
+        plan_id: str,
+        amount: str,
+        currency: str,
+        confirmed_at: str,
+        reason: str,
+    ) -> None:
+        api_key = _get_api_key()
+        payload = {
+            "sender": _sender(_BILLING_EMAIL),
+            "to": [{"email": billing_email}],
+            "subject": f"[ALERTA] Reconciliar renovación automática — {order_id}",
+            "htmlContent": _build_auto_renewal_reconciliation_alert_html(
+                tenant_id,
+                tenant_email,
+                trade_name,
+                order_id,
+                plan_id,
+                amount,
+                currency,
+                confirmed_at,
+                reason,
+            ),
+        }
+        _send(api_key, payload, log_email=billing_email)

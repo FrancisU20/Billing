@@ -85,17 +85,21 @@ export function ActivateSubscriptionScreen() {
       name: `${values.firstName.trim()} ${values.lastName.trim()}`,
     })
 
-    const confirmation = await subscriptionsApi.confirmPayment(order.order_id, {
-      card_token: cardToken,
-      client_first_name: values.firstName.trim(),
-      client_last_name: values.lastName.trim(),
-      client_email: values.payerEmail.trim(),
-      client_document_type: values.documentType,
-      client_document: values.payerDocument.trim(),
-    })
+    const confirmation = await subscriptionsApi.confirmPayment(
+      order.order_id,
+      order.checkout_token,
+      {
+        card_token: cardToken,
+        client_first_name: values.firstName.trim(),
+        client_last_name: values.lastName.trim(),
+        client_email: values.payerEmail.trim(),
+        client_document_type: values.documentType,
+        client_document: values.payerDocument.trim(),
+      },
+    )
 
     if (confirmation.redirect_url) {
-      threeDs.startRedirect(confirmation.redirect_url, order.order_id)
+      threeDs.startRedirect(confirmation.redirect_url, order.order_id, order.checkout_token)
       return
     }
 

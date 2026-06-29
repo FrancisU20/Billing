@@ -11,5 +11,11 @@ def gross_price(net: str) -> str:
     return f"{(Decimal(net) * (1 + MARKUP_PCT)).quantize(Decimal('0.01'), ROUND_HALF_UP):.2f}"
 
 
+def plan_net_price(monthly: Decimal, annual: Decimal, billing_cycle: str) -> str:
+    """Return the plan base price for a billing cycle, formatted as a money string."""
+    price = annual if billing_cycle == "year" else monthly
+    return f"{price:.2f}"
+
+
 def markup_display_pct() -> str:
     return _MARKUP_DISPLAY_PCT

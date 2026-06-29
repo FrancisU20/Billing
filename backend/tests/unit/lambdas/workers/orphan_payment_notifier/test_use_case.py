@@ -29,10 +29,18 @@ class FakeOrphanQuery(IOrphanPaymentQuery):
     def __init__(self, orphans: list[OrphanPaymentSummary] | None = None) -> None:
         self._orphans = orphans or []
         self.calls: list[datetime] = []
+        self.marked: list[tuple[str, datetime]] = []
+        self.mark_skips: set[str] = set()
 
     def list_orphaned_paid(self, *, cutoff: datetime) -> list[OrphanPaymentSummary]:
         self.calls.append(cutoff)
         return self._orphans
+
+    def mark_orphan_alert_sent(self, *, order_id: str, alerted_at: datetime) -> bool:
+        if order_id in self.mark_skips:
+            return False
+        self.marked.append((order_id, alerted_at))
+        return True
 
 
 class FakeEmailSender(EmailSender):
@@ -148,6 +156,9 @@ class NotifyOrphanPaymentsUseCaseTests(unittest.TestCase):
         result, _, sender = _run(orphans)
 
         self.assertEqual(result.alerts_sent, 2)
+        self.assertEqual(result.alerts_marked, 2)
+        self.assertEqual(result.mark_skipped, 0)
+        self.assertEqual(result.errors, 0)
         self.assertEqual(len(sender.alerts_sent), 2)
         order_ids = [a["order_id"] for a in sender.alerts_sent]
         self.assertIn("DP-1", order_ids)
@@ -183,14 +194,34 @@ class NotifyOrphanPaymentsUseCaseTests(unittest.TestCase):
 
     def test_continues_on_email_error(self) -> None:
         orphans = [_payment("DP-1"), _payment("DP-2")]
-        result, _, _ = _run(orphans, email_raises=True)
+        result, query, _ = _run(orphans, email_raises=True)
         self.assertEqual(result.alerts_sent, 0)
+        self.assertEqual(result.alerts_marked, 0)
+        self.assertEqual(result.errors, 2)
+        self.assertEqual(query.marked, [])
 
     def test_handles_none_payer_email(self) -> None:
         orphan = _payment("DP-1", payer_email=None)
         result, _, sender = _run([orphan])
         self.assertEqual(result.alerts_sent, 1)
         self.assertIsNone(sender.alerts_sent[0]["payer_email"])
+
+    def test_counts_mark_skip_after_successful_email(self) -> None:
+        query = FakeOrphanQuery([_payment("DP-1")])
+        query.mark_skips.add("DP-1")
+        sender = FakeEmailSender()
+
+        result = NotifyOrphanPaymentsUseCase(
+            query,
+            sender,
+            superadmin_email="admin@example.com",
+            now=_CUTOFF,
+        ).execute()
+
+        self.assertEqual(result.alerts_sent, 1)
+        self.assertEqual(result.alerts_marked, 0)
+        self.assertEqual(result.mark_skipped, 1)
+        self.assertEqual(query.marked, [])
 
 
 if __name__ == "__main__":

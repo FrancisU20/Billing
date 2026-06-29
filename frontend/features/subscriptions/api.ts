@@ -20,6 +20,7 @@ export const subscriptionsApi = {
 
   confirmPayment: (
     orderId: string,
+    checkoutToken: string,
     body: {
       card_token: string
       client_first_name: string
@@ -31,10 +32,14 @@ export const subscriptionsApi = {
   ) =>
     api.post(`/subscriptions/payments/${orderId}/confirm`, body, confirmPaymentResultSchema, {
       auth: false,
+      headers: { 'X-Checkout-Token': checkoutToken },
     }),
 
-  getPayment: (orderId: string) =>
-    api.get(`/subscriptions/payments/${orderId}`, paymentStatusSchema, { auth: false }),
+  getPayment: (orderId: string, checkoutToken: string) =>
+    api.get(`/subscriptions/payments/${orderId}`, paymentStatusSchema, {
+      auth: false,
+      headers: { 'X-Checkout-Token': checkoutToken },
+    }),
 
   applyRenewal: (tenantId: string, orderId: string, idempotencyKey: string) =>
     api.post(

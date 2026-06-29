@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from decimal import ROUND_HALF_UP, Decimal
 
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import (
     DLocalConfirmPaymentResult,
@@ -16,6 +17,7 @@ from shared.logger import get_logger
 _log = get_logger(__name__)
 
 _USER_AGENT = "WaliBilling/1.0"
+_CENT = Decimal("0.01")
 
 
 class DLocalClient(IDLocalClient):
@@ -52,7 +54,7 @@ class DLocalClient(IDLocalClient):
             "POST",
             "/v1/payments",
             {
-                "amount": float(amount),  # dLocal Go requires number, not string
+                "amount": _json_amount(amount),
                 "currency": currency,
                 "country": country,
                 "allow_transparent": True,
@@ -99,7 +101,7 @@ class DLocalClient(IDLocalClient):
         resp = self._request(
             "POST",
             f"/v1/payments/{order_id}/refund",
-            {"amount": float(amount), "currency": currency},
+            {"amount": _json_amount(amount), "currency": currency},
         )
         return DLocalRefundResult(
             refund_id=resp.get("id") or "",
@@ -113,7 +115,7 @@ class DLocalClient(IDLocalClient):
             "POST",
             "/v1/payments",
             {
-                "amount": float(amount),
+                "amount": _json_amount(amount),
                 "currency": currency,
                 "country": country,
                 "payer": {"id": payer_id},
@@ -123,3 +125,8 @@ class DLocalClient(IDLocalClient):
             payment_id=resp.get("id") or "",
             status=resp.get("status") or "REJECTED",
         )
+
+
+def _json_amount(amount: str) -> float:
+    """dLocal Go requires JSON numbers; quantize explicitly before leaving Decimal land."""
+    return float(Decimal(amount).quantize(_CENT, ROUND_HALF_UP))

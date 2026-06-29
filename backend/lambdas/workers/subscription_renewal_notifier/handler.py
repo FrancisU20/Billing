@@ -33,6 +33,7 @@ _AUDIT_TABLE = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else N
 _PLANS_TABLE = get_table("PLANS_TABLE") if env("PLANS_TABLE", "") else None
 _PAYMENTS_TABLE = get_table("PAYMENTS_TABLE") if env("PAYMENTS_TABLE", "") else None
 _FRONTEND_URL = env("FRONTEND_URL", "")
+_BILLING_EMAIL = env("BILLING_EMAIL", env("SUPERADMIN_EMAIL", ""))
 
 
 def _repo() -> DynamoTenantRepository:
@@ -66,14 +67,17 @@ def handler(event: dict, context) -> dict:
     payment_repo = DynamoPaymentRepository(_PAYMENTS_TABLE) if _PAYMENTS_TABLE and dlocal else None
 
     try:
+        email_sender = _email_sender()
         result = NotifySubscriptionRenewalUseCase(
             _repo(),
-            _email_sender(),
+            email_sender,
             now=datetime.now(UTC),
             frontend_url=_FRONTEND_URL,
             plan_catalog=plan_catalog,
             dlocal=dlocal,
             payment_repo=payment_repo,
+            reconciliation_notifier=email_sender,
+            reconciliation_email=_BILLING_EMAIL,
         ).execute()
         _log.info(
             "subscription renewal notifications sent",
@@ -81,12 +85,18 @@ def handler(event: dict, context) -> dict:
             expirations_processed=result.expirations_processed,
             auto_charged=result.auto_charged,
             payment_failed_count=result.payment_failed_count,
+            auto_charge_reconciliation_required_count=(
+                result.auto_charge_reconciliation_required_count
+            ),
         )
         return {
             "remindersSent": result.reminders_sent,
             "expirationsProcessed": result.expirations_processed,
             "autoCharged": result.auto_charged,
             "paymentFailedCount": result.payment_failed_count,
+            "autoChargeReconciliationRequiredCount": (
+                result.auto_charge_reconciliation_required_count
+            ),
         }
     except AppError:
         _log.warning("subscription renewal notifier application error", exc_info=True)

@@ -9,6 +9,7 @@ Colas actuales:
   email-notifications  → envía emails de bienvenida via Brevo (contiene temp_password cifrado)
   invoice-sign         → firma XAdES-BES + envío SRI (compartida, clientes pequeños)
   invoice-poll         → polling de autorización SRI (compartida, clientes pequeños)
+  dlocal-webhooks      → procesa webhooks dLocal Go tras HMAC HTTP
 
 Colas enterprise dedicadas (invoice-sign-{tenant_id}, invoice-poll-{tenant_id}):
   Se crean en runtime via POST /tenants/{id}/dedicated-queue/provision (no CDK).
@@ -110,6 +111,36 @@ class QueuesStack(Stack):
             comparison_operator = cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
         )
 
+        # ── dLocal Webhooks ──────────────────────────────────────────────────
+        # Endpoint HTTP valida HMAC y encola payload firmado. Worker procesa con
+        # retry/DLQ para no perder eventos de pago por fallas transitorias.
+        dlocal_webhook_dlq = sqs.Queue(
+            self, "DLocalWebhookDlq",
+            queue_name       = f"codelabs-billing-{env}-dlocal-webhooks-dlq",
+            retention_period = Duration.days(14),
+        )
+        self.dlocal_webhook_queue = sqs.Queue(
+            self, "DLocalWebhookQueue",
+            queue_name         = f"codelabs-billing-{env}-dlocal-webhooks",
+            visibility_timeout = Duration.seconds(180),  # 6× timeout worker (30s)
+            retention_period   = Duration.days(4),
+            dead_letter_queue  = sqs.DeadLetterQueue(
+                max_receive_count = 5,
+                queue             = dlocal_webhook_dlq,
+            ),
+        )
+        cw.Alarm(
+            self, "DLocalWebhookDlqAlarm",
+            alarm_name        = f"codelabs-billing-{env}-dlocal-webhooks-dlq-messages",
+            alarm_description = "Mensajes en DLQ dlocal-webhooks: webhook de pago no procesado tras reintentos.",
+            metric            = dlocal_webhook_dlq.metric_approximate_number_of_messages_visible(
+                period=Duration.minutes(1),
+            ),
+            threshold           = 1,
+            evaluation_periods  = 1,
+            comparison_operator = cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        )
+
         # ── Invoice Sign (compartida, clientes pequeños) ──────────────────────
         # Firma XAdES-BES + envío batch al SRI (RecepcionComprobantesOffline).
         # batch_size=10 en ESM. Sin reserved_concurrency: la cuenta AWS de este
@@ -193,6 +224,10 @@ class QueuesStack(Stack):
         CfnOutput(self, "EmailNotificationsQueueUrl",
                   value       = self.email_notifications_queue.queue_url,
                   export_name = f"CodeLabsBilling-{env}-EmailNotificationsQueueUrl")
+
+        CfnOutput(self, "DLocalWebhookQueueUrl",
+                  value       = self.dlocal_webhook_queue.queue_url,
+                  export_name = f"CodeLabsBilling-{env}-DLocalWebhookQueueUrl")
 
         CfnOutput(self, "InvoiceSignQueueUrl",
                   value       = self.invoice_sign_queue.queue_url,

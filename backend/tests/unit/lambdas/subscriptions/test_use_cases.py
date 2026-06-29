@@ -3,12 +3,14 @@ from __future__ import annotations
 import unittest
 import urllib.error
 from decimal import Decimal
+from unittest.mock import patch
 
 from lambdas.subscriptions.domain.commands import ConfirmPaymentCommand, CreatePaymentCommand
 from lambdas.subscriptions.domain.entities.payment import Payment
 from lambdas.subscriptions.domain.errors import (
     CustomQuotePlanPaymentError,
     FreePlanPaymentError,
+    PaymentAccessDeniedError,
     PaymentAlreadyConfirmedError,
     PaymentConfirmError,
     PaymentCreationError,
@@ -164,6 +166,26 @@ class FakePaymentRepository:
         if order_id in self._store:
             self._store[order_id].tenant_id = tenant_id
 
+    def apply_webhook_status(self, order_id: str, new_status: str) -> tuple[str, bool]:
+        payment = self.get_by_order_id(order_id)
+        if new_status == "PAID":
+            if payment.status in {"PAID", "REFUNDED"}:
+                return payment.status, False
+            payment.status = "PAID"
+            return payment.status, True
+        if payment.status in {"CREATED", "PENDING"}:
+            payment.status = new_status
+            return payment.status, True
+        return payment.status, False
+
+
+class FakeLogger:
+    def __init__(self) -> None:
+        self.errors: list[tuple[str, dict]] = []
+
+    def error(self, message: str, **kwargs) -> None:
+        self.errors.append((message, kwargs))
+
 
 # ── CreatePaymentUseCase ──────────────────────────────────────────────────────
 
@@ -285,6 +307,7 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         result = ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
             ConfirmPaymentCommand(
                 order_id="DP-1",
+                checkout_token="mct_tok",
                 card_token="card_tok_abc",
                 client_first_name="Test",
                 client_last_name="User",
@@ -305,6 +328,7 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
             ConfirmPaymentCommand(
                 order_id="DP-1",
+                checkout_token="mct_special",
                 card_token="card_tok",
                 client_first_name="Test",
                 client_last_name="User",
@@ -315,12 +339,29 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         )
         self.assertEqual(dlocal.confirm_calls[0][0], "mct_special")
 
+    def test_raises_if_checkout_token_does_not_match(self) -> None:
+        repo = self._repo_with_payment("DP-1", "mct_tok")
+        with self.assertRaises(PaymentAccessDeniedError):
+            ConfirmPaymentUseCase(dlocal=FakeDLocalClient(), payment_repo=repo).execute(
+                ConfirmPaymentCommand(
+                    order_id="DP-1",
+                    checkout_token="wrong-token",
+                    card_token="card_tok",
+                    client_first_name="Test",
+                    client_last_name="User",
+                    client_email="test@example.com",
+                    client_document_type="CI",
+                    client_document="1712345678",
+                )
+            )
+
     def test_accepts_authorized_status(self) -> None:
         repo = self._repo_with_payment("DP-1", "mct_tok")
         dlocal = FakeDLocalClient(confirm_status="AUTHORIZED")
         result = ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
             ConfirmPaymentCommand(
                 order_id="DP-1",
+                checkout_token="mct_tok",
                 card_token="card_tok",
                 client_first_name="Test",
                 client_last_name="User",
@@ -337,6 +378,7 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         result = ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
             ConfirmPaymentCommand(
                 order_id="DP-1",
+                checkout_token="mct_tok",
                 card_token="card_tok",
                 client_first_name="Test",
                 client_last_name="User",
@@ -359,6 +401,7 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
         result = ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
             ConfirmPaymentCommand(
                 order_id="DP-1",
+                checkout_token="mct_tok",
                 card_token="card_tok",
                 client_first_name="Test",
                 client_last_name="User",
@@ -378,6 +421,7 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
             ConfirmPaymentUseCase(dlocal=FakeDLocalClient(), payment_repo=repo).execute(
                 ConfirmPaymentCommand(
                     order_id="DP-1",
+                    checkout_token="mct_tok",
                     card_token="card_tok",
                     client_first_name="Test",
                     client_last_name="User",
@@ -392,6 +436,7 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
             self._use_case(repo=FakePaymentRepository()).execute(
                 ConfirmPaymentCommand(
                     order_id="MISSING",
+                    checkout_token="mct_tok",
                     card_token="card_tok",
                     client_first_name="Test",
                     client_last_name="User",
@@ -410,6 +455,7 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
             ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
                 ConfirmPaymentCommand(
                     order_id="DP-1",
+                    checkout_token="mct_tok",
                     card_token="card_tok",
                     client_first_name="Test",
                     client_last_name="User",
@@ -428,6 +474,7 @@ class ConfirmPaymentUseCaseTests(unittest.TestCase):
             ConfirmPaymentUseCase(dlocal=dlocal, payment_repo=repo).execute(
                 ConfirmPaymentCommand(
                     order_id="DP-1",
+                    checkout_token="mct_tok",
                     card_token="card_tok",
                     client_first_name="Test",
                     client_last_name="User",
@@ -459,21 +506,31 @@ class GetPaymentUseCaseTests(unittest.TestCase):
                 currency="USD",
                 status="PAID",
                 plan_cycle=plan_cycle,
+                checkout_token="mct_tok",
+                payer_id="payer-1",
+                payer_email="payer@example.com",
             )
         )
         return repo
 
     def test_returns_payment_dict_with_plan_cycle(self) -> None:
         repo = self._repo_with_payment("DP-1", plan_cycle="year")
-        result = GetPaymentUseCase(repo).execute("DP-1")
+        result = GetPaymentUseCase(repo).execute("DP-1", "mct_tok")
         self.assertEqual(result["order_id"], "DP-1")
         self.assertEqual(result["status"], "PAID")
         self.assertEqual(result["plan_cycle"], "year")
         self.assertEqual(result["amount"], "5.99")
+        self.assertNotIn("payer_id", result)
+        self.assertNotIn("payer_email", result)
+
+    def test_raises_if_checkout_token_does_not_match_on_status_lookup(self) -> None:
+        repo = self._repo_with_payment("DP-1")
+        with self.assertRaises(PaymentAccessDeniedError):
+            GetPaymentUseCase(repo).execute("DP-1", "wrong-token")
 
     def test_raises_if_not_found(self) -> None:
         with self.assertRaises(PaymentNotFoundError):
-            GetPaymentUseCase(FakePaymentRepository()).execute("MISSING")
+            GetPaymentUseCase(FakePaymentRepository()).execute("MISSING", "mct_tok")
 
 
 class RefundPaymentUseCaseTests(unittest.TestCase):
@@ -545,6 +602,57 @@ class RefundPaymentUseCaseTests(unittest.TestCase):
             RefundPaymentUseCase(repo, dlocal).execute("DP-1")
         self.assertEqual(len(repo.saved), initial_save_count)
 
+    def test_logs_http_error_from_dlocal(self) -> None:
+        payment = self._paid_payment()
+        repo = self._repo_with(payment)
+        dlocal = FakeDLocalClient(
+            refund_raises=urllib.error.HTTPError(None, 502, "Bad Gateway", {}, None)
+        )
+        logger = FakeLogger()
+
+        with (
+            patch("lambdas.subscriptions.use_cases.refund_payment._log", logger),
+            self.assertRaises(PaymentRefundError),
+        ):
+            RefundPaymentUseCase(repo, dlocal).execute("DP-1")
+
+        self.assertEqual(logger.errors[0][0], "dLocal refund failed")
+        self.assertEqual(logger.errors[0][1]["order_id"], "DP-1")
+        self.assertEqual(logger.errors[0][1]["status"], 502)
+
+    def test_logs_network_error_from_dlocal(self) -> None:
+        payment = self._paid_payment()
+        repo = self._repo_with(payment)
+        dlocal = FakeDLocalClient(refund_raises=urllib.error.URLError("timeout"))
+        logger = FakeLogger()
+
+        with (
+            patch("lambdas.subscriptions.use_cases.refund_payment._log", logger),
+            self.assertRaises(PaymentRefundError),
+        ):
+            RefundPaymentUseCase(repo, dlocal).execute("DP-1")
+
+        self.assertEqual(logger.errors[0][0], "dLocal refund failed")
+        self.assertEqual(logger.errors[0][1]["order_id"], "DP-1")
+        self.assertEqual(logger.errors[0][1]["reason"], "timeout")
+
+    def test_logs_unexpected_dlocal_error_with_traceback(self) -> None:
+        payment = self._paid_payment()
+        repo = self._repo_with(payment)
+        dlocal = FakeDLocalClient(refund_raises=RuntimeError("dLocal down"))
+        logger = FakeLogger()
+
+        with (
+            patch("lambdas.subscriptions.use_cases.refund_payment._log", logger),
+            self.assertRaises(PaymentRefundError),
+        ):
+            RefundPaymentUseCase(repo, dlocal).execute("DP-1")
+
+        self.assertEqual(logger.errors[0][0], "dLocal refund failed unexpectedly")
+        self.assertEqual(logger.errors[0][1]["order_id"], "DP-1")
+        self.assertEqual(logger.errors[0][1]["error"], "dLocal down")
+        self.assertTrue(logger.errors[0][1]["exc_info"])
+
 
 class ProcessWebhookUseCaseTests(unittest.TestCase):
     def _repo_with(
@@ -594,6 +702,27 @@ class ProcessWebhookUseCaseTests(unittest.TestCase):
         result = ProcessWebhookUseCase(repo).execute("DP-1", "PAID")
         self.assertFalse(result.updated)
         self.assertEqual(len(repo.saved), initial_saves)
+
+    def test_negative_webhook_does_not_downgrade_paid_payment(self) -> None:
+        repo = self._repo_with(status="PAID")
+        result = ProcessWebhookUseCase(repo).execute("DP-1", "FAILED")
+        self.assertFalse(result.updated)
+        self.assertEqual(result.status, "PAID")
+        self.assertEqual(repo.get_by_order_id("DP-1").status, "PAID")
+
+    def test_webhook_does_not_change_refunded_payment(self) -> None:
+        repo = self._repo_with(status="REFUNDED")
+        result = ProcessWebhookUseCase(repo).execute("DP-1", "PAID")
+        self.assertFalse(result.updated)
+        self.assertEqual(result.status, "REFUNDED")
+        self.assertEqual(repo.get_by_order_id("DP-1").status, "REFUNDED")
+
+    def test_paid_webhook_can_recover_failed_local_payment(self) -> None:
+        repo = self._repo_with(status="FAILED")
+        result = ProcessWebhookUseCase(repo).execute("DP-1", "PAID")
+        self.assertTrue(result.updated)
+        self.assertEqual(result.status, "PAID")
+        self.assertEqual(repo.get_by_order_id("DP-1").status, "PAID")
 
     def test_no_op_for_unknown_order(self) -> None:
         result = ProcessWebhookUseCase(FakePaymentRepository()).execute("MISSING", "PAID")

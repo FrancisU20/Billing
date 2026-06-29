@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from shared.errors import AppError, BusinessError, NotFoundError
+from shared.errors import AppError, BusinessError, ForbiddenError, NotFoundError
 
 
 class FreePlanPaymentError(BusinessError):
@@ -21,6 +21,11 @@ class PlanNotFoundForPaymentError(NotFoundError):
 class PaymentNotFoundError(NotFoundError):
     code = "PAYMENT_NOT_FOUND"
     default_message = "Pago no encontrado."
+
+
+class PaymentAccessDeniedError(ForbiddenError):
+    code = "PAYMENT_ACCESS_DENIED"
+    default_message = "No tienes permisos para consultar o confirmar este pago."
 
 
 class PaymentAlreadyConfirmedError(AppError):

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import importlib
+import json
 import os
 import sys
 import unittest
@@ -22,6 +25,7 @@ os.environ.setdefault("PAYMENTS_TABLE", "unit-payments")
 os.environ.setdefault("PLANS_TABLE", "unit-plans")
 os.environ.setdefault("DLOCALGO_CREDENTIALS_NAME", "unit/dlocalgo-creds")
 os.environ.setdefault("DLOCALGO_API_URL", "https://api-sbx.dlocalgo.com")
+os.environ.setdefault("DLOCAL_WEBHOOK_QUEUE_URL", "https://sqs.test/dlocal-webhooks")
 
 
 # ── Fakes ─────────────────────────────────────────────────────────────────────
@@ -131,6 +135,27 @@ class FakePaymentRepository:
         if order_id in self._store:
             self._store[order_id].tenant_id = tenant_id
 
+    def apply_webhook_status(self, order_id: str, new_status: str) -> tuple[str, bool]:
+        payment = self.get_by_order_id(order_id)
+        if new_status == "PAID":
+            if payment.status in {"PAID", "REFUNDED"}:
+                return payment.status, False
+            payment.status = "PAID"
+            return payment.status, True
+        if payment.status in {"CREATED", "PENDING"}:
+            payment.status = new_status
+            return payment.status, True
+        return payment.status, False
+
+
+class FakeSqsClient:
+    def __init__(self) -> None:
+        self.messages: list[dict] = []
+
+    def send_message(self, **kwargs) -> dict:
+        self.messages.append(kwargs)
+        return {"MessageId": "msg-1"}
+
 
 # ── Module reload helper ───────────────────────────────────────────────────────
 
@@ -212,12 +237,21 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
         )
         return repo
 
-    def _call(self, order_id: str, body: dict, dlocal=None, repo=None) -> dict:
+    def _call(
+        self,
+        order_id: str,
+        body: dict,
+        dlocal=None,
+        repo=None,
+        checkout_token: str | None = "mct_tok",
+    ) -> dict:
+        headers = {"x-checkout-token": checkout_token} if checkout_token is not None else {}
         event = api_event(
             method="POST",
             path=f"/subscriptions/payments/{order_id}/confirm",
             body=body,
             path_params={"order_id": order_id},
+            headers=headers,
         )
         _dl = dlocal or FakeDLocalClient()
         _repo = repo or self._repo_with_payment(order_id)
@@ -238,7 +272,7 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
                 "client_last_name": "User",
                 "client_email": "test@example.com",
                 "client_document_type": "CI",
-                "client_document": "1712345678",
+                "client_document": "1710034065",
             },
             dlocal=dlocal,
             repo=repo,
@@ -262,7 +296,7 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
                 "client_last_name": "User",
                 "client_email": "test@example.com",
                 "client_document_type": "CI",
-                "client_document": "1712345678",
+                "client_document": "1710034065",
             },
             dlocal=dlocal,
             repo=repo,
@@ -293,11 +327,26 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
                 "client_last_name": "User",
                 "client_email": "test@example.com",
                 "client_document_type": "CI",
-                "client_document": "1712345678",
+                "client_document": "1710034065",
             },
             repo=repo,
         )
         self.assertEqual(resp["statusCode"], 409)
+
+    def test_returns_403_if_checkout_token_is_missing(self) -> None:
+        resp = self._call(
+            "DP-1",
+            {
+                "card_token": "card_tok",
+                "client_first_name": "Test",
+                "client_last_name": "User",
+                "client_email": "test@example.com",
+                "client_document_type": "CI",
+                "client_document": "1710034065",
+            },
+            checkout_token=None,
+        )
+        self.assertEqual(resp["statusCode"], 403)
 
     def test_returns_409_if_pending_3ds(self) -> None:
         repo = FakePaymentRepository()
@@ -320,7 +369,7 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
                 "client_last_name": "User",
                 "client_email": "test@example.com",
                 "client_document_type": "CI",
-                "client_document": "1712345678",
+                "client_document": "1710034065",
             },
             repo=repo,
         )
@@ -335,7 +384,7 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
                 "client_last_name": "User",
                 "client_email": "test@example.com",
                 "client_document_type": "CI",
-                "client_document": "1712345678",
+                "client_document": "1710034065",
             },
             repo=FakePaymentRepository(),
         )
@@ -358,15 +407,25 @@ class GetPaymentHandlerTests(unittest.TestCase):
                 currency="USD",
                 status="PAID",
                 plan_cycle="month",
+                checkout_token="mct_tok",
+                payer_id="payer-1",
+                payer_email="payer@example.com",
             )
         )
         return repo
 
-    def _call(self, order_id: str, repo=None) -> dict:
+    def _call(
+        self,
+        order_id: str,
+        repo=None,
+        checkout_token: str | None = "mct_tok",
+    ) -> dict:
+        headers = {"x-checkout-token": checkout_token} if checkout_token is not None else {}
         event = api_event(
             method="GET",
             path=f"/subscriptions/payments/{order_id}",
             path_params={"order_id": order_id},
+            headers=headers,
         )
         _repo = repo or self._repo_with_payment(order_id)
         with patch.object(_handler_mod, "DynamoPaymentRepository", return_value=_repo):
@@ -379,10 +438,79 @@ class GetPaymentHandlerTests(unittest.TestCase):
         self.assertEqual(body["data"]["order_id"], "DP-1")
         self.assertEqual(body["data"]["status"], "PAID")
         self.assertEqual(body["data"]["plan_cycle"], "month")
+        self.assertNotIn("payer_id", body["data"])
+        self.assertNotIn("payer_email", body["data"])
+
+    def test_returns_403_if_checkout_token_is_missing(self) -> None:
+        resp = self._call("DP-1", checkout_token=None)
+        self.assertEqual(resp["statusCode"], 403)
 
     def test_returns_404_if_not_found(self) -> None:
         resp = self._call("MISSING", repo=FakePaymentRepository())
         self.assertEqual(resp["statusCode"], 404)
+
+
+class DLocalWebhookHandlerTests(unittest.TestCase):
+    def _signature(self, raw_body: str) -> str:
+        return hmac.new(b"test-secret", raw_body.encode(), hashlib.sha256).hexdigest()
+
+    def _event(self, body: dict, *, signature: str | None = None) -> dict:
+        raw_body = json.dumps(body)
+        headers = {}
+        if signature is not None:
+            headers["x-signature"] = signature
+        event = api_event(
+            method="POST",
+            path="/subscriptions/webhooks/dlocal",
+            body=body,
+            headers=headers,
+        )
+        event["body"] = raw_body
+        return event
+
+    def test_valid_signed_webhook_is_enqueued_without_mutating_payment(self) -> None:
+        body = {"type": "PAYMENT", "data": {"order_id": "DP-1", "status": "PAID"}}
+        raw_body = json.dumps(body)
+        event = self._event(body, signature=self._signature(raw_body))
+        sqs = FakeSqsClient()
+        repo = FakePaymentRepository()
+
+        with (
+            patch("boto3.client", return_value=sqs),
+            patch.object(_handler_mod, "DynamoPaymentRepository", return_value=repo),
+        ):
+            resp = _handler_mod.handler(event, LambdaContext())
+
+        self.assertEqual(resp["statusCode"], 200)
+        self.assertEqual(repo.saved, [])
+        self.assertEqual(len(sqs.messages), 1)
+        message = sqs.messages[0]
+        self.assertEqual(message["QueueUrl"], "https://sqs.test/dlocal-webhooks")
+        payload = json.loads(message["MessageBody"])
+        self.assertEqual(payload["type"], "DLOCAL_WEBHOOK")
+        self.assertEqual(json.loads(payload["raw_body"]), body)
+
+    def test_invalid_signature_is_rejected_and_not_enqueued(self) -> None:
+        body = {"type": "PAYMENT", "data": {"order_id": "DP-1", "status": "PAID"}}
+        event = self._event(body, signature="bad-signature")
+        sqs = FakeSqsClient()
+
+        with patch("boto3.client", return_value=sqs):
+            resp = _handler_mod.handler(event, LambdaContext())
+
+        self.assertEqual(resp["statusCode"], 403)
+        self.assertEqual(sqs.messages, [])
+
+    def test_missing_signature_is_rejected_and_not_enqueued(self) -> None:
+        body = {"type": "PAYMENT", "data": {"order_id": "DP-1", "status": "PAID"}}
+        event = self._event(body)
+        sqs = FakeSqsClient()
+
+        with patch("boto3.client", return_value=sqs):
+            resp = _handler_mod.handler(event, LambdaContext())
+
+        self.assertEqual(resp["statusCode"], 403)
+        self.assertEqual(sqs.messages, [])
 
 
 if __name__ == "__main__":

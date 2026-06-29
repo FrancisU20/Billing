@@ -482,6 +482,8 @@ class ApiStack(Stack):
                 "BREVO_SUPPORT_EMAIL":       "support@codelabsecuador.com",
                 "BREVO_TESTING_EMAIL":       "testing@codelabsecuador.com",
                 "BREVO_SENDER_NAME":         "Wali",
+                "BILLING_EMAIL":             "billing@codelabsecuador.com",
+                "SUPERADMIN_EMAIL":          config.get("superadmin_email", ""),
                 "FRONTEND_URL":              frontend_url,
                 "DLOCALGO_CREDENTIALS_NAME": f"codelabs-billing-{env}/dlocalgo-credentials",
                 "DLOCALGO_API_URL":          "https://api.dlocalgo.com" if env == "prod" else "https://api-sbx.dlocalgo.com",
@@ -534,7 +536,7 @@ class ApiStack(Stack):
                 "ORPHAN_PAYMENT_GRACE_MINUTES": "30",
             },
         )
-        database.payments_table.grant_read_data(orphan_payment_notifier_fn)
+        database.payments_table.grant_read_write_data(orphan_payment_notifier_fn)
         orphan_payment_notifier_fn.add_to_role_policy(iam.PolicyStatement(
             actions   = ["secretsmanager:GetSecretValue"],
             resources = [
@@ -546,6 +548,32 @@ class ApiStack(Stack):
             self, "OrphanPaymentNotifierSchedule",
             schedule = events.Schedule.expression("cron(0 * * * ? *)"),
             targets  = [events_targets.LambdaFunction(orphan_payment_notifier_fn)],
+        )
+
+        # ── Stale Payment Cleaner Worker ─────────────────────────────────────
+        # Corre cada hora: cancela localmente pagos CREATED/PENDING abandonados.
+        # Webhooks PAID tardíos pueden recuperar el pago por la transición condicional.
+        stale_payment_cleaner_fn = lmb.Function(
+            self, "StalePaymentCleanerWorker",
+            function_name = f"codelabs-billing-{env}-stale-payment-cleaner",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.workers.stale_payment_cleaner.handler.handler",
+            timeout       = Duration.seconds(60),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "PAYMENTS_TABLE":              database.payments_table.table_name,
+                "STALE_PAYMENT_GRACE_MINUTES": "1440",
+            },
+        )
+        database.payments_table.grant_read_write_data(stale_payment_cleaner_fn)
+
+        events.Rule(
+            self, "StalePaymentCleanerSchedule",
+            schedule = events.Schedule.expression("cron(15 * * * ? *)"),
+            targets  = [events_targets.LambdaFunction(stale_payment_cleaner_fn)],
         )
 
         # ── Pending Activation Reconciler Worker ──────────────────────────────
@@ -1040,17 +1068,43 @@ class ApiStack(Stack):
                 "IDEMPOTENCY_TABLE":          database.idempotency_table.table_name,
                 "DLOCALGO_CREDENTIALS_NAME":  f"codelabs-billing-{env}/dlocalgo-credentials",
                 "DLOCALGO_API_URL":           "https://api.dlocalgo.com" if env == "prod" else "https://api-sbx.dlocalgo.com",
+                "DLOCAL_WEBHOOK_QUEUE_URL":   queues.dlocal_webhook_queue.queue_url,
             },
         )
         database.payments_table.grant_read_write_data(subscriptions_fn)
         database.plans_table.grant_read_data(subscriptions_fn)
         database.idempotency_table.grant_read_write_data(subscriptions_fn)
+        queues.dlocal_webhook_queue.grant_send_messages(subscriptions_fn)
         subscriptions_fn.add_to_role_policy(iam.PolicyStatement(
             actions   = ["secretsmanager:GetSecretValue"],
             resources = [
                 f"arn:aws:secretsmanager:{region}:*:secret:codelabs-billing-{env}/dlocalgo-credentials*"
             ],
         ))
+
+        dlocal_webhook_processor_fn = lmb.Function(
+            self, "DLocalWebhookProcessorWorker",
+            function_name = f"codelabs-billing-{env}-dlocal-webhook-processor",
+            runtime       = lmb.Runtime.PYTHON_3_12,
+            architecture  = lmb.Architecture.ARM_64,
+            code          = _code,
+            handler       = "lambdas.workers.dlocal_webhook_processor.handler.handler",
+            timeout       = Duration.seconds(30),
+            memory_size   = 256,
+            environment   = {
+                **_common_env,
+                "PAYMENTS_TABLE":              database.payments_table.table_name,
+                "DLOCAL_WEBHOOK_QUEUE_NAME":   queues.dlocal_webhook_queue.queue_name,
+            },
+        )
+        database.payments_table.grant_read_write_data(dlocal_webhook_processor_fn)
+        dlocal_webhook_processor_fn.add_event_source(
+            event_sources.SqsEventSource(
+                queues.dlocal_webhook_queue,
+                batch_size=10,
+                report_batch_item_failures=True,
+            )
+        )
 
         subscriptions_integration = integrations.HttpLambdaIntegration(
             "SubscriptionsIntegration", subscriptions_fn

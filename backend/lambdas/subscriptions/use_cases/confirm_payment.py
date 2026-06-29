@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hmac
 import urllib.error
 from dataclasses import dataclass
 
 from lambdas.subscriptions.domain.commands import ConfirmPaymentCommand
 from lambdas.subscriptions.domain.errors import (
+    PaymentAccessDeniedError,
     PaymentAlreadyConfirmedError,
     PaymentConfirmError,
 )
@@ -39,11 +41,14 @@ class ConfirmPaymentUseCase:
     def execute(self, cmd: ConfirmPaymentCommand) -> ConfirmPaymentResult:
         payment = self._payments.get_by_order_id(cmd.order_id)
 
+        if not payment.checkout_token or not hmac.compare_digest(
+            payment.checkout_token,
+            cmd.checkout_token,
+        ):
+            raise PaymentAccessDeniedError()
+
         if payment.status in _NON_CONFIRMABLE_STATUSES:
             raise PaymentAlreadyConfirmedError()
-
-        if not payment.checkout_token:
-            raise PaymentConfirmError()
 
         try:
             result = self._dlocal.confirm_payment(

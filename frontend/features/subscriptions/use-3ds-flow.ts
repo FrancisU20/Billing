@@ -1,19 +1,26 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { subscriptionsApi } from './api'
 
 export type ThreeDsState =
   | { phase: 'idle' }
-  | { phase: 'awaiting'; redirectUrl: string; orderId: string }
+  | { phase: 'awaiting'; redirectUrl: string; orderId: string; checkoutToken: string }
   | { phase: 'checking' }
   | { phase: 'failed'; error: string }
 
 const _POLL_MAX = 10
 const _POLL_DELAY_MS = 3000
 
-async function _pollUntilPaid(orderId: string): Promise<'PAID' | 'FAILED' | 'TIMEOUT'> {
+async function _pollUntilPaid(
+  orderId: string,
+  checkoutToken: string,
+  isCancelled: () => boolean,
+): Promise<'PAID' | 'FAILED' | 'TIMEOUT'> {
   for (let i = 0; i < _POLL_MAX; i++) {
+    if (isCancelled()) return 'TIMEOUT'
     if (i > 0) await new Promise((r) => setTimeout(r, _POLL_DELAY_MS))
-    const payment = await subscriptionsApi.getPayment(orderId)
+    if (isCancelled()) return 'TIMEOUT'
+    const payment = await subscriptionsApi.getPayment(orderId, checkoutToken)
+    if (isCancelled()) return 'TIMEOUT'
     if (payment.status === 'PAID') return 'PAID'
     if (payment.status === 'FAILED' || payment.status === 'REJECTED') return 'FAILED'
   }
@@ -22,22 +29,40 @@ async function _pollUntilPaid(orderId: string): Promise<'PAID' | 'FAILED' | 'TIM
 
 export function use3dsFlow() {
   const [state, setState] = useState<ThreeDsState>({ phase: 'idle' })
+  const mountedRef = useRef(true)
+  const activePollRef = useRef(0)
 
-  const startRedirect = useCallback((redirectUrl: string, orderId: string) => {
-    setState({ phase: 'awaiting', redirectUrl, orderId })
-    // Open 3DS page in a new tab to preserve app state.
-    window.open(redirectUrl, '_blank', 'noopener,noreferrer')
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+      activePollRef.current += 1
+    }
   }, [])
+
+  const startRedirect = useCallback(
+    (redirectUrl: string, orderId: string, checkoutToken: string) => {
+      activePollRef.current += 1
+      setState({ phase: 'awaiting', redirectUrl, orderId, checkoutToken })
+      // Open 3DS page in a new tab to preserve app state.
+      window.open(redirectUrl, '_blank', 'noopener,noreferrer')
+    },
+    [],
+  )
 
   const checkStatus = useCallback(
     async (onPaid: (orderId: string) => Promise<void>) => {
       if (state.phase !== 'awaiting') return
-      const { orderId } = state
+      const { orderId, checkoutToken } = state
+      const pollId = activePollRef.current + 1
+      activePollRef.current = pollId
+      const isCancelled = () => !mountedRef.current || activePollRef.current !== pollId
       setState({ phase: 'checking' })
       try {
-        const outcome = await _pollUntilPaid(orderId)
+        const outcome = await _pollUntilPaid(orderId, checkoutToken, isCancelled)
+        if (isCancelled()) return
         if (outcome === 'PAID') {
           await onPaid(orderId)
+          if (isCancelled()) return
           setState({ phase: 'idle' })
         } else {
           setState({
@@ -49,13 +74,17 @@ export function use3dsFlow() {
           })
         }
       } catch {
+        if (isCancelled()) return
         setState({ phase: 'failed', error: 'Error al verificar el estado del pago.' })
       }
     },
     [state],
   )
 
-  const reset = useCallback(() => setState({ phase: 'idle' }), [])
+  const reset = useCallback(() => {
+    activePollRef.current += 1
+    setState({ phase: 'idle' })
+  }, [])
 
   return { state, startRedirect, checkStatus, reset }
 }

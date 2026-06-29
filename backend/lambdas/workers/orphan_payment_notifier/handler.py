@@ -9,6 +9,7 @@ que superaron el grace period (default 30 min) y notifica al superadmin.
 from datetime import UTC, datetime, timedelta
 
 from boto3.dynamodb.conditions import Attr
+from botocore.exceptions import ClientError
 
 from lambdas.workers.email_notifications.infra.brevo_email_sender import BrevoEmailSender
 from lambdas.workers.orphan_payment_notifier.use_case import (
@@ -43,6 +44,7 @@ class _DynamoOrphanPaymentQuery(IOrphanPaymentQuery):
                 Attr("status").eq("PAID")
                 & Attr("tenant_id").not_exists()
                 & Attr("confirmed_at").lte(cutoff_iso)
+                & Attr("orphan_alerted_at").not_exists()
             ),
             "ProjectionExpression": (
                 "order_id, payer_email, plan_id, amount, currency, confirmed_at"
@@ -69,6 +71,36 @@ class _DynamoOrphanPaymentQuery(IOrphanPaymentQuery):
 
         return results
 
+    def mark_orphan_alert_sent(self, *, order_id: str, alerted_at: datetime) -> bool:
+        try:
+            self._table.update_item(
+                Key={"id": f"PAYMENT#{order_id}"},
+                UpdateExpression=(
+                    "SET orphan_alerted_at = :alerted_at ADD orphan_alert_count :inc"
+                ),
+                ConditionExpression=(
+                    "attribute_exists(id) AND #status = :paid "
+                    "AND attribute_not_exists(tenant_id) "
+                    "AND attribute_not_exists(orphan_alerted_at)"
+                ),
+                ExpressionAttributeNames={"#status": "status"},
+                ExpressionAttributeValues={
+                    ":alerted_at": alerted_at.isoformat(),
+                    ":inc": 1,
+                    ":paid": "PAID",
+                },
+            )
+            return True
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return False
+            _log.error(
+                "orphan payment notifier: failed to mark alert sent",
+                order_id=order_id,
+                error=str(exc),
+            )
+            raise
+
 
 def handler(event: dict, context) -> dict:
     clear_invocation_context()
@@ -89,7 +121,12 @@ def handler(event: dict, context) -> dict:
         ).execute()
 
         _log.info("orphan payment notifier finished", alerts_sent=result.alerts_sent)
-        return {"alertsSent": result.alerts_sent}
+        return {
+            "alertsSent": result.alerts_sent,
+            "alertsMarked": result.alerts_marked,
+            "markSkipped": result.mark_skipped,
+            "errors": result.errors,
+        }
 
     except AppError:
         _log.warning("orphan payment notifier application error", exc_info=True)

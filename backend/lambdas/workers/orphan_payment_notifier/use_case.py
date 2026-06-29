@@ -35,10 +35,17 @@ class IOrphanPaymentQuery(ABC):
     def list_orphaned_paid(self, *, cutoff: datetime) -> list[OrphanPaymentSummary]:
         """Return PAID payments with no tenant_id confirmed before the cutoff datetime."""
 
+    @abstractmethod
+    def mark_orphan_alert_sent(self, *, order_id: str, alerted_at: datetime) -> bool:
+        """Mark the orphan alert as sent. Returns False if the payment is no longer eligible."""
+
 
 @dataclass(frozen=True)
 class NotifyOrphanPaymentsResult:
     alerts_sent: int
+    alerts_marked: int = 0
+    mark_skipped: int = 0
+    errors: int = 0
 
 
 class NotifyOrphanPaymentsUseCase:
@@ -58,6 +65,9 @@ class NotifyOrphanPaymentsUseCase:
     def execute(self) -> NotifyOrphanPaymentsResult:
         orphans = self._query.list_orphaned_paid(cutoff=self._now)
         alerts_sent = 0
+        alerts_marked = 0
+        mark_skipped = 0
+        errors = 0
 
         for payment in orphans:
             try:
@@ -71,12 +81,25 @@ class NotifyOrphanPaymentsUseCase:
                     confirmed_at=payment.confirmed_at,
                 )
                 alerts_sent += 1
+                if self._query.mark_orphan_alert_sent(
+                    order_id=payment.order_id,
+                    alerted_at=self._now,
+                ):
+                    alerts_marked += 1
+                else:
+                    mark_skipped += 1
             except Exception:
                 _log.error(
                     "orphan payment notifier: failed to send alert",
                     order_id=payment.order_id,
                     exc_info=True,
                 )
+                errors += 1
                 continue
 
-        return NotifyOrphanPaymentsResult(alerts_sent=alerts_sent)
+        return NotifyOrphanPaymentsResult(
+            alerts_sent=alerts_sent,
+            alerts_marked=alerts_marked,
+            mark_skipped=mark_skipped,
+            errors=errors,
+        )

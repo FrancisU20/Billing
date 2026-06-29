@@ -20,6 +20,7 @@ class FakeEmailSender(EmailSender):
         self.reminders_sent: list[dict] = []
         self.expirations_sent: list[dict] = []
         self.payment_failed_sent: list[dict] = []
+        self.reconciliation_alerts_sent: list[dict] = []
 
     def send_onboarding_otp(self, *, email, legal_rep_name, otp, expires_at):
         raise NotImplementedError
@@ -93,6 +94,35 @@ class FakeEmailSender(EmailSender):
         self, *, superadmin_email, order_id, payer_email, plan_id, amount, currency, confirmed_at
     ):
         raise NotImplementedError
+
+    def send_auto_renewal_reconciliation_alert(
+        self,
+        *,
+        billing_email,
+        tenant_id,
+        tenant_email,
+        trade_name,
+        order_id,
+        plan_id,
+        amount,
+        currency,
+        confirmed_at,
+        reason,
+    ):
+        self.reconciliation_alerts_sent.append(
+            {
+                "billing_email": billing_email,
+                "tenant_id": tenant_id,
+                "tenant_email": tenant_email,
+                "trade_name": trade_name,
+                "order_id": order_id,
+                "plan_id": plan_id,
+                "amount": amount,
+                "currency": currency,
+                "confirmed_at": confirmed_at,
+                "reason": reason,
+            }
+        )
 
 
 _NOW = datetime(2026, 6, 1, 10, 0, 0, tzinfo=UTC)
@@ -214,13 +244,22 @@ class FakeLocalPlanCatalog:
 
 
 class FakeDLocalClient:
-    def __init__(self, *, status: str = "PAID", payment_id: str = "DP-auto-1") -> None:
+    def __init__(
+        self,
+        *,
+        status: str = "PAID",
+        payment_id: str = "DP-auto-1",
+        raises: Exception | None = None,
+    ) -> None:
         self._status = status
         self._payment_id = payment_id
+        self._raises = raises
         self.calls: int = 0
 
     def charge_saved_payer(self, payer_id, amount, currency, country) -> DLocalDirectChargeResult:
         self.calls += 1
+        if self._raises:
+            raise self._raises
         return DLocalDirectChargeResult(payment_id=self._payment_id, status=self._status)
 
     def create_payment(self, *a, **kw):
@@ -236,12 +275,19 @@ class FakeDLocalClient:
 class FakePaymentRepository:
     def __init__(self) -> None:
         self.saved: list[Payment] = []
+        self.transact_payments: list[Payment] = []
+        self.transact_items: list[dict] = []
+        self.reconciliation_markers: dict[tuple[str, datetime], dict] = {}
+        self.deleted_reconciliation_markers: list[tuple[str, datetime]] = []
 
     def save(self, payment: Payment) -> None:
         self.saved.append(payment)
 
     def save_transact_item(self, payment: Payment) -> dict:
-        raise NotImplementedError
+        item = {"Put": {"TableName": "payments", "Item": {"id": f"PAYMENT#{payment.order_id}"}}}
+        self.transact_payments.append(payment)
+        self.transact_items.append(item)
+        return item
 
     def get_by_order_id(self, order_id: str):
         raise NotImplementedError
@@ -249,16 +295,51 @@ class FakePaymentRepository:
     def link_tenant(self, order_id: str, tenant_id: str) -> None:
         raise NotImplementedError
 
+    def create_auto_renewal_reconciliation_marker(
+        self, *, tenant_id, cycle_ends_at, plan_id, amount, currency, reason
+    ) -> bool:
+        key = (tenant_id, cycle_ends_at)
+        if key in self.reconciliation_markers:
+            return False
+        self.reconciliation_markers[key] = {
+            "plan_id": plan_id,
+            "amount": amount,
+            "currency": currency,
+            "reason": reason,
+        }
+        return True
 
-def _auto_charge_deps(*, dlocal_status: str = "PAID"):
+    def save_auto_renewal_reconciliation_marker(
+        self, payment, *, tenant_id, cycle_ends_at, reason
+    ) -> None:
+        self.reconciliation_markers[(tenant_id, cycle_ends_at)] = {
+            "payment": payment,
+            "reason": reason,
+        }
+
+    def delete_auto_renewal_reconciliation_marker(self, *, tenant_id, cycle_ends_at) -> None:
+        self.deleted_reconciliation_markers.append((tenant_id, cycle_ends_at))
+        self.reconciliation_markers.pop((tenant_id, cycle_ends_at), None)
+
+
+def _auto_charge_deps(*, dlocal_status: str = "PAID", dlocal_raises: Exception | None = None):
     catalog = FakeLocalPlanCatalog(monthly_price=Decimal("5.99"))
-    dlocal = FakeDLocalClient(status=dlocal_status)
+    dlocal = FakeDLocalClient(status=dlocal_status, raises=dlocal_raises)
     payments = FakePaymentRepository()
     return catalog, dlocal, payments
 
 
-def _run_with_auto_charge(repo, *, dlocal_status: str = "PAID", sender=None):
-    catalog, dlocal, payments = _auto_charge_deps(dlocal_status=dlocal_status)
+def _run_with_auto_charge(
+    repo,
+    *,
+    dlocal_status: str = "PAID",
+    dlocal_raises: Exception | None = None,
+    sender=None,
+):
+    catalog, dlocal, payments = _auto_charge_deps(
+        dlocal_status=dlocal_status,
+        dlocal_raises=dlocal_raises,
+    )
     email_sender = sender or FakeEmailSender()
     result = NotifySubscriptionRenewalUseCase(
         repo,
@@ -268,6 +349,8 @@ def _run_with_auto_charge(repo, *, dlocal_status: str = "PAID", sender=None):
         plan_catalog=catalog,
         dlocal=dlocal,
         payment_repo=payments,
+        reconciliation_notifier=email_sender,
+        reconciliation_email="billing@example.com",
     ).execute()
     return result, email_sender, dlocal, payments
 
@@ -280,12 +363,23 @@ class AutoChargeTests(unittest.TestCase):
             dlocal_payer_id="PAY-1",
         )
         repo = _repo_with(tenant)
+        original_cycle_ends_at = tenant.plan_cycle_ends_at
         result, _, dlocal, payments = _run_with_auto_charge(repo)
 
         self.assertEqual(result.auto_charged, 1)
         self.assertEqual(result.expirations_processed, 0)
         self.assertEqual(dlocal.calls, 1)
-        self.assertEqual(len(payments.saved), 1)
+        self.assertEqual(payments.saved, [])
+        self.assertEqual(len(payments.transact_payments), 1)
+        self.assertEqual(len(repo.save_calls), 0)
+        self.assertEqual(len(repo.commit_calls), 1)
+        self.assertEqual(repo.commit_calls[0]["action"], "SUBSCRIPTION_AUTO_RENEWAL")
+        self.assertEqual(repo.commit_calls[0]["extra_transact_items"], payments.transact_items)
+        self.assertEqual(payments.reconciliation_markers, {})
+        self.assertEqual(
+            payments.deleted_reconciliation_markers,
+            [(tenant.id, original_cycle_ends_at)],
+        )
         self.assertEqual(tenant.subscription_status, "active")
 
     def test_expires_when_no_saved_card(self) -> None:
@@ -308,10 +402,11 @@ class AutoChargeTests(unittest.TestCase):
             dlocal_payer_id="PAY-1",
         )
         repo = _repo_with(tenant)
-        result, sender, _, _ = _run_with_auto_charge(repo, dlocal_status="REJECTED")
+        result, sender, _, payments = _run_with_auto_charge(repo, dlocal_status="REJECTED")
 
         self.assertEqual(result.payment_failed_count, 1)
         self.assertEqual(tenant.subscription_status, "payment_failed")
+        self.assertEqual(payments.reconciliation_markers, {})
         self.assertEqual(len(sender.payment_failed_sent), 1)
 
     def test_payment_failed_retry_within_grace_does_not_resend_email(self) -> None:
@@ -321,10 +416,11 @@ class AutoChargeTests(unittest.TestCase):
             dlocal_payer_id="PAY-1",
         )
         repo = _repo_with(tenant)
-        result, sender, dlocal, _ = _run_with_auto_charge(repo, dlocal_status="REJECTED")
+        result, sender, dlocal, payments = _run_with_auto_charge(repo, dlocal_status="REJECTED")
 
         self.assertEqual(result.payment_failed_count, 1)
         self.assertEqual(dlocal.calls, 1)
+        self.assertEqual(payments.reconciliation_markers, {})
         self.assertEqual(len(sender.payment_failed_sent), 0)
 
     def test_payment_failed_grace_expired_forces_expire(self) -> None:
@@ -367,8 +463,101 @@ class AutoChargeTests(unittest.TestCase):
 
         self.assertEqual(result.auto_charged, 1)
         self.assertEqual(dlocal.calls, 1)
-        self.assertEqual(len(payments.saved), 1)
+        self.assertEqual(payments.saved, [])
+        self.assertEqual(len(payments.transact_payments), 1)
+        self.assertEqual(len(repo.commit_calls), 1)
+        self.assertEqual(payments.reconciliation_markers, {})
         self.assertEqual(tenant.subscription_status, "active")
+
+    def test_auto_charge_commit_failure_does_not_count_success(self) -> None:
+        tenant = make_tenant(
+            subscription_status="active",
+            plan_cycle_ends_at=_NOW - timedelta(days=1),
+            dlocal_payer_id="PAY-1",
+        )
+        repo = _repo_with(tenant)
+        repo.commit_errors.append(OptimisticLockError())
+
+        result, sender, dlocal, payments = _run_with_auto_charge(repo, dlocal_status="PAID")
+
+        self.assertEqual(result.auto_charged, 0)
+        self.assertEqual(result.auto_charge_reconciliation_required_count, 1)
+        self.assertEqual(dlocal.calls, 1)
+        self.assertEqual(payments.saved, [])
+        self.assertEqual(len(payments.transact_payments), 1)
+        self.assertEqual(len(repo.commit_calls), 1)
+        self.assertEqual(len(payments.reconciliation_markers), 1)
+        marker = next(iter(payments.reconciliation_markers.values()))
+        self.assertEqual(marker["payment"].order_id, "DP-auto-1")
+        self.assertEqual(marker["reason"], "OptimisticLockError")
+        self.assertEqual(len(sender.reconciliation_alerts_sent), 1)
+        self.assertEqual(sender.reconciliation_alerts_sent[0]["order_id"], "DP-auto-1")
+
+    def test_auto_charge_dlocal_error_keeps_marker_and_skips_local_mutation(self) -> None:
+        import urllib.error
+
+        tenant = make_tenant(
+            subscription_status="active",
+            plan_cycle_ends_at=_NOW - timedelta(days=1),
+            dlocal_payer_id="PAY-1",
+        )
+        repo = _repo_with(tenant)
+
+        result, sender, dlocal, payments = _run_with_auto_charge(
+            repo,
+            dlocal_raises=urllib.error.URLError("timeout"),
+        )
+
+        self.assertEqual(result.auto_charged, 0)
+        self.assertEqual(result.payment_failed_count, 0)
+        self.assertEqual(result.auto_charge_reconciliation_required_count, 1)
+        self.assertEqual(dlocal.calls, 1)
+        self.assertEqual(repo.save_calls, [])
+        self.assertEqual(repo.commit_calls, [])
+        self.assertEqual(len(payments.reconciliation_markers), 1)
+        marker = next(iter(payments.reconciliation_markers.values()))
+        self.assertEqual(marker["reason"], "URLError")
+        self.assertEqual(len(sender.payment_failed_sent), 0)
+        self.assertEqual(len(sender.reconciliation_alerts_sent), 1)
+        self.assertEqual(sender.reconciliation_alerts_sent[0]["reason"], "URLError")
+
+    def test_auto_charge_reconciliation_marker_skips_duplicate_charge(self) -> None:
+        tenant = make_tenant(
+            subscription_status="active",
+            plan_cycle_ends_at=_NOW - timedelta(days=1),
+            dlocal_payer_id="PAY-1",
+        )
+        repo = _repo_with(tenant)
+        catalog, dlocal, payments = _auto_charge_deps(dlocal_status="PAID")
+        payments.reconciliation_markers[(tenant.id, tenant.plan_cycle_ends_at)] = {
+            "payment": None,
+            "reason": "OptimisticLockError",
+        }
+        sender = FakeEmailSender()
+
+        result = NotifySubscriptionRenewalUseCase(
+            repo,
+            sender,
+            now=_NOW,
+            frontend_url="https://billing.example.com",
+            plan_catalog=catalog,
+            dlocal=dlocal,
+            payment_repo=payments,
+            reconciliation_notifier=sender,
+            reconciliation_email="billing@example.com",
+        ).execute()
+
+        self.assertEqual(result.auto_charged, 0)
+        self.assertEqual(result.auto_charge_reconciliation_required_count, 1)
+        self.assertEqual(dlocal.calls, 0)
+        self.assertEqual(payments.saved, [])
+        self.assertEqual(payments.transact_payments, [])
+        self.assertEqual(repo.commit_calls, [])
+        self.assertEqual(len(sender.reconciliation_alerts_sent), 1)
+        self.assertEqual(
+            sender.reconciliation_alerts_sent[0]["reason"],
+            "AUTO_RENEWAL_MARKER_EXISTS",
+        )
 
 
 if __name__ == "__main__":

@@ -29,16 +29,13 @@ class ProcessWebhookUseCase:
         self._payment_repo = payment_repo
 
     def execute(self, order_id: str, dlocal_status: str) -> ProcessWebhookResult:
+        new_status = _TERMINAL_MAP.get(dlocal_status.upper())
+        if not new_status:
+            return ProcessWebhookResult(order_id=order_id, status=dlocal_status, updated=False)
+
         try:
-            payment = self._payment_repo.get_by_order_id(order_id)
+            status, updated = self._payment_repo.apply_webhook_status(order_id, new_status)
         except PaymentNotFoundError:
             # Unknown order — idempotent no-op (could belong to another integration).
             return ProcessWebhookResult(order_id=order_id, status=dlocal_status, updated=False)
-
-        new_status = _TERMINAL_MAP.get(dlocal_status.upper())
-        if not new_status or payment.status == new_status:
-            return ProcessWebhookResult(order_id=order_id, status=payment.status, updated=False)
-
-        payment.status = new_status
-        self._payment_repo.save(payment)
-        return ProcessWebhookResult(order_id=order_id, status=new_status, updated=True)
+        return ProcessWebhookResult(order_id=order_id, status=status, updated=updated)

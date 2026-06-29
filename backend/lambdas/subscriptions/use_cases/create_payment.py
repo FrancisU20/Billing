@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import urllib.error
 from dataclasses import dataclass
-from decimal import Decimal
 
 from lambdas.subscriptions.domain.commands import CreatePaymentCommand
 from lambdas.subscriptions.domain.entities.payment import Payment
@@ -14,7 +13,7 @@ from lambdas.subscriptions.domain.errors import (
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import IDLocalClient
 from lambdas.subscriptions.domain.repositories.i_payment_repository import IPaymentRepository
 from lambdas.subscriptions.domain.repositories.i_plan_catalog import IPlanCatalog
-from shared.billing import gross_price, markup_display_pct
+from shared.billing import gross_price, markup_display_pct, plan_net_price
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
@@ -51,7 +50,7 @@ class CreatePaymentUseCase:
         if plan.is_free:
             raise FreePlanPaymentError()
 
-        net_amount = _plan_price(plan.monthly_price, plan.annual_price, cmd.billing_cycle)
+        net_amount = plan_net_price(plan.monthly_price, plan.annual_price, cmd.billing_cycle)
         amount = gross_price(net_amount)
 
         try:
@@ -80,8 +79,3 @@ class CreatePaymentUseCase:
             net_amount=net_amount,
             markup_pct=markup_display_pct(),
         )
-
-
-def _plan_price(monthly: Decimal, annual: Decimal, limit_cycle: str) -> str:
-    price = annual if limit_cycle == "year" else monthly
-    return f"{price:.2f}"

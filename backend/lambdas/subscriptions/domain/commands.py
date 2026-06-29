@@ -13,6 +13,7 @@ class CreatePaymentCommand:
 @dataclass
 class ConfirmPaymentCommand:
     order_id: str
+    checkout_token: str
     card_token: str
     client_first_name: str
     client_last_name: str

@@ -42,6 +42,10 @@ class Payment:
     def refund(self) -> None:
         self.status = "REFUNDED"
 
+    def cancel(self, detail: str | None = None) -> None:
+        self.status = "CANCELLED"
+        self.error_detail = detail
+
     def to_dict(self) -> dict:
         return {
             "order_id": self.order_id,

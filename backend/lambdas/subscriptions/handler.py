@@ -13,7 +13,10 @@ Routes:
 
 import hashlib
 import hmac as _hmac_mod
+import json
 import re
+
+import boto3
 
 from lambdas._base.handler import public_lambda_handler
 from lambdas._base.idempotency import idempotent
@@ -27,7 +30,6 @@ from lambdas.subscriptions.schemas import ConfirmPaymentRequest, CreatePaymentRe
 from lambdas.subscriptions.use_cases.confirm_payment import ConfirmPaymentUseCase
 from lambdas.subscriptions.use_cases.create_payment import CreatePaymentUseCase
 from lambdas.subscriptions.use_cases.get_payment import GetPaymentUseCase
-from lambdas.subscriptions.use_cases.process_webhook import ProcessWebhookUseCase
 from lambdas.subscriptions.use_cases.refund_payment import RefundPaymentUseCase
 from shared.config import env
 from shared.db.client import get_table
@@ -89,6 +91,7 @@ def _confirm_payment(request: Request, context) -> dict:
     ).execute(
         ConfirmPaymentCommand(
             order_id=order_id,
+            checkout_token=request.headers.get(_CHECKOUT_ACCESS_HEADER, ""),
             card_token=body.card_token,
             client_first_name=body.client_first_name,
             client_last_name=body.client_last_name,
@@ -113,6 +116,8 @@ _PAYMENT_ID_PATTERN = re.compile(r"^/subscriptions/payments/([^/]+)$")
 _CONFIRM_PATTERN = re.compile(r"^/subscriptions/payments/[^/]+/confirm$")
 _REFUND_PATTERN = re.compile(r"^/subscriptions/payments/[^/]+/refund$")
 _WEBHOOK_DLOCAL_PATTERN = re.compile(r"^/subscriptions/webhooks/dlocal$")
+_CHECKOUT_ACCESS_HEADER = "x-checkout-token"
+_DLOCAL_WEBHOOK_QUEUE_URL = env("DLOCAL_WEBHOOK_QUEUE_URL", "")
 
 
 def _verify_dlocal_signature(raw_body: str, signature: str, secret_key: str) -> bool:
@@ -120,12 +125,31 @@ def _verify_dlocal_signature(raw_body: str, signature: str, secret_key: str) -> 
     return _hmac_mod.compare_digest(expected, signature.lower())
 
 
+def _enqueue_dlocal_webhook(raw_body: str, request_id: str) -> None:
+    boto3.client("sqs").send_message(
+        QueueUrl=_DLOCAL_WEBHOOK_QUEUE_URL,
+        MessageBody=json.dumps(
+            {
+                "type": "DLOCAL_WEBHOOK",
+                "raw_body": raw_body,
+                "request_id": request_id,
+            }
+        ),
+        MessageAttributes={
+            "event_type": {
+                "StringValue": "DLOCAL_WEBHOOK",
+                "DataType": "String",
+            }
+        },
+    )
+
+
 @public_lambda_handler
 def _get_payment(request: Request, context) -> dict:
     order_id = require_path_param(request, "order_id")
     payment = GetPaymentUseCase(
         payment_repo=DynamoPaymentRepository(_PAYMENTS_TABLE),
-    ).execute(order_id)
+    ).execute(order_id, request.headers.get(_CHECKOUT_ACCESS_HEADER, ""))
     return ApiResponse.ok(payment, request.request_id)
 
 
@@ -153,23 +177,8 @@ def _dlocal_webhook(request: Request, context) -> dict:
     if not _verify_dlocal_signature(request.raw_body, signature, creds["secret_key"]):
         raise ForbiddenError()
 
-    event_type = request.body.get("type", "")
-    data = request.body.get("data", {})
-    order_id = data.get("order_id", "")
-    dlocal_status = data.get("status", "")
-    if not order_id:
-        _log.warning("dLocal webhook missing order_id", event_type=event_type)
-
-    if event_type != "PAYMENT" or not order_id or not dlocal_status:
-        return ApiResponse.ok({"received": True}, request.request_id)
-
-    result = ProcessWebhookUseCase(
-        payment_repo=DynamoPaymentRepository(_PAYMENTS_TABLE),
-    ).execute(order_id, dlocal_status)
-    return ApiResponse.ok(
-        {"order_id": result.order_id, "status": result.status, "updated": result.updated},
-        request.request_id,
-    )
+    _enqueue_dlocal_webhook(request.raw_body, request.request_id)
+    return ApiResponse.ok({"received": True}, request.request_id)
 
 
 def handler(event: dict, context) -> dict:
