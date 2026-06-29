@@ -409,13 +409,10 @@ deberia absorber pero no absorbe todavia.
   uno con su propio `needle = q.strip().lower()` + metodo `matches()`). Mas alla de la
   escalabilidad ya conocida por dominio, es candidato a una clase base generica
   `BaseListFilters` con `matches_text(*fields)` reutilizable.
-- `clamp_list_limit()` (`backend/shared/db/limits.py:7`) solo acota el techo, no valida que
-  `limit < 1`; cada handler que la usa (`tenants`, `clients`, `products`) reimplementa ademas
-  el mismo try/except de `int(params.get("limit", DEFAULT_LIST_LIMIT))` con el mismo mensaje
-  literal duplicado 3 veces. `documents/schemas.py:96` resuelve el mismo problema una cuarta
-  forma distinta, vía Pydantic (`Field(default=20, ge=1, le=100)`), hardcodeando `20`/`100` de
-  nuevo en vez de reusar `DEFAULT_LIST_LIMIT`/`MAX_LIST_LIMIT`. Unificar en un solo
-  `parse_list_limit(params)` en `shared/db/limits.py`.
+- Solventado 2026-06-29: el parseo HTTP de `limit` vive en
+  `lambdas/_base/query_params.py::parse_list_limit()`: valida entero, rechaza valores `< 1`
+  y aplica `clamp_list_limit()`. `tenants`, `clients` y `products` lo usan; `documents`
+  reutiliza `DEFAULT_LIST_LIMIT`/`MAX_LIST_LIMIT` en su schema Pydantic.
 - Solventado 2026-06-29: `shared/db/counts.py::paginated_count()` centraliza
   `Select=COUNT` paginado. Lo usan `BaseRepository._count_raw()`, counts especiales de
   `clients`, `tenants`, y los counts de `documents` que no requieren filtrar `q` en memoria.
@@ -427,13 +424,11 @@ deberia absorber pero no absorbe todavia.
 
 ### lambdas/_base
 
-- El bloque `_parse_list_query` (parseo de `limit` con `clamp_list_limit`, validacion de
-  enum via `try: Enum(value) except ValueError`, `parse_date_boundary` para
-  `created_from`/`created_to`) se repite literalmente entre `tenants/handler.py`,
-  `clients/handler.py` y `products/handler.py` con solo los nombres de campo/enum
-  cambiando (~15 lineas duplicadas x 3 handlers). Candidato a helpers genericos
-  `parse_enum_query_param(params, name, enum_cls)` / `parse_limit_query_param(params)` en
-  `_base/`.
+- Solventado 2026-06-29: `_parse_list_query` ya no repite parseo de `limit` ni validacion
+  `try: Enum(value) except ValueError`; `tenants`, `clients` y `products` usan
+  `parse_list_limit()` y `parse_enum_query_param()` desde `lambdas/_base/query_params.py`.
+  La conversion de `created_from`/`created_to` sigue local porque solo aplica a dominios con
+  filtros de fecha.
 
 ### shared/domain
 

@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from shared.db.limits import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT
+
 _CONSUMIDOR_FINAL_ID_TYPE = "07"
 _CONSUMIDOR_FINAL_ID = "9999999999999"
 _CONSUMIDOR_FINAL_NAME = "CONSUMIDOR FINAL"
@@ -93,7 +95,7 @@ class ListDocumentsQueryParams(BaseModel):
     q: str | None = None
     date_from: str | None = None
     date_to: str | None = None
-    limit: int = Field(default=20, ge=1, le=100)
+    limit: int = Field(default=DEFAULT_LIST_LIMIT, ge=1, le=MAX_LIST_LIMIT)
     cursor: str | None = None
 
 

@@ -16,6 +16,7 @@ from lambdas._base.handler import lambda_handler
 from lambdas._base.idempotency import idempotent, require_current_context
 from lambdas._base.parser import Request, parse, require_path_param
 from lambdas._base.permissions import require_role
+from lambdas._base.query_params import parse_enum_query_param, parse_list_limit
 from lambdas._base.response import ApiResponse
 from lambdas.clients.domain.commands import (
     AddressCommand,
@@ -33,8 +34,7 @@ from lambdas.clients.use_cases.update_client import UpdateClientUseCase
 from shared.config import env
 from shared.dates import parse_date_boundary
 from shared.db.client import get_table
-from shared.db.limits import DEFAULT_LIST_LIMIT, clamp_list_limit
-from shared.errors import MissingTenantContextError, NotFoundError, ValidationError
+from shared.errors import MissingTenantContextError, NotFoundError
 
 _TABLE = get_table("CLIENTS_TABLE")
 _AUDIT_TABLE = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
@@ -51,29 +51,21 @@ def _address_commands(addresses) -> list[AddressCommand]:
 
 
 def _parse_list_query(params: dict) -> ListClientsQuery:
-    try:
-        limit = int(params.get("limit", DEFAULT_LIST_LIMIT))
-    except (TypeError, ValueError) as exc:
-        raise ValidationError("limit debe ser un número entero") from exc
-    if limit < 1:
-        raise ValidationError("limit debe ser mayor a cero")
-
-    status = params.get("status")
-    if status:
-        try:
-            ClientStatus(status)
-        except ValueError as exc:
-            raise ValidationError("Estado inválido") from exc
-
-    identification_type = params.get("identification_type")
-    if identification_type:
-        try:
-            IdentificationType(identification_type)
-        except ValueError as exc:
-            raise ValidationError("Tipo de identificación inválido") from exc
+    status = parse_enum_query_param(
+        params,
+        "status",
+        ClientStatus,
+        error_message="Estado inválido",
+    )
+    identification_type = parse_enum_query_param(
+        params,
+        "identification_type",
+        IdentificationType,
+        error_message="Tipo de identificación inválido",
+    )
 
     return ListClientsQuery(
-        limit=clamp_list_limit(limit),
+        limit=parse_list_limit(params),
         next_token=params.get("next_token"),
         status=status,
         q=params.get("q"),

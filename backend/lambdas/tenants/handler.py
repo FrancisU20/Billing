@@ -23,6 +23,7 @@ from lambdas._base.handler import lambda_handler
 from lambdas._base.idempotency import idempotent, require_current_context
 from lambdas._base.parser import Request, parse, require_path_param
 from lambdas._base.permissions import require_role, require_superadmin
+from lambdas._base.query_params import parse_enum_query_param, parse_list_limit
 from lambdas._base.response import ApiResponse
 from lambdas.subscriptions.infra.dlocal_client import DLocalClient
 from lambdas.subscriptions.infra.payment_repository import DynamoPaymentRepository
@@ -59,7 +60,6 @@ from lambdas.tenants.use_cases.update_tenant import UpdateTenantUseCase
 from shared.config import env
 from shared.dates import now_utc, parse_date_boundary
 from shared.db.client import get_table
-from shared.db.limits import DEFAULT_LIST_LIMIT, clamp_list_limit
 from shared.errors import ForbiddenError, NotFoundError, ValidationError
 from shared.secrets.client import get_secret_json
 
@@ -100,36 +100,27 @@ def _dlocal_client() -> DLocalClient | None:
 
 
 def _parse_list_query(params: dict) -> ListTenantsQuery:
-    try:
-        limit = int(params.get("limit", DEFAULT_LIST_LIMIT))
-    except (TypeError, ValueError) as exc:
-        raise ValidationError("limit debe ser un número entero") from exc
-    if limit < 1:
-        raise ValidationError("limit debe ser mayor a cero")
-
-    status = params.get("status")
-    if status:
-        try:
-            TenantStatus(status)
-        except ValueError as exc:
-            raise ValidationError(f"Estado inválido: {status}") from exc
-
-    sri_environment = params.get("sri_environment")
-    if sri_environment:
-        try:
-            SriEnvironment(sri_environment)
-        except ValueError as exc:
-            raise ValidationError("Entorno SRI inválido") from exc
-
-    plan_status = params.get("plan_status")
-    if plan_status:
-        try:
-            PlanStatus(plan_status)
-        except ValueError as exc:
-            raise ValidationError("Estado de plan inválido") from exc
+    status = parse_enum_query_param(
+        params,
+        "status",
+        TenantStatus,
+        error_message=f"Estado inválido: {params.get('status')}",
+    )
+    sri_environment = parse_enum_query_param(
+        params,
+        "sri_environment",
+        SriEnvironment,
+        error_message="Entorno SRI inválido",
+    )
+    plan_status = parse_enum_query_param(
+        params,
+        "plan_status",
+        PlanStatus,
+        error_message="Estado de plan inválido",
+    )
 
     return ListTenantsQuery(
-        limit=clamp_list_limit(limit),
+        limit=parse_list_limit(params),
         next_token=params.get("next_token"),
         status=status,
         q=params.get("q"),

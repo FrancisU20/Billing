@@ -19,6 +19,7 @@ from lambdas._base.handler import lambda_handler
 from lambdas._base.idempotency import idempotent, require_current_context
 from lambdas._base.parser import Request, parse, require_path_param
 from lambdas._base.permissions import require_role
+from lambdas._base.query_params import parse_enum_query_param, parse_list_limit
 from lambdas._base.response import ApiResponse
 from lambdas.products.domain.commands import CreateProductCommand, UpdateProductCommand
 from lambdas.products.domain.enums import ProductKind, ProductStatus
@@ -40,8 +41,7 @@ from lambdas.products.use_cases.update_discount_campaign import UpdateDiscountCa
 from lambdas.products.use_cases.update_product import UpdateProductUseCase
 from shared.config import env
 from shared.db.client import get_table
-from shared.db.limits import DEFAULT_LIST_LIMIT, clamp_list_limit
-from shared.errors import MissingTenantContextError, NotFoundError, ValidationError
+from shared.errors import MissingTenantContextError, NotFoundError
 
 _TABLE = get_table("PRODUCTS_TABLE")
 _AUDIT_TABLE = get_table("AUDIT_LOG_TABLE") if env("AUDIT_LOG_TABLE", "") else None
@@ -60,29 +60,21 @@ def _campaign_repo(request: Request) -> DynamoDiscountCampaignRepository:
 
 
 def _parse_list_query(params: dict) -> ListProductsQuery:
-    try:
-        limit = int(params.get("limit", DEFAULT_LIST_LIMIT))
-    except (TypeError, ValueError) as exc:
-        raise ValidationError("limit debe ser un número entero") from exc
-    if limit < 1:
-        raise ValidationError("limit debe ser mayor a cero")
-
-    status = params.get("status")
-    if status:
-        try:
-            ProductStatus(status)
-        except ValueError as exc:
-            raise ValidationError("Estado inválido") from exc
-
-    kind = params.get("kind")
-    if kind:
-        try:
-            ProductKind(kind)
-        except ValueError as exc:
-            raise ValidationError("Tipo de producto inválido") from exc
+    status = parse_enum_query_param(
+        params,
+        "status",
+        ProductStatus,
+        error_message="Estado inválido",
+    )
+    kind = parse_enum_query_param(
+        params,
+        "kind",
+        ProductKind,
+        error_message="Tipo de producto inválido",
+    )
 
     return ListProductsQuery(
-        limit=clamp_list_limit(limit),
+        limit=parse_list_limit(params),
         next_token=params.get("next_token"),
         status=status,
         kind=kind,
