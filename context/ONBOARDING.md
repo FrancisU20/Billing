@@ -681,13 +681,9 @@ Frontend:
   cualquier `ClientError` que no sea `UserNotFoundException` (ej. throttling) se propaga
   sin capturar ni loguear adicionalmente — no es un catch generico que traga la excepcion,
   pero falta manejo explicito en ese borde.
-- Frontend: `RegistrationForm.tsx::FormSection` (lineas 217-243) reimplementa a mano el
-  mismo wrapper header+icon+body que ya cubren `Card`/`DetailSection` de `components/ui/`
-  — el mismo patron se reinventa tambien en `EmitDocumentScreen.tsx`/
-  `EmitCreditNoteScreen.tsx` de `documents`, ver `context/FRONTEND.md`. `RegisterOtpScreen.tsx`
-  muestra un texto estatico de expiracion sin countdown pese a que `expires_at` ya llega en
-  `OnboardingOtpRequestResult` (`schemas.ts:38`) — el dato existe en el contrato pero no se
-  usa para avisar cuando expira realmente.
+- Frontend: `RegisterOtpScreen.tsx` muestra un texto estatico de expiracion sin countdown
+  pese a que `expires_at` ya llega en `OnboardingOtpRequestResult` (`schemas.ts:38`) — el
+  dato existe en el contrato pero no se usa para avisar cuando expira realmente.
 
 ## Deuda Solventada
 
@@ -695,6 +691,8 @@ Frontend:
   `Decimal(str(...))`, igual que los catalogos de `subscriptions` y `tenants`. Se agrego
   test de regresion contra underflow de `float` (`Decimal("1E-325")`) para evitar marcar
   como gratuito un plan con precio no cero.
+- 2026-06-29: `RegistrationForm` usa `components/ui/FormSection`; se elimino la copia local
+  del wrapper header+icon+body.
 
 - 2026-06-14: la confirmacion OTP consume `ONBOARDING_VERIFICATION` en la misma transaccion
   que crea el tenant o el `ENTERPRISE_LEAD`; reintentos concurrentes ya no pueden duplicar

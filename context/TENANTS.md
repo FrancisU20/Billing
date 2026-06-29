@@ -289,10 +289,9 @@ queda fuera de alcance, no se tocó.
   compartido — quedo fuera de alcance de la Fase 2 del dashboard superadmin. Ya tiene un
   tercer consumidor ("Top clientes" del dashboard tenant, ver `INVOICES.md`); sigue siendo
   oportunidad de unificar, ahora con mas urgencia al tener 3 lugares con el mismo patron.
-- Auditoria 2026-06-27 — `tenant_repository.py::_transact_write` (lineas 562-598) es el
-  unico de los 4 repos con escritura transaccional que ya usa el helper compartido
-  `shared/db/transactions.py::cancellation_reasons` correctamente; `plans`/`clients`/
-  `products` lo reimplementan inline (ver `context/BACKEND.md`).
+- Solventado 2026-06-29: el parseo/deteccion de `CancellationReasons` para repos
+  transaccionales vive en `shared/db/transactions.py` y ya no es deuda especifica de
+  tenants; ver `context/BACKEND.md`.
 - `lambdas/tenants/handler.py:90-99` (`_dlocal_client`) construye un cliente dLocal
   completo dentro del handler de `tenants` para soportar `retry_payment`, importando
   `lambdas.subscriptions.infra.dlocal_client`/`payment_repository` — acopla el bundle de
@@ -317,16 +316,18 @@ queda fuera de alcance, no se tocó.
 - `lambdas/plans/domain/plan.py` (catalogo, no es entidad de este dominio pero la
   comparacion aplica): `Plan` es la unica entidad global del proyecto que no hereda de
   `GlobalEntity` como si hace `Tenant` — ver detalle en `context/PLANS.md`.
-- Frontend: `TenantCard.tsx` es codigo muerto confirmado (cero imports en todo el repo,
-  duplica lo que ya hace `TenantListItem`). `TenantDashboardScreen.tsx` (584 lineas) mezcla
-  3 fuentes de fetch + metricas derivadas inline (`authorizedRate`, `limitRate`,
-  `averageTicket`, `maxTopClientTotal`) + helpers de formato reimplementados localmente
-  (`formatInteger`, `formatCurrency` con `Intl.NumberFormat` manual, `formatCivilDate`)
-  pese a que `lib/utils/format.ts` ya expone `formatCurrency` (si usado correctamente en
-  `SuperadminDashboardScreen.tsx` de la misma feature). Extraer metricas a un hook
-  `useTenantDashboardMetrics` y reusar `formatCurrency` centralizado.
+- Frontend: `TenantDashboardScreen.tsx` (584 lineas) mezcla 3 fuentes de fetch + metricas
+  derivadas inline (`authorizedRate`, `limitRate`, `averageTicket`, `maxTopClientTotal`) +
+  helpers de formato reimplementados localmente (`formatInteger`, `formatCurrency` con
+  `Intl.NumberFormat` manual, `formatCivilDate`) pese a que `lib/utils/format.ts` ya expone
+  `formatCurrency` (si usado correctamente en `SuperadminDashboardScreen.tsx` de la misma
+  feature). Extraer metricas a un hook `useTenantDashboardMetrics` y reusar
+  `formatCurrency` centralizado.
 
 ## Deuda Solventada
+
+- 2026-06-29: `TenantCard.tsx` eliminado. Era codigo muerto confirmado (cero imports) y
+  duplicaba el rol de `TenantListItem`.
 
 - 2026-06-28: `ChangePlanUseCase` bloquea `PATCH /tenants/{id}/plan` cuando
   `pending_order_id` ya esta seteado. El cambio de plan sigue permitido antes de iniciar

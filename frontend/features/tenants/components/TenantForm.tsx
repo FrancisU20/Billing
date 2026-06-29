@@ -6,10 +6,11 @@ import { Ionicons } from '@expo/vector-icons'
 import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { FormActions } from '@/components/ui/FormActions'
 import { FormField } from '@/components/ui/FormField'
+import { FormSection } from '@/components/ui/FormSection'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { EmailField, PhoneField, RucField } from '@/components/ui/SpecializedFields'
 import { useTheme } from '@/lib/theme-context'
-import { radius, sizes, spacing, typography } from '@/constants/tokens'
+import { radius, spacing, typography } from '@/constants/tokens'
 import { ACCOUNTING_REQUIRED_OPTIONS, TENANT_ENVIRONMENT_OPTIONS } from '../constants'
 import { tenantToFormValues, type TenantFormValues } from '../form'
 import { tenantFormValuesSchema } from '../schemas'
@@ -256,52 +257,8 @@ export function TenantForm({
   )
 }
 
-function FormSection({
-  title,
-  icon,
-  children,
-}: {
-  title: string
-  icon: keyof typeof Ionicons.glyphMap
-  children: React.ReactNode
-}) {
-  const { semantic } = useTheme()
-  return (
-    <View
-      style={[
-        styles.section,
-        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-      ]}
-    >
-      <View style={styles.sectionHeader}>
-        <View style={[styles.sectionIcon, { backgroundColor: semantic.accent.subtle }]}>
-          <Ionicons name={icon} size={17} color={semantic.accent.default} />
-        </View>
-        <Text style={[styles.sectionTitle, { color: semantic.text.primary }]}>{title}</Text>
-      </View>
-      <View style={styles.sectionBody}>{children}</View>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
   container: { gap: spacing[4] },
-  section: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: spacing[4],
-    padding: spacing[4],
-  },
-  sectionHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
-  sectionIcon: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    height: sizes.icon,
-    justifyContent: 'center',
-    width: sizes.icon,
-  },
-  sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
-  sectionBody: { gap: spacing[4] },
   fieldBlock: { gap: spacing[2] },
   label: { fontSize: typography.size.sm, fontWeight: typography.weight.medium },
   planList: { gap: spacing[2] },

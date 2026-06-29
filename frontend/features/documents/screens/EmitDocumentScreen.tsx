@@ -10,6 +10,7 @@ import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { FormField } from '@/components/ui/FormField'
+import { FormSection } from '@/components/ui/FormSection'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useToast } from '@/components/feedback/Toast'
@@ -226,7 +227,12 @@ export function EmitDocumentScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.twoColRow}>
           <View style={styles.halfColumn}>
-            <FormSection title="Establecimiento y punto de emisión" icon="storefront-outline" fill>
+            <FormSection
+              title="Establecimiento y punto de emisión"
+              icon="storefront-outline"
+              fill
+              contentStyle={styles.sectionBody}
+            >
               {establishments.length > 1 ? (
                 <View style={styles.subField}>
                   <Text style={[styles.subFieldLabel, { color: semantic.text.secondary }]}>
@@ -284,7 +290,12 @@ export function EmitDocumentScreen() {
           </View>
 
           <View style={styles.halfColumn}>
-            <FormSection title="Fecha de emisión" icon="calendar-outline" fill>
+            <FormSection
+              title="Fecha de emisión"
+              icon="calendar-outline"
+              fill
+              contentStyle={styles.sectionBody}
+            >
               <LockedIssuedAt value={issuedAtDisplay} sriDate={issuedAt} />
               {errors.issued_at?.message ? (
                 <Text style={[styles.fieldError, { color: semantic.status.error }]}>
@@ -295,13 +306,17 @@ export function EmitDocumentScreen() {
           </View>
         </View>
 
-        <FormSection title="Comprador" icon="person-outline">
+        <FormSection title="Comprador" icon="person-outline" contentStyle={styles.sectionBody}>
           <BuyerSection control={control} setValue={setValue} errors={errors} />
         </FormSection>
 
         <View style={styles.twoColRow}>
           <View style={styles.halfColumn}>
-            <FormSection title="Forma de pago" icon="card-outline">
+            <FormSection
+              title="Forma de pago"
+              icon="card-outline"
+              contentStyle={styles.sectionBody}
+            >
               <View style={styles.pillGrid}>
                 {PAYMENT_METHOD_OPTIONS.map((option) => (
                   <Pill
@@ -321,7 +336,11 @@ export function EmitDocumentScreen() {
           </View>
 
           <View style={styles.halfColumn}>
-            <FormSection title="Avanzado" icon="construct-outline">
+            <FormSection
+              title="Avanzado"
+              icon="construct-outline"
+              contentStyle={styles.sectionBody}
+            >
               <SegmentedControl
                 value={overrideDiscountCeiling ? 'yes' : 'no'}
                 options={[
@@ -359,7 +378,7 @@ export function EmitDocumentScreen() {
           </View>
         </View>
 
-        <FormSection title="Productos" icon="cube-outline">
+        <FormSection title="Productos" icon="cube-outline" contentStyle={styles.sectionBody}>
           <DiscountContextBanner
             campaign={
               campaign ? { active: campaign.active, percentage: campaign.percentage } : null
@@ -533,43 +552,6 @@ function LockedInfoRow({
   )
 }
 
-function FormSection({
-  title,
-  icon,
-  children,
-  fill = false,
-}: {
-  title: string
-  icon: keyof typeof Ionicons.glyphMap
-  children: React.ReactNode
-  /** Solo para parejas dentro de `twoColRow`, donde el sibling con mas contenido debe
-   * marcar la altura de la fila — `halfColumn` ya queda con esa altura via el
-   * `alignItems: 'stretch'` por defecto de `twoColRow`, y `fill` hace que este card
-   * la ocupe en vez de quedarse en su alto de contenido. No usar en cards standalone
-   * (Comprador, Productos, etc.): ahi el padre no tiene una altura real que repartir y
-   * `flex: 1` colapsa el card a 0 con el contenido desbordando por debajo. */
-  fill?: boolean
-}) {
-  const { semantic } = useTheme()
-  return (
-    <View
-      style={[
-        styles.section,
-        fill && styles.sectionFill,
-        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-      ]}
-    >
-      <View style={styles.sectionHeader}>
-        <View style={[styles.sectionIcon, { backgroundColor: semantic.accent.subtle }]}>
-          <Ionicons name={icon} size={17} color={semantic.accent.default} />
-        </View>
-        <Text style={[styles.sectionTitle, { color: semantic.text.primary }]}>{title}</Text>
-      </View>
-      <View style={styles.sectionBody}>{children}</View>
-    </View>
-  )
-}
-
 function Pill({
   label,
   selected,
@@ -649,22 +631,6 @@ function reindexByRemovedLine<T>(
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { gap: spacing[4], padding: spacing[5], paddingBottom: spacing[12] },
-  section: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: spacing[4],
-    padding: spacing[4],
-  },
-  sectionFill: { flex: 1 },
-  sectionHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
-  sectionIcon: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    height: sizes.icon,
-    justifyContent: 'center',
-    width: sizes.icon,
-  },
-  sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   sectionBody: { gap: spacing[3] },
   twoColRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[4] },
   halfColumn: { flex: 1, minWidth: 280 },

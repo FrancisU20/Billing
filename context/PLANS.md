@@ -187,9 +187,8 @@ como de pago — no hay override explicito.
   delete, sin excepcion documentada a la regla no negociable #3 del proyecto. Confirmado
   en `plan_repository.py`: no hay metodo `delete` ni filtro `deleted`; un plan solo puede
   `toggle()` activo/inactivo.
-- `plan_repository.py::_transact_write` (lineas 205-239) reimplementa inline la extraccion
-  de `CancellationReasons` en vez de usar `shared/db/transactions.py::cancellation_reasons`
-  (ver `context/BACKEND.md`).
+- Solventado 2026-06-29: `plan_repository.py::_transact_write` usa
+  `shared/db/transactions.py` para parsear `CancellationReasons`; ver `context/BACKEND.md`.
 - `plan_repository.py::list()` (lineas 73-109) es el unico de los 5 dominios sin
   paginacion externa real: devuelve siempre `list[Plan]` plano, no `tuple[list, next_token]`.
   `handler.py` expone `{"items": [...]}` sin `next_token`/`has_more`, rompiendo el contrato
@@ -206,10 +205,10 @@ como de pago — no hay override explicito.
   envolver `Card.tsx`, y sus "stat pills" duplican visualmente `StatMetric.tsx` sin
   reusarlo; ademas no se consume desde ningun screen de la propia feature `plans` — solo
   lo usa `features/marketing/components/PlansSection.tsx` (landing publica), componente de
-  marketing alojado en el dominio equivocado. `PlanForm.tsx::FormSection` (lineas 416-442)
-  es caracter por caracter igual a `TenantForm.tsx::FormSection` — ver
-  `context/FRONTEND.md`. `PlansListScreen.tsx` reimplementa a mano (`useFetch` +
-  `useLocalPagedItems`) el patron que `useEagerPagedList` ya cubre para catalogos chicos
-  (el propio comentario de diseno de ese hook menciona "clients, products" como caso de
-  uso previsto, encaja igual con `plans`); ademas sigue disparando fetch al backend en
-  cada busqueda aunque ya trae todo el catalogo en memoria.
+  marketing alojado en el dominio equivocado. `PlansListScreen.tsx` reimplementa a mano
+  (`useFetch` + `useLocalPagedItems`) el patron que `useEagerPagedList` ya cubre para
+  catalogos chicos (el propio comentario de diseno de ese hook menciona "clients,
+  products" como caso de uso previsto, encaja igual con `plans`); ademas sigue disparando
+  fetch al backend en cada busqueda aunque ya trae todo el catalogo en memoria.
+- Solventado 2026-06-29: `PlanForm` usa `components/ui/FormSection`; se elimino la copia
+  local que duplicaba `TenantForm`.

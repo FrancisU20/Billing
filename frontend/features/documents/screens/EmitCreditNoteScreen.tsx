@@ -10,6 +10,7 @@ import { ApiErrorBanner } from '@/components/ui/ApiErrorBanner'
 import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { FormField } from '@/components/ui/FormField'
+import { FormSection } from '@/components/ui/FormSection'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
@@ -140,7 +141,11 @@ function CreditNoteForm({ parent }: { parent: Document }) {
     <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
       <AppNavBar title="Nota de crédito" canGoBack />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <FormSection title="Factura acreditada" icon="document-text-outline">
+        <FormSection
+          title="Factura acreditada"
+          icon="document-text-outline"
+          contentStyle={styles.sectionBody}
+        >
           <LockedInfoRow
             icon="document-text-outline"
             label="Factura"
@@ -149,7 +154,7 @@ function CreditNoteForm({ parent }: { parent: Document }) {
           />
         </FormSection>
 
-        <FormSection title="Comprador" icon="person-outline">
+        <FormSection title="Comprador" icon="person-outline" contentStyle={styles.sectionBody}>
           <BuyerReadOnlySection
             buyerIdType={parent.buyer_id_type}
             buyerId={parent.buyer_id}
@@ -158,7 +163,7 @@ function CreditNoteForm({ parent }: { parent: Document }) {
           />
         </FormSection>
 
-        <FormSection title="Motivo" icon="alert-circle-outline">
+        <FormSection title="Motivo" icon="alert-circle-outline" contentStyle={styles.sectionBody}>
           <FormField
             label="Motivo de la nota de crédito"
             placeholder="Ej. devolución de mercadería"
@@ -172,7 +177,11 @@ function CreditNoteForm({ parent }: { parent: Document }) {
           />
         </FormSection>
 
-        <FormSection title="Líneas a acreditar" icon="cube-outline">
+        <FormSection
+          title="Líneas a acreditar"
+          icon="cube-outline"
+          contentStyle={styles.sectionBody}
+        >
           <Text style={[styles.note, { color: semantic.text.tertiary }]}>
             Puedes bajar la cantidad acreditada por línea — nunca agregar líneas nuevas ni superar
             la cantidad original.
@@ -298,47 +307,9 @@ function LockedInfoRow({
   )
 }
 
-function FormSection({
-  title,
-  icon,
-  children,
-}: {
-  title: string
-  icon: keyof typeof Ionicons.glyphMap
-  children: React.ReactNode
-}) {
-  const { semantic } = useTheme()
-  return (
-    <View
-      style={[
-        styles.section,
-        { backgroundColor: semantic.bg.card, borderColor: semantic.border.default },
-      ]}
-    >
-      <View style={styles.sectionHeader}>
-        <View style={[styles.sectionIcon, { backgroundColor: semantic.accent.subtle }]}>
-          <Ionicons name={icon} size={17} color={semantic.accent.default} />
-        </View>
-        <Text style={[styles.sectionTitle, { color: semantic.text.primary }]}>{title}</Text>
-      </View>
-      <View style={styles.sectionBody}>{children}</View>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { gap: spacing[4], padding: spacing[5], paddingBottom: spacing[12] },
-  section: { borderRadius: radius.md, borderWidth: 1, gap: spacing[4], padding: spacing[4] },
-  sectionHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing[2] },
-  sectionIcon: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    height: sizes.icon,
-    justifyContent: 'center',
-    width: sizes.icon,
-  },
-  sectionTitle: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
   sectionBody: { gap: spacing[3] },
   note: { fontSize: typography.size.xs, lineHeight: typography.size.xs * 1.5 },
   linesList: { gap: spacing[2] },

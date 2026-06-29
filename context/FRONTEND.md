@@ -115,6 +115,7 @@ abajo.
 | `Input.tsx`, `FormField.tsx` | campos de formulario + label/error. `isDisabled` (campo bloqueado, no input vacio): atenua opacidad, muestra icono de candado a la derecha (salvo `secureTextEntry`/`rightElement` explicito) y en web bloquea el foco/caret con `pointerEvents="none"` + `cursor: not-allowed` — sin esto el campo se ve "clickeable" (caret titilando) aunque `editable={false}` ya bloquee la escritura. Tratamiento centralizado en `Input.tsx`, aplica a todo campo `isDisabled` de la app (no solo Comprador en documentos).                                                                                                                                                                                                                               |
 | `SpecializedFields.tsx`      | wrappers de `FormField` para campos repetidos (`EmailField`, `RucField`, `IdentificationField`, `MoneyField`, `PercentField`, `PhoneField`) con teclado/icono/autocap/maxLength centralizados. Usar junto a schemas Zod y `mode: "onChange"` para validacion en vivo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `FormActions.tsx`            | bloque compartido de acciones de formulario: submit primario, loading, disabled por validacion local, hint de campos pendientes y cancel opcional. Usar en formularios CRUD/wizard en lugar de botones finales sueltos.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `FormSection.tsx`            | wrapper compartido de seccion de formulario: borde/card, header con icono, titulo y body con gap. Reemplaza las copias locales antiguas de `PlanForm`, `TenantForm`, `ClientForm`, `RegistrationForm`, `EmitDocumentScreen` y `EmitCreditNoteScreen`. Soporta `fill`, `style` y `contentStyle` para variantes de layout sin duplicar el componente.                                                                                                                                                                                                                                                                                                                                                                                               |
 | `SearchInput.tsx`            | campo de busqueda compartido con icono, limpiar, debounce, minimo de caracteres y hint. Usar para busquedas remotas en listados y pickers; no llamar backend con 1-2 caracteres.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `DateRangePicker.tsx`        | selector compartido de rango de fechas para filtros de listado. Modal RN/Web con calendario, presets Hoy/Esta semana/Este mes/Limpiar, rango ordenado y salida civil `YYYY-MM-DD`. No usar inputs manuales `Desde/Hasta` en listados.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `Card.tsx`                   | contenedor con elevacion                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -457,7 +458,7 @@ Colores: **limpio**. Cero coincidencias de hex/`rgb(`/nombres CSS sueltos fuera 
 disciplina de `semantic`/`colors` es real, no solo aspiracional. La deuda real esta en
 tamanos/spacing sin token y en adopcion desigual de los componentes ya centralizados. Los
 hallazgos especificos de cada dominio (ej. `ProductListItem` sin `EntityAvatar`,
-`PlanCard`/`TenantCard` sin `Card`) viven en el `.md` de ese dominio; aqui solo el patron
+`PlanCard` sin `Card`) viven en el `.md` de ese dominio; aqui solo el patron
 transversal y lo que vive directamente en el design system.
 
 **Spacing/tamanos sin token, dentro del propio design system:**
@@ -481,16 +482,13 @@ transversal y lo que vive directamente en el design system.
 - `Card.tsx` esta infrautilizado: solo 2 pantallas reales lo importan
   (`TenantDashboardScreen`, `SuperadminDashboardScreen`) mas el showcase. El mismo "card
   shell" (`radius.md`+`borderWidth:1`+`bg.card/elevated`+`spacing[5]`) se reimplementa a mano
-  en `TenantCard.tsx`, `PlanCard.tsx`, `EstablishmentCard.tsx` y la mayoria de pantallas de
+  en `PlanCard.tsx`, `EstablishmentCard.tsx` y la mayoria de pantallas de
   detalle — no migrar todo de una vez (varios necesitan layout custom anidado), evaluar caso
   por caso al tocar cada pantalla.
-- `FormSection` (header+icon+body sobre `Card`) se reinvento de forma local **5 veces**
-  caracter-por-caracter o casi: `features/plans/components/PlanForm.tsx`,
-  `features/tenants/components/TenantForm.tsx`, `features/onboarding/components/
-  RegistrationForm.tsx`, `features/documents/screens/EmitDocumentScreen.tsx` y
-  `EmitCreditNoteScreen.tsx`. Nunca se extrajo al design system pese a triplicarse y
-  cuadriplicarse — extraer a `components/ui/FormSection.tsx` antes de que aparezca una sexta
-  copia.
+- Solventado 2026-06-29: `FormSection` se centralizo en `components/ui/FormSection.tsx` y
+  se migraron `PlanForm`, `TenantForm`, `ClientForm`, `RegistrationForm`,
+  `EmitDocumentScreen` y `EmitCreditNoteScreen`. Queda prohibido recrear ese shell local en
+  nuevas pantallas; extender la primitiva si aparece otra variante real.
 - `Badge` reinventado en `features/subscriptions/screens/ConfirmPlanScreen.tsx`
   (`currentBadge`/`currentBadgeText`) y en `EstablishmentCard.tsx` (pills `testingPill`/
   `codePill`) en vez de `<Badge variant=... size="sm" />`.
