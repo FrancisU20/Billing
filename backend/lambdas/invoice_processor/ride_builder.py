@@ -43,6 +43,17 @@ def _discount_cell(line) -> str:
     return f"${line.discount:.2f} ({pct}%)"
 
 
+def _totals_rows(document: Document) -> list[list[str]]:
+    return [
+        ["Subtotal", str(document.subtotal)],
+        ["Descuento", str(document.total_discount)],
+        ["IVA 15%", str(document.iva_15)],
+        ["IVA 5%", str(document.iva_5)],
+        ["IVA 0% / Exento", str(document.iva_0)],
+        ["VALOR TOTAL", str(document.total)],
+    ]
+
+
 def build_ride_pdf(document: Document, tenant: Tenant, parent: Document | None = None) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -137,14 +148,7 @@ def build_ride_pdf(document: Document, tenant: Tenant, parent: Document | None =
     elements.append(detail_table)
     elements.append(Spacer(1, 0.5 * cm))
 
-    totals_rows = [
-        ["Subtotal", str(document.subtotal)],
-        ["Descuento", str(document.total_discount)],
-        ["IVA 15%", str(document.iva_15)],
-        ["IVA 5%", str(document.iva_5)],
-        ["VALOR TOTAL", str(document.total)],
-    ]
-    totals_table = Table(totals_rows, colWidths=[8 * cm, 4 * cm], hAlign="RIGHT")
+    totals_table = Table(_totals_rows(document), colWidths=[8 * cm, 4 * cm], hAlign="RIGHT")
     totals_table.setStyle(
         TableStyle(
             [

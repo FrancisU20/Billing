@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from decimal import Decimal
 
-from lambdas.invoice_processor.ride_builder import _discount_cell, build_ride_pdf
+from lambdas.invoice_processor.ride_builder import _discount_cell, _totals_rows, build_ride_pdf
 from tests.unit.lambdas.invoice_processor.fixtures import (
     make_document,
     make_invoice_tenant,
@@ -35,6 +35,37 @@ class DiscountCellTests(unittest.TestCase):
 
 
 class BuildRidePdfTests(unittest.TestCase):
+    def test_totals_rows_include_iva_0_and_exento_bucket(self) -> None:
+        document = make_document(
+            subtotal=Decimal("30.00"),
+            iva_15=Decimal("3.00"),
+            iva_5=Decimal("0.50"),
+            iva_0=Decimal("0.00"),
+            total=Decimal("33.50"),
+            lines=[
+                make_line(),
+                make_line(
+                    code="P0",
+                    iva_rate="0",
+                    iva_amount=Decimal("0.00"),
+                    subtotal=Decimal("10.00"),
+                    total=Decimal("10.00"),
+                ),
+                make_line(
+                    code="PE",
+                    iva_rate="EXENTO",
+                    iva_amount=Decimal("0.00"),
+                    subtotal=Decimal("5.00"),
+                    total=Decimal("5.00"),
+                ),
+            ],
+        )
+
+        rows = _totals_rows(document)
+
+        self.assertIn(["IVA 0% / Exento", "0.00"], rows)
+        self.assertEqual(rows[-1], ["VALOR TOTAL", "33.50"])
+
     def test_builds_pdf_bytes_for_a_line_with_discount(self) -> None:
         document = make_document(
             lines=[
