@@ -6,7 +6,7 @@ import boto3
 
 from lambdas.invoice_processor.ports import IQueuePublisher
 from shared.domain.events.domain_event import DomainEvent
-from shared.domain.events.publisher import EventPublisher
+from shared.domain.events.publisher import DirectPublishReason, EventPublisher
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
@@ -16,7 +16,10 @@ class SQSQueuePublisher(IQueuePublisher):
     def __init__(self, poll_queue_url: str, email_notifications_queue_url: str) -> None:
         self._poll_queue_url = poll_queue_url
         self._client = boto3.client("sqs")
-        self._event_publisher = EventPublisher(queue_url=email_notifications_queue_url)
+        self._event_publisher = EventPublisher(
+            queue_url=email_notifications_queue_url,
+            reason=DirectPublishReason.LEGACY_PROCESSOR_NOTIFICATION,
+        )
 
     def enqueue_poll(
         self,

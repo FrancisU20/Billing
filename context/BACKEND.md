@@ -437,11 +437,14 @@ deberia absorber pero no absorbe todavia.
 
 ### shared/domain
 
-- `EventPublisher.publish()` (`backend/shared/domain/events/publisher.py:71`) hace
-  fire-and-forget directo a SQS fuera de la transaccion DynamoDB, mientras `outbox.py`
-  existe especificamente para evitar ese problema. Conviven 2 mecanismos de publicacion de
-  eventos sin que el codigo indique cuando usar cada uno — documentar la regla
-  explicitamente (cuando es aceptable fire-and-forget vs cuando debe ir por outbox).
+- Solventado 2026-06-29: `EventPublisher` quedo explicitamente definido como publicador
+  SQS directo y exige `DirectPublishReason` al instanciarse. `outbox.py` documenta que los
+  eventos acoplados a mutaciones DynamoDB deben persistirse con
+  `outbox_put_transact_item()` dentro del mismo `TransactWriteItems`. Los usos directos
+  actuales declaran razon: auth forgot-password (`non_transactional_notification`),
+  onboarding worker (`post_commit_worker_side_effect`) e `invoice_processor`
+  (`legacy_processor_notification`). Si `invoice_processor` requiere garantia fuerte de
+  email, esa migracion a outbox es un cambio funcional separado.
 - `GlobalEntity`/`TenantScopedEntity` (`backend/shared/domain/base_entity.py`) son
   `@dataclass` mutables sin slots ni frozen: una mutacion de campo fuera de
   `touch()`/`soft_delete()` no incrementa `version` ni dispara optimistic locking. El

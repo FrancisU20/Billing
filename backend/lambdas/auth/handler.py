@@ -42,12 +42,15 @@ from lambdas.auth.use_cases.refresh import RefreshUseCase
 from lambdas.auth.use_cases.respond_challenge import RespondChallengeUseCase
 from shared.config import env
 from shared.db.client import get_table
-from shared.domain.events.publisher import EventPublisher
+from shared.domain.events.publisher import DirectPublishReason, EventPublisher
 from shared.errors import NotFoundError
 
 _provider_instance = CognitoAuthProvider()
 _password_reset_repo: DynamoPasswordResetRepository | None = None
-_event_publisher = EventPublisher(queue_url=env("EMAIL_NOTIFICATIONS_QUEUE_URL", ""))
+_event_publisher = EventPublisher(
+    queue_url=env("EMAIL_NOTIFICATIONS_QUEUE_URL", ""),
+    reason=DirectPublishReason.NON_TRANSACTIONAL_NOTIFICATION,
+)
 
 
 def _provider() -> IAuthProvider:

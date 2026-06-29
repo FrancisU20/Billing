@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 """
-Domain event publisher → SQS.
+Direct domain event publisher → SQS.
 
-Usage in handler.py:
-    publisher = EventPublisher(queue_url=os.environ["EVENTS_QUEUE_URL"])
-    result, events = use_case.execute(command)
-    publisher.publish_all(events)
+Use this only when the event is intentionally published outside the state-changing
+DynamoDB transaction. For business events that must be committed atomically with a
+DynamoDB mutation, use `shared.domain.events.outbox.outbox_put_transact_item()` instead.
+
+Valid direct-publish cases:
+- post-commit workflow side effects where the caller/worker can retry the whole step,
+- non-transactional notifications,
+- legacy processors whose state mutation and notification cannot share one transaction yet.
 
 The SQS client is initialized outside the handler (cold start optimization).
 """
 
 import dataclasses
 import json
+from enum import StrEnum
 
 import boto3
 
@@ -20,6 +25,12 @@ from shared.domain.events.domain_event import DomainEvent
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
+
+
+class DirectPublishReason(StrEnum):
+    NON_TRANSACTIONAL_NOTIFICATION = "non_transactional_notification"
+    POST_COMMIT_WORKER_SIDE_EFFECT = "post_commit_worker_side_effect"
+    LEGACY_PROCESSOR_NOTIFICATION = "legacy_processor_notification"
 
 
 def _serialize_value(v: object) -> object:
@@ -59,8 +70,15 @@ def event_payload(event: DomainEvent) -> dict:
 
 
 class EventPublisher:
-    def __init__(self, queue_url: str) -> None:
+    """Fire-and-forget SQS publisher.
+
+    Do not use for domain events that must be atomically persisted with a business write.
+    Repositories should add those events to the outbox transaction instead.
+    """
+
+    def __init__(self, queue_url: str, *, reason: DirectPublishReason) -> None:
         self._queue_url = queue_url
+        self._reason = reason
         self._client = None
 
     def _sqs(self):
@@ -82,10 +100,19 @@ class EventPublisher:
                 "event_type": {
                     "StringValue": event.event_type,
                     "DataType": "String",
-                }
+                },
+                "delivery_reason": {
+                    "StringValue": self._reason.value,
+                    "DataType": "String",
+                },
             },
         )
-        _log.info("domain event published", event_type=event.event_type, event_id=event.event_id)
+        _log.info(
+            "domain event published",
+            event_type=event.event_type,
+            event_id=event.event_id,
+            delivery_reason=self._reason.value,
+        )
 
     def publish_all(self, events: list[DomainEvent]) -> None:
         for event in events:

@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-"""Helpers to persist DomainEvents in a transactional DynamoDB outbox."""
+"""Helpers to persist DomainEvents in a transactional DynamoDB outbox.
+
+Use this for business events that must be committed atomically with a DynamoDB
+mutation. The repository adds `outbox_put_transact_item()` to the same
+`TransactWriteItems` request as the entity write, and `outbox_relay` publishes it
+to SQS later. Direct SQS publishing belongs only to explicitly declared
+`DirectPublishReason` cases in `publisher.py`.
+"""
 
 import json
 from datetime import UTC, datetime
