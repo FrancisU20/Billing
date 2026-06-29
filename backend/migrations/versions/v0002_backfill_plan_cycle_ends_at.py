@@ -17,6 +17,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
 from migrations.context import MigrationContext, MigrationResult
+from migrations.scanner import scan_all_items
 
 MIGRATION_ID = "0002_backfill_plan_cycle_ends_at"
 DESCRIPTION = "Backfill Tenant.plan_cycle_ends_at desde created_at + limit_cycle del plan."
@@ -42,34 +43,26 @@ def run(context: MigrationContext) -> MigrationResult:
     skipped = 0
     details: list[str] = []
 
-    scan_kwargs: dict = {}
-    while True:
-        response = tenants_table.scan(**scan_kwargs)
-        for item in response.get("Items", []):
-            if item.get("entity_type") != "TENANT":
-                continue
+    for item in scan_all_items(tenants_table):
+        if item.get("entity_type") != "TENANT":
+            continue
 
-            tenant_id = item["id"]
-            if item.get("plan_cycle_ends_at"):
-                skipped += 1
-                details.append(f"skipped:{tenant_id}:already_set")
-                continue
+        tenant_id = item["id"]
+        if item.get("plan_cycle_ends_at"):
+            skipped += 1
+            details.append(f"skipped:{tenant_id}:already_set")
+            continue
 
-            limit_cycle = _plan_limit_cycle(plans_table, item.get("plan_id", ""))
-            created_at = datetime.fromisoformat(item["created_at"])
-            plan_cycle_ends_at = (created_at + _cycle_duration(limit_cycle)).isoformat()
+        limit_cycle = _plan_limit_cycle(plans_table, item.get("plan_id", ""))
+        created_at = datetime.fromisoformat(item["created_at"])
+        plan_cycle_ends_at = (created_at + _cycle_duration(limit_cycle)).isoformat()
 
-            tenants_table.update_item(
-                Key={"id": tenant_id},
-                UpdateExpression="SET plan_cycle_ends_at = :value",
-                ExpressionAttributeValues={":value": plan_cycle_ends_at},
-            )
-            updated += 1
-            details.append(f"updated:{tenant_id}:{plan_cycle_ends_at}")
-
-        last_key = response.get("LastEvaluatedKey")
-        if not last_key:
-            break
-        scan_kwargs["ExclusiveStartKey"] = last_key
+        tenants_table.update_item(
+            Key={"id": tenant_id},
+            UpdateExpression="SET plan_cycle_ends_at = :value",
+            ExpressionAttributeValues={":value": plan_cycle_ends_at},
+        )
+        updated += 1
+        details.append(f"updated:{tenant_id}:{plan_cycle_ends_at}")
 
     return MigrationResult(updated=updated, skipped=skipped, details=details)

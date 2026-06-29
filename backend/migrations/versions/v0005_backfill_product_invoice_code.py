@@ -14,6 +14,7 @@ aleatorio. El `sku` del producto nunca se modifica.
 
 from lambdas.products.domain.entity import _derive_invoice_code
 from migrations.context import MigrationContext, MigrationResult
+from migrations.scanner import scan_all_items
 
 MIGRATION_ID = "0005_backfill_product_invoice_code"
 DESCRIPTION = "Backfill Product.invoice_code derivado del sku existente."
@@ -26,31 +27,23 @@ def run(context: MigrationContext) -> MigrationResult:
     skipped = 0
     details: list[str] = []
 
-    scan_kwargs: dict = {}
-    while True:
-        response = products_table.scan(**scan_kwargs)
-        for item in response.get("Items", []):
-            if item.get("entity_type") != "PRODUCT":
-                continue
+    for item in scan_all_items(products_table):
+        if item.get("entity_type") != "PRODUCT":
+            continue
 
-            product_id = item["id"]
-            if item.get("invoice_code"):
-                skipped += 1
-                details.append(f"skipped:product:{product_id}:already_set")
-                continue
+        product_id = item["id"]
+        if item.get("invoice_code"):
+            skipped += 1
+            details.append(f"skipped:product:{product_id}:already_set")
+            continue
 
-            invoice_code = _derive_invoice_code(item["sku"], current=None)
-            products_table.update_item(
-                Key={"pk": item["pk"], "sk": item["sk"]},
-                UpdateExpression="SET invoice_code = :invoice_code",
-                ExpressionAttributeValues={":invoice_code": invoice_code},
-            )
-            updated += 1
-            details.append(f"updated:product:{product_id}:{invoice_code}")
-
-        last_key = response.get("LastEvaluatedKey")
-        if not last_key:
-            break
-        scan_kwargs["ExclusiveStartKey"] = last_key
+        invoice_code = _derive_invoice_code(item["sku"], current=None)
+        products_table.update_item(
+            Key={"pk": item["pk"], "sk": item["sk"]},
+            UpdateExpression="SET invoice_code = :invoice_code",
+            ExpressionAttributeValues={":invoice_code": invoice_code},
+        )
+        updated += 1
+        details.append(f"updated:product:{product_id}:{invoice_code}")
 
     return MigrationResult(updated=updated, skipped=skipped, details=details)

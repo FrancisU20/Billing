@@ -481,9 +481,10 @@ decidir `is_free`; ahora usa `Decimal(str(...))`, alineado con los catalogos de
 ### migrations
 
 - `v0002_backfill_plan_cycle_ends_at.py`, `v0003_backfill_onboarding_fields.py` y
-  `v0005_backfill_product_invoice_code.py` reimplementan letra por letra el mismo bucle
-  `scan_kwargs={}` + `while True` + `LastEvaluatedKey`. Con 3 migraciones ya repitiendolo,
-  vale un helper `scan_all(table, predicate, update_fn)` compartido en `migrations/`.
+  `v0005_backfill_product_invoice_code.py` usaban el mismo bucle de scan paginado.
+  Solventado 2026-06-29: `migrations/scanner.py::scan_all_items()` centraliza el protocolo
+  `LastEvaluatedKey` sin mezclar reglas de negocio; las migraciones conservan localmente
+  sus filtros, updates y detalles de resultado.
 
 ### Cobertura de tests en shared/
 

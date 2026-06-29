@@ -16,6 +16,7 @@ por slug.
 """
 
 from migrations.context import MigrationContext, MigrationResult
+from migrations.scanner import scan_all_items
 
 MIGRATION_ID = "0003_backfill_onboarding_fields"
 DESCRIPTION = (
@@ -62,36 +63,28 @@ def _backfill_tenants(tenants_table) -> tuple[int, int, list[str]]:
     skipped = 0
     details: list[str] = []
 
-    scan_kwargs: dict = {}
-    while True:
-        response = tenants_table.scan(**scan_kwargs)
-        for item in response.get("Items", []):
-            if item.get("entity_type") != "TENANT":
-                continue
+    for item in scan_all_items(tenants_table):
+        if item.get("entity_type") != "TENANT":
+            continue
 
-            tenant_id = item["id"]
-            if "legal_name" in item and "accounting_required" in item:
-                skipped += 1
-                details.append(f"skipped:tenant:{tenant_id}:already_set")
-                continue
+        tenant_id = item["id"]
+        if "legal_name" in item and "accounting_required" in item:
+            skipped += 1
+            details.append(f"skipped:tenant:{tenant_id}:already_set")
+            continue
 
-            tenants_table.update_item(
-                Key={"id": tenant_id},
-                UpdateExpression=(
-                    "SET legal_name = :legal_name, accounting_required = :accounting_required"
-                ),
-                ExpressionAttributeValues={
-                    ":legal_name": item.get("trade_name", ""),
-                    ":accounting_required": False,
-                },
-            )
-            updated += 1
-            details.append(f"updated:tenant:{tenant_id}")
-
-        last_key = response.get("LastEvaluatedKey")
-        if not last_key:
-            break
-        scan_kwargs["ExclusiveStartKey"] = last_key
+        tenants_table.update_item(
+            Key={"id": tenant_id},
+            UpdateExpression=(
+                "SET legal_name = :legal_name, accounting_required = :accounting_required"
+            ),
+            ExpressionAttributeValues={
+                ":legal_name": item.get("trade_name", ""),
+                ":accounting_required": False,
+            },
+        )
+        updated += 1
+        details.append(f"updated:tenant:{tenant_id}")
 
     return updated, skipped, details
 
@@ -101,47 +94,39 @@ def _backfill_plans(plans_table) -> tuple[int, int, list[str]]:
     skipped = 0
     details: list[str] = []
 
-    scan_kwargs: dict = {}
-    while True:
-        response = plans_table.scan(**scan_kwargs)
-        for item in response.get("Items", []):
-            if item.get("entity_type", "PLAN") != "PLAN":
-                continue
+    for item in scan_all_items(plans_table):
+        if item.get("entity_type", "PLAN") != "PLAN":
+            continue
 
-            plan_id = item["id"]
-            if "self_service" in item:
-                skipped += 1
-                details.append(f"skipped:plan:{plan_id}:already_set")
-                continue
+        plan_id = item["id"]
+        if "self_service" in item:
+            skipped += 1
+            details.append(f"skipped:plan:{plan_id}:already_set")
+            continue
 
-            defaults = _PLAN_DEFAULTS_BY_SLUG.get(item.get("slug", ""))
-            if defaults is None:
-                skipped += 1
-                details.append(f"skipped:plan:{plan_id}:unknown_slug:{item.get('slug', '')}")
-                continue
+        defaults = _PLAN_DEFAULTS_BY_SLUG.get(item.get("slug", ""))
+        if defaults is None:
+            skipped += 1
+            details.append(f"skipped:plan:{plan_id}:unknown_slug:{item.get('slug', '')}")
+            continue
 
-            plans_table.update_item(
-                Key={"id": plan_id},
-                UpdateExpression=(
-                    "SET pruebas_monthly_docs_limit = :docs_limit, "
-                    "pruebas_monthly_bulk_limit = :bulk_limit, "
-                    "dedicated_queue = :dedicated_queue, "
-                    "self_service = :self_service"
-                ),
-                ExpressionAttributeValues={
-                    ":docs_limit": defaults["pruebas_monthly_docs_limit"],
-                    ":bulk_limit": defaults["pruebas_monthly_bulk_limit"],
-                    ":dedicated_queue": defaults["dedicated_queue"],
-                    ":self_service": defaults["self_service"],
-                },
-            )
-            updated += 1
-            details.append(f"updated:plan:{plan_id}:{item.get('slug', '')}")
-
-        last_key = response.get("LastEvaluatedKey")
-        if not last_key:
-            break
-        scan_kwargs["ExclusiveStartKey"] = last_key
+        plans_table.update_item(
+            Key={"id": plan_id},
+            UpdateExpression=(
+                "SET pruebas_monthly_docs_limit = :docs_limit, "
+                "pruebas_monthly_bulk_limit = :bulk_limit, "
+                "dedicated_queue = :dedicated_queue, "
+                "self_service = :self_service"
+            ),
+            ExpressionAttributeValues={
+                ":docs_limit": defaults["pruebas_monthly_docs_limit"],
+                ":bulk_limit": defaults["pruebas_monthly_bulk_limit"],
+                ":dedicated_queue": defaults["dedicated_queue"],
+                ":self_service": defaults["self_service"],
+            },
+        )
+        updated += 1
+        details.append(f"updated:plan:{plan_id}:{item.get('slug', '')}")
 
     return updated, skipped, details
 

@@ -10,6 +10,7 @@ from unittest.mock import patch
 from botocore.exceptions import ClientError
 from migrations.context import MigrationContext, MigrationResult
 from migrations.definition import Migration
+from migrations.scanner import scan_all_items
 from migrations.versions import v0001_seed_plans
 
 from lambdas.plans.domain.errors import PlanNotFoundError, PlanSlugExistsError
@@ -61,6 +62,16 @@ class FakeStateTable:
             )
         self.put_items.append(kwargs["Item"])
         self.item = dict(kwargs["Item"])
+
+
+class FakeScanTable:
+    def __init__(self, pages: list[dict]) -> None:
+        self.pages = pages
+        self.scan_calls: list[dict] = []
+
+    def scan(self, **kwargs) -> dict:
+        self.scan_calls.append(dict(kwargs))
+        return self.pages[len(self.scan_calls) - 1]
 
 
 class FakePlan:
@@ -190,6 +201,40 @@ class SeedPlansMigrationTests(unittest.TestCase):
         self.assertEqual(result.skipped, 1)
         self.assertNotIn("free", repo.commits)
         self.assertIn("skipped:free:already_exists", result.details)
+
+
+class MigrationScannerTests(unittest.TestCase):
+    def test_scan_all_items_yields_all_paginated_items(self) -> None:
+        table = FakeScanTable(
+            [
+                {"Items": [{"id": "one"}], "LastEvaluatedKey": {"id": "one"}},
+                {"Items": [{"id": "two"}]},
+            ]
+        )
+
+        items = list(scan_all_items(table))
+
+        self.assertEqual(items, [{"id": "one"}, {"id": "two"}])
+        self.assertEqual(table.scan_calls, [{}, {"ExclusiveStartKey": {"id": "one"}}])
+
+    def test_scan_all_items_preserves_initial_scan_kwargs(self) -> None:
+        table = FakeScanTable(
+            [
+                {"Items": [], "LastEvaluatedKey": {"id": "last"}},
+                {"Items": [{"id": "final"}]},
+            ]
+        )
+
+        items = list(scan_all_items(table, scan_kwargs={"ProjectionExpression": "id"}))
+
+        self.assertEqual(items, [{"id": "final"}])
+        self.assertEqual(
+            table.scan_calls,
+            [
+                {"ProjectionExpression": "id"},
+                {"ProjectionExpression": "id", "ExclusiveStartKey": {"id": "last"}},
+            ],
+        )
 
 
 class DynamoMigrationStateRepositoryTests(unittest.TestCase):
