@@ -27,6 +27,7 @@ from lambdas.plans.domain.errors import PlanNotFoundError, PlanSlugExistsError
 from lambdas.plans.domain.plan import Plan
 from lambdas.plans.domain.repositories.i_plan_repository import IPlanRepository
 from shared.audit.writer import audit_item, audit_put_transact_item
+from shared.db.locks import put_unique_lock_transact_item, unique_lock_item
 from shared.db.transactions import cancellation_reasons, is_transaction_condition_error
 from shared.errors import DatabaseError, OptimisticLockError
 from shared.logger import get_logger
@@ -175,14 +176,11 @@ class DynamoPlanRepository(IPlanRepository):
 
     def _create_items(self, plan: Plan, item: dict, user_id: str) -> list[dict]:
         return [
-            {
-                "Put": {
-                    "TableName": self._table.table_name,
-                    "Item": self._slug_lock_item(plan, user_id),
-                    "ConditionExpression": "attribute_not_exists(#id)",
-                    "ExpressionAttributeNames": {"#id": "id"},
-                }
-            },
+            put_unique_lock_transact_item(
+                table_name=self._table.table_name,
+                item=self._slug_lock_item(plan, user_id),
+                partition_key_name="id",
+            ),
             {
                 "Put": {
                     "TableName": self._table.table_name,
@@ -237,14 +235,16 @@ class DynamoPlanRepository(IPlanRepository):
             raise DatabaseError() from exc
 
     def _slug_lock_item(self, plan: Plan, user_id: str) -> dict:
-        return {
-            "id": f"PLAN_SLUG#{plan.slug}",
-            "entity_type": "PLAN_SLUG_LOCK",
-            "plan_id": plan.id,
-            "locked_slug": plan.slug,
-            "created_at": plan.created_at.isoformat(),
-            "created_by": user_id,
-        }
+        return unique_lock_item(
+            key={"id": f"PLAN_SLUG#{plan.slug}"},
+            entity_type="PLAN_SLUG_LOCK",
+            owner_field="plan_id",
+            owner_id=plan.id,
+            locked_field="locked_slug",
+            locked_value=plan.slug,
+            created_at=plan.created_at,
+            created_by=user_id,
+        )
 
     # ── serialisation ─────────────────────────────────────────────────────────
 

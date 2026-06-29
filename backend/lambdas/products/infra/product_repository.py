@@ -18,6 +18,11 @@ from lambdas.products.domain.errors import ProductDuplicateSkuError, ProductNotF
 from lambdas.products.domain.repositories.i_product_repository import IProductRepository
 from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.db.base_repository import BaseRepository
+from shared.db.locks import (
+    delete_unique_lock_transact_item,
+    put_unique_lock_transact_item,
+    unique_lock_item,
+)
 from shared.db.transactions import (
     cancellation_reasons,
     failed_put_item_entity_type,
@@ -194,25 +199,20 @@ class DynamoProductRepository(BaseRepository, IProductRepository):
         return items
 
     def _put_lock_item(self, product: Product) -> dict:
-        return {
-            "Put": {
-                "TableName": self._table.table_name,
-                "Item": self._sku_lock_item(product),
-                "ConditionExpression": "attribute_not_exists(#pk)",
-                "ExpressionAttributeNames": {"#pk": "pk"},
-            }
-        }
+        return put_unique_lock_transact_item(
+            table_name=self._table.table_name,
+            item=self._sku_lock_item(product),
+            partition_key_name="pk",
+        )
 
     def _delete_lock_item(self, sku_normalized: str, product_id: str) -> dict:
-        return {
-            "Delete": {
-                "TableName": self._table.table_name,
-                "Key": {"pk": self._pk(), "sk": self._lock_sk(sku_normalized)},
-                "ConditionExpression": "attribute_not_exists(#pk) OR #product_id = :product_id",
-                "ExpressionAttributeNames": {"#pk": "pk", "#product_id": "product_id"},
-                "ExpressionAttributeValues": {":product_id": product_id},
-            }
-        }
+        return delete_unique_lock_transact_item(
+            table_name=self._table.table_name,
+            key={"pk": self._pk(), "sk": self._lock_sk(sku_normalized)},
+            partition_key_name="pk",
+            owner_field="product_id",
+            owner_id=product_id,
+        )
 
     def _transact_write(
         self,
@@ -255,15 +255,16 @@ class DynamoProductRepository(BaseRepository, IProductRepository):
         return f"{self._lock_prefix}#{sku_normalized}"
 
     def _sku_lock_item(self, product: Product) -> dict:
-        return {
-            "pk": self._pk(),
-            "sk": self._lock_sk(product.sku_normalized),
-            "entity_type": "PRODUCT_SKU_LOCK",
-            "product_id": product.id,
-            "locked_sku": product.sku_normalized,
-            "created_at": product.created_at.isoformat(),
-            "created_by": product.created_by,
-        }
+        return unique_lock_item(
+            key={"pk": self._pk(), "sk": self._lock_sk(product.sku_normalized)},
+            entity_type="PRODUCT_SKU_LOCK",
+            owner_field="product_id",
+            owner_id=product.id,
+            locked_field="locked_sku",
+            locked_value=product.sku_normalized,
+            created_at=product.created_at,
+            created_by=product.created_by,
+        )
 
     def _to_item(self, product: Product) -> dict:
         return {

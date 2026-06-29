@@ -399,10 +399,10 @@ deberia absorber pero no absorbe todavia.
   fallidos. `documents`, `sequences`, `plans`, `clients`, `products`,
   `discount_campaign` y `tenants` ya usan ese helper; `clients`/`products` tambien usan
   `failed_put_item_entity_type()` para distinguir lock duplicado vs optimistic lock.
-- Patron de "lock item" para unicidad aun reimplementado en la construccion de items:
-  `tenants` (RUC), `plans` (slug), `clients` (identificacion), `products` (SKU) crean a
-  mano el `Put` condicional. La deteccion repetida por `CancellationReasons` ya se redujo,
-  pero sigue pendiente un builder/mixin comun si aparecen mas locks.
+- Solventado 2026-06-29: `shared/db/locks.py` centraliza la construccion de lock items y
+  transact items `Put`/`Delete` para unicidad. Lo usan `tenants` (RUC), `plans` (slug),
+  `clients` (identificacion) y `products` (SKU); la deteccion de fallos sigue en
+  `shared/db/transactions.py`.
 - Solventado 2026-06-29: la normalizacion y coincidencia textual de `q` vive en
   `shared/search.py` (`normalize_search_query()` + `matches_search_query()`). `tenants`,
   `plans`, `clients` y `products` conservan filtros propios por dominio, pero ya no duplican

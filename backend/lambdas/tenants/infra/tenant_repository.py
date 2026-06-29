@@ -32,6 +32,7 @@ from lambdas.tenants.domain.tenant import Tenant
 from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.dates import current_ecuador_month_utc_bounds, current_ecuador_previous_month_utc_bounds
 from shared.db.counts import paginated_count
+from shared.db.locks import put_unique_lock_transact_item, unique_lock_item
 from shared.db.paginator import decode_cursor, encode_cursor
 from shared.db.transactions import (
     ExtraTransactionConditionFailedError,
@@ -507,14 +508,11 @@ class DynamoTenantRepository(ITenantRepository):
     def _create_items(self, tenant: Tenant, item: dict, user_id: str) -> list[dict]:
         lock_item = self._ruc_lock_item(tenant, user_id)
         return [
-            {
-                "Put": {
-                    "TableName": self._table.table_name,
-                    "Item": lock_item,
-                    "ConditionExpression": "attribute_not_exists(#id)",
-                    "ExpressionAttributeNames": {"#id": "id"},
-                }
-            },
+            put_unique_lock_transact_item(
+                table_name=self._table.table_name,
+                item=lock_item,
+                partition_key_name="id",
+            ),
             {
                 "Put": {
                     "TableName": self._table.table_name,
@@ -594,14 +592,16 @@ class DynamoTenantRepository(ITenantRepository):
             raise DatabaseError() from e
 
     def _ruc_lock_item(self, tenant: Tenant, user_id: str) -> dict:
-        return {
-            "id": f"RUC#{tenant.ruc}",
-            "entity_type": "TENANT_RUC_LOCK",
-            "tenant_id": tenant.id,
-            "locked_ruc": tenant.ruc,
-            "created_at": tenant.created_at.isoformat(),
-            "created_by": user_id,
-        }
+        return unique_lock_item(
+            key={"id": f"RUC#{tenant.ruc}"},
+            entity_type="TENANT_RUC_LOCK",
+            owner_field="tenant_id",
+            owner_id=tenant.id,
+            locked_field="locked_ruc",
+            locked_value=tenant.ruc,
+            created_at=tenant.created_at,
+            created_by=user_id,
+        )
 
     def _to_item(self, tenant: Tenant) -> dict:
         return {

@@ -36,6 +36,11 @@ from lambdas.clients.domain.value_objects.address import Address
 from shared.audit.writer import audit_item, audit_put_transact_item
 from shared.db.base_repository import BaseRepository
 from shared.db.counts import paginated_count
+from shared.db.locks import (
+    delete_unique_lock_transact_item,
+    put_unique_lock_transact_item,
+    unique_lock_item,
+)
 from shared.db.paginator import decode_cursor, encode_cursor
 from shared.db.transactions import (
     cancellation_reasons,
@@ -313,25 +318,20 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
         return items
 
     def _put_lock_item(self, client: Client) -> dict:
-        return {
-            "Put": {
-                "TableName": self._table.table_name,
-                "Item": self._identification_lock_item(client),
-                "ConditionExpression": "attribute_not_exists(#pk)",
-                "ExpressionAttributeNames": {"#pk": "pk"},
-            }
-        }
+        return put_unique_lock_transact_item(
+            table_name=self._table.table_name,
+            item=self._identification_lock_item(client),
+            partition_key_name="pk",
+        )
 
     def _delete_lock_item(self, identification: str, client_id: str) -> dict:
-        return {
-            "Delete": {
-                "TableName": self._table.table_name,
-                "Key": {"pk": self._pk(), "sk": self._lock_sk(identification)},
-                "ConditionExpression": "attribute_not_exists(#pk) OR #client_id = :client_id",
-                "ExpressionAttributeNames": {"#pk": "pk", "#client_id": "client_id"},
-                "ExpressionAttributeValues": {":client_id": client_id},
-            }
-        }
+        return delete_unique_lock_transact_item(
+            table_name=self._table.table_name,
+            key={"pk": self._pk(), "sk": self._lock_sk(identification)},
+            partition_key_name="pk",
+            owner_field="client_id",
+            owner_id=client_id,
+        )
 
     def _transact_write(
         self,
@@ -374,15 +374,16 @@ class DynamoClientRepository(BaseRepository, IClientRepository):
         return f"{self._lock_prefix}#{identification}"
 
     def _identification_lock_item(self, client: Client) -> dict:
-        return {
-            "pk": self._pk(),
-            "sk": self._lock_sk(client.identification),
-            "entity_type": "CLIENT_IDENTIFICATION_LOCK",
-            "client_id": client.id,
-            "locked_identification": client.identification,
-            "created_at": client.created_at.isoformat(),
-            "created_by": client.created_by,
-        }
+        return unique_lock_item(
+            key={"pk": self._pk(), "sk": self._lock_sk(client.identification)},
+            entity_type="CLIENT_IDENTIFICATION_LOCK",
+            owner_field="client_id",
+            owner_id=client.id,
+            locked_field="locked_identification",
+            locked_value=client.identification,
+            created_at=client.created_at,
+            created_by=client.created_by,
+        )
 
     def _to_item(self, client: Client) -> dict:
         return {
