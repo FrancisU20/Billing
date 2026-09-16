@@ -1,0 +1,182 @@
+= Resumen técnico — CodelabsBillingCloud
+:lang: es
+:toc: left
+:sectnums!:
+:source-highlighter: rouge
+
+== 1. Contexto y metadatos
+
+Repositorio: `CodelabsBillingCloud` (`wali-billing`). Fuente: rama local `develop`, último commit (excepción registrada: remoto inalcanzable al momento de esta instalación, ver `AGENTS.md`). SHA: `09a4a3b2aa87f139c4836733180edf87371c14b3` (commit `chore: retirar CLAUDE.md, context/ y docs/ (gestor de memoria y documentación 1.1)`). No incluye los ~82 archivos con cambios reales sin commitear presentes en el checkout local (verificado con `git status --short` antes de generar esta documentación: 82 entradas).
+
+Tecnología:
+
+* Backend: Python 3.12 sobre AWS Lambda (arquitectura ARM64/Graviton2), organizado en `backend/lambdas/` por dominio funcional, con capa compartida en `backend/shared/`. Lint/format con `ruff`, seguridad estática con `bandit`, auditoría de dependencias con `pip-audit`, tests con `unittest` + `coverage` (umbral `fail_under = 70`, ver `backend/pyproject.toml`).
+* Frontend: Expo / React Native (`frontend/`, `main: expo-router/entry`, Expo SDK ~56, React 19.2.3, React Native 0.85.3), enrutado con `expo-router` (convención de carpetas en `frontend/app/`), estado con `zustand`, validación con `zod`, formularios con `react-hook-form`, tests con `vitest`.
+* Infraestructura: AWS CDK en Python (`infra/`), un stack por responsabilidad (`DatabaseStack`, `AuthStack`, `QueuesStack`, `StorageStack`, `ApiStack`, `CertificateStack`, `FrontendStack`).
+
+Estructura inmediata del repositorio (raíz de `develop`): `Makefile`, `backend/` (`lambdas/`, `shared/`, `tests/`, `migrations/`), `frontend/` (`app/`, `features/`, `lib/`, `components/`, `constants/`, `assets/`, `scripts/`, `public/`), `infra/` (`stacks/`, `config/`), `postman/`, `scripts/`, `.github/` (workflows `pr-checks.yml`, `deploy-dev.yml`, `deploy-staging.yml`, `deploy-prod.yml`).
+
+Dependencias runtime principales — backend (`backend/requirements.txt`): `boto3`/`botocore` 1.43.24, `pydantic` 2.13.4, `cryptography` 48.0.1, `lxml` 6.1.1, `reportlab` 4.5.1 (generación de RIDE en PDF), `python-dateutil`. CDK (`infra/requirements.txt`): `aws-cdk-lib` 2.258.0, `constructs` 10.6.0, `jsii` 1.134.0, `typeguard` 2.13.3 (fijado: "v3+ es incompatible con CDK Python"). Frontend (`frontend/package.json`): `expo`, `expo-router`, `expo-secure-store`, `react-hook-form`, `zod`, `zustand`.
+
+== 2. Propósito funcional
+
+CodelabsBillingCloud ("Wali") es una plataforma SaaS multitenant de facturación electrónica para Ecuador (integración con el SRI — Servicio de Rentas Internas) con cobro de suscripción propio vía dLocal Go. El alcance real verificado en `backend/lambdas/` cubre los siguientes dominios (13 carpetas bajo `lambdas/`, incluyendo `_base` y `workers`):
+
+* `auth` — login/refresh/logout/challenge y recuperación de contraseña contra Amazon Cognito (USER_SRP_AUTH).
+* `onboarding` — registro self-service de un tenant nuevo vía OTP por email, con bifurcación a un "lead empresarial" (`ConfirmOnboardingOtpUseCase`) cuando el caso no es autoservicio.
+* `subscriptions` — cobro de la suscripción del tenant a la propia plataforma vía dLocal Go SmartFields (crear pago, confirmar con tarjeta, consultar estado, reembolsar, webhook HMAC-firmado).
+* `tenants` — CRUD de tenants, cambio de plan, activación/renovación/reintento de suscripción, panel superadmin.
+* `certificates` — carga y validación del certificado digital `.p12` de cada tenant (obligatorio para firmar comprobantes ante el SRI).
+* `sequences` — establecimientos y puntos de emisión SRI, contador atómico de secuencial por punto de emisión.
+* `products` — catálogo de productos/servicios facturables del tenant, con campañas de descuento.
+* `clients` — catálogo de clientes del tenant (compradores de sus facturas).
+* `documents` — emisión de comprobantes electrónicos (factura tipo `01`, nota de crédito tipo `04`), listado, resumen, descarga de RIDE/XML, anulación (legacy) y reintento.
+* `invoice_processor` — no expone HTTP: procesa mensajes SQS para firmar XAdES-BES y enviar/consultar autorización ante el SRI.
+* `workers/*` — diez procesos asíncronos (colas SQS o EventBridge) descritos en la sección 5 y en `modules/backend.adoc`.
+
+No se encontró evidencia de módulos de contabilidad, reportes financieros avanzados o multi-país: el dominio SRI es específico de Ecuador (ver `xml_builder.py`, `sri_client.py`, claves de acceso de 49 dígitos). El alcance está limitado a lo verificado en el código de `develop`; no se infiere nada del nombre del repositorio.
+
+== 3. Arquitectura
+
+Cada dominio bajo `backend/lambdas/<dominio>/` sigue, con variaciones según su complejidad, una capa de arquitectura limpia verificada directamente en el árbol de archivos:
+
+* `domain/` — comandos, errores, entidades, value objects y **puertos** (interfaces `i_*.py`) sin dependencias de AWS.
+* `use_cases/` — orquestación de reglas de negocio contra los puertos del dominio.
+* `infra/` — implementaciones concretas de los puertos (repositorios DynamoDB, cliente Cognito, cliente dLocal, cliente SOAP del SRI, storage S3).
+* `handler.py` — adaptador AWS Lambda (API Gateway HTTP o SQS) que instancia infraestructura en cold start y enruta por método+path (o por `type` del mensaje en colas).
+* `schemas.py` — validación de payloads con `pydantic`.
+
+No todos los dominios tienen las cuatro subcapas: `certificates` no tiene `domain/`/`infra/` propios (reutiliza `shared/certificates/` y el repositorio de `tenants`); `invoice_processor` no tiene `schemas.py` (no es HTTP) y añade módulos de dominio específicos en su raíz (`xml_builder.py`, `signing.py`, `sri_client.py`, `ride_builder.py`, `sri_error_classifier.py`, `sri_error_mapper.py`, `events.py`, `ports.py`). Detalle completo por dominio en `modules/backend.adoc`.
+
+Capa compartida (`backend/shared/`): `db/base_repository.py` (repositorio DynamoDB base con aislamiento multitenant, soft delete, locking optimista y auditoría automática — ver cita en sección 7), `db/client.py`, `db/transactions.py`, `db/paginator.py`, `db/counts.py`, `db/locks.py`; `audit/writer.py`; `certificates/` (validación y almacenamiento de `.p12`); `secrets/client.py` (AWS Secrets Manager); `domain/base_entity.py`, `domain/events/` (outbox pattern), `domain/value_objects/`; `logger.py` (logging estructurado con contexto de invocación); `errors.py` (jerarquía `AppError`); `config.py`.
+
+Capa transversal Lambda (`backend/lambdas/_base/`): `handler.py` (decoradores `lambda_handler`/`public_lambda_handler`), `sqs_handler.py` (equivalente para colas), `permissions.py` (`require_superadmin`/`require_role`), `idempotency.py`, `parser.py` (`Request`, `parse`), `response.py` (`ApiResponse`), `query_params.py`.
+
+Infraestructura (`infra/stacks/`, AWS CDK Python): `database_stack.py` (13 tablas DynamoDB, ver sección 7), `auth_stack.py` (Cognito User Pool único con roles `superadmin|owner|admin|viewer` vía `custom:role`), `queues_stack.py` (colas SQS con DLQ), `storage_stack.py` (S3 con Object Lock WORM para XML/RIDE legal), `api_stack.py` (22 funciones Lambda + HTTP API Gateway v2 con autorizador JWT nativo contra Cognito — el archivo más extenso de infra, ~1200 líneas), `certificate_stack.py`/`frontend_stack.py` (CloudFront + Route53, cross-region para el certificado ACM de CloudFront en `us-east-1`).
+
+Frontend (`frontend/`): Expo Router con carpetas de grupo `(public)/`, `(auth)/`, `(app)/(tenant)/`, `(app)/(superadmin)/` — separación de layout por rol. Lógica de negocio en `frontend/features/<dominio>/` (paralelo a los dominios del backend: `auth`, `onboarding`, `subscriptions`, `tenants`, `plans`, `products`, `clients`, `documents`, `sequences`, más `design-system`, `marketing`, `navigation`). Infraestructura transversal en `frontend/lib/` (cliente HTTP, hooks de paginación/fetch, utilidades). Detalle en `modules/frontend.adoc`.
+
+Ver `modules/evidencia.adoc` para patrones transversales con cita de archivo:línea, y `modules/arquitectura_y_flujos.adoc` para el detalle narrativo de los flujos de la sección 5.
+
+== 4. Interfaces y contratos
+
+El backend expone HTTP vía API Gateway v2 (HTTP API) con autorizador JWT nativo contra el User Pool de Cognito (`infra/stacks/api_stack.py:662-666`). Cada Lambda de dominio enruta internamente por `method`+`path` (o expresiones regulares para rutas con parámetros) dentro de su propio `handler.py`; el routing inspeccionado se implementa en los handlers y en el registro CDK. Rutas públicas (sin JWT) están señaladas explícitamente en los propios comentarios del código: `/auth/login|refresh|logout|challenge|reset-password`, `/auth/forgot-password` (con throttling propio), `/onboarding/otp/request|confirm`, `/subscriptions/payments*` (excepto `/refund`, que exige JWT + rol superadmin), `/subscriptions/webhooks/dlocal` (autenticado por HMAC-SHA256, no JWT), y `GET /plans`, `GET /plans/{id}` (pricing público).
+
+Los mensajes asíncronos (SQS) no tienen "ruta": el propio `handler.py` de cada worker rutea por el campo `type` del cuerpo del mensaje (ver `invoice_processor/handler.py:42-62` para el patrón SIGN/POLL) o procesa un único tipo de evento por cola.
+
+Inventario representativo de endpoints HTTP — ver `matrices/interfaces.csv` (muestra representativa citando archivo:línea real, no exhaustiva dado el volumen: 22 `handler.py` distintos y numerosas rutas HTTP registradas en `api_stack.py`).
+
+Contrato de respuesta HTTP uniforme: envelope `ApiResponse` (`backend/lambdas/_base/response.py`) consumido en el frontend por `frontend/lib/api/client.ts:65-82` (`envelope.success`/`envelope.data`/`envelope.error`).
+
+== 5. Flujos técnicos
+
+=== 5.1 Emisión de un comprobante electrónico (factura) hasta autorización SRI
+
+`POST /documents` (JWT, roles `owner|admin|superadmin`) → `documents/handler.py:135-149` (`_emit`, decorado con `@lambda_handler`, `@require_role`, `@idempotent`) → si `doc_type != "04"`, `_emit_invoice` (`documents/handler.py:152-215`) resuelve tenant y plan, arma las líneas y ejecuta `EmitDocumentUseCase` → `_finalize_emission` (`documents/handler.py:276-310`) persiste el documento en estado `PENDING` (transaccional con la clave de idempotencia) y encola un mensaje `{"type": "SIGN", ...}` en `SIGN_QUEUE_URL` (best-effort: un fallo del `send_message` deja el documento `PENDING` sin bloquear la respuesta `202`, ver comentario en `documents/handler.py:302-308`, riesgo registrado en sección 10).
+
+El worker `invoice_processor` (dos funciones Lambda, `invoice-processor-sign` e `invoice-processor-poll`, mismo código, cada una suscrita a su propia cola — `infra/stacks/api_stack.py:846-913`) recibe el mensaje `SIGN` en `invoice_processor/handler.py:42-51` → `SignDocumentUseCase.execute` (`invoice_processor/use_cases/sign_document.py:39-110`): recupera el documento (idempotente si ya no está `PENDING`, línea 41-47), carga el certificado `.p12` del tenant desde Secrets Manager (`load_certificate`, línea 50), construye el XML (`xml_builder.build_invoice_xml`/`build_credit_note_xml`) y lo firma XAdES-BES (`signing.sign_xades_bes`, línea 57), lo envía al SRI vía SOAP (`sri_client.recepcion`, línea 59). Si el SRI lo recibe, pasa el documento a `PROCESSING` y encola un mensaje `POLL` con `delay_seconds=30` (línea 62-74). Si el SRI rechaza permanentemente (clasificado por `sri_error_classifier`), el documento pasa a `REJECTED` y se publica un evento `DocumentRejectedEvent` (líneas 81-101); si el error es reintentable, pasa a `FAILED` con `increment_retry=True` y se relanza la excepción para que SQS reintente (líneas 103-110, `max_receive_count=5` antes de la DLQ de `invoice-sign`, ver `matrices/persistence.csv`).
+
+El mensaje `POLL` es atendido por la misma Lambda (`invoice_processor/handler.py:53-59`) → `PollDocumentUseCase` consulta la autorización SRI y, si es positiva, genera el RIDE (`ride_builder.py`) y sube XML+RIDE a S3 con Legal Hold activado (`invoice_processor_poll_fn`, `infra/stacks/api_stack.py:899-905`, `s3:PutObjectLegalHold`).
+
+=== 5.2 Confirmación de pago de suscripción (dLocal Go)
+
+`POST /subscriptions/payments` (público, con throttling propio) → `_create_payment` (`subscriptions/handler.py:56-81`, decorado `@idempotent`) crea la orden en dLocal y persiste el `Payment` en estado inicial. El frontend confirma con `POST /subscriptions/payments/{order_id}/confirm` (público) → `_confirm_payment` (`subscriptions/handler.py:84-112`) → `ConfirmPaymentUseCase.execute` (`subscriptions/use_cases/confirm_payment.py:41-85`): valida el `checkout_token` recibido por header `x-checkout-token` contra el guardado (`hmac.compare_digest`, línea 44-48 — comparación de tiempo constante), rechaza si el pago ya está en un estado no confirmable (`PAID`/`AUTHORIZED`/`PENDING`, línea 50-51), llama a dLocal (`confirm_payment`) y, según el `status` devuelto, transiciona el pago a `confirm()`, `mark_pending()` o `fail()` (líneas 70-77). En paralelo, dLocal puede notificar por `POST /subscriptions/webhooks/dlocal` (público, autenticado por firma HMAC-SHA256 sobre el cuerpo crudo — `_verify_dlocal_signature`, `subscriptions/handler.py:123-125`); el handler solo valida la firma y encola el evento crudo en `DLOCAL_WEBHOOK_QUEUE_URL` (línea 180) para que `workers/dlocal_webhook_processor` lo procese de forma asíncrona y desacoplada de la latencia del webhook.
+
+=== 5.3 Onboarding self-service con OTP
+
+`POST /onboarding/otp/request` (público, throttled 1 req/s ráfaga 5 — `infra/config/dev.yaml`) → `_request_otp` (`onboarding/handler.py:63-99`, `@idempotent`) → `RequestOnboardingOtpUseCase` genera y envía el código; el commit de la verificación es transaccional con la respuesta HTTP vía `require_current_context()`/`commit_request` (patrón outbox, líneas 93-98). `POST /onboarding/otp/confirm` (`onboarding/handler.py:102-149`) valida el OTP y, según el resultado (`result.tenant` vs `result.lead`), bifurca entre crear el tenant (`_commit_repo().commit_tenant_registration`) o registrar un lead empresarial para contacto manual (`commit_enterprise_lead`) — ambos casos devuelven `201` y comparten el mismo mecanismo de commit transaccional atado a la clave de idempotencia.
+
+Ver `modules/arquitectura_y_flujos.adoc` para el detalle ampliado de estos tres flujos y de dos flujos adicionales (renovación de suscripción por worker programado, y ciclo de vida del certificado digital).
+
+== 6. Seguridad y contexto de ejecución
+
+Autenticación: Amazon Cognito, un único User Pool para toda la plataforma (`infra/stacks/auth_stack.py:38-73`). `self_sign_up_enabled=False` — todos los usuarios requieren creación administrativa; el comentario del stack describe los roles, y el worker de onboarding crea el owner inicial. El comentario no demuestra un flujo operativo para cada rol. Flujo de login exclusivamente `USER_SRP_AUTH` (`user_password=False` en el cliente web, línea 78-83, comentario explícito "más seguro" para el intercambio SRP con Cognito; esta configuración no describe por sí sola cómo el frontend entrega la contraseña al backend) implementado en `backend/lambdas/auth/infra/cognito_auth_provider.py` con SRP real (`infra/srp.py`, uso de `initiate_auth`/`respond_to_auth_challenge` con `ChallengeName=PASSWORD_VERIFIER`, líneas 40-71). Los parámetros secretos del challenge (`SALT`, `SRP_B`, `SECRET_BLOCK`) se filtran antes de responder al cliente (`_sanitize_challenge_parameters`, `cognito_auth_provider.py:172-183`).
+
+Autorización: claims custom en el ID Token — `custom:tenant_id`, `custom:role` (`superadmin|owner|admin|viewer`), `custom:is_superadmin` (`auth_stack.py:9-16`). El API Gateway valida firma/expiración vía `HttpJwtAuthorizer` nativo (`api_stack.py:662-666`); la autorización de rol fino se aplica en los handlers que consumen esos controles con los decoradores `require_superadmin`/`require_role` de `backend/lambdas/_base/permissions.py:29-57` (superadmin siempre pasa; el resto exige pertenecer a la lista de roles permitidos).
+
+Certificados digitales SRI: `backend/shared/certificates/validator.py` — carga el `.p12` con `cryptography.hazmat.primitives.serialization.pkcs12`, valida tamaño máximo `MAX_CERTIFICATE_BYTES = 50 * 1024` (línea 19), exige contraseña no vacía (línea 51-52) y contrasta el RUC del certificado contra el RUC esperado del tenant (`CertificateRucMismatchError`). El endpoint de carga (`certificates/handler.py`) exige `owner`/`admin` del mismo tenant o superadmin (`_authorize_tenant`, líneas 47-51) y usa `IDEMPOTENCY_TABLE` + reintentos acotados (`_MAX_COMMIT_ATTEMPTS = 3`, línea 32) ante condiciones de carrera al actualizar el mismo tenant. El certificado se almacena en Secrets Manager bajo el prefijo `/codelabs-billing/{env}/tenant/*`, con permisos de Lambda acotados exactamente a ese prefijo (`_grant_certificate_secrets`, `api_stack.py:88-108`). **Se confirma la existencia de `backend/lambdas/auth/infra/cognito_auth_provider.py` en el commit de `develop` verificado** (contenido citado arriba), tal como referencia `AGENTS.md`.
+
+Webhooks externos: el webhook de dLocal Go se autentica por HMAC-SHA256 sobre el cuerpo crudo con comparación de tiempo constante (`_verify_dlocal_signature`, `subscriptions/handler.py:123-125`, `hmac.compare_digest`), no por JWT.
+
+Multitenencia: `BaseRepository` exige `tenant_id` no vacío en el constructor (`shared/db/base_repository.py:51-52`) y construye `PK = "TENANT#{tenant_id}"` (`:59-60`). Este control corresponde a los repositorios que usan esa base; las tablas globales, como `tenants`, `plans` y `payments`, tienen claves diferentes y requieren verificar la autorización de sus consumidores.
+
+No se encontraron mecanismos de rate limiting a nivel de aplicación además del throttling de API Gateway por ruta (`api_stack.py:1158-1203`, ver `infra/config/dev.yaml` para los valores configurados). No se encontró un WAF gestionado en los stacks de infra revisados.
+
+== 7. Persistencia
+
+Persistencia estructurada: **Amazon DynamoDB**, `PAY_PER_REQUEST`, trece tablas definidas en `infra/stacks/database_stack.py` (una por dominio funcional según el comentario del propio archivo, líneas 1-13): `tenants` (GSI `ruc-index`), `audit` (retención 7 años — "retención legal SRI Ecuador", líneas 61), `idempotency` (TTL 24h), `outbox` (DynamoDB Streams `NEW_IMAGE` → relay a SQS), `password-resets`, `plans` (GSI `slug-index`), `clients` (GSI `identification-index`), `products` (GSI `sku-index`), `migrations`, `payments` (GSI `tenant-payments-index`), `sequences` (sin GSI — solo acceso por `pk`/`sk`), `documents` (GSI `tenant-docs-index`), `batch-jobs` (tabla creada pero declarada en el propio comentario como para una Lambda de un sprint posterior aún no implementada — no se encontró un handler `batch_jobs` en este commit).
+
+Patrón de acceso: `shared/db/base_repository.py` es la base común. Convención de claves `PK = "TENANT#{tenant_id}"` / `SK = "{PREFIX}#{entity_id}"` (líneas 13-18). Provee: aislamiento multitenant obligatorio (línea 51-52), **soft delete** — nunca se llama `delete_item` directamente, se filtra `Attr("deleted").eq(False)` como `FilterExpression` (líneas 100-131, con una limitación documentada explícitamente en el propio docstring: "DynamoDB applies Limit BEFORE FilterExpression... For lists with many soft-deleted rows, use a GSI with `deleted` as the partition key in later phases", líneas 20-25 — deuda técnica registrada en sección 10), **locking optimista** vía `ConditionExpression`/`version` (mapea `ConditionalCheckFailedException` → `OptimisticLockError`, líneas 93-98), **auditoría automática no bloqueante** en cada mutación (`_audit`, líneas 183-206, un fallo del log de auditoría solo genera un warning, no interrumpe la operación de negocio) y helper de `transact_write_items` con mapeo de errores de cancelación transaccional (líneas 157-179).
+
+Almacenamiento de archivos: Amazon S3 (`storage_stack.py`) para XML y RIDE de comprobantes, con **Object Lock (WORM)** y `LegalHold=ON` al escribir el RIDE tras autorización SRI (`invoice_processor/infra/s3_document_storage.py`; `storage_stack.py:46-50`). Los permisos IAM de `api_stack.py:902-905` habilitan Legal Hold; su declaración por sí sola no prueba una escritura.
+
+Secretos: AWS Secrets Manager para credenciales de certificados `.p12` por tenant, credenciales de dLocal Go y API key de Brevo (proveedor de email) — los consumidores citados reciben el *nombre* del secreto como variable de entorno, p.ej. `DLOCALGO_CREDENTIALS_NAME`. Esto describe esas integraciones y no demuestra la ausencia universal de secretos en otros medios.
+
+== 8. Catálogo de implementación
+
+Conteos verificados sobre el worktree de `develop` (no exhaustivo línea por línea, pero completo a nivel de archivo):
+
+* 22 archivos `handler.py`: 10 dominios HTTP + `invoice_processor` (SQS) + `_base` (decoradores compartidos) + 10 workers (`certificate_expiry_notifier`, `dlocal_webhook_processor`, `email_notifications`, `migrations`, `orphan_payment_notifier`, `outbox_relay`, `pending_activation_reconciler`, `stale_payment_cleaner`, `subscription_renewal_notifier`, `tenant_onboarding`).
+* 70 archivos bajo `use_cases/` (excluyendo `+__init__.py+`) en todo `backend/lambdas/`.
+* Las entidades usan nombres diversos: `documents/domain/entities.py`, `sequences/domain/entities.py`, `subscriptions/domain/entities/payment.py`, `tenants/domain/tenant.py` y `plans/domain/plan.py`, entre otros. Contar solamente archivos llamados `entities.py` no representa el inventario de entidades.
+* 441 archivos `.py` en `backend/` en total; 77 archivos de test unitario (`backend/tests/unit/lambdas/<dominio>/` + `backend/tests/unit/shared/`) distribuidos entre los 10 dominios HTTP, `invoice_processor`, `_base` y `workers`.
+* Frontend: 340 archivos `.ts`/`.tsx`; 43 archivos bajo `+features/**/screens/+`; 61 componentes bajo `+features/**/components/+` + 34 bajo `frontend/components/`; 44 archivos `*.test.ts(x)` (Vitest).
+* Infraestructura: 7 stacks CDK (`infra/stacks/*.py`) + `app.py` orquestador + 9 archivos `.py` en total bajo `infra/`.
+
+Ver `matrices/implementation.csv` para una muestra representativa citando archivo:línea (no pretende ser el listado completo de los 70 archivos de casos de uso).
+
+== 9. Operación y configuración
+
+Comandos declarados en `Makefile` (raíz del repositorio, verificado en el worktree; **no se ejecutó ningún build/test/deploy real como parte de esta documentación**, solo se leyó el archivo):
+
+* `make ci-backend` → `ruff format --check backend/` + `ruff check backend/` + `coverage run --source=lambdas,shared -m unittest discover -s backend/tests -p "test_*.py"` + `coverage report`. Prerrequisito declarado: `backend/.venv` con `requirements.txt` + `requirements-ci.txt`.
+* `make ci-frontend` → `npm run format:check && npm run lint && npm run typecheck && npm run test:run` (dentro de `frontend/`).
+* `make ci-security` → `bandit -r backend/lambdas/ backend/shared/ -c backend/pyproject.toml --severity-level medium` + `pip-audit -r backend/requirements.txt --strict`.
+* `make ci-cdk` → `cdk ls -c env=dev` (valida que los stacks compilen).
+* `make ci` → ejecuta los cuatro targets locales. No es un espejo exacto del workflow: este también configura variables AWS, genera XML de cobertura, publica reportes y valida el build web del frontend; el `Makefile` de este commit no incluye ese build.
+* `make deploy` → `cdk deploy --all --profile codelabs --require-approval never` (perfil AWS `codelabs`, región `sa-east-1`).
+* `make superadmin` / `make token` → scripts operativos (`scripts/create_superadmin.py`, `scripts/make_token.py`).
+
+Configuración por entorno: `infra/config/{dev,staging,prod}.yaml` — claves verificadas (solo nombres, nunca valores sensibles): `env`, `region`, `account` (resuelto vía `CDK_DEFAULT_ACCOUNT`), `superadmin_email`, `dynamodb.billing_mode`/`point_in_time_recovery`/`removal_policy`, `cognito.mfa`, `api.throttling.*` (por ruta), `domain.hosted_zone`/`api`/`frontend`, `cors.origins`/`cors.headers`. Nombres de secretos referenciados (nunca su valor): `codelabs-billing-{env}/dlocalgo-credentials`, `codelabs-billing-{env}/brevo-api-key`, `/codelabs-billing/{env}/tenant/*` (certificados). Configuración del frontend: `frontend/constants/config.ts` resuelve `apiUrl` en cascada (`EXPO_PUBLIC_API_URL` → `extra.apiUrl` de Expo Constants → default por entorno) y expone `dlocalgo.smartFieldsKey`/`sdkUrl` de forma análoga.
+
+Despliegue: según `app.py` (`infra/app.py:1-24`), "Solo dev por ahora. Prod no se toca hasta tener clientes" — información operativa real del propio código, no inferida. Pipelines CI/CD declarados en `.github/workflows/` (`pr-checks.yml`, `deploy-dev.yml`, `deploy-staging.yml`, `deploy-prod.yml`) — **no se modificó ningún workflow, secreto ni configuración de despliegue** como parte de esta tarea documental; solo se leyeron para describir el estado real.
+
+== 10. Riesgos y deuda
+
+[cols="1,1,1,1",options="header"]
+|===
+| Clasificación | Hallazgo | Archivo | Línea
+
+| Seguimiento recomendado — deuda documentada
+| El filtro de soft-delete (`deleted = false`) se aplica como `FilterExpression` de DynamoDB, que se evalúa *después* de `Limit` — el propio docstring señala que esto "mitiga pero no elimina" el problema de páginas con muchos elementos borrados, y propone un GSI futuro con `deleted` como partition key.
+| `backend/shared/db/base_repository.py`
+| 20-25
+
+| Seguimiento recomendado — restricción declarada
+| `invoice_processor` (SIGN/POLL) no declara `reserved_concurrent_executions`. Los comentarios atribuyen esta decisión a una cuota de cuenta de 10 ejecuciones y a fallos previos de despliegue. Se verificó la declaración del código; la cuota vigente y el estado de AWS no se consultaron.
+| `infra/stacks/api_stack.py`
+| 829-845
+
+| Seguimiento recomendado — riesgo funcional
+| El envío del mensaje SQS `SIGN` tras persistir un documento en `PENDING` es "best-effort": si `send_message` falla, el documento queda en `PENDING` sin reintento automático (el propio código deja un `_log.warning` con el texto "document stuck PENDING"). Mismo patrón en `_retry` y en la marca de anulación por nota de crédito.
+| `backend/lambdas/documents/handler.py`
+| 302-308, 259-271, 513-519
+
+| Seguimiento recomendado — nomenclatura declarada
+| El nombre del prefijo de infraestructura (`CodeLabsBilling-*`) quedó fijo por los recursos ya desplegados; renombrarlo "implicaría recrear recursos" — divergencia consciente entre el nombre de marca actual ("Wali") y el nombre técnico de los stacks CDK.
+| `infra/app.py`
+| 1-3
+
+| Riesgo operativo declarado
+| El checkout contiene trabajo de aplicación sin commitear que esta documentación excluye. La nueva comprobación del remoto configurado falla por resolución SSH. La fuente sigue siendo el commit local indicado en la sección 1; regenerar desde la rama remota confirmada cuando se restaure el acceso. Esta es evidencia de instalación, no un hallazgo del código documentado.
+| `AGENTS.md`
+| —
+|===
+
+include::modules/evidencia.adoc[]
+
+include::modules/arquitectura_y_flujos.adoc[]
+
+include::modules/backend.adoc[]
+
+include::modules/frontend.adoc[]

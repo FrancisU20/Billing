@@ -1,0 +1,98 @@
+== Anexo — Arquitectura y flujos técnicos (detalle ampliado)
+
+Todas las citas de archivo:línea se verificaron sobre el worktree de `develop` (commit `09a4a3b2aa87f139c4836733180edf87371c14b3`).
+
+=== Flujo A — Emisión de factura hasta autorización SRI (ampliación de la sección 5.1)
+
+[source]
+----
+Frontend (features/documents)
+  → POST /documents  (JWT, role owner|admin|superadmin)
+  → documents/handler.py:135  _emit()
+      ├─ doc_type == "04" → _emit_credit_note (línea 218)
+      └─ else            → _emit_invoice   (línea 152)
+           ├─ _get_tenant / _get_plan       (líneas 155-156)
+           ├─ EmitDocumentUseCase.execute() (líneas 182-208)
+           └─ _finalize_emission            (línea 210, cuerpo en línea 276)
+                ├─ ApiResponse.accepted(202, status=PENDING)
+                ├─ repo.save(document, idempotency=ctx, response)   [transaccional]
+                └─ _send_sign_message() → SQS SIGN_QUEUE_URL         [best-effort]
+                                                       │
+                                                       ▼
+invoice_processor/handler.py:42  handler() [SQS trigger, invoice-processor-sign]
+  └─ message_type == "SIGN" → SignDocumentUseCase.execute()  (sign_document.py:39)
+       ├─ get(document) — ignora si ya no está PENDING (idempotencia ante reentrega, líneas 41-47)
+       ├─ load_certificate(tenant.certificate_secret_arn)   (línea 50, Secrets Manager)
+       ├─ xml_builder.build_invoice_xml / build_credit_note_xml
+       ├─ signing.sign_xades_bes(xml, private_key, certificate)      (línea 57)
+       ├─ sri_client.recepcion(environment, xmls=[signed_xml])       (línea 59, SOAP)
+       └─ según resultado:
+            ├─ received=True  → status=PROCESSING + enqueue_poll(delay=30s) (líneas 61-74)
+            ├─ error PERMANENT → status=REJECTED + DocumentRejectedEvent    (líneas 81-101)
+            └─ error reintentable → status=FAILED, increment_retry, raise  (líneas 103-110)
+                                                       │
+                                                       ▼
+invoice_processor/handler.py:53  message_type == "POLL"
+  └─ PollDocumentUseCase.execute()
+       ├─ sri_client — consulta autorización (AutorizacionComprobantesOffline)
+       └─ si autorizado: ride_builder → S3 (XML + RIDE, LegalHold=ON, api_stack.py:899-905)
+----
+
+Colas involucradas (`infra/stacks/queues_stack.py`, ver `matrices/persistence.csv` para DLQ): `invoice-sign` (visibility 720s, `max_receive_count=5`), `invoice-poll` (idéntico), ambas consumidas por las mismas dos funciones Lambda `invoice-processor-sign`/`invoice-processor-poll` (mismo código, distinta cola de origen — `api_stack.py:846-913`).
+
+Riesgo funcional real (no hipotético) en este flujo: el `send_message` de `_send_sign_message` (`documents/handler.py:123-129`) se ejecuta *después* de confirmar la persistencia del documento y está envuelto en un `try/except Exception` que solo loguea un `warning` (líneas 302-308) — si SQS no está disponible en ese instante, el documento queda `PENDING` indefinidamente sin un mecanismo de reconciliación automática visible en el código inspeccionado (a diferencia de los pagos, que sí tienen `workers/pending_activation_reconciler` y `workers/stale_payment_cleaner`). Registrado en la sección 10 del documento principal.
+
+=== Flujo B — Pago de suscripción con dLocal Go SmartFields (ampliación de la sección 5.2)
+
+[source]
+----
+Frontend (features/subscriptions/use-3ds-flow.ts, use-dlocal-smartfields.ts)
+  → POST /subscriptions/payments                (público, throttled)
+  → subscriptions/handler.py:56  _create_payment()
+       └─ CreatePaymentUseCase → dLocal crea orden → Payment persistido
+
+  → POST /subscriptions/payments/{order_id}/confirm   (público)
+  → subscriptions/handler.py:84  _confirm_payment()
+       └─ ConfirmPaymentUseCase.execute()  (confirm_payment.py:41-85)
+            ├─ hmac.compare_digest(payment.checkout_token, header)   (línea 44-48)
+            ├─ rechaza si status ∈ {PAID, AUTHORIZED, PENDING}        (línea 50-51)
+            ├─ dlocal.confirm_payment(...)                             (línea 53-62)
+            └─ transición: confirm() | mark_pending() | fail()         (líneas 70-77)
+
+  ⇄ (asíncrono, iniciado por dLocal)
+  → POST /subscriptions/webhooks/dlocal          (público, HMAC-verificado)
+  → subscriptions/handler.py:171  _dlocal_webhook()
+       ├─ _verify_dlocal_signature(raw_body, x-signature, secret_key)  (línea 123-125)
+       └─ _enqueue_dlocal_webhook() → SQS dlocal-webhook-queue          (línea 128-144)
+                                                       │
+                                                       ▼
+workers/dlocal_webhook_processor/handler.py  [SQS trigger]
+  └─ procesa el evento de forma desacoplada de la latencia del webhook HTTP
+----
+
+Renovación automática (no disparada por el usuario): `workers/subscription_renewal_notifier` corre diario (`cron(0 10 * * ? *)`, `api_stack.py:518-522`) → `NotifySubscriptionRenewalUseCase.execute()` (`workers/subscription_renewal_notifier/use_case.py:85-136`) recorre tenants con vencimiento próximo (`list_with_subscription_expiry_due`) y por cada uno: envía recordatorio a 7 días (`_REMINDER_DAYS`, línea 24), o si ya venció, intenta auto-cobro con el `dlocal_payer_id` guardado (`_try_auto_charge`, línea 196) usando un **marcador de reconciliación** (`create_auto_renewal_reconciliation_marker`, línea 217) para evitar doble cobro si el proceso se reintenta a medio camino — si el marcador ya existe, no cobra de nuevo y alerta para reconciliación manual (`auto_charge_reconciliation_required`, líneas 225-247). Si dLocal falla o el guardado transaccional posterior al cobro exitoso falla, también se marca para reconciliación manual en vez de perder el cobro silenciosamente (`_AutoRenewalReconciliationRequiredError`, líneas 257-320). Tenants en `PAYMENT_FAILED` tienen una gracia de 7 días (`_PAYMENT_FAILED_GRACE_DAYS`, línea 25) antes de expirar la suscripción definitivamente.
+
+=== Flujo C — Onboarding self-service con OTP (ampliación de la sección 5.3)
+
+[source]
+----
+POST /onboarding/otp/request  (público, throttle burst=5 rate=1)
+  → onboarding/handler.py:63  _request_otp()
+       ├─ RequestOnboardingOtpUseCase.execute()  → genera OTP, decide self_service vs lead
+       └─ _verification_repo().commit_request(verification, events, idempotency, response)
+
+POST /onboarding/otp/confirm  (público, throttle burst=10 rate=2)
+  → onboarding/handler.py:102  _confirm_otp()
+       ├─ ConfirmOnboardingOtpUseCase.execute()
+       └─ bifurca por resultado:
+            ├─ result.tenant → _commit_repo().commit_tenant_registration(...)  (201, tenant creado)
+            └─ result.lead   → _commit_repo().commit_enterprise_lead(...)      (201, "Te contactaremos pronto")
+----
+
+Ambas ramas comparten el mismo mecanismo transaccional: la respuesta HTTP ya construida (`ApiResponse.created`) se pasa como argumento al método de commit del repositorio, que la serializa como parte de la misma transacción DynamoDB que cierra la idempotencia (`completion_transact_item`, ver `modules/evidencia.adoc`) — evita el caso donde el negocio se persiste pero la respuesta de idempotencia queda desincronizada.
+
+El worker asociado, `workers/tenant_onboarding`, consume la cola `tenant-onboarding` (`api_stack.py:326-357`) para crear el usuario `owner` en Cognito (`cognito-idp:AdminCreateUser`) de forma asíncrona tras el registro — desacopla la latencia de Cognito de la respuesta HTTP del OTP.
+
+=== Flujo D — Ciclo de vida del certificado digital (resumen)
+
+`PUT /tenants/{id}/certificate` (JWT; `owner`/`admin` del mismo tenant o superadmin, `_authorize_tenant`, `certificates/handler.py:47-51`) → `UpdateCertificateUseCase` valida el `.p12` con `CertificateValidator.validate_base64` (tamaño máximo 50KB, RUC del certificado vs. RUC del tenant, contraseña no vacía — `shared/certificates/validator.py:22-42`) y lo guarda en Secrets Manager vía `CertificateStore`; tras el commit se hace *best-effort* bootstrap del punto de emisión de pruebas 001/099 (`_bootstrap_testing_point`, `certificates/handler.py:56-63`). El worker diario `workers/certificate_expiry_notifier` (`cron(0 9 * * ? *)`) alerta a los tenants 60 y 30 días antes del vencimiento del certificado (comentario en `api_stack.py:430-432`).

@@ -1,0 +1,33 @@
+metodo,ruta,auth,handler_funcion,archivo,linea
+POST,/auth/login,publico,_login,backend/lambdas/auth/handler.py,67
+POST,/auth/refresh,publico,_refresh,backend/lambdas/auth/handler.py,76
+POST,/auth/logout,publico,_logout,backend/lambdas/auth/handler.py,83
+POST,/auth/forgot-password,publico (throttled),_forgot_password,backend/lambdas/auth/handler.py,103
+POST,/auth/reset-password,publico,_reset_password,backend/lambdas/auth/handler.py,115
+POST,/onboarding/otp/request,publico (throttled),_request_otp,backend/lambdas/onboarding/handler.py,63
+POST,/onboarding/otp/confirm,publico (throttled),_confirm_otp,backend/lambdas/onboarding/handler.py,102
+POST,/subscriptions/payments,publico (throttled),_create_payment,backend/lambdas/subscriptions/handler.py,56
+POST,/subscriptions/payments/{order_id}/confirm,publico + x-checkout-token,_confirm_payment,backend/lambdas/subscriptions/handler.py,84
+GET,/subscriptions/payments/{order_id},publico + x-checkout-token,_get_payment,backend/lambdas/subscriptions/handler.py,147
+POST,/subscriptions/payments/{order_id}/refund,JWT superadmin,_refund_payment,backend/lambdas/subscriptions/handler.py,156
+POST,/subscriptions/webhooks/dlocal,HMAC-SHA256,_dlocal_webhook,backend/lambdas/subscriptions/handler.py,171
+POST,/documents,JWT owner|admin|superadmin,_emit,backend/lambdas/documents/handler.py,135
+GET,/documents,JWT owner|admin|viewer|superadmin,_list,backend/lambdas/documents/handler.py,313
+GET,/documents/summary,JWT owner|admin|viewer|superadmin,_summary,backend/lambdas/documents/handler.py,392
+GET,/documents/{id},JWT owner|admin|viewer|superadmin,_get,backend/lambdas/documents/handler.py,405
+GET,/documents/{id}/ride,JWT owner|admin|viewer|superadmin,_get_ride,backend/lambdas/documents/handler.py,417
+GET,/documents/{id}/xml,JWT owner|admin|viewer|superadmin,_get_xml,backend/lambdas/documents/handler.py,433
+POST,/documents/{id}/annul,JWT owner|admin|superadmin (deprecado),_annul,backend/lambdas/documents/handler.py,449
+POST,/documents/{id}/retry,JWT owner|admin|superadmin,_retry,backend/lambdas/documents/handler.py,483
+GET,/tenants/{id}/certificate,JWT mismo tenant owner|admin|viewer o superadmin,_get,backend/lambdas/certificates/handler.py,69
+PUT,/tenants/{id}/certificate,JWT mismo tenant owner|admin o superadmin,_put,backend/lambdas/certificates/handler.py,79
+POST,/tenants,JWT superadmin,tenants handler (create),backend/lambdas/tenants/handler.py,7
+GET,/tenants,JWT superadmin,tenants handler (list),backend/lambdas/tenants/handler.py,8
+PATCH,/tenants/{id}/plan,JWT owner|admin|superadmin,tenants handler (change plan),backend/lambdas/tenants/handler.py,11
+POST,/tenants/{id}/subscription/activate,JWT owner|admin|superadmin,tenants handler (activate),backend/lambdas/tenants/handler.py,15
+GET,/superadmin/dashboard,JWT superadmin,tenants handler (dashboard),backend/lambdas/tenants/handler.py,18
+GET,/plans,publico,plans handler (list),infra/stacks/api_stack.py,999
+POST,/plans,JWT superadmin,plans handler (create),infra/stacks/api_stack.py,1012
+GET,/products,JWT (todos los roles del tenant),products handler (list),infra/stacks/api_stack.py,743
+GET,/clients,JWT (todos los roles del tenant),clients handler (list),infra/stacks/api_stack.py,725
+GET,/tenants/{id}/establishments,JWT,sequences handler (list),infra/stacks/api_stack.py,762

@@ -1,0 +1,6 @@
+area,tipo,cantidad_archivos,ubicacion,comando
+backend,unitario (unittest),77,backend/tests/unit/lambdas/** backend/tests/unit/shared/**,make ci-backend
+frontend,unitario (vitest),44,junto a cada modulo en frontend/lib/** y frontend/features/**,make ci-frontend
+backend,seguridad estatica (bandit),N/A (analisis de codigo no archivos de test),backend/lambdas/ backend/shared/,make ci-security
+backend,auditoria de dependencias (pip-audit),N/A,backend/requirements.txt,make ci-security
+infra,validacion de sintesis CDK,N/A,infra/,make ci-cdk

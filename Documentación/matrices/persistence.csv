@@ -1,0 +1,21 @@
+tabla_o_recurso,mecanismo,clave_particion,clave_orden,gsi,ttl,archivo,linea
+tenants,DynamoDB,id,,ruc-index,ttl,infra/stacks/database_stack.py,41
+audit,DynamoDB,pk,sk,,ttl (7 anios - retencion legal SRI),infra/stacks/database_stack.py,62
+idempotency,DynamoDB,pk,,,ttl (24h),infra/stacks/database_stack.py,78
+outbox,DynamoDB (Stream NEW_IMAGE),id,,,ttl,infra/stacks/database_stack.py,92
+password-resets,DynamoDB,id,,,ttl,infra/stacks/database_stack.py,107
+plans,DynamoDB,id,,slug-index,,infra/stacks/database_stack.py,122
+clients,DynamoDB,pk,sk,identification-index,,infra/stacks/database_stack.py,142
+products,DynamoDB,pk,sk,sku-index,,infra/stacks/database_stack.py,164
+migrations,DynamoDB,id,,,,infra/stacks/database_stack.py,185
+payments,DynamoDB,id,,tenant-payments-index,,infra/stacks/database_stack.py,199
+sequences,DynamoDB,pk,sk,ninguno (solo acceso por pk),,infra/stacks/database_stack.py,222
+documents,DynamoDB,pk,sk,tenant-docs-index,,infra/stacks/database_stack.py,239
+batch-jobs,DynamoDB,pk,sk,,,infra/stacks/database_stack.py,261
+documents_bucket,S3 (Object Lock WORM),,,,,infra/stacks/storage_stack.py,46
+invoice-sign queue,SQS (DLQ max_receive=5 visibility=720s),,,,,infra/stacks/queues_stack.py,161
+invoice-poll queue,SQS (DLQ max_receive=5 visibility=720s),,,,,infra/stacks/queues_stack.py,183
+tenant-onboarding queue,SQS (DLQ max_receive=3 visibility=360s),,,,,infra/stacks/queues_stack.py,49
+email-notifications queue,SQS (DLQ max_receive=3 visibility=180s),,,,,infra/stacks/queues_stack.py,76
+dlocal-webhook queue,SQS (DLQ max_receive=5 visibility=180s),,,,,infra/stacks/queues_stack.py,125
+certificados .p12,Secrets Manager,/codelabs-billing/{env}/tenant/*,,,,infra/stacks/api_stack.py,84

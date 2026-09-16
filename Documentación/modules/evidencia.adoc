@@ -1,0 +1,49 @@
+== Anexo — Evidencia transversal
+
+Fuente para todo este anexo: worktree aislado creado con `git worktree add --detach <tmp> develop` sobre el commit `09a4a3b2aa87f139c4836733180edf87371c14b3`. Ninguna cita proviene del checkout local con cambios sin commitear.
+
+=== Patrón de decorador Lambda (contrato compartido de todos los handlers HTTP)
+
+`backend/lambdas/_base/handler.py:34-71` define `_build_handler`, con dos fachadas públicas: `lambda_handler` (`require_tenant=True`, línea 65-66) y `public_lambda_handler` (`require_tenant=False`, línea 69-71). Responsabilidades verificadas en el propio docstring (líneas 6-13) y en el cuerpo de `wrapper` (líneas 36-59):
+
+1. `clear_invocation_context()` al inicio — evita fuga de contexto entre invocaciones en contenedores Lambda reutilizados (línea 37).
+2. `Request.from_event(event, require_tenant=...)` parsea el evento API Gateway (línea 41).
+3. `bind_invocation_context(request_id, tenant_id, user_id, lambda_name)` propaga contexto a todos los loggers vía `contextvars` (línea 42-47).
+4. Captura `AppError` → `ApiResponse.error(exc, request_id)` con el código de la excepción (línea 53-55).
+5. Captura `Exception` genérica → loguea el stacktrace completo con `exc_info=True` pero **nunca** lo devuelve al cliente HTTP, solo `InternalError()` (línea 57-59, comentario explícito en el docstring: "the stacktrace NEVER travels to the HTTP response, only to CloudWatch").
+
+El equivalente para colas SQS es `backend/lambdas/_base/sqs_handler.py` (`sqs_handler`, usado en `invoice_processor/handler.py:42` y en los 10 workers).
+
+=== Orden de decoradores en endpoints mutables
+
+Los endpoints de escritura combinan tres decoradores en un orden fijo (de abajo hacia arriba en la aplicación real, de arriba hacia abajo en el código): `@lambda_handler` (o `@public_lambda_handler`) → `@require_role(...)` (cuando aplica) → `@idempotent`. Ejemplo verificado en `backend/lambdas/documents/handler.py:135-138`:
+
+[source,python]
+----
+@lambda_handler
+@require_role("owner", "admin", "superadmin")
+@idempotent
+def _emit(request: Request, context) -> dict:
+----
+
+El mismo orden se repite en `certificates/handler.py`, `onboarding/handler.py:63-65` (con `@public_lambda_handler` en vez de `@lambda_handler`, porque el onboarding es anónimo) y `subscriptions/handler.py:56-58`.
+
+=== Idempotencia HTTP (`X-Idempotency-Key`)
+
+`backend/lambdas/_base/idempotency.py` implementa idempotencia real contra DynamoDB, no solo deduplicación en memoria: la clave de partición combina alcance + clave del cliente (`_scope_for`, línea 82-85: `TENANT#{tenant_id}` o `GLOBAL#{user_id|anonymous}`), y el registro se ata a `method + path + body_hash` (`_matches`, línea 99-104) — una reutilización de la misma clave con un cuerpo distinto lanza `IdempotencyKeyReusedError` (línea 144-145, 257-258) en vez de servir una respuesta cacheada incorrecta. La reserva usa una `ConditionExpression` que permite reintentar si el registro previo expiró por TTL o terminó en `FAILED` (línea 135-139). TTLs distintos por estado: `IN_PROGRESS` 900s, `COMPLETED` 24h, `FAILED` 60s (líneas 48-50). `completion_transact_item()` (línea 209-242) permite que el propio repositorio de dominio cierre la idempotencia **dentro de la misma transacción DynamoDB** que persiste el cambio de negocio (patrón usado por `onboarding` y `documents`, ver sección 5 del documento principal), en vez de un segundo `update_item` no atómico.
+
+=== Outbox pattern (eventos de dominio)
+
+`backend/shared/domain/events/outbox.py` + `backend/shared/domain/events/publisher.py` (clase `EventPublisher`, `publisher.py:72`) implementan un outbox transaccional: los eventos se escriben en la tabla `outbox` (DynamoDB Streams `NEW_IMAGE`) dentro de la misma transacción que el cambio de negocio, y `workers/outbox_relay` (suscrito al stream, `infra/stacks/api_stack.py:309-322`) los reenvía a las colas SQS correspondientes (`EVENTS_QUEUE_URL`, `EMAIL_NOTIFICATIONS_QUEUE_URL`) de forma desacoplada. `DirectPublishReason` (`publisher.py:30`) documenta explícitamente los casos donde se permite publicar *sin* pasar por el outbox (p.ej. notificaciones no transaccionales como el email de recuperación de contraseña en `auth/handler.py:50-53`, marcado `DirectPublishReason.NON_TRANSACTIONAL_NOTIFICATION`).
+
+=== Cliente HTTP del frontend — refresco de token y envelope uniforme
+
+`frontend/lib/api/client.ts:21-83` (`request<T>`) centraliza: adjunta `Authorization: Bearer <idToken>` si `auth=true` (línea 44), revisa expiración local antes de llamar (`isTokenExpired`, línea 36) y dispara `onRefresh()` proactivamente; además reintenta una vez ante un `401` real del servidor (línea 58-63, `isRetry` evita loops infinitos). Toda respuesta pasa por un envelope uniforme `{success, data, error}` (líneas 67-80) validado con un `ZodType<T>` provisto por el llamador — el contrato de tipos vive en `frontend/lib/api/types.ts`.
+
+=== Sesión y almacenamiento de tokens (frontend)
+
+`frontend/features/auth/store.ts` (Zustand) construye el usuario en memoria decodificando el ID Token (`buildUser`, líneas 21-30) — lee exactamente los mismos claims custom emitidos por Cognito y descritos en `infra/stacks/auth_stack.py` (`custom:role`, `custom:tenant_id`, `custom:is_superadmin`). El almacenamiento físico (`frontend/features/auth/storage.ts:11-40`) difiere por plataforma: en nativo usa `expo-secure-store` (keychain/keystore cifrado); en web usa `sessionStorage`/`localStorage` del navegador según si el token debe sobrevivir el cierre de pestaña (parámetro `persistent`, línea 19-30) — es decir, en web los tokens **no** están en un almacenamiento cifrado del sistema operativo, a diferencia de nativo (dato verificado, no juicio de valor adicional).
+
+=== Convención de nombres de recursos AWS vs. marca del producto
+
+Todos los recursos CDK usan el prefijo `codelabs-billing-{env}-*` (tablas, colas, funciones) y los propios Stacks de nivel superior usan `CodeLabsBilling-{Env}-*` (`infra/app.py:52-58`), mientras que el producto se comunica como "Wali" (`frontend/package.json:2` — `"name": "wali-billing"`; dominios `wali-dev.codelabsecuador.com`). Es una divergencia de nomenclatura documentada explícitamente en el propio `infra/app.py:1-3` como decisión consciente para no recrear recursos ya desplegados.

@@ -1,0 +1,21 @@
+{
+  "repo": "CodelabsBillingCloud",
+  "source": "local-branch-tip",
+  "branch": "develop",
+  "sha": "09a4a3b2aa87f139c4836733180edf87371c14b3",
+  "remote_reachable": false,
+  "remote_state_verified": false,
+  "source_exception": "Bootstrap exception declared in repository AGENTS.md; regeneration from freshly fetched origin/<base-branch> remains required when remote access is restored.",
+  "framework": "Python (backend) / Expo (frontend) / AWS CDK (infra)",
+  "source_count": 790,
+  "source_count_definition": "Tracked .py, .ts and .tsx files in backend/, frontend/ and infra/, including tests and package initializers.",
+  "source_counts": {
+    "backend": 441,
+    "frontend": 340,
+    "infra": 9
+  },
+  "tracked_file_count": 850,
+  "uncommitted_application_changes_included": false,
+  "matrices_scope": "Representative samples; tests.csv contains complete test-file counts.",
+  "application_checks_executed": false
+}

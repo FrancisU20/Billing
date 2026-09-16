@@ -1,0 +1,28 @@
+componente,dependencia,version,archivo,proposito
+backend runtime,boto3,1.43.24,backend/requirements.txt,SDK AWS (DynamoDB Cognito SQS S3 Secrets Manager)
+backend runtime,cryptography,48.0.1,backend/requirements.txt,carga y validacion de certificados p12 firma XAdES-BES
+backend runtime,pydantic,2.13.4,backend/requirements.txt,validacion de schemas de request
+backend runtime,lxml,6.1.1,backend/requirements.txt,construccion y firma de XML SRI
+backend runtime,reportlab,4.5.1,backend/requirements.txt,generacion del RIDE en PDF
+backend ci,ruff,0.11.13,backend/requirements-ci.txt,lint y formato
+backend ci,bandit,1.9.4,backend/requirements-ci.txt,SAST
+backend ci,pip-audit,2.10.0,backend/requirements-ci.txt,auditoria de dependencias
+backend ci,coverage,7.14.1,backend/requirements-ci.txt,cobertura de tests
+infra cdk,aws-cdk-lib,2.258.0,infra/requirements.txt,definicion de stacks AWS
+infra cdk,constructs,10.6.0,infra/requirements.txt,framework CDK
+infra cdk,jsii,1.134.0,infra/requirements.txt,interop Python-JS de CDK
+infra cdk,typeguard,2.13.3,infra/requirements.txt,fijado explicitamente: v3+ incompatible con CDK Python
+frontend,expo,~56.0.9,frontend/package.json,runtime Expo
+frontend,expo-router,~56.2.9,frontend/package.json,enrutamiento basado en archivos
+frontend,expo-secure-store,~56.0.4,frontend/package.json,almacenamiento cifrado de tokens en nativo
+frontend,react,19.2.3,frontend/package.json,UI
+frontend,react-native,0.85.3,frontend/package.json,runtime multiplataforma
+frontend,zustand,^5.0.14,frontend/package.json,estado global (auth store)
+frontend,zod,^4.4.3,frontend/package.json,validacion de schemas de formularios y API
+frontend,react-hook-form,^7.78.0,frontend/package.json,gestion de formularios
+frontend dev,vitest,^4.1.8,frontend/package.json,tests unitarios
+frontend dev,typescript,~6.0.3,frontend/package.json,tipado estatico
+integracion externa,dLocal Go,N/A (API HTTP),backend/lambdas/subscriptions/infra/dlocal_client.py,cobro de suscripcion (SmartFields + webhooks HMAC)
+integracion externa,SRI Ecuador (SOAP),N/A,backend/lambdas/invoice_processor/sri_client.py,recepcion y autorizacion de comprobantes electronicos
+integracion externa,Brevo,N/A (API HTTP),infra/stacks/api_stack.py (BREVO_SECRET_NAME),envio de email transaccional
+integracion externa,Amazon Cognito,N/A,infra/stacks/auth_stack.py,autenticacion y emision de JWT

@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Asciidoctor 2.0.26">
+<title>Resumen técnico — CodelabsBillingCloud</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400,700">
+<style>
+/*! Asciidoctor default stylesheet | MIT License | https://asciidoctor.org */
+/* Uncomment the following line when using as a custom stylesheet */
+/* @import "https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400,700"; */
+html{font-family:sans-serif;-webkit-text-size-adjust:100%}
+a{background:none}
+a:focus{outline:thin dotted}
+a:active,a:hover{outline:0}
+h1{font-size:2em;margin:.67em 0}
+b,strong{font-weight:bold}
+abbr{font-size:.9em}
+abbr[title]{cursor:help;border-bottom:1px dotted #dddddf;text-decoration:none}
+dfn{font-style:italic}
+hr{height:0}
+mark{background:#ff0;color:#000}
+code,kbd,pre,samp{font-family:monospace;font-size:1em}
+pre{white-space:pre-wrap}
+q{quotes:"\201C" "\201D" "\2018" "\2019"}
+small{font-size:80%}
+sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}
+sup{top:-.5em}
+sub{bottom:-.25em}
+img{border:0}
+svg:not(:root){overflow:hidden}
+figure{margin:0}
+audio,video{display:inline-block}
+audio:not([controls]){display:none;height:0}
+fieldset{border:1px solid silver;margin:0 2px;padding:.35em .625em .75em}
+legend{border:0;padding:0}
+button,input,select,textarea{font-family:inherit;font-size:100%;margin:0}
+button,input{line-height:normal}
+button,select{text-transform:none}
+button,html input[type=button],input[type=reset],input[type=submit]{-webkit-appearance:button;cursor:pointer}
+button[disabled],html input[disabled]{cursor:default}
+input[type=checkbox],input[type=radio]{padding:0}
+button::-moz-focus-inner,input::-moz-focus-inner{border:0;padding:0}
+textarea{overflow:auto;vertical-align:top}
+table{border-collapse:collapse;border-spacing:0}
+*,::before,::after{box-sizing:border-box}
+html,body{font-size:100%}
+body{background:#fff;color:rgba(0,0,0,.8);padding:0;margin:0;font-family:"Noto Serif","DejaVu Serif",serif;line-height:1;position:relative;cursor:auto;-moz-tab-size:4;-o-tab-size:4;tab-size:4;word-wrap:anywhere;-moz-osx-font-smoothing:grayscale;-webkit-font-smoothing:antialiased}
+a:hover{cursor:pointer}
+img,object,embed{max-width:100%;height:auto}
+object,embed{height:100%}
+img{-ms-interpolation-mode:bicubic}
+.left{float:left!important}
+.right{float:right!important}
+.text-left{text-align:left!important}
+.text-right{text-align:right!important}
+.text-center{text-align:center!important}
+.text-justify{text-align:justify!important}
+.hide{display:none}
+img,object,svg{display:inline-block;vertical-align:middle}
+textarea{height:auto;min-height:50px}
+select{width:100%}
+.subheader,.admonitionblock td.content>.title,.audioblock>.title,.exampleblock>.title,.imageblock>.title,.listingblock>.title,.literalblock>.title,.stemblock>.title,.openblock>.title,.paragraph>.title,.quoteblock>.title,table.tableblock>.title,.verseblock>.title,.videoblock>.title,.dlist>.title,.olist>.title,.ulist>.title,.qlist>.title,.hdlist>.title{line-height:1.45;color:#7a2518;font-weight:400;margin-top:0;margin-bottom:.25em}
+div,dl,dt,dd,ul,ol,li,h1,h2,h3,#toctitle,.sidebarblock>.content>.title,h4,h5,h6,pre,form,p,blockquote,th,td{margin:0;padding:0}
+a{color:#2156a5;text-decoration:underline;line-height:inherit}
+a:hover,a:focus{color:#1d4b8f}
+a img{border:0}
+p{line-height:1.6;margin-bottom:1.25em;text-rendering:optimizeLegibility}
+p aside{font-size:.875em;line-height:1.35;font-style:italic}
+h1,h2,h3,#toctitle,.sidebarblock>.content>.title,h4,h5,h6{font-family:"Open Sans","DejaVu Sans",sans-serif;font-weight:300;font-style:normal;color:#ba3925;text-rendering:optimizeLegibility;margin-top:1em;margin-bottom:.5em;line-height:1.0125em}
+h1 small,h2 small,h3 small,#toctitle small,.sidebarblock>.content>.title small,h4 small,h5 small,h6 small{font-size:60%;color:#e99b8f;line-height:0}
+h1{font-size:2.125em}
+h2{font-size:1.6875em}
+h3,#toctitle,.sidebarblock>.content>.title{font-size:1.375em}
+h4,h5{font-size:1.125em}
+h6{font-size:1em}
+hr{border:solid #dddddf;border-width:1px 0 0;clear:both;margin:1.25em 0 1.1875em}
+em,i{font-style:italic;line-height:inherit}
+strong,b{font-weight:bold;line-height:inherit}
+small{font-size:60%;line-height:inherit}
+code{font-family:"Droid Sans Mono","DejaVu Sans Mono",monospace;font-weight:400;color:rgba(0,0,0,.9)}
+ul,ol,dl{line-height:1.6;margin-bottom:1.25em;list-style-position:outside;font-family:inherit}
+ul,ol{margin-left:1.5em}
+ul li ul,ul li ol{margin-left:1.25em;margin-bottom:0}
+ul.circle{list-style-type:circle}
+ul.disc{list-style-type:disc}
+ul.square{list-style-type:square}
+ul.circle ul:not([class]),ul.disc ul:not([class]),ul.square ul:not([class]){list-style:inherit}
+ol li ul,ol li ol{margin-left:1.25em;margin-bottom:0}
+dl dt{margin-bottom:.3125em;font-weight:bold}
+dl dd{margin-bottom:1.25em}
+blockquote{margin:0 0 1.25em;padding:.5625em 1.25em 0 1.1875em;border-left:1px solid #ddd}
+blockquote,blockquote p{line-height:1.6;color:rgba(0,0,0,.85)}
+@media screen and (min-width:768px){h1,h2,h3,#toctitle,.sidebarblock>.content>.title,h4,h5,h6{line-height:1.2}
+h1{font-size:2.75em}
+h2{font-size:2.3125em}
+h3,#toctitle,.sidebarblock>.content>.title{font-size:1.6875em}
+h4{font-size:1.4375em}}
+table{background:#fff;margin-bottom:1.25em;border:1px solid #dedede;word-wrap:normal}
+table thead,table tfoot{background:#f7f8f7}
+table thead tr th,table thead tr td,table tfoot tr th,table tfoot tr td{padding:.5em .625em .625em;font-size:inherit;color:rgba(0,0,0,.8);text-align:left}
+table tr th,table tr td{padding:.5625em .625em;font-size:inherit;color:rgba(0,0,0,.8)}
+table tr.even,table tr.alt{background:#f8f8f7}
+table thead tr th,table tfoot tr th,table tbody tr td,table tr td,table tfoot tr td{line-height:1.6}
+h1,h2,h3,#toctitle,.sidebarblock>.content>.title,h4,h5,h6{line-height:1.2;word-spacing:-.05em}
+h1 strong,h2 strong,h3 strong,#toctitle strong,.sidebarblock>.content>.title strong,h4 strong,h5 strong,h6 strong{font-weight:400}
+.center{margin-left:auto;margin-right:auto}
+.stretch{width:100%}
+.clearfix::before,.clearfix::after,.float-group::before,.float-group::after{content:" ";display:table}
+.clearfix::after,.float-group::after{clear:both}
+:not(pre).nobreak{word-wrap:normal}
+:not(pre).nowrap{white-space:nowrap}
+:not(pre).pre-wrap{white-space:pre-wrap}
+:not(pre):not([class^=L])>code{font-size:.9375em;font-style:normal!important;letter-spacing:0;padding:.1em .5ex;word-spacing:-.15em;background:#f7f7f8;border-radius:4px;line-height:1.45;text-rendering:optimizeSpeed}
+pre{color:rgba(0,0,0,.9);font-family:"Droid Sans Mono","DejaVu Sans Mono",monospace;line-height:1.45;text-rendering:optimizeSpeed}
+pre code,pre pre{color:inherit;font-size:inherit;line-height:inherit}
+pre.nowrap,pre.nowrap pre{white-space:pre;word-wrap:normal}
+em em{font-style:normal}
+strong strong{font-weight:400}
+.keyseq{color:rgba(51,51,51,.8)}
+kbd{font-family:"Droid Sans Mono","DejaVu Sans Mono",monospace;display:inline-block;color:rgba(0,0,0,.8);font-size:.65em;line-height:1.45;background:#f7f7f7;border:1px solid #ccc;border-radius:3px;box-shadow:0 1px 0 rgba(0,0,0,.2),inset 0 0 0 .1em #fff;margin:0 .15em;padding:.2em .5em;vertical-align:middle;position:relative;top:-.1em;white-space:nowrap}
+.keyseq kbd:first-child{margin-left:0}
+.keyseq kbd:last-child{margin-right:0}
+.menuseq,.menuref{color:#000}
+.menuseq b:not(.caret),.menuref{font-weight:inherit}
+.menuseq{word-spacing:-.02em}
+.menuseq b.caret{font-size:1.25em;line-height:.8}
+.menuseq i.caret{font-weight:bold;text-align:center;width:.45em}
+b.button::before,b.button::after{position:relative;top:-1px;font-weight:400}
+b.button::before{content:"[";padding:0 3px 0 2px}
+b.button::after{content:"]";padding:0 2px 0 3px}
+p a>code:hover{color:rgba(0,0,0,.9)}
+#header,#content,#footnotes,#footer{width:100%;margin:0 auto;max-width:62.5em;*zoom:1;position:relative;padding-left:.9375em;padding-right:.9375em}
+#header::before,#header::after,#content::before,#content::after,#footnotes::before,#footnotes::after,#footer::before,#footer::after{content:" ";display:table}
+#header::after,#content::after,#footnotes::after,#footer::after{clear:both}
+#content{margin-top:1.25em}
+#content::before{content:none}
+#header>h1:first-child{color:rgba(0,0,0,.85);margin-top:2.25rem;margin-bottom:0}
+#header>h1:first-child+#toc{margin-top:8px;border-top:1px solid #dddddf}
+#header>h1:only-child{border-bottom:1px solid #dddddf;padding-bottom:8px}
+#header .details{border-bottom:1px solid #dddddf;line-height:1.45;padding-top:.25em;padding-bottom:.25em;padding-left:.25em;color:rgba(0,0,0,.6);display:flex;flex-flow:row wrap}
+#header .details span:first-child{margin-left:-.125em}
+#header .details span.email a{color:rgba(0,0,0,.85)}
+#header .details br{display:none}
+#header .details br+span::before{content:"\00a0\2013\00a0"}
+#header .details br+span.author::before{content:"\00a0\22c5\00a0";color:rgba(0,0,0,.85)}
+#header .details br+span#revremark::before{content:"\00a0|\00a0"}
+#header #revnumber{text-transform:capitalize}
+#header #revnumber::after{content:"\00a0"}
+#content>h1:first-child:not([class]){color:rgba(0,0,0,.85);border-bottom:1px solid #dddddf;padding-bottom:8px;margin-top:0;padding-top:1rem;margin-bottom:1.25rem}
+#toc{border-bottom:1px solid #e7e7e9;padding-bottom:.5em}
+#toc>ul{margin-left:.125em}
+#toc ul.sectlevel0>li>a{font-style:italic}
+#toc ul.sectlevel0 ul.sectlevel1{margin:.5em 0}
+#toc ul{font-family:"Open Sans","DejaVu Sans",sans-serif;list-style-type:none}
+#toc li{line-height:1.3334;margin-top:.3334em}
+#toc a{text-decoration:none}
+#toc a:active{text-decoration:underline}
+#toctitle{color:#7a2518;font-size:1.2em}
+@media screen and (min-width:768px){#toctitle{font-size:1.375em}
+body.toc2{padding-left:15em;padding-right:0}
+body.toc2 #header>h1:nth-last-child(2){border-bottom:1px solid #dddddf;padding-bottom:8px}
+#toc.toc2{margin-top:0!important;background:#f8f8f7;position:fixed;width:15em;left:0;top:0;border-right:1px solid #e7e7e9;border-top-width:0!important;border-bottom-width:0!important;z-index:1000;padding:1.25em 1em;height:100%;overflow:auto}
+#toc.toc2 #toctitle{margin-top:0;margin-bottom:.8rem;font-size:1.2em}
+#toc.toc2>ul{font-size:.9em;margin-bottom:0}
+#toc.toc2 ul ul{margin-left:0;padding-left:1em}
+#toc.toc2 ul.sectlevel0 ul.sectlevel1{padding-left:0;margin-top:.5em;margin-bottom:.5em}
+body.toc2.toc-right{padding-left:0;padding-right:15em}
+body.toc2.toc-right #toc.toc2{border-right-width:0;border-left:1px solid #e7e7e9;left:auto;right:0}}
+@media screen and (min-width:1280px){body.toc2{padding-left:20em;padding-right:0}
+#toc.toc2{width:20em}
+#toc.toc2 #toctitle{font-size:1.375em}
+#toc.toc2>ul{font-size:.95em}
+#toc.toc2 ul ul{padding-left:1.25em}
+body.toc2.toc-right{padding-left:0;padding-right:20em}}
+#content #toc{border:1px solid #e0e0dc;margin-bottom:1.25em;padding:1.25em;background:#f8f8f7;border-radius:4px}
+#content #toc>:first-child{margin-top:0}
+#content #toc>:last-child{margin-bottom:0}
+#footer{max-width:none;background:rgba(0,0,0,.8);padding:1.25em}
+#footer-text{color:hsla(0,0%,100%,.8);line-height:1.44}
+#content{margin-bottom:.625em}
+.sect1{padding-bottom:.625em}
+@media screen and (min-width:768px){#content{margin-bottom:1.25em}
+.sect1{padding-bottom:1.25em}}
+.sect1:last-child{padding-bottom:0}
+.sect1+.sect1{border-top:1px solid #e7e7e9}
+#content h1>a.anchor,h2>a.anchor,h3>a.anchor,#toctitle>a.anchor,.sidebarblock>.content>.title>a.anchor,h4>a.anchor,h5>a.anchor,h6>a.anchor{position:absolute;z-index:1001;width:1.5ex;margin-left:-1.5ex;display:block;text-decoration:none!important;visibility:hidden;text-align:center;font-weight:400}
+#content h1>a.anchor::before,h2>a.anchor::before,h3>a.anchor::before,#toctitle>a.anchor::before,.sidebarblock>.content>.title>a.anchor::before,h4>a.anchor::before,h5>a.anchor::before,h6>a.anchor::before{content:"\00A7";font-size:.85em;display:block;padding-top:.1em}
+#content h1:hover>a.anchor,#content h1>a.anchor:hover,h2:hover>a.anchor,h2>a.anchor:hover,h3:hover>a.anchor,#toctitle:hover>a.anchor,.sidebarblock>.content>.title:hover>a.anchor,h3>a.anchor:hover,#toctitle>a.anchor:hover,.sidebarblock>.content>.title>a.anchor:hover,h4:hover>a.anchor,h4>a.anchor:hover,h5:hover>a.anchor,h5>a.anchor:hover,h6:hover>a.anchor,h6>a.anchor:hover{visibility:visible}
+#content h1>a.link,h2>a.link,h3>a.link,#toctitle>a.link,.sidebarblock>.content>.title>a.link,h4>a.link,h5>a.link,h6>a.link{color:#ba3925;text-decoration:none}
+#content h1>a.link:hover,h2>a.link:hover,h3>a.link:hover,#toctitle>a.link:hover,.sidebarblock>.content>.title>a.link:hover,h4>a.link:hover,h5>a.link:hover,h6>a.link:hover{color:#a53221}
+details,.audioblock,.imageblock,.literalblock,.listingblock,.stemblock,.videoblock{margin-bottom:1.25em}
+details{margin-left:1.25rem}
+details>summary{cursor:pointer;display:block;position:relative;line-height:1.6;margin-bottom:.625rem;outline:none;-webkit-tap-highlight-color:transparent}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"";border:solid transparent;border-left:solid;border-width:.3em 0 .3em .5em;position:absolute;top:.5em;left:-1.25rem;transform:translateX(15%)}
+details[open]>summary::before{border:solid transparent;border-top:solid;border-width:.5em .3em 0;transform:translateY(15%)}
+details>summary::after{content:"";width:1.25rem;height:1em;position:absolute;top:.3em;left:-1.25rem}
+.admonitionblock td.content>.title,.audioblock>.title,.exampleblock>.title,.imageblock>.title,.listingblock>.title,.literalblock>.title,.stemblock>.title,.openblock>.title,.paragraph>.title,.quoteblock>.title,table.tableblock>.title,.verseblock>.title,.videoblock>.title,.dlist>.title,.olist>.title,.ulist>.title,.qlist>.title,.hdlist>.title{text-rendering:optimizeLegibility;text-align:left;font-family:"Noto Serif","DejaVu Serif",serif;font-size:1rem;font-style:italic}
+table.tableblock.fit-content>caption.title{white-space:nowrap;width:0}
+.paragraph.lead>p,#preamble>.sectionbody>[class=paragraph]:first-of-type p{font-size:1.21875em;line-height:1.6;color:rgba(0,0,0,.85)}
+.admonitionblock>table{border-collapse:separate;border:0;background:none;width:100%}
+.admonitionblock>table td.icon{text-align:center;width:80px}
+.admonitionblock>table td.icon img{max-width:none}
+.admonitionblock>table td.icon .title{font-weight:bold;font-family:"Open Sans","DejaVu Sans",sans-serif;text-transform:uppercase}
+.admonitionblock>table td.content{padding-left:1.125em;padding-right:1.25em;border-left:1px solid #dddddf;color:rgba(0,0,0,.6);word-wrap:anywhere}
+.admonitionblock>table td.content>:last-child>:last-child{margin-bottom:0}
+.exampleblock>.content{border:1px solid #e6e6e6;margin-bottom:1.25em;padding:1.25em;background:#fff;border-radius:4px}
+.sidebarblock{border:1px solid #dbdbd6;margin-bottom:1.25em;padding:1.25em;background:#f3f3f2;border-radius:4px}
+.sidebarblock>.content>.title{color:#7a2518;margin-top:0;text-align:center}
+.exampleblock>.content>:first-child,.sidebarblock>.content>:first-child{margin-top:0}
+.exampleblock>.content>:last-child,.exampleblock>.content>:last-child>:last-child,.exampleblock>.content .olist>ol>li:last-child>:last-child,.exampleblock>.content .ulist>ul>li:last-child>:last-child,.exampleblock>.content .qlist>ol>li:last-child>:last-child,.sidebarblock>.content>:last-child,.sidebarblock>.content>:last-child>:last-child,.sidebarblock>.content .olist>ol>li:last-child>:last-child,.sidebarblock>.content .ulist>ul>li:last-child>:last-child,.sidebarblock>.content .qlist>ol>li:last-child>:last-child{margin-bottom:0}
+.literalblock pre,.listingblock>.content>pre{border-radius:4px;overflow-x:auto;padding:1em;font-size:.8125em}
+@media screen and (min-width:768px){.literalblock pre,.listingblock>.content>pre{font-size:.90625em}}
+@media screen and (min-width:1280px){.literalblock pre,.listingblock>.content>pre{font-size:1em}}
+.literalblock pre,.listingblock>.content>pre:not(.highlight),.listingblock>.content>pre[class=highlight],.listingblock>.content>pre[class^="highlight "]{background:#f7f7f8}
+.literalblock.output pre{color:#f7f7f8;background:rgba(0,0,0,.9)}
+.listingblock>.content{position:relative}
+.listingblock pre>code{display:block}
+.listingblock code[data-lang]::before{display:none;content:attr(data-lang);position:absolute;font-size:.75em;top:.425rem;right:.5rem;line-height:1;text-transform:uppercase;color:inherit;opacity:.5}
+.listingblock:hover code[data-lang]::before{display:block}
+.listingblock.terminal pre .command::before{content:attr(data-prompt);padding-right:.5em;color:inherit;opacity:.5}
+.listingblock.terminal pre .command:not([data-prompt])::before{content:"$"}
+.listingblock pre.highlightjs{padding:0}
+.listingblock pre.highlightjs>code{padding:1em;border-radius:4px}
+.listingblock pre.prettyprint{border-width:0}
+.prettyprint{background:#f7f7f8}
+pre.prettyprint .linenums{line-height:1.45;margin-left:2em}
+pre.prettyprint li{background:none;list-style-type:inherit;padding-left:0}
+pre.prettyprint li code[data-lang]::before{opacity:1}
+pre.prettyprint li:not(:first-child) code[data-lang]::before{display:none}
+table.linenotable{border-collapse:separate;border:0;margin-bottom:0;background:none}
+table.linenotable td[class]{color:inherit;vertical-align:top;padding:0;line-height:inherit;white-space:normal}
+table.linenotable td.code{padding-left:.75em}
+table.linenotable td.linenos,pre.pygments .linenos{border-right:1px solid;opacity:.35;padding-right:.5em;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
+pre.pygments span.linenos{display:inline-block;margin-right:.75em}
+.quoteblock{margin:0 1em 1.25em 1.5em;display:table}
+.quoteblock:not(.excerpt)>.title{margin-left:-1.5em;margin-bottom:.75em}
+.quoteblock blockquote,.quoteblock p{color:rgba(0,0,0,.85);font-size:1.15rem;line-height:1.75;word-spacing:.1em;letter-spacing:0;font-style:italic;text-align:justify}
+.quoteblock blockquote{margin:0;padding:0;border:0}
+.quoteblock blockquote::before{content:"\201c";float:left;font-size:2.75em;font-weight:bold;line-height:.6em;margin-left:-.6em;color:#7a2518;text-shadow:0 1px 2px rgba(0,0,0,.1)}
+.quoteblock blockquote>.paragraph:last-child p{margin-bottom:0}
+.quoteblock .attribution{margin-top:.75em;margin-right:.5ex;text-align:right}
+.verseblock{margin:0 1em 1.25em}
+.verseblock pre{font-family:"Open Sans","DejaVu Sans",sans-serif;font-size:1.15rem;color:rgba(0,0,0,.85);font-weight:300;text-rendering:optimizeLegibility}
+.verseblock pre strong{font-weight:400}
+.verseblock .attribution{margin-top:1.25rem;margin-left:.5ex}
+.quoteblock .attribution,.verseblock .attribution{font-size:.9375em;line-height:1.45;font-style:italic}
+.quoteblock .attribution br,.verseblock .attribution br{display:none}
+.quoteblock .attribution cite,.verseblock .attribution cite{display:block;letter-spacing:-.025em;color:rgba(0,0,0,.6)}
+.quoteblock.abstract blockquote::before,.quoteblock.excerpt blockquote::before,.quoteblock .quoteblock blockquote::before{display:none}
+.quoteblock.abstract blockquote,.quoteblock.abstract p,.quoteblock.excerpt blockquote,.quoteblock.excerpt p,.quoteblock .quoteblock blockquote,.quoteblock .quoteblock p{line-height:1.6;word-spacing:0}
+.quoteblock.abstract{margin:0 1em 1.25em;display:block}
+.quoteblock.abstract>.title{margin:0 0 .375em;font-size:1.15em;text-align:center}
+.quoteblock.excerpt>blockquote,.quoteblock .quoteblock{padding:0 0 .25em 1em;border-left:.25em solid #dddddf}
+.quoteblock.excerpt,.quoteblock .quoteblock{margin-left:0}
+.quoteblock.excerpt blockquote,.quoteblock.excerpt p,.quoteblock .quoteblock blockquote,.quoteblock .quoteblock p{color:inherit;font-size:1.0625rem}
+.quoteblock.excerpt .attribution,.quoteblock .quoteblock .attribution{color:inherit;font-size:.85rem;text-align:left;margin-right:0}
+p.tableblock:last-child{margin-bottom:0}
+td.tableblock>.content{margin-bottom:1.25em;word-wrap:anywhere}
+td.tableblock>.content>:last-child{margin-bottom:-1.25em}
+table.tableblock,th.tableblock,td.tableblock{border:0 solid #dedede}
+table.grid-all>*>tr>*{border-width:1px}
+table.grid-cols>*>tr>*{border-width:0 1px}
+table.grid-rows>*>tr>*{border-width:1px 0}
+table.frame-all{border-width:1px}
+table.frame-ends{border-width:1px 0}
+table.frame-sides{border-width:0 1px}
+table.frame-none>colgroup+*>:first-child>*,table.frame-sides>colgroup+*>:first-child>*{border-top-width:0}
+table.frame-none>:last-child>:last-child>*,table.frame-sides>:last-child>:last-child>*{border-bottom-width:0}
+table.frame-none>*>tr>:first-child,table.frame-ends>*>tr>:first-child{border-left-width:0}
+table.frame-none>*>tr>:last-child,table.frame-ends>*>tr>:last-child{border-right-width:0}
+table.stripes-all>*>tr,table.stripes-odd>*>tr:nth-of-type(odd),table.stripes-even>*>tr:nth-of-type(even),table.stripes-hover>*>tr:hover{background:#f8f8f7}
+th.halign-left,td.halign-left{text-align:left}
+th.halign-right,td.halign-right{text-align:right}
+th.halign-center,td.halign-center{text-align:center}
+th.valign-top,td.valign-top{vertical-align:top}
+th.valign-bottom,td.valign-bottom{vertical-align:bottom}
+th.valign-middle,td.valign-middle{vertical-align:middle}
+table thead th,table tfoot th{font-weight:bold}
+tbody tr th{background:#f7f8f7}
+tbody tr th,tbody tr th p,tfoot tr th,tfoot tr th p{color:rgba(0,0,0,.8);font-weight:bold}
+p.tableblock>code:only-child{background:none;padding:0}
+p.tableblock{font-size:1em}
+ol{margin-left:1.75em}
+ul li ol{margin-left:1.5em}
+dl dd{margin-left:1.125em}
+dl dd:last-child,dl dd:last-child>:last-child{margin-bottom:0}
+li p,ul dd,ol dd,.olist .olist,.ulist .ulist,.ulist .olist,.olist .ulist{margin-bottom:.625em}
+ul.checklist,ul.none,ol.none,ul.no-bullet,ol.no-bullet,ol.unnumbered,ul.unstyled,ol.unstyled{list-style-type:none}
+ul.no-bullet,ol.no-bullet,ol.unnumbered{margin-left:.625em}
+ul.unstyled,ol.unstyled{margin-left:0}
+li>p:empty:only-child::before{content:"";display:inline-block}
+ul.checklist>li>p:first-child{margin-left:-1em}
+ul.checklist>li>p:first-child>.fa-square-o:first-child,ul.checklist>li>p:first-child>.fa-check-square-o:first-child{width:1.25em;font-size:.8em;position:relative;bottom:.125em}
+ul.checklist>li>p:first-child>input[type=checkbox]:first-child{margin-right:.25em}
+ul.inline{display:flex;flex-flow:row wrap;list-style:none;margin:0 0 .625em -1.25em}
+ul.inline>li{margin-left:1.25em}
+.unstyled dl dt{font-weight:400;font-style:normal}
+ol.arabic{list-style-type:decimal}
+ol.decimal{list-style-type:decimal-leading-zero}
+ol.loweralpha{list-style-type:lower-alpha}
+ol.upperalpha{list-style-type:upper-alpha}
+ol.lowerroman{list-style-type:lower-roman}
+ol.upperroman{list-style-type:upper-roman}
+ol.lowergreek{list-style-type:lower-greek}
+.hdlist>table,.colist>table{border:0;background:none}
+.hdlist>table>tbody>tr,.colist>table>tbody>tr{background:none}
+td.hdlist1,td.hdlist2{vertical-align:top;padding:0 .625em}
+td.hdlist1{font-weight:bold;padding-bottom:1.25em}
+td.hdlist2{word-wrap:anywhere}
+.literalblock+.colist,.listingblock+.colist{margin-top:-.5em}
+.colist td:not([class]):first-child{padding:.4em .75em 0;line-height:1;vertical-align:top}
+.colist td:not([class]):first-child img{max-width:none}
+.colist td:not([class]):last-child{padding:.25em 0}
+.thumb,.th{line-height:0;display:inline-block;border:4px solid #fff;box-shadow:0 0 0 1px #ddd}
+.imageblock.left{margin:.25em .625em 1.25em 0}
+.imageblock.right{margin:.25em 0 1.25em .625em}
+.imageblock>.title{margin-bottom:0}
+.imageblock.thumb,.imageblock.th{border-width:6px}
+.imageblock.thumb>.title,.imageblock.th>.title{padding:0 .125em}
+.image.left,.image.right{margin-top:.25em;margin-bottom:.25em;display:inline-block;line-height:0}
+.image.left{margin-right:.625em}
+.image.right{margin-left:.625em}
+a.image{text-decoration:none;display:inline-block}
+a.image object{pointer-events:none}
+sup.footnote,sup.footnoteref{font-size:.875em;position:static;vertical-align:super}
+sup.footnote a,sup.footnoteref a{text-decoration:none}
+sup.footnote a:active,sup.footnoteref a:active,#footnotes .footnote a:first-of-type:active{text-decoration:underline}
+#footnotes{padding-top:.75em;padding-bottom:.75em;margin-bottom:.625em}
+#footnotes hr{width:20%;min-width:6.25em;margin:-.25em 0 .75em;border-width:1px 0 0}
+#footnotes .footnote{padding:0 .375em 0 .225em;line-height:1.3334;font-size:.875em;margin-left:1.2em;margin-bottom:.2em}
+#footnotes .footnote a:first-of-type{font-weight:bold;text-decoration:none;margin-left:-1.05em}
+#footnotes .footnote:last-of-type{margin-bottom:0}
+#content #footnotes{margin-top:-.625em;margin-bottom:0;padding:.75em 0}
+div.unbreakable{page-break-inside:avoid}
+.big{font-size:larger}
+.small{font-size:smaller}
+.underline{text-decoration:underline}
+.overline{text-decoration:overline}
+.line-through{text-decoration:line-through}
+.aqua{color:#00bfbf}
+.aqua-background{background:#00fafa}
+.black{color:#000}
+.black-background{background:#000}
+.blue{color:#0000bf}
+.blue-background{background:#0000fa}
+.fuchsia{color:#bf00bf}
+.fuchsia-background{background:#fa00fa}
+.gray{color:#606060}
+.gray-background{background:#7d7d7d}
+.green{color:#006000}
+.green-background{background:#007d00}
+.lime{color:#00bf00}
+.lime-background{background:#00fa00}
+.maroon{color:#600000}
+.maroon-background{background:#7d0000}
+.navy{color:#000060}
+.navy-background{background:#00007d}
+.olive{color:#606000}
+.olive-background{background:#7d7d00}
+.purple{color:#600060}
+.purple-background{background:#7d007d}
+.red{color:#bf0000}
+.red-background{background:#fa0000}
+.silver{color:#909090}
+.silver-background{background:#bcbcbc}
+.teal{color:#006060}
+.teal-background{background:#007d7d}
+.white{color:#bfbfbf}
+.white-background{background:#fafafa}
+.yellow{color:#bfbf00}
+.yellow-background{background:#fafa00}
+span.icon>.fa{cursor:default}
+a span.icon>.fa{cursor:inherit}
+.admonitionblock td.icon [class^="fa icon-"]{font-size:2.5em;text-shadow:1px 1px 2px rgba(0,0,0,.5);cursor:default}
+.admonitionblock td.icon .icon-note::before{content:"\f05a";color:#19407c}
+.admonitionblock td.icon .icon-tip::before{content:"\f0eb";text-shadow:1px 1px 2px rgba(155,155,0,.8);color:#111}
+.admonitionblock td.icon .icon-warning::before{content:"\f071";color:#bf6900}
+.admonitionblock td.icon .icon-caution::before{content:"\f06d";color:#bf3400}
+.admonitionblock td.icon .icon-important::before{content:"\f06a";color:#bf0000}
+.conum[data-value]{display:inline-block;color:#fff!important;background:rgba(0,0,0,.8);border-radius:50%;text-align:center;font-size:.75em;width:1.67em;height:1.67em;line-height:1.67em;font-family:"Open Sans","DejaVu Sans",sans-serif;font-style:normal;font-weight:bold}
+.conum[data-value] *{color:#fff!important}
+.conum[data-value]+b{display:none}
+.conum[data-value]::after{content:attr(data-value)}
+pre .conum[data-value]{position:relative;top:-.125em}
+b.conum *{color:inherit!important}
+.conum:not([data-value]):empty{display:none}
+dt,th.tableblock,td.content,div.footnote{text-rendering:optimizeLegibility}
+h1,h2,p,td.content,span.alt,summary{letter-spacing:-.01em}
+p strong,td.content strong,div.footnote strong{letter-spacing:-.005em}
+p,blockquote,dt,td.content,td.hdlist1,span.alt,summary{font-size:1.0625rem}
+p{margin-bottom:1.25rem}
+.sidebarblock p,.sidebarblock dt,.sidebarblock td.content,p.tableblock{font-size:1em}
+.exampleblock>.content{background:#fffef7;border-color:#e0e0dc;box-shadow:0 1px 4px #e0e0dc}
+.print-only{display:none!important}
+@page{margin:1.25cm .75cm}
+@media print{*{box-shadow:none!important;text-shadow:none!important}
+html{font-size:80%}
+a{color:inherit!important;text-decoration:underline!important}
+a.bare,a[href^="#"],a[href^="mailto:"]{text-decoration:none!important}
+a[href^="http:"]:not(.bare)::after,a[href^="https:"]:not(.bare)::after{content:"(" attr(href) ")";display:inline-block;font-size:.875em;padding-left:.25em}
+abbr[title]{border-bottom:1px dotted}
+abbr[title]::after{content:" (" attr(title) ")"}
+pre,blockquote,tr,img,object,svg{page-break-inside:avoid}
+thead{display:table-header-group}
+svg{max-width:100%}
+p,blockquote,dt,td.content{font-size:1em;orphans:3;widows:3}
+h2,h3,#toctitle,.sidebarblock>.content>.title{page-break-after:avoid}
+#header,#content,#footnotes,#footer{max-width:none}
+#toc,.sidebarblock,.exampleblock>.content{background:none!important}
+#toc{border-bottom:1px solid #dddddf!important;padding-bottom:0!important}
+body.book #header{text-align:center}
+body.book #header>h1:first-child{border:0!important;margin:2.5em 0 1em}
+body.book #header .details{border:0!important;display:block;padding:0!important}
+body.book #header .details span:first-child{margin-left:0!important}
+body.book #header .details br{display:block}
+body.book #header .details br+span::before{content:none!important}
+body.book #toc{border:0!important;text-align:left!important;padding:0!important;margin:0!important}
+body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-break-before:always}
+.listingblock code[data-lang]::before{display:block}
+#footer{padding:0 .9375em}
+.hide-on-print{display:none!important}
+.print-only{display:block!important}
+.hide-for-print{display:none!important}
+.show-for-print{display:inherit!important}}
+@media amzn-kf8,print{#header>h1:first-child{margin-top:1.25rem}
+.sect1{padding:0!important}
+.sect1+.sect1{border:0}
+#footer{background:none}
+#footer-text{color:rgba(0,0,0,.6);font-size:.9em}}
+@media amzn-kf8{#header,#content,#footnotes,#footer{padding:0}}
+</style>
+<style>
+pre.rouge table td { padding: 5px; }
+pre.rouge table pre { margin: 0; }
+pre.rouge, pre.rouge .w {
+  color: #24292f;
+  background-color: #f6f8fa;
+}
+pre.rouge .k, pre.rouge .kd, pre.rouge .kn, pre.rouge .kp, pre.rouge .kr, pre.rouge .kt, pre.rouge .kv {
+  color: #cf222e;
+}
+pre.rouge .gr {
+  color: #f6f8fa;
+}
+pre.rouge .gd {
+  color: #82071e;
+  background-color: #ffebe9;
+}
+pre.rouge .nb {
+  color: #953800;
+}
+pre.rouge .nc {
+  color: #953800;
+}
+pre.rouge .no {
+  color: #953800;
+}
+pre.rouge .nn {
+  color: #953800;
+}
+pre.rouge .sr {
+  color: #116329;
+}
+pre.rouge .na {
+  color: #116329;
+}
+pre.rouge .nt {
+  color: #116329;
+}
+pre.rouge .gi {
+  color: #116329;
+  background-color: #dafbe1;
+}
+pre.rouge .ges {
+  font-weight: bold;
+  font-style: italic;
+}
+pre.rouge .kc {
+  color: #0550ae;
+}
+pre.rouge .l, pre.rouge .ld, pre.rouge .m, pre.rouge .mb, pre.rouge .mf, pre.rouge .mh, pre.rouge .mi, pre.rouge .il, pre.rouge .mo, pre.rouge .mx {
+  color: #0550ae;
+}
+pre.rouge .sb {
+  color: #0550ae;
+}
+pre.rouge .bp {
+  color: #0550ae;
+}
+pre.rouge .ne {
+  color: #0550ae;
+}
+pre.rouge .nl {
+  color: #0550ae;
+}
+pre.rouge .py {
+  color: #0550ae;
+}
+pre.rouge .nv, pre.rouge .vc, pre.rouge .vg, pre.rouge .vi, pre.rouge .vm {
+  color: #0550ae;
+}
+pre.rouge .o, pre.rouge .ow {
+  color: #0550ae;
+}
+pre.rouge .gh {
+  color: #0550ae;
+  font-weight: bold;
+}
+pre.rouge .gu {
+  color: #0550ae;
+  font-weight: bold;
+}
+pre.rouge .s, pre.rouge .sa, pre.rouge .sc, pre.rouge .dl, pre.rouge .sd, pre.rouge .s2, pre.rouge .se, pre.rouge .sh, pre.rouge .sx, pre.rouge .s1, pre.rouge .ss {
+  color: #0a3069;
+}
+pre.rouge .nd {
+  color: #8250df;
+}
+pre.rouge .nf, pre.rouge .fm {
+  color: #8250df;
+}
+pre.rouge .err {
+  color: #f6f8fa;
+  background-color: #82071e;
+}
+pre.rouge .c, pre.rouge .ch, pre.rouge .cd, pre.rouge .cm, pre.rouge .cp, pre.rouge .cpf, pre.rouge .c1, pre.rouge .cs {
+  color: #6e7781;
+}
+pre.rouge .gl {
+  color: #6e7781;
+}
+pre.rouge .gt {
+  color: #6e7781;
+}
+pre.rouge .ni {
+  color: #24292f;
+}
+pre.rouge .si {
+  color: #24292f;
+}
+pre.rouge .ge {
+  color: #24292f;
+  font-style: italic;
+}
+pre.rouge .gs {
+  color: #24292f;
+  font-weight: bold;
+}
+</style>
+</head>
+<body class="article toc2 toc-left">
+<div id="header">
+<h1>Resumen técnico — CodelabsBillingCloud</h1>
+<div id="toc" class="toc2">
+<div id="toctitle">Table of Contents</div>
+<ul class="sectlevel1">
+<li><a href="#_1_contexto_y_metadatos">1. Contexto y metadatos</a></li>
+<li><a href="#_2_propósito_funcional">2. Propósito funcional</a></li>
+<li><a href="#_3_arquitectura">3. Arquitectura</a></li>
+<li><a href="#_4_interfaces_y_contratos">4. Interfaces y contratos</a></li>
+<li><a href="#_5_flujos_técnicos">5. Flujos técnicos</a>
+<ul class="sectlevel2">
+<li><a href="#_5_1_emisión_de_un_comprobante_electrónico_factura_hasta_autorización_sri">5.1 Emisión de un comprobante electrónico (factura) hasta autorización SRI</a></li>
+<li><a href="#_5_2_confirmación_de_pago_de_suscripción_dlocal_go">5.2 Confirmación de pago de suscripción (dLocal Go)</a></li>
+<li><a href="#_5_3_onboarding_self_service_con_otp">5.3 Onboarding self-service con OTP</a></li>
+</ul>
+</li>
+<li><a href="#_6_seguridad_y_contexto_de_ejecución">6. Seguridad y contexto de ejecución</a></li>
+<li><a href="#_7_persistencia">7. Persistencia</a></li>
+<li><a href="#_8_catálogo_de_implementación">8. Catálogo de implementación</a></li>
+<li><a href="#_9_operación_y_configuración">9. Operación y configuración</a></li>
+<li><a href="#_10_riesgos_y_deuda">10. Riesgos y deuda</a></li>
+<li><a href="#_anexo_evidencia_transversal">Anexo — Evidencia transversal</a>
+<ul class="sectlevel2">
+<li><a href="#_patrón_de_decorador_lambda_contrato_compartido_de_todos_los_handlers_http">Patrón de decorador Lambda (contrato compartido de todos los handlers HTTP)</a></li>
+<li><a href="#_orden_de_decoradores_en_endpoints_mutables">Orden de decoradores en endpoints mutables</a></li>
+<li><a href="#_idempotencia_http_x_idempotency_key">Idempotencia HTTP (<code>X-Idempotency-Key</code>)</a></li>
+<li><a href="#_outbox_pattern_eventos_de_dominio">Outbox pattern (eventos de dominio)</a></li>
+<li><a href="#_cliente_http_del_frontend_refresco_de_token_y_envelope_uniforme">Cliente HTTP del frontend — refresco de token y envelope uniforme</a></li>
+<li><a href="#_sesión_y_almacenamiento_de_tokens_frontend">Sesión y almacenamiento de tokens (frontend)</a></li>
+<li><a href="#_convención_de_nombres_de_recursos_aws_vs_marca_del_producto">Convención de nombres de recursos AWS vs. marca del producto</a></li>
+</ul>
+</li>
+<li><a href="#_anexo_arquitectura_y_flujos_técnicos_detalle_ampliado">Anexo — Arquitectura y flujos técnicos (detalle ampliado)</a>
+<ul class="sectlevel2">
+<li><a href="#_flujo_a_emisión_de_factura_hasta_autorización_sri_ampliación_de_la_sección_5_1">Flujo A — Emisión de factura hasta autorización SRI (ampliación de la sección 5.1)</a></li>
+<li><a href="#_flujo_b_pago_de_suscripción_con_dlocal_go_smartfields_ampliación_de_la_sección_5_2">Flujo B — Pago de suscripción con dLocal Go SmartFields (ampliación de la sección 5.2)</a></li>
+<li><a href="#_flujo_c_onboarding_self_service_con_otp_ampliación_de_la_sección_5_3">Flujo C — Onboarding self-service con OTP (ampliación de la sección 5.3)</a></li>
+<li><a href="#_flujo_d_ciclo_de_vida_del_certificado_digital_resumen">Flujo D — Ciclo de vida del certificado digital (resumen)</a></li>
+</ul>
+</li>
+<li><a href="#_anexo_backend_backend">Anexo — Backend (<code>backend/</code>)</a>
+<ul class="sectlevel2">
+<li><a href="#_capa_compartida_backendshared">Capa compartida (<code>backend/shared/</code>)</a></li>
+<li><a href="#_capa_transversal_de_lambda_backendlambdas_base">Capa transversal de Lambda (<code>backend/lambdas/_base/</code>)</a></li>
+<li><a href="#_dominios_http_estructura_verificada">Dominios HTTP — estructura verificada</a></li>
+<li><a href="#_workers_backendlambdasworkers_disparadores_verificados_en_infrastacksapi_stack_py">Workers (<code>backend/lambdas/workers/</code>) — disparadores verificados en <code>infra/stacks/api_stack.py</code></a></li>
+<li><a href="#_tests_backendtests">Tests (<code>backend/tests/</code>)</a></li>
+</ul>
+</li>
+<li><a href="#_anexo_frontend_frontend">Anexo — Frontend (<code>frontend/</code>)</a>
+<ul class="sectlevel2">
+<li><a href="#_enrutamiento_frontendapp_expo_router_convención_de_archivos">Enrutamiento (<code>frontend/app/</code>, Expo Router — convención de archivos)</a></li>
+<li><a href="#_features_frontendfeaturesdominio_paralelismo_con_dominios_backend">Features (<code>frontend/features/&lt;dominio&gt;/</code>) — paralelismo con dominios backend</a></li>
+<li><a href="#_infraestructura_transversal_frontendlib">Infraestructura transversal (<code>frontend/lib/</code>)</a></li>
+<li><a href="#_autenticación_y_sesión_frontend">Autenticación y sesión (frontend)</a></li>
+<li><a href="#_configuración_de_entorno_frontendconstantsconfig_ts">Configuración de entorno (<code>frontend/constants/config.ts</code>)</a></li>
+<li><a href="#_tests_frontend">Tests (frontend)</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_1_contexto_y_metadatos">1. Contexto y metadatos</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Repositorio: <code>CodelabsBillingCloud</code> (<code>wali-billing</code>). Fuente: rama local <code>develop</code>, último commit (excepción registrada: remoto inalcanzable al momento de esta instalación, ver <code>AGENTS.md</code>). SHA: <code>09a4a3b2aa87f139c4836733180edf87371c14b3</code> (commit <code>chore: retirar CLAUDE.md, context/ y docs/ (gestor de memoria y documentación 1.1)</code>). No incluye los ~82 archivos con cambios reales sin commitear presentes en el checkout local (verificado con <code>git status --short</code> antes de generar esta documentación: 82 entradas).</p>
+</div>
+<div class="paragraph">
+<p>Tecnología:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Backend: Python 3.12 sobre AWS Lambda (arquitectura ARM64/Graviton2), organizado en <code>backend/lambdas/</code> por dominio funcional, con capa compartida en <code>backend/shared/</code>. Lint/format con <code>ruff</code>, seguridad estática con <code>bandit</code>, auditoría de dependencias con <code>pip-audit</code>, tests con <code>unittest</code> + <code>coverage</code> (umbral <code>fail_under = 70</code>, ver <code>backend/pyproject.toml</code>).</p>
+</li>
+<li>
+<p>Frontend: Expo / React Native (<code>frontend/</code>, <code>main: expo-router/entry</code>, Expo SDK ~56, React 19.2.3, React Native 0.85.3), enrutado con <code>expo-router</code> (convención de carpetas en <code>frontend/app/</code>), estado con <code>zustand</code>, validación con <code>zod</code>, formularios con <code>react-hook-form</code>, tests con <code>vitest</code>.</p>
+</li>
+<li>
+<p>Infraestructura: AWS CDK en Python (<code>infra/</code>), un stack por responsabilidad (<code>DatabaseStack</code>, <code>AuthStack</code>, <code>QueuesStack</code>, <code>StorageStack</code>, <code>ApiStack</code>, <code>CertificateStack</code>, <code>FrontendStack</code>).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Estructura inmediata del repositorio (raíz de <code>develop</code>): <code>Makefile</code>, <code>backend/</code> (<code>lambdas/</code>, <code>shared/</code>, <code>tests/</code>, <code>migrations/</code>), <code>frontend/</code> (<code>app/</code>, <code>features/</code>, <code>lib/</code>, <code>components/</code>, <code>constants/</code>, <code>assets/</code>, <code>scripts/</code>, <code>public/</code>), <code>infra/</code> (<code>stacks/</code>, <code>config/</code>), <code>postman/</code>, <code>scripts/</code>, <code>.github/</code> (workflows <code>pr-checks.yml</code>, <code>deploy-dev.yml</code>, <code>deploy-staging.yml</code>, <code>deploy-prod.yml</code>).</p>
+</div>
+<div class="paragraph">
+<p>Dependencias runtime principales — backend (<code>backend/requirements.txt</code>): <code>boto3</code>/<code>botocore</code> 1.43.24, <code>pydantic</code> 2.13.4, <code>cryptography</code> 48.0.1, <code>lxml</code> 6.1.1, <code>reportlab</code> 4.5.1 (generación de RIDE en PDF), <code>python-dateutil</code>. CDK (<code>infra/requirements.txt</code>): <code>aws-cdk-lib</code> 2.258.0, <code>constructs</code> 10.6.0, <code>jsii</code> 1.134.0, <code>typeguard</code> 2.13.3 (fijado: "v3+ es incompatible con CDK Python"). Frontend (<code>frontend/package.json</code>): <code>expo</code>, <code>expo-router</code>, <code>expo-secure-store</code>, <code>react-hook-form</code>, <code>zod</code>, <code>zustand</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_2_propósito_funcional">2. Propósito funcional</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>CodelabsBillingCloud ("Wali") es una plataforma SaaS multitenant de facturación electrónica para Ecuador (integración con el SRI — Servicio de Rentas Internas) con cobro de suscripción propio vía dLocal Go. El alcance real verificado en <code>backend/lambdas/</code> cubre los siguientes dominios (13 carpetas bajo <code>lambdas/</code>, incluyendo <code>_base</code> y <code>workers</code>):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>auth</code> — login/refresh/logout/challenge y recuperación de contraseña contra Amazon Cognito (USER_SRP_AUTH).</p>
+</li>
+<li>
+<p><code>onboarding</code> — registro self-service de un tenant nuevo vía OTP por email, con bifurcación a un "lead empresarial" (<code>ConfirmOnboardingOtpUseCase</code>) cuando el caso no es autoservicio.</p>
+</li>
+<li>
+<p><code>subscriptions</code> — cobro de la suscripción del tenant a la propia plataforma vía dLocal Go SmartFields (crear pago, confirmar con tarjeta, consultar estado, reembolsar, webhook HMAC-firmado).</p>
+</li>
+<li>
+<p><code>tenants</code> — CRUD de tenants, cambio de plan, activación/renovación/reintento de suscripción, panel superadmin.</p>
+</li>
+<li>
+<p><code>certificates</code> — carga y validación del certificado digital <code>.p12</code> de cada tenant (obligatorio para firmar comprobantes ante el SRI).</p>
+</li>
+<li>
+<p><code>sequences</code> — establecimientos y puntos de emisión SRI, contador atómico de secuencial por punto de emisión.</p>
+</li>
+<li>
+<p><code>products</code> — catálogo de productos/servicios facturables del tenant, con campañas de descuento.</p>
+</li>
+<li>
+<p><code>clients</code> — catálogo de clientes del tenant (compradores de sus facturas).</p>
+</li>
+<li>
+<p><code>documents</code> — emisión de comprobantes electrónicos (factura tipo <code>01</code>, nota de crédito tipo <code>04</code>), listado, resumen, descarga de RIDE/XML, anulación (legacy) y reintento.</p>
+</li>
+<li>
+<p><code>invoice_processor</code> — no expone HTTP: procesa mensajes SQS para firmar XAdES-BES y enviar/consultar autorización ante el SRI.</p>
+</li>
+<li>
+<p><code>workers/*</code> — diez procesos asíncronos (colas SQS o EventBridge) descritos en la sección 5 y en <code>modules/backend.adoc</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>No se encontró evidencia de módulos de contabilidad, reportes financieros avanzados o multi-país: el dominio SRI es específico de Ecuador (ver <code>xml_builder.py</code>, <code>sri_client.py</code>, claves de acceso de 49 dígitos). El alcance está limitado a lo verificado en el código de <code>develop</code>; no se infiere nada del nombre del repositorio.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_3_arquitectura">3. Arquitectura</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Cada dominio bajo <code>backend/lambdas/&lt;dominio&gt;/</code> sigue, con variaciones según su complejidad, una capa de arquitectura limpia verificada directamente en el árbol de archivos:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>domain/</code> — comandos, errores, entidades, value objects y <strong>puertos</strong> (interfaces <code>i_*.py</code>) sin dependencias de AWS.</p>
+</li>
+<li>
+<p><code>use_cases/</code> — orquestación de reglas de negocio contra los puertos del dominio.</p>
+</li>
+<li>
+<p><code>infra/</code> — implementaciones concretas de los puertos (repositorios DynamoDB, cliente Cognito, cliente dLocal, cliente SOAP del SRI, storage S3).</p>
+</li>
+<li>
+<p><code>handler.py</code> — adaptador AWS Lambda (API Gateway HTTP o SQS) que instancia infraestructura en cold start y enruta por método+path (o por <code>type</code> del mensaje en colas).</p>
+</li>
+<li>
+<p><code>schemas.py</code> — validación de payloads con <code>pydantic</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>No todos los dominios tienen las cuatro subcapas: <code>certificates</code> no tiene <code>domain/</code>/<code>infra/</code> propios (reutiliza <code>shared/certificates/</code> y el repositorio de <code>tenants</code>); <code>invoice_processor</code> no tiene <code>schemas.py</code> (no es HTTP) y añade módulos de dominio específicos en su raíz (<code>xml_builder.py</code>, <code>signing.py</code>, <code>sri_client.py</code>, <code>ride_builder.py</code>, <code>sri_error_classifier.py</code>, <code>sri_error_mapper.py</code>, <code>events.py</code>, <code>ports.py</code>). Detalle completo por dominio en <code>modules/backend.adoc</code>.</p>
+</div>
+<div class="paragraph">
+<p>Capa compartida (<code>backend/shared/</code>): <code>db/base_repository.py</code> (repositorio DynamoDB base con aislamiento multitenant, soft delete, locking optimista y auditoría automática — ver cita en sección 7), <code>db/client.py</code>, <code>db/transactions.py</code>, <code>db/paginator.py</code>, <code>db/counts.py</code>, <code>db/locks.py</code>; <code>audit/writer.py</code>; <code>certificates/</code> (validación y almacenamiento de <code>.p12</code>); <code>secrets/client.py</code> (AWS Secrets Manager); <code>domain/base_entity.py</code>, <code>domain/events/</code> (outbox pattern), <code>domain/value_objects/</code>; <code>logger.py</code> (logging estructurado con contexto de invocación); <code>errors.py</code> (jerarquía <code>AppError</code>); <code>config.py</code>.</p>
+</div>
+<div class="paragraph">
+<p>Capa transversal Lambda (<code>backend/lambdas/_base/</code>): <code>handler.py</code> (decoradores <code>lambda_handler</code>/<code>public_lambda_handler</code>), <code>sqs_handler.py</code> (equivalente para colas), <code>permissions.py</code> (<code>require_superadmin</code>/<code>require_role</code>), <code>idempotency.py</code>, <code>parser.py</code> (<code>Request</code>, <code>parse</code>), <code>response.py</code> (<code>ApiResponse</code>), <code>query_params.py</code>.</p>
+</div>
+<div class="paragraph">
+<p>Infraestructura (<code>infra/stacks/</code>, AWS CDK Python): <code>database_stack.py</code> (13 tablas DynamoDB, ver sección 7), <code>auth_stack.py</code> (Cognito User Pool único con roles <code>superadmin|owner|admin|viewer</code> vía <code>custom:role</code>), <code>queues_stack.py</code> (colas SQS con DLQ), <code>storage_stack.py</code> (S3 con Object Lock WORM para XML/RIDE legal), <code>api_stack.py</code> (22 funciones Lambda + HTTP API Gateway v2 con autorizador JWT nativo contra Cognito — el archivo más extenso de infra, ~1200 líneas), <code>certificate_stack.py</code>/<code>frontend_stack.py</code> (CloudFront + Route53, cross-region para el certificado ACM de CloudFront en <code>us-east-1</code>).</p>
+</div>
+<div class="paragraph">
+<p>Frontend (<code>frontend/</code>): Expo Router con carpetas de grupo <code>(public)/</code>, <code>(auth)/</code>, <code>(app)/(tenant)/</code>, <code>(app)/(superadmin)/</code> — separación de layout por rol. Lógica de negocio en <code>frontend/features/&lt;dominio&gt;/</code> (paralelo a los dominios del backend: <code>auth</code>, <code>onboarding</code>, <code>subscriptions</code>, <code>tenants</code>, <code>plans</code>, <code>products</code>, <code>clients</code>, <code>documents</code>, <code>sequences</code>, más <code>design-system</code>, <code>marketing</code>, <code>navigation</code>). Infraestructura transversal en <code>frontend/lib/</code> (cliente HTTP, hooks de paginación/fetch, utilidades). Detalle en <code>modules/frontend.adoc</code>.</p>
+</div>
+<div class="paragraph">
+<p>Ver <code>modules/evidencia.adoc</code> para patrones transversales con cita de archivo:línea, y <code>modules/arquitectura_y_flujos.adoc</code> para el detalle narrativo de los flujos de la sección 5.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_4_interfaces_y_contratos">4. Interfaces y contratos</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>El backend expone HTTP vía API Gateway v2 (HTTP API) con autorizador JWT nativo contra el User Pool de Cognito (<code>infra/stacks/api_stack.py:662-666</code>). Cada Lambda de dominio enruta internamente por <code>method</code>+<code>path</code> (o expresiones regulares para rutas con parámetros) dentro de su propio <code>handler.py</code>; el routing inspeccionado se implementa en los handlers y en el registro CDK. Rutas públicas (sin JWT) están señaladas explícitamente en los propios comentarios del código: <code>/auth/login|refresh|logout|challenge|reset-password</code>, <code>/auth/forgot-password</code> (con throttling propio), <code>/onboarding/otp/request|confirm</code>, <code>/subscriptions/payments*</code> (excepto <code>/refund</code>, que exige JWT + rol superadmin), <code>/subscriptions/webhooks/dlocal</code> (autenticado por HMAC-SHA256, no JWT), y <code>GET /plans</code>, <code>GET /plans/{id}</code> (pricing público).</p>
+</div>
+<div class="paragraph">
+<p>Los mensajes asíncronos (SQS) no tienen "ruta": el propio <code>handler.py</code> de cada worker rutea por el campo <code>type</code> del cuerpo del mensaje (ver <code>invoice_processor/handler.py:42-62</code> para el patrón SIGN/POLL) o procesa un único tipo de evento por cola.</p>
+</div>
+<div class="paragraph">
+<p>Inventario representativo de endpoints HTTP — ver <code>matrices/interfaces.csv</code> (muestra representativa citando archivo:línea real, no exhaustiva dado el volumen: 22 <code>handler.py</code> distintos y numerosas rutas HTTP registradas en <code>api_stack.py</code>).</p>
+</div>
+<div class="paragraph">
+<p>Contrato de respuesta HTTP uniforme: envelope <code>ApiResponse</code> (<code>backend/lambdas/_base/response.py</code>) consumido en el frontend por <code>frontend/lib/api/client.ts:65-82</code> (<code>envelope.success</code>/<code>envelope.data</code>/<code>envelope.error</code>).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_5_flujos_técnicos">5. Flujos técnicos</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_5_1_emisión_de_un_comprobante_electrónico_factura_hasta_autorización_sri">5.1 Emisión de un comprobante electrónico (factura) hasta autorización SRI</h3>
+<div class="paragraph">
+<p><code>POST /documents</code> (JWT, roles <code>owner|admin|superadmin</code>) → <code>documents/handler.py:135-149</code> (<code>_emit</code>, decorado con <code>@lambda_handler</code>, <code>@require_role</code>, <code>@idempotent</code>) → si <code>doc_type != "04"</code>, <code>_emit_invoice</code> (<code>documents/handler.py:152-215</code>) resuelve tenant y plan, arma las líneas y ejecuta <code>EmitDocumentUseCase</code> → <code>_finalize_emission</code> (<code>documents/handler.py:276-310</code>) persiste el documento en estado <code>PENDING</code> (transaccional con la clave de idempotencia) y encola un mensaje <code>{"type": "SIGN", &#8230;&#8203;}</code> en <code>SIGN_QUEUE_URL</code> (best-effort: un fallo del <code>send_message</code> deja el documento <code>PENDING</code> sin bloquear la respuesta <code>202</code>, ver comentario en <code>documents/handler.py:302-308</code>, riesgo registrado en sección 10).</p>
+</div>
+<div class="paragraph">
+<p>El worker <code>invoice_processor</code> (dos funciones Lambda, <code>invoice-processor-sign</code> e <code>invoice-processor-poll</code>, mismo código, cada una suscrita a su propia cola — <code>infra/stacks/api_stack.py:846-913</code>) recibe el mensaje <code>SIGN</code> en <code>invoice_processor/handler.py:42-51</code> → <code>SignDocumentUseCase.execute</code> (<code>invoice_processor/use_cases/sign_document.py:39-110</code>): recupera el documento (idempotente si ya no está <code>PENDING</code>, línea 41-47), carga el certificado <code>.p12</code> del tenant desde Secrets Manager (<code>load_certificate</code>, línea 50), construye el XML (<code>xml_builder.build_invoice_xml</code>/<code>build_credit_note_xml</code>) y lo firma XAdES-BES (<code>signing.sign_xades_bes</code>, línea 57), lo envía al SRI vía SOAP (<code>sri_client.recepcion</code>, línea 59). Si el SRI lo recibe, pasa el documento a <code>PROCESSING</code> y encola un mensaje <code>POLL</code> con <code>delay_seconds=30</code> (línea 62-74). Si el SRI rechaza permanentemente (clasificado por <code>sri_error_classifier</code>), el documento pasa a <code>REJECTED</code> y se publica un evento <code>DocumentRejectedEvent</code> (líneas 81-101); si el error es reintentable, pasa a <code>FAILED</code> con <code>increment_retry=True</code> y se relanza la excepción para que SQS reintente (líneas 103-110, <code>max_receive_count=5</code> antes de la DLQ de <code>invoice-sign</code>, ver <code>matrices/persistence.csv</code>).</p>
+</div>
+<div class="paragraph">
+<p>El mensaje <code>POLL</code> es atendido por la misma Lambda (<code>invoice_processor/handler.py:53-59</code>) → <code>PollDocumentUseCase</code> consulta la autorización SRI y, si es positiva, genera el RIDE (<code>ride_builder.py</code>) y sube XML+RIDE a S3 con Legal Hold activado (<code>invoice_processor_poll_fn</code>, <code>infra/stacks/api_stack.py:899-905</code>, <code>s3:PutObjectLegalHold</code>).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_5_2_confirmación_de_pago_de_suscripción_dlocal_go">5.2 Confirmación de pago de suscripción (dLocal Go)</h3>
+<div class="paragraph">
+<p><code>POST /subscriptions/payments</code> (público, con throttling propio) → <code>_create_payment</code> (<code>subscriptions/handler.py:56-81</code>, decorado <code>@idempotent</code>) crea la orden en dLocal y persiste el <code>Payment</code> en estado inicial. El frontend confirma con <code>POST /subscriptions/payments/{order_id}/confirm</code> (público) → <code>_confirm_payment</code> (<code>subscriptions/handler.py:84-112</code>) → <code>ConfirmPaymentUseCase.execute</code> (<code>subscriptions/use_cases/confirm_payment.py:41-85</code>): valida el <code>checkout_token</code> recibido por header <code>x-checkout-token</code> contra el guardado (<code>hmac.compare_digest</code>, línea 44-48 — comparación de tiempo constante), rechaza si el pago ya está en un estado no confirmable (<code>PAID</code>/<code>AUTHORIZED</code>/<code>PENDING</code>, línea 50-51), llama a dLocal (<code>confirm_payment</code>) y, según el <code>status</code> devuelto, transiciona el pago a <code>confirm()</code>, <code>mark_pending()</code> o <code>fail()</code> (líneas 70-77). En paralelo, dLocal puede notificar por <code>POST /subscriptions/webhooks/dlocal</code> (público, autenticado por firma HMAC-SHA256 sobre el cuerpo crudo — <code>_verify_dlocal_signature</code>, <code>subscriptions/handler.py:123-125</code>); el handler solo valida la firma y encola el evento crudo en <code>DLOCAL_WEBHOOK_QUEUE_URL</code> (línea 180) para que <code>workers/dlocal_webhook_processor</code> lo procese de forma asíncrona y desacoplada de la latencia del webhook.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_5_3_onboarding_self_service_con_otp">5.3 Onboarding self-service con OTP</h3>
+<div class="paragraph">
+<p><code>POST /onboarding/otp/request</code> (público, throttled 1 req/s ráfaga 5 — <code>infra/config/dev.yaml</code>) → <code>_request_otp</code> (<code>onboarding/handler.py:63-99</code>, <code>@idempotent</code>) → <code>RequestOnboardingOtpUseCase</code> genera y envía el código; el commit de la verificación es transaccional con la respuesta HTTP vía <code>require_current_context()</code>/<code>commit_request</code> (patrón outbox, líneas 93-98). <code>POST /onboarding/otp/confirm</code> (<code>onboarding/handler.py:102-149</code>) valida el OTP y, según el resultado (<code>result.tenant</code> vs <code>result.lead</code>), bifurca entre crear el tenant (<code>_commit_repo().commit_tenant_registration</code>) o registrar un lead empresarial para contacto manual (<code>commit_enterprise_lead</code>) — ambos casos devuelven <code>201</code> y comparten el mismo mecanismo de commit transaccional atado a la clave de idempotencia.</p>
+</div>
+<div class="paragraph">
+<p>Ver <code>modules/arquitectura_y_flujos.adoc</code> para el detalle ampliado de estos tres flujos y de dos flujos adicionales (renovación de suscripción por worker programado, y ciclo de vida del certificado digital).</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_6_seguridad_y_contexto_de_ejecución">6. Seguridad y contexto de ejecución</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Autenticación: Amazon Cognito, un único User Pool para toda la plataforma (<code>infra/stacks/auth_stack.py:38-73</code>). <code>self_sign_up_enabled=False</code> — todos los usuarios requieren creación administrativa; el comentario del stack describe los roles, y el worker de onboarding crea el owner inicial. El comentario no demuestra un flujo operativo para cada rol. Flujo de login exclusivamente <code>USER_SRP_AUTH</code> (<code>user_password=False</code> en el cliente web, línea 78-83, comentario explícito "más seguro" para el intercambio SRP con Cognito; esta configuración no describe por sí sola cómo el frontend entrega la contraseña al backend) implementado en <code>backend/lambdas/auth/infra/cognito_auth_provider.py</code> con SRP real (<code>infra/srp.py</code>, uso de <code>initiate_auth</code>/<code>respond_to_auth_challenge</code> con <code>ChallengeName=PASSWORD_VERIFIER</code>, líneas 40-71). Los parámetros secretos del challenge (<code>SALT</code>, <code>SRP_B</code>, <code>SECRET_BLOCK</code>) se filtran antes de responder al cliente (<code>_sanitize_challenge_parameters</code>, <code>cognito_auth_provider.py:172-183</code>).</p>
+</div>
+<div class="paragraph">
+<p>Autorización: claims custom en el ID Token — <code>custom:tenant_id</code>, <code>custom:role</code> (<code>superadmin|owner|admin|viewer</code>), <code>custom:is_superadmin</code> (<code>auth_stack.py:9-16</code>). El API Gateway valida firma/expiración vía <code>HttpJwtAuthorizer</code> nativo (<code>api_stack.py:662-666</code>); la autorización de rol fino se aplica en los handlers que consumen esos controles con los decoradores <code>require_superadmin</code>/<code>require_role</code> de <code>backend/lambdas/_base/permissions.py:29-57</code> (superadmin siempre pasa; el resto exige pertenecer a la lista de roles permitidos).</p>
+</div>
+<div class="paragraph">
+<p>Certificados digitales SRI: <code>backend/shared/certificates/validator.py</code> — carga el <code>.p12</code> con <code>cryptography.hazmat.primitives.serialization.pkcs12</code>, valida tamaño máximo <code>MAX_CERTIFICATE_BYTES = 50 * 1024</code> (línea 19), exige contraseña no vacía (línea 51-52) y contrasta el RUC del certificado contra el RUC esperado del tenant (<code>CertificateRucMismatchError</code>). El endpoint de carga (<code>certificates/handler.py</code>) exige <code>owner</code>/<code>admin</code> del mismo tenant o superadmin (<code>_authorize_tenant</code>, líneas 47-51) y usa <code>IDEMPOTENCY_TABLE</code> + reintentos acotados (<code>_MAX_COMMIT_ATTEMPTS = 3</code>, línea 32) ante condiciones de carrera al actualizar el mismo tenant. El certificado se almacena en Secrets Manager bajo el prefijo <code>/codelabs-billing/{env}/tenant/*</code>, con permisos de Lambda acotados exactamente a ese prefijo (<code>_grant_certificate_secrets</code>, <code>api_stack.py:88-108</code>). <strong>Se confirma la existencia de <code>backend/lambdas/auth/infra/cognito_auth_provider.py</code> en el commit de <code>develop</code> verificado</strong> (contenido citado arriba), tal como referencia <code>AGENTS.md</code>.</p>
+</div>
+<div class="paragraph">
+<p>Webhooks externos: el webhook de dLocal Go se autentica por HMAC-SHA256 sobre el cuerpo crudo con comparación de tiempo constante (<code>_verify_dlocal_signature</code>, <code>subscriptions/handler.py:123-125</code>, <code>hmac.compare_digest</code>), no por JWT.</p>
+</div>
+<div class="paragraph">
+<p>Multitenencia: <code>BaseRepository</code> exige <code>tenant_id</code> no vacío en el constructor (<code>shared/db/base_repository.py:51-52</code>) y construye <code>PK = "TENANT#{tenant_id}"</code> (<code>:59-60</code>). Este control corresponde a los repositorios que usan esa base; las tablas globales, como <code>tenants</code>, <code>plans</code> y <code>payments</code>, tienen claves diferentes y requieren verificar la autorización de sus consumidores.</p>
+</div>
+<div class="paragraph">
+<p>No se encontraron mecanismos de rate limiting a nivel de aplicación además del throttling de API Gateway por ruta (<code>api_stack.py:1158-1203</code>, ver <code>infra/config/dev.yaml</code> para los valores configurados). No se encontró un WAF gestionado en los stacks de infra revisados.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_7_persistencia">7. Persistencia</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Persistencia estructurada: <strong>Amazon DynamoDB</strong>, <code>PAY_PER_REQUEST</code>, trece tablas definidas en <code>infra/stacks/database_stack.py</code> (una por dominio funcional según el comentario del propio archivo, líneas 1-13): <code>tenants</code> (GSI <code>ruc-index</code>), <code>audit</code> (retención 7 años — "retención legal SRI Ecuador", líneas 61), <code>idempotency</code> (TTL 24h), <code>outbox</code> (DynamoDB Streams <code>NEW_IMAGE</code> → relay a SQS), <code>password-resets</code>, <code>plans</code> (GSI <code>slug-index</code>), <code>clients</code> (GSI <code>identification-index</code>), <code>products</code> (GSI <code>sku-index</code>), <code>migrations</code>, <code>payments</code> (GSI <code>tenant-payments-index</code>), <code>sequences</code> (sin GSI — solo acceso por <code>pk</code>/<code>sk</code>), <code>documents</code> (GSI <code>tenant-docs-index</code>), <code>batch-jobs</code> (tabla creada pero declarada en el propio comentario como para una Lambda de un sprint posterior aún no implementada — no se encontró un handler <code>batch_jobs</code> en este commit).</p>
+</div>
+<div class="paragraph">
+<p>Patrón de acceso: <code>shared/db/base_repository.py</code> es la base común. Convención de claves <code>PK = "TENANT#{tenant_id}"</code> / <code>SK = "{PREFIX}#{entity_id}"</code> (líneas 13-18). Provee: aislamiento multitenant obligatorio (línea 51-52), <strong>soft delete</strong> — nunca se llama <code>delete_item</code> directamente, se filtra <code>Attr("deleted").eq(False)</code> como <code>FilterExpression</code> (líneas 100-131, con una limitación documentada explícitamente en el propio docstring: "DynamoDB applies Limit BEFORE FilterExpression&#8230;&#8203; For lists with many soft-deleted rows, use a GSI with <code>deleted</code> as the partition key in later phases", líneas 20-25 — deuda técnica registrada en sección 10), <strong>locking optimista</strong> vía <code>ConditionExpression</code>/<code>version</code> (mapea <code>ConditionalCheckFailedException</code> → <code>OptimisticLockError</code>, líneas 93-98), <strong>auditoría automática no bloqueante</strong> en cada mutación (<code>_audit</code>, líneas 183-206, un fallo del log de auditoría solo genera un warning, no interrumpe la operación de negocio) y helper de <code>transact_write_items</code> con mapeo de errores de cancelación transaccional (líneas 157-179).</p>
+</div>
+<div class="paragraph">
+<p>Almacenamiento de archivos: Amazon S3 (<code>storage_stack.py</code>) para XML y RIDE de comprobantes, con <strong>Object Lock (WORM)</strong> y <code>LegalHold=ON</code> al escribir el RIDE tras autorización SRI (<code>invoice_processor/infra/s3_document_storage.py</code>; <code>storage_stack.py:46-50</code>). Los permisos IAM de <code>api_stack.py:902-905</code> habilitan Legal Hold; su declaración por sí sola no prueba una escritura.</p>
+</div>
+<div class="paragraph">
+<p>Secretos: AWS Secrets Manager para credenciales de certificados <code>.p12</code> por tenant, credenciales de dLocal Go y API key de Brevo (proveedor de email) — los consumidores citados reciben el <strong>nombre</strong> del secreto como variable de entorno, p.ej. <code>DLOCALGO_CREDENTIALS_NAME</code>. Esto describe esas integraciones y no demuestra la ausencia universal de secretos en otros medios.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_8_catálogo_de_implementación">8. Catálogo de implementación</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Conteos verificados sobre el worktree de <code>develop</code> (no exhaustivo línea por línea, pero completo a nivel de archivo):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>22 archivos <code>handler.py</code>: 10 dominios HTTP + <code>invoice_processor</code> (SQS) + <code>_base</code> (decoradores compartidos) + 10 workers (<code>certificate_expiry_notifier</code>, <code>dlocal_webhook_processor</code>, <code>email_notifications</code>, <code>migrations</code>, <code>orphan_payment_notifier</code>, <code>outbox_relay</code>, <code>pending_activation_reconciler</code>, <code>stale_payment_cleaner</code>, <code>subscription_renewal_notifier</code>, <code>tenant_onboarding</code>).</p>
+</li>
+<li>
+<p>70 archivos bajo <code>use_cases/</code> (excluyendo <code>__init__.py</code>) en todo <code>backend/lambdas/</code>.</p>
+</li>
+<li>
+<p>Las entidades usan nombres diversos: <code>documents/domain/entities.py</code>, <code>sequences/domain/entities.py</code>, <code>subscriptions/domain/entities/payment.py</code>, <code>tenants/domain/tenant.py</code> y <code>plans/domain/plan.py</code>, entre otros. Contar solamente archivos llamados <code>entities.py</code> no representa el inventario de entidades.</p>
+</li>
+<li>
+<p>441 archivos <code>.py</code> en <code>backend/</code> en total; 77 archivos de test unitario (<code>backend/tests/unit/lambdas/&lt;dominio&gt;/</code> + <code>backend/tests/unit/shared/</code>) distribuidos entre los 10 dominios HTTP, <code>invoice_processor</code>, <code>_base</code> y <code>workers</code>.</p>
+</li>
+<li>
+<p>Frontend: 340 archivos <code>.ts</code>/<code>.tsx</code>; 43 archivos bajo <code>features/**/screens/</code>; 61 componentes bajo <code>features/**/components/</code> + 34 bajo <code>frontend/components/</code>; 44 archivos <code>*.test.ts(x)</code> (Vitest).</p>
+</li>
+<li>
+<p>Infraestructura: 7 stacks CDK (<code>infra/stacks/*.py</code>) + <code>app.py</code> orquestador + 9 archivos <code>.py</code> en total bajo <code>infra/</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Ver <code>matrices/implementation.csv</code> para una muestra representativa citando archivo:línea (no pretende ser el listado completo de los 70 archivos de casos de uso).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_9_operación_y_configuración">9. Operación y configuración</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Comandos declarados en <code>Makefile</code> (raíz del repositorio, verificado en el worktree; <strong>no se ejecutó ningún build/test/deploy real como parte de esta documentación</strong>, solo se leyó el archivo):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>make ci-backend</code> → <code>ruff format --check backend/</code> + <code>ruff check backend/</code> + <code>coverage run --source=lambdas,shared -m unittest discover -s backend/tests -p "test_*.py"</code> + <code>coverage report</code>. Prerrequisito declarado: <code>backend/.venv</code> con <code>requirements.txt</code> + <code>requirements-ci.txt</code>.</p>
+</li>
+<li>
+<p><code>make ci-frontend</code> → <code>npm run format:check &amp;&amp; npm run lint &amp;&amp; npm run typecheck &amp;&amp; npm run test:run</code> (dentro de <code>frontend/</code>).</p>
+</li>
+<li>
+<p><code>make ci-security</code> → <code>bandit -r backend/lambdas/ backend/shared/ -c backend/pyproject.toml --severity-level medium</code> + <code>pip-audit -r backend/requirements.txt --strict</code>.</p>
+</li>
+<li>
+<p><code>make ci-cdk</code> → <code>cdk ls -c env=dev</code> (valida que los stacks compilen).</p>
+</li>
+<li>
+<p><code>make ci</code> → ejecuta los cuatro targets locales. No es un espejo exacto del workflow: este también configura variables AWS, genera XML de cobertura, publica reportes y valida el build web del frontend; el <code>Makefile</code> de este commit no incluye ese build.</p>
+</li>
+<li>
+<p><code>make deploy</code> → <code>cdk deploy --all --profile codelabs --require-approval never</code> (perfil AWS <code>codelabs</code>, región <code>sa-east-1</code>).</p>
+</li>
+<li>
+<p><code>make superadmin</code> / <code>make token</code> → scripts operativos (<code>scripts/create_superadmin.py</code>, <code>scripts/make_token.py</code>).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Configuración por entorno: <code>infra/config/{dev,staging,prod}.yaml</code> — claves verificadas (solo nombres, nunca valores sensibles): <code>env</code>, <code>region</code>, <code>account</code> (resuelto vía <code>CDK_DEFAULT_ACCOUNT</code>), <code>superadmin_email</code>, <code>dynamodb.billing_mode</code>/<code>point_in_time_recovery</code>/<code>removal_policy</code>, <code>cognito.mfa</code>, <code>api.throttling.<strong></code> (por ruta), <code>domain.hosted_zone</code>/<code>api</code>/<code>frontend</code>, <code>cors.origins</code>/<code>cors.headers</code>. Nombres de secretos referenciados (nunca su valor): <code>codelabs-billing-{env}/dlocalgo-credentials</code>, <code>codelabs-billing-{env}/brevo-api-key</code>, <code>/codelabs-billing/{env}/tenant/</strong></code> (certificados). Configuración del frontend: <code>frontend/constants/config.ts</code> resuelve <code>apiUrl</code> en cascada (<code>EXPO_PUBLIC_API_URL</code> → <code>extra.apiUrl</code> de Expo Constants → default por entorno) y expone <code>dlocalgo.smartFieldsKey</code>/<code>sdkUrl</code> de forma análoga.</p>
+</div>
+<div class="paragraph">
+<p>Despliegue: según <code>app.py</code> (<code>infra/app.py:1-24</code>), "Solo dev por ahora. Prod no se toca hasta tener clientes" — información operativa real del propio código, no inferida. Pipelines CI/CD declarados en <code>.github/workflows/</code> (<code>pr-checks.yml</code>, <code>deploy-dev.yml</code>, <code>deploy-staging.yml</code>, <code>deploy-prod.yml</code>) — <strong>no se modificó ningún workflow, secreto ni configuración de despliegue</strong> como parte de esta tarea documental; solo se leyeron para describir el estado real.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_10_riesgos_y_deuda">10. Riesgos y deuda</h2>
+<div class="sectionbody">
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 25%;">
+<col style="width: 25%;">
+<col style="width: 25%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Clasificación</th>
+<th class="tableblock halign-left valign-top">Hallazgo</th>
+<th class="tableblock halign-left valign-top">Archivo</th>
+<th class="tableblock halign-left valign-top">Línea</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Seguimiento recomendado — deuda documentada</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">El filtro de soft-delete (<code>deleted = false</code>) se aplica como <code>FilterExpression</code> de DynamoDB, que se evalúa <strong>después</strong> de <code>Limit</code> — el propio docstring señala que esto "mitiga pero no elimina" el problema de páginas con muchos elementos borrados, y propone un GSI futuro con <code>deleted</code> como partition key.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>backend/shared/db/base_repository.py</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">20-25</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Seguimiento recomendado — restricción declarada</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>invoice_processor</code> (SIGN/POLL) no declara <code>reserved_concurrent_executions</code>. Los comentarios atribuyen esta decisión a una cuota de cuenta de 10 ejecuciones y a fallos previos de despliegue. Se verificó la declaración del código; la cuota vigente y el estado de AWS no se consultaron.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>infra/stacks/api_stack.py</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">829-845</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Seguimiento recomendado — riesgo funcional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">El envío del mensaje SQS <code>SIGN</code> tras persistir un documento en <code>PENDING</code> es "best-effort": si <code>send_message</code> falla, el documento queda en <code>PENDING</code> sin reintento automático (el propio código deja un <code>_log.warning</code> con el texto "document stuck PENDING"). Mismo patrón en <code>_retry</code> y en la marca de anulación por nota de crédito.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>backend/lambdas/documents/handler.py</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">302-308, 259-271, 513-519</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Seguimiento recomendado — nomenclatura declarada</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">El nombre del prefijo de infraestructura (<code>CodeLabsBilling-*</code>) quedó fijo por los recursos ya desplegados; renombrarlo "implicaría recrear recursos" — divergencia consciente entre el nombre de marca actual ("Wali") y el nombre técnico de los stacks CDK.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>infra/app.py</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1-3</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Riesgo operativo declarado</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">El checkout contiene trabajo de aplicación sin commitear que esta documentación excluye. La nueva comprobación del remoto configurado falla por resolución SSH. La fuente sigue siendo el commit local indicado en la sección 1; regenerar desde la rama remota confirmada cuando se restaure el acceso. Esta es evidencia de instalación, no un hallazgo del código documentado.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>AGENTS.md</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_anexo_evidencia_transversal">Anexo — Evidencia transversal</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Fuente para todo este anexo: worktree aislado creado con <code>git worktree add --detach &lt;tmp&gt; develop</code> sobre el commit <code>09a4a3b2aa87f139c4836733180edf87371c14b3</code>. Ninguna cita proviene del checkout local con cambios sin commitear.</p>
+</div>
+<div class="sect2">
+<h3 id="_patrón_de_decorador_lambda_contrato_compartido_de_todos_los_handlers_http">Patrón de decorador Lambda (contrato compartido de todos los handlers HTTP)</h3>
+<div class="paragraph">
+<p><code>backend/lambdas/_base/handler.py:34-71</code> define <code>_build_handler</code>, con dos fachadas públicas: <code>lambda_handler</code> (<code>require_tenant=True</code>, línea 65-66) y <code>public_lambda_handler</code> (<code>require_tenant=False</code>, línea 69-71). Responsabilidades verificadas en el propio docstring (líneas 6-13) y en el cuerpo de <code>wrapper</code> (líneas 36-59):</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><code>clear_invocation_context()</code> al inicio — evita fuga de contexto entre invocaciones en contenedores Lambda reutilizados (línea 37).</p>
+</li>
+<li>
+<p><code>Request.from_event(event, require_tenant=&#8230;&#8203;)</code> parsea el evento API Gateway (línea 41).</p>
+</li>
+<li>
+<p><code>bind_invocation_context(request_id, tenant_id, user_id, lambda_name)</code> propaga contexto a todos los loggers vía <code>contextvars</code> (línea 42-47).</p>
+</li>
+<li>
+<p>Captura <code>AppError</code> → <code>ApiResponse.error(exc, request_id)</code> con el código de la excepción (línea 53-55).</p>
+</li>
+<li>
+<p>Captura <code>Exception</code> genérica → loguea el stacktrace completo con <code>exc_info=True</code> pero <strong>nunca</strong> lo devuelve al cliente HTTP, solo <code>InternalError()</code> (línea 57-59, comentario explícito en el docstring: "the stacktrace NEVER travels to the HTTP response, only to CloudWatch").</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>El equivalente para colas SQS es <code>backend/lambdas/_base/sqs_handler.py</code> (<code>sqs_handler</code>, usado en <code>invoice_processor/handler.py:42</code> y en los 10 workers).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_orden_de_decoradores_en_endpoints_mutables">Orden de decoradores en endpoints mutables</h3>
+<div class="paragraph">
+<p>Los endpoints de escritura combinan tres decoradores en un orden fijo (de abajo hacia arriba en la aplicación real, de arriba hacia abajo en el código): <code>@lambda_handler</code> (o <code>@public_lambda_handler</code>) → <code>@require_role(&#8230;&#8203;)</code> (cuando aplica) → <code>@idempotent</code>. Ejemplo verificado en <code>backend/lambdas/documents/handler.py:135-138</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code data-lang="python"><span class="nd">@lambda_handler</span>
+<span class="nd">@require_role</span><span class="p">(</span><span class="sh">"</span><span class="s">owner</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">admin</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">superadmin</span><span class="sh">"</span><span class="p">)</span>
+<span class="nd">@idempotent</span>
+<span class="k">def</span> <span class="nf">_emit</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>El mismo orden se repite en <code>certificates/handler.py</code>, <code>onboarding/handler.py:63-65</code> (con <code>@public_lambda_handler</code> en vez de <code>@lambda_handler</code>, porque el onboarding es anónimo) y <code>subscriptions/handler.py:56-58</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_idempotencia_http_x_idempotency_key">Idempotencia HTTP (<code>X-Idempotency-Key</code>)</h3>
+<div class="paragraph">
+<p><code>backend/lambdas/_base/idempotency.py</code> implementa idempotencia real contra DynamoDB, no solo deduplicación en memoria: la clave de partición combina alcance + clave del cliente (<code>_scope_for</code>, línea 82-85: <code>TENANT#{tenant_id}</code> o <code>GLOBAL#{user_id|anonymous}</code>), y el registro se ata a <code>method + path + body_hash</code> (<code>_matches</code>, línea 99-104) — una reutilización de la misma clave con un cuerpo distinto lanza <code>IdempotencyKeyReusedError</code> (línea 144-145, 257-258) en vez de servir una respuesta cacheada incorrecta. La reserva usa una <code>ConditionExpression</code> que permite reintentar si el registro previo expiró por TTL o terminó en <code>FAILED</code> (línea 135-139). TTLs distintos por estado: <code>IN_PROGRESS</code> 900s, <code>COMPLETED</code> 24h, <code>FAILED</code> 60s (líneas 48-50). <code>completion_transact_item()</code> (línea 209-242) permite que el propio repositorio de dominio cierre la idempotencia <strong>dentro de la misma transacción DynamoDB</strong> que persiste el cambio de negocio (patrón usado por <code>onboarding</code> y <code>documents</code>, ver sección 5 del documento principal), en vez de un segundo <code>update_item</code> no atómico.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_outbox_pattern_eventos_de_dominio">Outbox pattern (eventos de dominio)</h3>
+<div class="paragraph">
+<p><code>backend/shared/domain/events/outbox.py</code> + <code>backend/shared/domain/events/publisher.py</code> (clase <code>EventPublisher</code>, <code>publisher.py:72</code>) implementan un outbox transaccional: los eventos se escriben en la tabla <code>outbox</code> (DynamoDB Streams <code>NEW_IMAGE</code>) dentro de la misma transacción que el cambio de negocio, y <code>workers/outbox_relay</code> (suscrito al stream, <code>infra/stacks/api_stack.py:309-322</code>) los reenvía a las colas SQS correspondientes (<code>EVENTS_QUEUE_URL</code>, <code>EMAIL_NOTIFICATIONS_QUEUE_URL</code>) de forma desacoplada. <code>DirectPublishReason</code> (<code>publisher.py:30</code>) documenta explícitamente los casos donde se permite publicar <strong>sin</strong> pasar por el outbox (p.ej. notificaciones no transaccionales como el email de recuperación de contraseña en <code>auth/handler.py:50-53</code>, marcado <code>DirectPublishReason.NON_TRANSACTIONAL_NOTIFICATION</code>).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_cliente_http_del_frontend_refresco_de_token_y_envelope_uniforme">Cliente HTTP del frontend — refresco de token y envelope uniforme</h3>
+<div class="paragraph">
+<p><code>frontend/lib/api/client.ts:21-83</code> (<code>request&lt;T&gt;</code>) centraliza: adjunta <code>Authorization: Bearer &lt;idToken&gt;</code> si <code>auth=true</code> (línea 44), revisa expiración local antes de llamar (<code>isTokenExpired</code>, línea 36) y dispara <code>onRefresh()</code> proactivamente; además reintenta una vez ante un <code>401</code> real del servidor (línea 58-63, <code>isRetry</code> evita loops infinitos). Toda respuesta pasa por un envelope uniforme <code>{success, data, error}</code> (líneas 67-80) validado con un <code>ZodType&lt;T&gt;</code> provisto por el llamador — el contrato de tipos vive en <code>frontend/lib/api/types.ts</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_sesión_y_almacenamiento_de_tokens_frontend">Sesión y almacenamiento de tokens (frontend)</h3>
+<div class="paragraph">
+<p><code>frontend/features/auth/store.ts</code> (Zustand) construye el usuario en memoria decodificando el ID Token (<code>buildUser</code>, líneas 21-30) — lee exactamente los mismos claims custom emitidos por Cognito y descritos en <code>infra/stacks/auth_stack.py</code> (<code>custom:role</code>, <code>custom:tenant_id</code>, <code>custom:is_superadmin</code>). El almacenamiento físico (<code>frontend/features/auth/storage.ts:11-40</code>) difiere por plataforma: en nativo usa <code>expo-secure-store</code> (keychain/keystore cifrado); en web usa <code>sessionStorage</code>/<code>localStorage</code> del navegador según si el token debe sobrevivir el cierre de pestaña (parámetro <code>persistent</code>, línea 19-30) — es decir, en web los tokens <strong>no</strong> están en un almacenamiento cifrado del sistema operativo, a diferencia de nativo (dato verificado, no juicio de valor adicional).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_convención_de_nombres_de_recursos_aws_vs_marca_del_producto">Convención de nombres de recursos AWS vs. marca del producto</h3>
+<div class="paragraph">
+<p>Todos los recursos CDK usan el prefijo <code>codelabs-billing-{env}-<strong></code> (tablas, colas, funciones) y los propios Stacks de nivel superior usan <code>CodeLabsBilling-{Env}-</strong></code> (<code>infra/app.py:52-58</code>), mientras que el producto se comunica como "Wali" (<code>frontend/package.json:2</code> — <code>"name": "wali-billing"</code>; dominios <code>wali-dev.codelabsecuador.com</code>). Es una divergencia de nomenclatura documentada explícitamente en el propio <code>infra/app.py:1-3</code> como decisión consciente para no recrear recursos ya desplegados.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_anexo_arquitectura_y_flujos_técnicos_detalle_ampliado">Anexo — Arquitectura y flujos técnicos (detalle ampliado)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Todas las citas de archivo:línea se verificaron sobre el worktree de <code>develop</code> (commit <code>09a4a3b2aa87f139c4836733180edf87371c14b3</code>).</p>
+</div>
+<div class="sect2">
+<h3 id="_flujo_a_emisión_de_factura_hasta_autorización_sri_ampliación_de_la_sección_5_1">Flujo A — Emisión de factura hasta autorización SRI (ampliación de la sección 5.1)</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code>Frontend (features/documents)
+  → POST /documents  (JWT, role owner|admin|superadmin)
+  → documents/handler.py:135  _emit()
+      ├─ doc_type == "04" → _emit_credit_note (línea 218)
+      └─ else            → _emit_invoice   (línea 152)
+           ├─ _get_tenant / _get_plan       (líneas 155-156)
+           ├─ EmitDocumentUseCase.execute() (líneas 182-208)
+           └─ _finalize_emission            (línea 210, cuerpo en línea 276)
+                ├─ ApiResponse.accepted(202, status=PENDING)
+                ├─ repo.save(document, idempotency=ctx, response)   [transaccional]
+                └─ _send_sign_message() → SQS SIGN_QUEUE_URL         [best-effort]
+                                                       │
+                                                       ▼
+invoice_processor/handler.py:42  handler() [SQS trigger, invoice-processor-sign]
+  └─ message_type == "SIGN" → SignDocumentUseCase.execute()  (sign_document.py:39)
+       ├─ get(document) — ignora si ya no está PENDING (idempotencia ante reentrega, líneas 41-47)
+       ├─ load_certificate(tenant.certificate_secret_arn)   (línea 50, Secrets Manager)
+       ├─ xml_builder.build_invoice_xml / build_credit_note_xml
+       ├─ signing.sign_xades_bes(xml, private_key, certificate)      (línea 57)
+       ├─ sri_client.recepcion(environment, xmls=[signed_xml])       (línea 59, SOAP)
+       └─ según resultado:
+            ├─ received=True  → status=PROCESSING + enqueue_poll(delay=30s) (líneas 61-74)
+            ├─ error PERMANENT → status=REJECTED + DocumentRejectedEvent    (líneas 81-101)
+            └─ error reintentable → status=FAILED, increment_retry, raise  (líneas 103-110)
+                                                       │
+                                                       ▼
+invoice_processor/handler.py:53  message_type == "POLL"
+  └─ PollDocumentUseCase.execute()
+       ├─ sri_client — consulta autorización (AutorizacionComprobantesOffline)
+       └─ si autorizado: ride_builder → S3 (XML + RIDE, LegalHold=ON, api_stack.py:899-905)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Colas involucradas (<code>infra/stacks/queues_stack.py</code>, ver <code>matrices/persistence.csv</code> para DLQ): <code>invoice-sign</code> (visibility 720s, <code>max_receive_count=5</code>), <code>invoice-poll</code> (idéntico), ambas consumidas por las mismas dos funciones Lambda <code>invoice-processor-sign</code>/<code>invoice-processor-poll</code> (mismo código, distinta cola de origen — <code>api_stack.py:846-913</code>).</p>
+</div>
+<div class="paragraph">
+<p>Riesgo funcional real (no hipotético) en este flujo: el <code>send_message</code> de <code>_send_sign_message</code> (<code>documents/handler.py:123-129</code>) se ejecuta <strong>después</strong> de confirmar la persistencia del documento y está envuelto en un <code>try/except Exception</code> que solo loguea un <code>warning</code> (líneas 302-308) — si SQS no está disponible en ese instante, el documento queda <code>PENDING</code> indefinidamente sin un mecanismo de reconciliación automática visible en el código inspeccionado (a diferencia de los pagos, que sí tienen <code>workers/pending_activation_reconciler</code> y <code>workers/stale_payment_cleaner</code>). Registrado en la sección 10 del documento principal.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_flujo_b_pago_de_suscripción_con_dlocal_go_smartfields_ampliación_de_la_sección_5_2">Flujo B — Pago de suscripción con dLocal Go SmartFields (ampliación de la sección 5.2)</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code>Frontend (features/subscriptions/use-3ds-flow.ts, use-dlocal-smartfields.ts)
+  → POST /subscriptions/payments                (público, throttled)
+  → subscriptions/handler.py:56  _create_payment()
+       └─ CreatePaymentUseCase → dLocal crea orden → Payment persistido
+
+  → POST /subscriptions/payments/{order_id}/confirm   (público)
+  → subscriptions/handler.py:84  _confirm_payment()
+       └─ ConfirmPaymentUseCase.execute()  (confirm_payment.py:41-85)
+            ├─ hmac.compare_digest(payment.checkout_token, header)   (línea 44-48)
+            ├─ rechaza si status ∈ {PAID, AUTHORIZED, PENDING}        (línea 50-51)
+            ├─ dlocal.confirm_payment(...)                             (línea 53-62)
+            └─ transición: confirm() | mark_pending() | fail()         (líneas 70-77)
+
+  ⇄ (asíncrono, iniciado por dLocal)
+  → POST /subscriptions/webhooks/dlocal          (público, HMAC-verificado)
+  → subscriptions/handler.py:171  _dlocal_webhook()
+       ├─ _verify_dlocal_signature(raw_body, x-signature, secret_key)  (línea 123-125)
+       └─ _enqueue_dlocal_webhook() → SQS dlocal-webhook-queue          (línea 128-144)
+                                                       │
+                                                       ▼
+workers/dlocal_webhook_processor/handler.py  [SQS trigger]
+  └─ procesa el evento de forma desacoplada de la latencia del webhook HTTP</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Renovación automática (no disparada por el usuario): <code>workers/subscription_renewal_notifier</code> corre diario (<code>cron(0 10 * * ? *)</code>, <code>api_stack.py:518-522</code>) → <code>NotifySubscriptionRenewalUseCase.execute()</code> (<code>workers/subscription_renewal_notifier/use_case.py:85-136</code>) recorre tenants con vencimiento próximo (<code>list_with_subscription_expiry_due</code>) y por cada uno: envía recordatorio a 7 días (<code>_REMINDER_DAYS</code>, línea 24), o si ya venció, intenta auto-cobro con el <code>dlocal_payer_id</code> guardado (<code>_try_auto_charge</code>, línea 196) usando un <strong>marcador de reconciliación</strong> (<code>create_auto_renewal_reconciliation_marker</code>, línea 217) para evitar doble cobro si el proceso se reintenta a medio camino — si el marcador ya existe, no cobra de nuevo y alerta para reconciliación manual (<code>auto_charge_reconciliation_required</code>, líneas 225-247). Si dLocal falla o el guardado transaccional posterior al cobro exitoso falla, también se marca para reconciliación manual en vez de perder el cobro silenciosamente (<code>_AutoRenewalReconciliationRequiredError</code>, líneas 257-320). Tenants en <code>PAYMENT_FAILED</code> tienen una gracia de 7 días (<code>_PAYMENT_FAILED_GRACE_DAYS</code>, línea 25) antes de expirar la suscripción definitivamente.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_flujo_c_onboarding_self_service_con_otp_ampliación_de_la_sección_5_3">Flujo C — Onboarding self-service con OTP (ampliación de la sección 5.3)</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight"><code>POST /onboarding/otp/request  (público, throttle burst=5 rate=1)
+  → onboarding/handler.py:63  _request_otp()
+       ├─ RequestOnboardingOtpUseCase.execute()  → genera OTP, decide self_service vs lead
+       └─ _verification_repo().commit_request(verification, events, idempotency, response)
+
+POST /onboarding/otp/confirm  (público, throttle burst=10 rate=2)
+  → onboarding/handler.py:102  _confirm_otp()
+       ├─ ConfirmOnboardingOtpUseCase.execute()
+       └─ bifurca por resultado:
+            ├─ result.tenant → _commit_repo().commit_tenant_registration(...)  (201, tenant creado)
+            └─ result.lead   → _commit_repo().commit_enterprise_lead(...)      (201, "Te contactaremos pronto")</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Ambas ramas comparten el mismo mecanismo transaccional: la respuesta HTTP ya construida (<code>ApiResponse.created</code>) se pasa como argumento al método de commit del repositorio, que la serializa como parte de la misma transacción DynamoDB que cierra la idempotencia (<code>completion_transact_item</code>, ver <code>modules/evidencia.adoc</code>) — evita el caso donde el negocio se persiste pero la respuesta de idempotencia queda desincronizada.</p>
+</div>
+<div class="paragraph">
+<p>El worker asociado, <code>workers/tenant_onboarding</code>, consume la cola <code>tenant-onboarding</code> (<code>api_stack.py:326-357</code>) para crear el usuario <code>owner</code> en Cognito (<code>cognito-idp:AdminCreateUser</code>) de forma asíncrona tras el registro — desacopla la latencia de Cognito de la respuesta HTTP del OTP.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_flujo_d_ciclo_de_vida_del_certificado_digital_resumen">Flujo D — Ciclo de vida del certificado digital (resumen)</h3>
+<div class="paragraph">
+<p><code>PUT /tenants/{id}/certificate</code> (JWT; <code>owner</code>/<code>admin</code> del mismo tenant o superadmin, <code>_authorize_tenant</code>, <code>certificates/handler.py:47-51</code>) → <code>UpdateCertificateUseCase</code> valida el <code>.p12</code> con <code>CertificateValidator.validate_base64</code> (tamaño máximo 50KB, RUC del certificado vs. RUC del tenant, contraseña no vacía — <code>shared/certificates/validator.py:22-42</code>) y lo guarda en Secrets Manager vía <code>CertificateStore</code>; tras el commit se hace <strong>best-effort</strong> bootstrap del punto de emisión de pruebas 001/099 (<code>_bootstrap_testing_point</code>, <code>certificates/handler.py:56-63</code>). El worker diario <code>workers/certificate_expiry_notifier</code> (<code>cron(0 9 * * ? *)</code>) alerta a los tenants 60 y 30 días antes del vencimiento del certificado (comentario en <code>api_stack.py:430-432</code>).</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_anexo_backend_backend">Anexo — Backend (<code>backend/</code>)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Muestra representativa dado el volumen del código (441 archivos <code>.py</code>, 70 archivos de casos de uso, excluyendo <code>__init__.py</code>, 22 <code>handler.py</code>). El análisis es representativo. Las rutas y roles se contrastan con los handlers citados y su registro en <code>infra/stacks/api_stack.py</code>; los comentarios de cabecera por sí solos no demuestran autorización.</p>
+</div>
+<div class="sect2">
+<h3 id="_capa_compartida_backendshared">Capa compartida (<code>backend/shared/</code>)</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><code>shared/db/base_repository.py</code> — repositorio base (ver cita completa en sección 7 del documento principal).</p>
+</li>
+<li>
+<p><code>shared/db/client.py</code>, <code>db/transactions.py</code>, <code>db/paginator.py</code> (cursores opacos base64 para paginación), <code>db/counts.py</code> (<code>paginated_count</code>, usado por <code>_count_raw</code>), <code>db/locks.py</code> (locks transaccionales de unicidad, p.ej. RUC de tenant, SKU de producto, identificación de cliente — patrón mencionado explícitamente en los comentarios de <code>database_stack.py</code>, líneas 39-40, 140-141, 163).</p>
+</li>
+<li>
+<p><code>shared/audit/writer.py</code> — construye el ítem de auditoría (<code>audit_item</code>) consumido por <code>BaseRepository._audit</code> (<code>base_repository.py:183-206</code>).</p>
+</li>
+<li>
+<p><code>shared/certificates/</code> — <code>validator.py</code> (validación <code>.p12</code>, ver sección 6), <code>store.py</code> (persistencia en Secrets Manager), <code>metadata.py</code>, <code>expiry.py</code>, <code>errors.py</code>.</p>
+</li>
+<li>
+<p><code>shared/secrets/client.py</code> — <code>get_secret_json</code>, usado por <code>auth</code>, <code>subscriptions</code>, <code>tenants</code> para leer credenciales de dLocal Go sin exponerlas como variables de entorno con valor literal.</p>
+</li>
+<li>
+<p><code>shared/domain/events/</code> — <code>outbox.py</code>, <code>publisher.py</code> (<code>EventPublisher</code>, <code>DirectPublishReason</code>), <code>domain_event.py</code> (ver <code>modules/evidencia.adoc</code>).</p>
+</li>
+<li>
+<p><code>shared/domain/base_entity.py</code> — <code>TenantScopedEntity</code>, tipo base referenciado por <code>BaseRepository._to_item</code>/<code>_from_item</code> (abstractos, <code>base_repository.py:210-216</code>).</p>
+</li>
+<li>
+<p><code>shared/domain/value_objects/</code> — incluye <code>ruc.py</code> (value object <code>RUC</code>, usado en <code>CertificateValidator.validate_bytes</code>, <code>validator.py:54</code>, para normalizar y comparar el RUC del certificado contra el del tenant).</p>
+</li>
+<li>
+<p><code>shared/logger.py</code> — logging estructurado; <code>bind_invocation_context</code>/<code>clear_invocation_context</code> consumidos por <code>_base/handler.py</code> y <code>_base/sqs_handler.py</code>.</p>
+</li>
+<li>
+<p><code>shared/errors.py</code> — jerarquía <code>AppError</code> (<code>NotFoundError</code>, <code>ForbiddenError</code>, <code>ValidationError</code>, <code>OptimisticLockError</code>, <code>DatabaseError</code>, <code>ExternalServiceError</code>, <code>IdempotencyInProgressError</code>, <code>IdempotencyKeyReusedError</code>, entre otras) mapeada a códigos HTTP por <code>ApiResponse.error</code> (<code>_base/response.py</code>).</p>
+</li>
+<li>
+<p><code>shared/billing.py</code> — cálculo de precios (<code>gross_price</code>, <code>plan_net_price</code>), usado por <code>subscriptions</code> y por <code>workers/subscription_renewal_notifier/use_case.py:210</code>.</p>
+</li>
+<li>
+<p><code>shared/dates.py</code> — <code>isoformat_ecuador</code>, <code>now_utc</code> (normalización horaria a la zona de Ecuador para fechas visibles al usuario/SRI).</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_capa_transversal_de_lambda_backendlambdas_base">Capa transversal de Lambda (<code>backend/lambdas/_base/</code>)</h3>
+<div class="paragraph">
+<p><code>handler.py</code> (decoradores HTTP), <code>sqs_handler.py</code> (decorador para colas), <code>permissions.py</code> (<code>require_superadmin</code>, <code>require_role</code>), <code>idempotency.py</code> (ver <code>modules/evidencia.adoc</code>), <code>parser.py</code> (<code>Request.from_event</code>, <code>parse</code>, <code>require_path_param</code>), <code>response.py</code> (<code>ApiResponse</code> — envelope uniforme <code>{success, data, error}</code>), <code>query_params.py</code> (<code>parse_enum_query_param</code>, <code>parse_list_limit</code>).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_dominios_http_estructura_verificada">Dominios HTTP — estructura verificada</h3>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 50%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Dominio</th>
+<th class="tableblock halign-left valign-top">Subcarpetas presentes</th>
+<th class="tableblock halign-left valign-top">Rutas HTTP representativas y fuente</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>auth</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>domain/</code> (<code>commands</code>, <code>errors</code>, <code>events</code>, <code>password_reset</code>, <code>results</code>, <code>repositories/i_auth_provider.py</code>), <code>infra/</code> (<code>cognito_auth_provider.py</code>, <code>password_reset_repository.py</code>, <code>srp.py</code>), <code>use_cases/</code> (6), <code>schemas.py</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /auth/{login,refresh,logout,challenge,forgot-password,reset-password}</code> — todas públicas (<code>auth/handler.py:6-12</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>onboarding</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>domain/</code>, <code>infra/</code> (<code>enterprise_lead_repository.py</code>, <code>identity_provider.py</code>, <code>onboarding_commit_repository.py</code>, <code>onboarding_verification_repository.py</code>, <code>plan_catalog.py</code>), <code>use_cases/</code>, <code>schemas.py</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /onboarding/otp/{request,confirm}</code> — públicas, throttled (<code>onboarding/handler.py:160-166</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>subscriptions</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>domain/entities/payment.py</code>, <code>domain/repositories/</code> (<code>i_dlocal_client</code>, <code>i_payment_repository</code>, <code>i_plan_catalog</code>), <code>infra/</code> (<code>dlocal_client.py</code>, <code>payment_repository.py</code>, <code>plan_catalog.py</code>), <code>use_cases/</code> (5: <code>confirm_payment</code>, <code>create_payment</code>, <code>get_payment</code>, <code>process_webhook</code>, <code>refund_payment</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /subscriptions/payments</code>, <code>POST &#8230;&#8203;/confirm</code>, <code>GET &#8230;&#8203;/{order_id}</code>, <code>POST &#8230;&#8203;/refund</code> (JWT superadmin), <code>POST /subscriptions/webhooks/dlocal</code> (HMAC) — <code>subscriptions/handler.py:6-11</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>tenants</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>domain/</code> (<code>enums</code>, <code>tenant.py</code>, <code>events</code>, <code>dashboard_summary.py</code>, <code>repositories/</code>), <code>infra/</code> (<code>payment_reader.py</code>, <code>plan_catalog.py</code>, <code>tenant_repository.py</code>), <code>use_cases/</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">12 casos de uso: CRUD, cambio de plan/status, activación/renovación/reintento de suscripción, reintento de onboarding, dashboard superadmin (<code>tenants/handler.py:5-18</code>, roles mixtos <code>superadmin</code>|<code>owner</code>|<code>admin</code> según ruta).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>certificates</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>use_cases/</code> (<code>get_certificate</code>, <code>update_certificate</code>), sin <code>domain/</code>/<code>infra/</code> propios — reutiliza <code>shared/certificates/</code> y <code>tenants/infra/tenant_repository.py</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET/PUT /tenants/{id}/certificate</code> (JWT, mismo tenant y rol permitido, o superadmin).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>sequences</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>domain/entities.py</code>, <code>infra/sequences_repository.py</code>, <code>use_cases/</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET/POST /tenants/{id}/establishments</code>, <code>POST/PATCH &#8230;&#8203;/emission-points{/{point}}</code> (<code>api_stack.py:761-772</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>products</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>domain/</code>, <code>infra/</code>, <code>use_cases/</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">CRUD <code>/products</code>, <code>GET/PUT /products/discount-campaign</code> (<code>api_stack.py:741-755</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>clients</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>domain/</code>, <code>infra/</code>, <code>use_cases/</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">CRUD <code>/clients</code> (<code>api_stack.py:723-735</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>plans</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>domain/plan.py</code>, <code>domain/commands.py</code>, <code>domain/errors.py</code>, <code>infra/plan_repository.py</code>, <code>use_cases/</code> (<code>create_plan</code>, <code>get_plan</code>, <code>list_plans</code>, <code>toggle_plan</code>, <code>update_plan</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /plans</code>, <code>GET /plans/{id}</code> públicas (pricing); <code>POST/PATCH /plans*</code>, <code>GET /superadmin/plans*</code> bajo JWT (<code>api_stack.py:997-1021</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>documents</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>domain/entities.py</code>, <code>domain/commands.py</code>, <code>domain/errors.py</code>, <code>infra/</code> (<code>discount_campaign_catalog</code>, <code>documents_repository</code>, <code>plan_reader</code>, <code>product_catalog</code>, <code>sequences_adapter</code>), <code>use_cases/</code> (9: <code>annul_document</code>, <code>emit_credit_note</code>, <code>emit_document</code>, <code>get_document</code>, <code>get_documents_summary</code>, <code>get_ride_url</code>, <code>get_xml_url</code>, <code>list_documents</code>, <code>retry_document</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Ver cita completa en sección 5.1 y <code>documents/handler.py:6-23</code> (incluye nota de deprecación de <code>annul</code> en favor de nota de crédito, línea 15-16).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>invoice_processor</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sin <code>schemas.py</code> (no HTTP); módulos de dominio propios en la raíz: <code>events.py</code>, <code>ports.py</code>, <code>ride_builder.py</code>, <code>signing.py</code>, <code>sri_client.py</code>, <code>sri_error_classifier.py</code>, <code>sri_error_mapper.py</code>, <code>xml_builder.py</code>; <code>infra/</code> (<code>certificate_loader</code>, <code>s3_document_storage</code>, <code>sqs_event_publisher</code>); <code>use_cases/</code> (<code>poll_document</code>, <code>sign_document</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sin rutas HTTP — consumidor SQS puro, rutea por <code>type</code> (<code>SIGN</code>|<code>POLL</code>) del mensaje (<code>invoice_processor/handler.py:42-62</code>).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect2">
+<h3 id="_workers_backendlambdasworkers_disparadores_verificados_en_infrastacksapi_stack_py">Workers (<code>backend/lambdas/workers/</code>) — disparadores verificados en <code>infra/stacks/api_stack.py</code></h3>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 16.6666%;">
+<col style="width: 50.0001%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Worker</th>
+<th class="tableblock halign-left valign-top">Disparador</th>
+<th class="tableblock halign-left valign-top">Propósito (comentario real del código)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>outbox_relay</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">DynamoDB Stream (tabla <code>outbox</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Reenvía eventos del outbox a las colas SQS correspondientes (<code>api_stack.py:292-322</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>tenant_onboarding</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SQS <code>tenant-onboarding</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Crea el usuario <code>owner</code> en Cognito tras el registro (<code>api_stack.py:324-357</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>email_notifications</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SQS <code>email-notifications</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Envío de correo transaccional vía Brevo (<code>api_stack.py:359-403</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>migrations</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Invocación manual/CI-CD</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Ejecuta migraciones de datos una sola vez, registradas en <code>MIGRATIONS_TABLE</code> (<code>api_stack.py:405-428</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>certificate_expiry_notifier</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">EventBridge <code>cron(0 9 * * ? *)</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Alerta 60/30 días antes del vencimiento del certificado <code>.p12</code> (<code>api_stack.py:430-470</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>subscription_renewal_notifier</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">EventBridge <code>cron(0 10 * * ? *)</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recordatorio de renovación + expiración + auto-cobro con reconciliación (<code>api_stack.py:472-522</code>, detalle en <code>modules/arquitectura_y_flujos.adoc</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>orphan_payment_notifier</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">EventBridge <code>cron(0 * * * ? *)</code> (cada hora)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Detecta pagos <code>PAID</code> sin tenant vinculado y alerta al superadmin (<code>api_stack.py:524-565</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>stale_payment_cleaner</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">EventBridge <code>cron(15 * * * ? *)</code> (cada hora)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Cancela localmente pagos <code>CREATED</code>/<code>PENDING</code> abandonados por 24h (<code>STALE_PAYMENT_GRACE_MINUTES=1440</code>, <code>api_stack.py:567-591</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pending_activation_reconciler</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">EventBridge <code>rate(5 minutes)</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Activa tenants con pago confirmado pero cuya activación local se perdió (<code>api_stack.py:593-621</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dlocal_webhook_processor</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SQS <code>dlocal-webhook-queue</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Procesa el webhook de dLocal ya verificado por firma, de forma asíncrona (<code>api_stack.py:1099-1121</code>).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect2">
+<h3 id="_tests_backendtests">Tests (<code>backend/tests/</code>)</h3>
+<div class="paragraph">
+<p>77 archivos <code>test_*.py</code> bajo <code>backend/tests/unit/lambdas/&lt;dominio&gt;/</code> (un subdirectorio por cada uno de los 10 dominios HTTP más <code>invoice_processor</code>, <code>_base</code> y <code>workers</code>) y <code>backend/tests/unit/shared/</code>. Configuración de cobertura en <code>backend/pyproject.toml</code>: <code>fail_under = 70</code>, fuente <code>lambdas,shared</code>, excluye <code>.venv</code>, <code>tests</code>, <code>migrations</code>. No se ejecutó la suite como parte de esta documentación (fuera de alcance: solo lectura del worktree); el conteo de archivos de test es evidencia directa de que <strong>todos</strong> los dominios HTTP tienen al menos un test unitario, no evidencia del resultado de ejecutarlos.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_anexo_frontend_frontend">Anexo — Frontend (<code>frontend/</code>)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Muestra representativa dado el volumen del código (340 archivos <code>.ts</code>/<code>.tsx</code>, 43 pantallas, 95 componentes entre <code>features/**/components/</code> y <code>frontend/components/</code>, 44 archivos de test Vitest). No se documenta cada pantalla individualmente; se documenta la estructura de enrutamiento (evidencia completa por ser un árbol de archivos pequeño y determinístico) y los módulos transversales (<code>lib/</code>) con cita real.</p>
+</div>
+<div class="sect2">
+<h3 id="_enrutamiento_frontendapp_expo_router_convención_de_archivos">Enrutamiento (<code>frontend/app/</code>, Expo Router — convención de archivos)</h3>
+<div class="paragraph">
+<p>Grupos de layout verificados (carpetas entre paréntesis no generan segmento de URL, son agrupadores de layout de Expo Router):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>(public)/</code> — <code>_layout.tsx</code>, <code>components.tsx</code> (showcase de design system), <code>legal/{privacy,refund,terms}.tsx</code>, <code>register/{details,otp,confirm}.tsx</code> (flujo de onboarding público, consume <code>features/onboarding</code>).</p>
+</li>
+<li>
+<p><code>(auth)/</code> — <code>_layout.tsx</code>, <code>login.tsx</code>, <code>challenge.tsx</code> (reto Cognito, p.ej. <code>NEW_PASSWORD_REQUIRED</code>), <code>forgot-password.tsx</code>, <code>reset-password.tsx</code>.</p>
+</li>
+<li>
+<p><code>(app)/</code> — <code>_layout.tsx</code> (guardia de sesión — requiere <code>hydrated &amp;&amp; idToken</code>, ver <code>frontend/app/(app)/_layout.tsx:9-16</code> y el selector <code>selectIsAuthenticated</code> de <code>frontend/features/auth/store.ts</code>), <code>confirm-plan.tsx</code>, <code>activate-subscription.tsx</code>, <code>upload-certificate.tsx</code> (pasos post-registro compartidos por cualquier rol autenticado).</p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>(app)/(tenant)/</code> — <code>_layout.tsx</code>, <code>dashboard.tsx</code>, <code>billing.tsx</code>, <code>clients/</code>, <code>products/</code>, <code>documents/</code>, <code>credit-notes/</code>, <code>settings/</code> — área operativa del tenant (<code>owner</code>\|<code>admin</code>\|<code>viewer</code>).</p>
+</li>
+<li>
+<p><code>(app)/(superadmin)/</code> — <code>_layout.tsx</code>, <code>dashboard.tsx</code>, <code>tenants/</code>, <code>plans/</code> — área exclusiva de plataforma.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Raíz: <code>_layout.tsx</code> (layout global de la app), <code>index.tsx</code> (landing / redirección según sesión), <code>+html.tsx</code> (shell HTML para el build web de Expo Router).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>La separación de carpetas <code>(tenant)</code> vs. <code>(superadmin)</code> bajo el mismo grupo <code>(app)</code> refleja directamente los mismos dos ámbitos de autorización que el backend expone vía <code>custom:role</code>/<code>custom:is_superadmin</code> (ver sección 6 del documento principal) — no hay un tercer layout para <code>viewer</code>: ese rol comparte el layout de <code>(tenant)</code> con acceso de solo lectura controlado a nivel de componente/hook, no de ruta (no se encontró una ruta exclusiva de <code>viewer</code> en el árbol de <code>app/</code>).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_features_frontendfeaturesdominio_paralelismo_con_dominios_backend">Features (<code>frontend/features/&lt;dominio&gt;/</code>) — paralelismo con dominios backend</h3>
+<div class="paragraph">
+<p>Cada carpeta de dominio replica, con variaciones, el patrón <code>api.ts</code> (llamadas HTTP tipadas) + <code>schemas.ts</code> (validación Zod) + <code>types.ts</code> + <code>hooks/</code> + <code>screens/</code> + <code>components/</code>: <code>auth</code>, <code>clients</code>, <code>documents</code>, <code>onboarding</code>, <code>plans</code>, <code>products</code>, <code>sequences</code>, <code>subscriptions</code>, <code>tenants</code>. Dos features sin contraparte 1:1 en el backend: <code>design-system</code> (catálogo visual interno, sin API propia) y <code>marketing</code>/<code>navigation</code> (landing pública y navegación entre pantallas, respectivamente — capas de presentación puras).</p>
+</div>
+<div class="paragraph">
+<p>Ejemplo verificado de la profundidad real de una feature (<code>subscriptions/</code>): <code>api.ts</code>, <code>schemas.ts</code>, <code>dlocal-types.ts</code>, <code>dlocal-field-options.ts</code>, <code>use-dlocal-smartfields.ts</code> (integración con el SDK externo de dLocal Go SmartFields cargado dinámicamente, ver <code>frontend/constants/config.ts:38-42</code>, <code>resolveDLocalGoSdkUrl</code>), <code>use-3ds-flow.ts</code> + <code>use-3ds-flow.test.ts</code> (manejo del reto 3-D Secure del banco emisor durante la confirmación de pago).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_infraestructura_transversal_frontendlib">Infraestructura transversal (<code>frontend/lib/</code>)</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><code>lib/api/client.ts</code> — cliente HTTP central (ver cita completa en <code>modules/evidencia.adoc</code>), <code>errors.ts</code> (<code>ApiError</code>), <code>types.ts</code> (contrato <code>ApiEnvelope</code>), con tests propios (<code>client.test.ts</code>, <code>idempotency.test.ts</code>).</p>
+</li>
+<li>
+<p><code>lib/hooks/</code> — <code>useFetch</code>, <code>useAsync</code>, <code>useFormSubmit</code>, <code>useCursorPagedList</code>/<code>useEagerPagedList</code>/<code>useLocalPagedItems</code>/<code>usePaginatedList</code> (variantes de paginación consumidas por las listas de <code>clients</code>, <code>products</code>, <code>documents</code>, <code>tenants</code>), <code>useDebouncedSearch</code>, <code>useRefreshOnFocus</code>, <code>useNow</code>, <code>useCertificateFilePicker</code>, <code>useIsDesktopLayout</code> — 8 de estos 12 hooks tienen test unitario dedicado (<code>*.test.ts</code> junto al hook).</p>
+</li>
+<li>
+<p><code>lib/utils/</code> — <code>jwt.ts</code> (<code>decodeJwtClaims</code>, <code>isTokenExpired</code>, consumidos por <code>features/auth/store.ts</code> y <code>lib/api/client.ts</code>), <code>ruc.ts</code> (validación de RUC ecuatoriano, con test), <code>date-range.ts</code>, <code>ecuador-time.ts</code>, <code>form-validators.ts</code>, <code>format.ts</code>, <code>retry.ts</code>.</p>
+</li>
+<li>
+<p><code>lib/theme-context.tsx</code> — contexto de tema claro/oscuro para el design system.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_autenticación_y_sesión_frontend">Autenticación y sesión (frontend)</h3>
+<div class="paragraph">
+<p><code>features/auth/store.ts</code> (Zustand, ver cita completa en <code>modules/evidencia.adoc</code>) mantiene <code>user</code>, <code>idToken</code>, <code>accessToken</code>, <code>refreshToken</code>, <code>hydrated</code> en memoria; <code>features/auth/storage.ts</code> persiste los tokens según plataforma (<code>expo-secure-store</code> en nativo, <code>sessionStorage</code>/<code>localStorage</code> en web). <code>features/auth/api.ts</code> implementa las llamadas a <code>/auth/*</code>; <code>features/auth/schemas.ts</code> valida los formularios de login/reset con Zod (con test <code>schemas.test.ts</code>); <code>features/auth/hooks/</code> expone hooks de conveniencia sobre el store.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_configuración_de_entorno_frontendconstantsconfig_ts">Configuración de entorno (<code>frontend/constants/config.ts</code>)</h3>
+<div class="paragraph">
+<p>Resolución en cascada verificada (líneas 9-27): variable de entorno de build <code>EXPO_PUBLIC_API_URL</code> → <code>Constants.expoConfig.extra.apiUrl</code> (inyectado en CI/CD) → default hardcodeado por entorno (<code>DEV_API_URL</code>, <code>STAGING_API_URL</code>, <code>PROD_API_URL</code>, todas bajo <code>codelabsecuador.com</code>, líneas 5-7) → si <code>__DEV__</code> usa el default de dev. Mismo patrón para <code>EXPO_PUBLIC_DLOCALGO_SMARTFIELDS_KEY</code> (clave pública, no secreta, del SDK de checkout de dLocal Go).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_tests_frontend">Tests (frontend)</h3>
+<div class="paragraph">
+<p>44 archivos <code><strong>.test.ts</code>/<code></strong>.test.tsx</code> con Vitest (<code>npm run test:run</code> en <code>make ci-frontend</code>), distribuidos junto a los archivos que prueban (no en un directorio <code>__tests__/</code> centralizado) — patrón consistente en <code>lib/hooks/</code>, <code>lib/utils/</code>, y varias <code>features/&lt;dominio&gt;/</code>. No se detectaron tests end-to-end (Playwright/Detox) en el árbol inspeccionado; la cobertura verificada es unitaria/de integración ligera (hooks, schemas, formularios, cliente HTTP).</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2026-09-15 22:00:12 -0500
+</div>
+</div>
+</body>
+</html>

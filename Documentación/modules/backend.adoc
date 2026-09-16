@@ -1,0 +1,124 @@
+== Anexo — Backend (`backend/`)
+
+Muestra representativa dado el volumen del código (441 archivos `.py`, 70 archivos de casos de uso, excluyendo `+__init__.py+`, 22 `handler.py`). El análisis es representativo. Las rutas y roles se contrastan con los handlers citados y su registro en `infra/stacks/api_stack.py`; los comentarios de cabecera por sí solos no demuestran autorización.
+
+=== Capa compartida (`backend/shared/`)
+
+* `shared/db/base_repository.py` — repositorio base (ver cita completa en sección 7 del documento principal).
+* `shared/db/client.py`, `db/transactions.py`, `db/paginator.py` (cursores opacos base64 para paginación), `db/counts.py` (`paginated_count`, usado por `_count_raw`), `db/locks.py` (locks transaccionales de unicidad, p.ej. RUC de tenant, SKU de producto, identificación de cliente — patrón mencionado explícitamente en los comentarios de `database_stack.py`, líneas 39-40, 140-141, 163).
+* `shared/audit/writer.py` — construye el ítem de auditoría (`audit_item`) consumido por `BaseRepository._audit` (`base_repository.py:183-206`).
+* `shared/certificates/` — `validator.py` (validación `.p12`, ver sección 6), `store.py` (persistencia en Secrets Manager), `metadata.py`, `expiry.py`, `errors.py`.
+* `shared/secrets/client.py` — `get_secret_json`, usado por `auth`, `subscriptions`, `tenants` para leer credenciales de dLocal Go sin exponerlas como variables de entorno con valor literal.
+* `shared/domain/events/` — `outbox.py`, `publisher.py` (`EventPublisher`, `DirectPublishReason`), `domain_event.py` (ver `modules/evidencia.adoc`).
+* `shared/domain/base_entity.py` — `TenantScopedEntity`, tipo base referenciado por `BaseRepository._to_item`/`_from_item` (abstractos, `base_repository.py:210-216`).
+* `shared/domain/value_objects/` — incluye `ruc.py` (value object `RUC`, usado en `CertificateValidator.validate_bytes`, `validator.py:54`, para normalizar y comparar el RUC del certificado contra el del tenant).
+* `shared/logger.py` — logging estructurado; `bind_invocation_context`/`clear_invocation_context` consumidos por `_base/handler.py` y `_base/sqs_handler.py`.
+* `shared/errors.py` — jerarquía `AppError` (`NotFoundError`, `ForbiddenError`, `ValidationError`, `OptimisticLockError`, `DatabaseError`, `ExternalServiceError`, `IdempotencyInProgressError`, `IdempotencyKeyReusedError`, entre otras) mapeada a códigos HTTP por `ApiResponse.error` (`_base/response.py`).
+* `shared/billing.py` — cálculo de precios (`gross_price`, `plan_net_price`), usado por `subscriptions` y por `workers/subscription_renewal_notifier/use_case.py:210`.
+* `shared/dates.py` — `isoformat_ecuador`, `now_utc` (normalización horaria a la zona de Ecuador para fechas visibles al usuario/SRI).
+
+=== Capa transversal de Lambda (`backend/lambdas/_base/`)
+
+`handler.py` (decoradores HTTP), `sqs_handler.py` (decorador para colas), `permissions.py` (`require_superadmin`, `require_role`), `idempotency.py` (ver `modules/evidencia.adoc`), `parser.py` (`Request.from_event`, `parse`, `require_path_param`), `response.py` (`ApiResponse` — envelope uniforme `{success, data, error}`), `query_params.py` (`parse_enum_query_param`, `parse_list_limit`).
+
+=== Dominios HTTP — estructura verificada
+
+[cols="1,3,2"]
+|===
+| Dominio | Subcarpetas presentes | Rutas HTTP representativas y fuente
+
+| `auth`
+| `domain/` (`commands`, `errors`, `events`, `password_reset`, `results`, `repositories/i_auth_provider.py`), `infra/` (`cognito_auth_provider.py`, `password_reset_repository.py`, `srp.py`), `use_cases/` (6), `schemas.py`
+| `POST /auth/{login,refresh,logout,challenge,forgot-password,reset-password}` — todas públicas (`auth/handler.py:6-12`).
+
+| `onboarding`
+| `domain/`, `infra/` (`enterprise_lead_repository.py`, `identity_provider.py`, `onboarding_commit_repository.py`, `onboarding_verification_repository.py`, `plan_catalog.py`), `use_cases/`, `schemas.py`
+| `POST /onboarding/otp/{request,confirm}` — públicas, throttled (`onboarding/handler.py:160-166`).
+
+| `subscriptions`
+| `domain/entities/payment.py`, `domain/repositories/` (`i_dlocal_client`, `i_payment_repository`, `i_plan_catalog`), `infra/` (`dlocal_client.py`, `payment_repository.py`, `plan_catalog.py`), `use_cases/` (5: `confirm_payment`, `create_payment`, `get_payment`, `process_webhook`, `refund_payment`)
+| `POST /subscriptions/payments`, `POST .../confirm`, `GET .../{order_id}`, `POST .../refund` (JWT superadmin), `POST /subscriptions/webhooks/dlocal` (HMAC) — `subscriptions/handler.py:6-11`.
+
+| `tenants`
+| `domain/` (`enums`, `tenant.py`, `events`, `dashboard_summary.py`, `repositories/`), `infra/` (`payment_reader.py`, `plan_catalog.py`, `tenant_repository.py`), `use_cases/`
+| 12 casos de uso: CRUD, cambio de plan/status, activación/renovación/reintento de suscripción, reintento de onboarding, dashboard superadmin (`tenants/handler.py:5-18`, roles mixtos `superadmin`\|`owner`\|`admin` según ruta).
+
+| `certificates`
+| `use_cases/` (`get_certificate`, `update_certificate`), sin `domain/`/`infra/` propios — reutiliza `shared/certificates/` y `tenants/infra/tenant_repository.py`
+| `GET/PUT /tenants/{id}/certificate` (JWT, mismo tenant y rol permitido, o superadmin).
+
+| `sequences`
+| `domain/entities.py`, `infra/sequences_repository.py`, `use_cases/`
+| `GET/POST /tenants/{id}/establishments`, `POST/PATCH .../emission-points{/{point}}` (`api_stack.py:761-772`).
+
+| `products`
+| `domain/`, `infra/`, `use_cases/`
+| CRUD `/products`, `GET/PUT /products/discount-campaign` (`api_stack.py:741-755`).
+
+| `clients`
+| `domain/`, `infra/`, `use_cases/`
+| CRUD `/clients` (`api_stack.py:723-735`).
+
+| `plans`
+| `domain/plan.py`, `domain/commands.py`, `domain/errors.py`, `infra/plan_repository.py`, `use_cases/` (`create_plan`, `get_plan`, `list_plans`, `toggle_plan`, `update_plan`)
+| `GET /plans`, `GET /plans/{id}` públicas (pricing); `POST/PATCH /plans*`, `GET /superadmin/plans*` bajo JWT (`api_stack.py:997-1021`).
+
+| `documents`
+| `domain/entities.py`, `domain/commands.py`, `domain/errors.py`, `infra/` (`discount_campaign_catalog`, `documents_repository`, `plan_reader`, `product_catalog`, `sequences_adapter`), `use_cases/` (9: `annul_document`, `emit_credit_note`, `emit_document`, `get_document`, `get_documents_summary`, `get_ride_url`, `get_xml_url`, `list_documents`, `retry_document`)
+| Ver cita completa en sección 5.1 y `documents/handler.py:6-23` (incluye nota de deprecación de `annul` en favor de nota de crédito, línea 15-16).
+
+| `invoice_processor`
+| Sin `schemas.py` (no HTTP); módulos de dominio propios en la raíz: `events.py`, `ports.py`, `ride_builder.py`, `signing.py`, `sri_client.py`, `sri_error_classifier.py`, `sri_error_mapper.py`, `xml_builder.py`; `infra/` (`certificate_loader`, `s3_document_storage`, `sqs_event_publisher`); `use_cases/` (`poll_document`, `sign_document`)
+| Sin rutas HTTP — consumidor SQS puro, rutea por `type` (`SIGN`\|`POLL`) del mensaje (`invoice_processor/handler.py:42-62`).
+|===
+
+=== Workers (`backend/lambdas/workers/`) — disparadores verificados en `infra/stacks/api_stack.py`
+
+[cols="2,1,3"]
+|===
+| Worker | Disparador | Propósito (comentario real del código)
+
+| `outbox_relay`
+| DynamoDB Stream (tabla `outbox`)
+| Reenvía eventos del outbox a las colas SQS correspondientes (`api_stack.py:292-322`).
+
+| `tenant_onboarding`
+| SQS `tenant-onboarding`
+| Crea el usuario `owner` en Cognito tras el registro (`api_stack.py:324-357`).
+
+| `email_notifications`
+| SQS `email-notifications`
+| Envío de correo transaccional vía Brevo (`api_stack.py:359-403`).
+
+| `migrations`
+| Invocación manual/CI-CD
+| Ejecuta migraciones de datos una sola vez, registradas en `MIGRATIONS_TABLE` (`api_stack.py:405-428`).
+
+| `certificate_expiry_notifier`
+| EventBridge `cron(0 9 * * ? *)`
+| Alerta 60/30 días antes del vencimiento del certificado `.p12` (`api_stack.py:430-470`).
+
+| `subscription_renewal_notifier`
+| EventBridge `cron(0 10 * * ? *)`
+| Recordatorio de renovación + expiración + auto-cobro con reconciliación (`api_stack.py:472-522`, detalle en `modules/arquitectura_y_flujos.adoc`).
+
+| `orphan_payment_notifier`
+| EventBridge `cron(0 * * * ? *)` (cada hora)
+| Detecta pagos `PAID` sin tenant vinculado y alerta al superadmin (`api_stack.py:524-565`).
+
+| `stale_payment_cleaner`
+| EventBridge `cron(15 * * * ? *)` (cada hora)
+| Cancela localmente pagos `CREATED`/`PENDING` abandonados por 24h (`STALE_PAYMENT_GRACE_MINUTES=1440`, `api_stack.py:567-591`).
+
+| `pending_activation_reconciler`
+| EventBridge `rate(5 minutes)`
+| Activa tenants con pago confirmado pero cuya activación local se perdió (`api_stack.py:593-621`).
+
+| `dlocal_webhook_processor`
+| SQS `dlocal-webhook-queue`
+| Procesa el webhook de dLocal ya verificado por firma, de forma asíncrona (`api_stack.py:1099-1121`).
+|===
+
+=== Tests (`backend/tests/`)
+
+77 archivos `test_*.py` bajo `backend/tests/unit/lambdas/<dominio>/` (un subdirectorio por cada uno de los 10 dominios HTTP más `invoice_processor`, `_base` y `workers`) y `backend/tests/unit/shared/`. Configuración de cobertura en `backend/pyproject.toml`: `fail_under = 70`, fuente `lambdas,shared`, excluye `.venv`, `tests`, `migrations`. No se ejecutó la suite como parte de esta documentación (fuera de alcance: solo lectura del worktree); el conteo de archivos de test es evidencia directa de que **todos** los dominios HTTP tienen al menos un test unitario, no evidencia del resultado de ejecutarlos.

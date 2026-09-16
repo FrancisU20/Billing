@@ -1,0 +1,5 @@
+clasificacion,hallazgo,archivo,linea
+seguimiento recomendado,filtro soft-delete se evalua despues de Limit en DynamoDB (mitigado no eliminado) GSI futuro propuesto en el propio docstring,backend/shared/db/base_repository.py,20
+seguimiento recomendado,sin reserved_concurrent_executions; comentarios atribuyen la restriccion a cuota de cuenta (no verificada en AWS),infra/stacks/api_stack.py,831
+seguimiento recomendado,envio de mensaje SQS SIGN tras persistir documento es best-effort puede dejar documento PENDING sin reintento automatico,backend/lambdas/documents/handler.py,302
+seguimiento recomendado,prefijo tecnico CodeLabsBilling fijo por recursos ya desplegados diverge del nombre de marca Wali,infra/app.py,1

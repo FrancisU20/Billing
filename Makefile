@@ -9,7 +9,7 @@ TOKEN_TYPE ?= id
 # ── CI local — espejo exacto de pr-checks.yml ──────────────────────────────
 # Corre ANTES de cualquier push. Si falla aqui, fallara en CI.
 # Prerequisito: backend/.venv instalado con requirements.txt + requirements-ci.txt
-#               (ver CLAUDE.md > Antes de hacer push)
+#               (ver AGENTS.md > Commands)
 
 ci: ci-backend ci-security ci-frontend ci-cdk
 

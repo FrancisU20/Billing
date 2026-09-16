@@ -1,0 +1,19 @@
+dominio,caso_de_uso,archivo,linea
+documents,EmitDocumentUseCase,backend/lambdas/documents/use_cases/emit_document.py,128
+documents,EmitCreditNoteUseCase,backend/lambdas/documents/use_cases/emit_credit_note.py,31
+documents,RetryDocumentUseCase,backend/lambdas/documents/use_cases/retry_document.py,12
+invoice_processor,SignDocumentUseCase,backend/lambdas/invoice_processor/use_cases/sign_document.py,26
+invoice_processor,PollDocumentUseCase,backend/lambdas/invoice_processor/use_cases/poll_document.py,60
+subscriptions,CreatePaymentUseCase,backend/lambdas/subscriptions/use_cases/create_payment.py,34
+subscriptions,ConfirmPaymentUseCase,backend/lambdas/subscriptions/use_cases/confirm_payment.py,36
+subscriptions,RefundPaymentUseCase,backend/lambdas/subscriptions/use_cases/refund_payment.py,23
+onboarding,RequestOnboardingOtpUseCase,backend/lambdas/onboarding/use_cases/request_onboarding_otp.py,28
+onboarding,ConfirmOnboardingOtpUseCase,backend/lambdas/onboarding/use_cases/confirm_onboarding_otp.py,37
+auth,LoginUseCase,backend/lambdas/auth/use_cases/login.py,10
+auth,ForgotPasswordUseCase,backend/lambdas/auth/use_cases/forgot_password.py,13
+certificates,UpdateCertificateUseCase,backend/lambdas/certificates/use_cases/update_certificate.py,22
+workers,NotifySubscriptionRenewalUseCase,backend/lambdas/workers/subscription_renewal_notifier/use_case.py,61
+plans,CreatePlanUseCase,backend/lambdas/plans/use_cases/create_plan.py,15
+frontend,useCursorPagedList,frontend/lib/hooks/useCursorPagedList.ts,29
+frontend,use-3ds-flow,frontend/features/subscriptions/use-3ds-flow.ts,30
+frontend,api client request(),frontend/lib/api/client.ts,21

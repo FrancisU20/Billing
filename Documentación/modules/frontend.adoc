@@ -1,0 +1,41 @@
+== Anexo — Frontend (`frontend/`)
+
+Muestra representativa dado el volumen del código (340 archivos `.ts`/`.tsx`, 43 pantallas, 95 componentes entre `+features/**/components/+` y `frontend/components/`, 44 archivos de test Vitest). No se documenta cada pantalla individualmente; se documenta la estructura de enrutamiento (evidencia completa por ser un árbol de archivos pequeño y determinístico) y los módulos transversales (`lib/`) con cita real.
+
+=== Enrutamiento (`frontend/app/`, Expo Router — convención de archivos)
+
+Grupos de layout verificados (carpetas entre paréntesis no generan segmento de URL, son agrupadores de layout de Expo Router):
+
+* `(public)/` — `_layout.tsx`, `components.tsx` (showcase de design system), `legal/{privacy,refund,terms}.tsx`, `register/{details,otp,confirm}.tsx` (flujo de onboarding público, consume `features/onboarding`).
+* `(auth)/` — `_layout.tsx`, `login.tsx`, `challenge.tsx` (reto Cognito, p.ej. `NEW_PASSWORD_REQUIRED`), `forgot-password.tsx`, `reset-password.tsx`.
+* `(app)/` — `_layout.tsx` (guardia de sesión — requiere `hydrated && idToken`, ver `frontend/app/(app)/_layout.tsx:9-16` y el selector `selectIsAuthenticated` de `frontend/features/auth/store.ts`), `confirm-plan.tsx`, `activate-subscription.tsx`, `upload-certificate.tsx` (pasos post-registro compartidos por cualquier rol autenticado).
+** `(app)/(tenant)/` — `_layout.tsx`, `dashboard.tsx`, `billing.tsx`, `clients/`, `products/`, `documents/`, `credit-notes/`, `settings/` — área operativa del tenant (`owner`\|`admin`\|`viewer`).
+** `(app)/(superadmin)/` — `_layout.tsx`, `dashboard.tsx`, `tenants/`, `plans/` — área exclusiva de plataforma.
+* Raíz: `_layout.tsx` (layout global de la app), `index.tsx` (landing / redirección según sesión), `+html.tsx` (shell HTML para el build web de Expo Router).
+
+La separación de carpetas `(tenant)` vs. `(superadmin)` bajo el mismo grupo `(app)` refleja directamente los mismos dos ámbitos de autorización que el backend expone vía `custom:role`/`custom:is_superadmin` (ver sección 6 del documento principal) — no hay un tercer layout para `viewer`: ese rol comparte el layout de `(tenant)` con acceso de solo lectura controlado a nivel de componente/hook, no de ruta (no se encontró una ruta exclusiva de `viewer` en el árbol de `app/`).
+
+=== Features (`frontend/features/<dominio>/`) — paralelismo con dominios backend
+
+Cada carpeta de dominio replica, con variaciones, el patrón `api.ts` (llamadas HTTP tipadas) + `schemas.ts` (validación Zod) + `types.ts` + `hooks/` + `screens/` + `components/`: `auth`, `clients`, `documents`, `onboarding`, `plans`, `products`, `sequences`, `subscriptions`, `tenants`. Dos features sin contraparte 1:1 en el backend: `design-system` (catálogo visual interno, sin API propia) y `marketing`/`navigation` (landing pública y navegación entre pantallas, respectivamente — capas de presentación puras).
+
+Ejemplo verificado de la profundidad real de una feature (`subscriptions/`): `api.ts`, `schemas.ts`, `dlocal-types.ts`, `dlocal-field-options.ts`, `use-dlocal-smartfields.ts` (integración con el SDK externo de dLocal Go SmartFields cargado dinámicamente, ver `frontend/constants/config.ts:38-42`, `resolveDLocalGoSdkUrl`), `use-3ds-flow.ts` + `use-3ds-flow.test.ts` (manejo del reto 3-D Secure del banco emisor durante la confirmación de pago).
+
+=== Infraestructura transversal (`frontend/lib/`)
+
+* `lib/api/client.ts` — cliente HTTP central (ver cita completa en `modules/evidencia.adoc`), `errors.ts` (`ApiError`), `types.ts` (contrato `ApiEnvelope`), con tests propios (`client.test.ts`, `idempotency.test.ts`).
+* `lib/hooks/` — `useFetch`, `useAsync`, `useFormSubmit`, `useCursorPagedList`/`useEagerPagedList`/`useLocalPagedItems`/`usePaginatedList` (variantes de paginación consumidas por las listas de `clients`, `products`, `documents`, `tenants`), `useDebouncedSearch`, `useRefreshOnFocus`, `useNow`, `useCertificateFilePicker`, `useIsDesktopLayout` — 8 de estos 12 hooks tienen test unitario dedicado (`*.test.ts` junto al hook).
+* `lib/utils/` — `jwt.ts` (`decodeJwtClaims`, `isTokenExpired`, consumidos por `features/auth/store.ts` y `lib/api/client.ts`), `ruc.ts` (validación de RUC ecuatoriano, con test), `date-range.ts`, `ecuador-time.ts`, `form-validators.ts`, `format.ts`, `retry.ts`.
+* `lib/theme-context.tsx` — contexto de tema claro/oscuro para el design system.
+
+=== Autenticación y sesión (frontend)
+
+`features/auth/store.ts` (Zustand, ver cita completa en `modules/evidencia.adoc`) mantiene `user`, `idToken`, `accessToken`, `refreshToken`, `hydrated` en memoria; `features/auth/storage.ts` persiste los tokens según plataforma (`expo-secure-store` en nativo, `sessionStorage`/`localStorage` en web). `features/auth/api.ts` implementa las llamadas a `/auth/*`; `features/auth/schemas.ts` valida los formularios de login/reset con Zod (con test `schemas.test.ts`); `features/auth/hooks/` expone hooks de conveniencia sobre el store.
+
+=== Configuración de entorno (`frontend/constants/config.ts`)
+
+Resolución en cascada verificada (líneas 9-27): variable de entorno de build `EXPO_PUBLIC_API_URL` → `Constants.expoConfig.extra.apiUrl` (inyectado en CI/CD) → default hardcodeado por entorno (`DEV_API_URL`, `STAGING_API_URL`, `PROD_API_URL`, todas bajo `codelabsecuador.com`, líneas 5-7) → si `+__DEV__+` usa el default de dev. Mismo patrón para `EXPO_PUBLIC_DLOCALGO_SMARTFIELDS_KEY` (clave pública, no secreta, del SDK de checkout de dLocal Go).
+
+=== Tests (frontend)
+
+44 archivos `*.test.ts`/`*.test.tsx` con Vitest (`npm run test:run` en `make ci-frontend`), distribuidos junto a los archivos que prueban (no en un directorio `+__tests__/+` centralizado) — patrón consistente en `lib/hooks/`, `lib/utils/`, y varias `features/<dominio>/`. No se detectaron tests end-to-end (Playwright/Detox) en el árbol inspeccionado; la cobertura verificada es unitaria/de integración ligera (hooks, schemas, formularios, cliente HTTP).
