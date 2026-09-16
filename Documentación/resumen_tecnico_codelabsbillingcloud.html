@@ -556,7 +556,7 @@ pre.rouge .gs {
 <div id="header">
 <h1>Resumen técnico — CodelabsBillingCloud</h1>
 <div id="toc" class="toc2">
-<div id="toctitle">Table of Contents</div>
+<div id="toctitle">Tabla de contenido</div>
 <ul class="sectlevel1">
 <li><a href="#_1_contexto_y_metadatos">1. Contexto y metadatos</a></li>
 <li><a href="#_2_propósito_funcional">2. Propósito funcional</a></li>
@@ -620,7 +620,7 @@ pre.rouge .gs {
 <h2 id="_1_contexto_y_metadatos">1. Contexto y metadatos</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Repositorio: <code>CodelabsBillingCloud</code> (<code>wali-billing</code>). Fuente: rama local <code>develop</code>, último commit (excepción registrada: remoto inalcanzable al momento de esta instalación, ver <code>AGENTS.md</code>). SHA: <code>09a4a3b2aa87f139c4836733180edf87371c14b3</code> (commit <code>chore: retirar CLAUDE.md, context/ y docs/ (gestor de memoria y documentación 1.1)</code>). No incluye los ~82 archivos con cambios reales sin commitear presentes en el checkout local (verificado con <code>git status --short</code> antes de generar esta documentación: 82 entradas).</p>
+<p>Repositorio: <code>CodelabsBillingCloud</code> (<code>wali-billing</code>). Fuente canónica: <code>refs/heads/develop</code> del remoto autenticado, obtenida con un fetch nuevo y analizada en un worktree detached limpio. SHA: <code>92d581a9ff38ed3ad30fcc9916b4c1e401cb28e9</code>. La rama predeterminada remota es <code>develop</code>; ninguna afirmación técnica de este documento se derivó del checkout de trabajo ni de otra rama. La procedencia estructurada y los criterios de conteo están en <code>provenance.json</code>.</p>
 </div>
 <div class="paragraph">
 <p>Tecnología:</p>
@@ -774,7 +774,7 @@ pre.rouge .gs {
 <div class="sect2">
 <h3 id="_5_2_confirmación_de_pago_de_suscripción_dlocal_go">5.2 Confirmación de pago de suscripción (dLocal Go)</h3>
 <div class="paragraph">
-<p><code>POST /subscriptions/payments</code> (público, con throttling propio) → <code>_create_payment</code> (<code>subscriptions/handler.py:56-81</code>, decorado <code>@idempotent</code>) crea la orden en dLocal y persiste el <code>Payment</code> en estado inicial. El frontend confirma con <code>POST /subscriptions/payments/{order_id}/confirm</code> (público) → <code>_confirm_payment</code> (<code>subscriptions/handler.py:84-112</code>) → <code>ConfirmPaymentUseCase.execute</code> (<code>subscriptions/use_cases/confirm_payment.py:41-85</code>): valida el <code>checkout_token</code> recibido por header <code>x-checkout-token</code> contra el guardado (<code>hmac.compare_digest</code>, línea 44-48 — comparación de tiempo constante), rechaza si el pago ya está en un estado no confirmable (<code>PAID</code>/<code>AUTHORIZED</code>/<code>PENDING</code>, línea 50-51), llama a dLocal (<code>confirm_payment</code>) y, según el <code>status</code> devuelto, transiciona el pago a <code>confirm()</code>, <code>mark_pending()</code> o <code>fail()</code> (líneas 70-77). En paralelo, dLocal puede notificar por <code>POST /subscriptions/webhooks/dlocal</code> (público, autenticado por firma HMAC-SHA256 sobre el cuerpo crudo — <code>_verify_dlocal_signature</code>, <code>subscriptions/handler.py:123-125</code>); el handler solo valida la firma y encola el evento crudo en <code>DLOCAL_WEBHOOK_QUEUE_URL</code> (línea 180) para que <code>workers/dlocal_webhook_processor</code> lo procese de forma asíncrona y desacoplada de la latencia del webhook.</p>
+<p><code>POST /subscriptions/payments</code> (público, con throttling propio) → <code>_create_payment</code> (<code>subscriptions/handler.py:47-72</code>, decorado <code>@idempotent</code>) crea la orden en dLocal y persiste el <code>Payment</code> en estado inicial. El frontend confirma con <code>POST /subscriptions/payments/{order_id}/confirm</code> (público) → <code>_confirm_payment</code> (<code>subscriptions/handler.py:75-103</code>) → <code>ConfirmPaymentUseCase.execute</code> (<code>subscriptions/use_cases/confirm_payment.py:40-84</code>): valida el <code>checkout_token</code> recibido por header <code>x-checkout-token</code> contra el guardado (<code>hmac.compare_digest</code>, líneas 43-47 — comparación de tiempo constante), rechaza si el pago ya está en un estado no confirmable (<code>PAID</code>/<code>AUTHORIZED</code>/<code>PENDING</code>, líneas 49-50), llama a dLocal (<code>confirm_payment</code>) y, según el <code>status</code> devuelto, transiciona el pago a <code>confirm()</code>, <code>mark_pending()</code> o <code>fail()</code> (líneas 69-76). La construcción del cliente dLocal está centralizada en <code>subscriptions/infra/dlocal_client.py:137-145</code>, y los estados pagados aceptados (<code>PAID</code>/<code>AUTHORIZED</code>) se comparten mediante <code>PAID_STATUSES</code> en <code>subscriptions/domain/entities/payment.py</code>. En paralelo, dLocal puede notificar por <code>POST /subscriptions/webhooks/dlocal</code> (público, autenticado por firma HMAC-SHA256 sobre el cuerpo crudo — <code>_verify_dlocal_signature</code>, <code>subscriptions/handler.py:114-116</code>); el handler valida la firma y encola el evento crudo en <code>DLOCAL_WEBHOOK_QUEUE_URL</code> (<code>:119-135</code>) para que <code>workers/dlocal_webhook_processor</code> lo procese de forma asíncrona.</p>
 </div>
 </div>
 <div class="sect2">
@@ -792,16 +792,16 @@ pre.rouge .gs {
 <h2 id="_6_seguridad_y_contexto_de_ejecución">6. Seguridad y contexto de ejecución</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Autenticación: Amazon Cognito, un único User Pool para toda la plataforma (<code>infra/stacks/auth_stack.py:38-73</code>). <code>self_sign_up_enabled=False</code> — todos los usuarios requieren creación administrativa; el comentario del stack describe los roles, y el worker de onboarding crea el owner inicial. El comentario no demuestra un flujo operativo para cada rol. Flujo de login exclusivamente <code>USER_SRP_AUTH</code> (<code>user_password=False</code> en el cliente web, línea 78-83, comentario explícito "más seguro" para el intercambio SRP con Cognito; esta configuración no describe por sí sola cómo el frontend entrega la contraseña al backend) implementado en <code>backend/lambdas/auth/infra/cognito_auth_provider.py</code> con SRP real (<code>infra/srp.py</code>, uso de <code>initiate_auth</code>/<code>respond_to_auth_challenge</code> con <code>ChallengeName=PASSWORD_VERIFIER</code>, líneas 40-71). Los parámetros secretos del challenge (<code>SALT</code>, <code>SRP_B</code>, <code>SECRET_BLOCK</code>) se filtran antes de responder al cliente (<code>_sanitize_challenge_parameters</code>, <code>cognito_auth_provider.py:172-183</code>).</p>
+<p>Autenticación: Amazon Cognito, un único User Pool para toda la plataforma (<code>infra/stacks/auth_stack.py:38-73</code>). <code>self_sign_up_enabled=False</code> — todos los usuarios requieren creación administrativa; el comentario del stack describe los roles, y el worker de onboarding crea el owner inicial. El comentario no demuestra un flujo operativo para cada rol. Flujo de login exclusivamente <code>USER_SRP_AUTH</code> (<code>user_password=False</code> en el cliente web, línea 78-83, comentario explícito "más seguro" para el intercambio SRP con Cognito; esta configuración no describe por sí sola cómo el frontend entrega la contraseña al backend) implementado en <code>backend/lambdas/auth/infra/cognito_auth_provider.py</code> con SRP real (<code>infra/srp.py</code>, uso de <code>initiate_auth</code>/<code>respond_to_auth_challenge</code> con <code>ChallengeName=PASSWORD_VERIFIER</code>, líneas 40-71). Los parámetros secretos del challenge (<code>SALT</code>, <code>SRP_B</code>, <code>SECRET_BLOCK</code>) se filtran antes de responder al cliente (<code>_sanitize_challenge_parameters</code>, <code>cognito_auth_provider.py:173-184</code>). Las consultas de existencia de usuario usan <code>ListUsers</code> con filtro exacto y límite uno (<code>cognito_auth_provider.py:110-119</code>; <code>onboarding/infra/identity_provider.py:12-18</code>).</p>
 </div>
 <div class="paragraph">
 <p>Autorización: claims custom en el ID Token — <code>custom:tenant_id</code>, <code>custom:role</code> (<code>superadmin|owner|admin|viewer</code>), <code>custom:is_superadmin</code> (<code>auth_stack.py:9-16</code>). El API Gateway valida firma/expiración vía <code>HttpJwtAuthorizer</code> nativo (<code>api_stack.py:662-666</code>); la autorización de rol fino se aplica en los handlers que consumen esos controles con los decoradores <code>require_superadmin</code>/<code>require_role</code> de <code>backend/lambdas/_base/permissions.py:29-57</code> (superadmin siempre pasa; el resto exige pertenecer a la lista de roles permitidos).</p>
 </div>
 <div class="paragraph">
-<p>Certificados digitales SRI: <code>backend/shared/certificates/validator.py</code> — carga el <code>.p12</code> con <code>cryptography.hazmat.primitives.serialization.pkcs12</code>, valida tamaño máximo <code>MAX_CERTIFICATE_BYTES = 50 * 1024</code> (línea 19), exige contraseña no vacía (línea 51-52) y contrasta el RUC del certificado contra el RUC esperado del tenant (<code>CertificateRucMismatchError</code>). El endpoint de carga (<code>certificates/handler.py</code>) exige <code>owner</code>/<code>admin</code> del mismo tenant o superadmin (<code>_authorize_tenant</code>, líneas 47-51) y usa <code>IDEMPOTENCY_TABLE</code> + reintentos acotados (<code>_MAX_COMMIT_ATTEMPTS = 3</code>, línea 32) ante condiciones de carrera al actualizar el mismo tenant. El certificado se almacena en Secrets Manager bajo el prefijo <code>/codelabs-billing/{env}/tenant/*</code>, con permisos de Lambda acotados exactamente a ese prefijo (<code>_grant_certificate_secrets</code>, <code>api_stack.py:88-108</code>). <strong>Se confirma la existencia de <code>backend/lambdas/auth/infra/cognito_auth_provider.py</code> en el commit de <code>develop</code> verificado</strong> (contenido citado arriba), tal como referencia <code>AGENTS.md</code>.</p>
+<p>Certificados digitales SRI: <code>backend/shared/certificates/validator.py</code> — carga el <code>.p12</code> con <code>cryptography.hazmat.primitives.serialization.pkcs12</code>, valida tamaño máximo <code>MAX_CERTIFICATE_BYTES = 50 * 1024</code> (línea 19), exige contraseña no vacía (línea 51-52) y contrasta el RUC del certificado contra el RUC esperado del tenant (<code>CertificateRucMismatchError</code>). El endpoint de carga (<code>certificates/handler.py</code>) exige <code>owner</code>/<code>admin</code> del mismo tenant o superadmin (<code>_authorize_tenant</code>, líneas 48-52) y usa <code>IDEMPOTENCY_TABLE</code> + reintentos acotados (<code>_MAX_COMMIT_ATTEMPTS = 3</code>, línea 32) ante condiciones de carrera al actualizar el mismo tenant. El certificado se almacena en Secrets Manager bajo el prefijo <code>/codelabs-billing/{env}/tenant/*</code>, con permisos de Lambda acotados exactamente a ese prefijo (<code>_grant_certificate_secrets</code>, <code>api_stack.py:88-108</code>). <strong>Se confirma la existencia de <code>backend/lambdas/auth/infra/cognito_auth_provider.py</code> en el commit de <code>develop</code> verificado</strong> (contenido citado arriba), tal como referencia <code>AGENTS.md</code>.</p>
 </div>
 <div class="paragraph">
-<p>Webhooks externos: el webhook de dLocal Go se autentica por HMAC-SHA256 sobre el cuerpo crudo con comparación de tiempo constante (<code>_verify_dlocal_signature</code>, <code>subscriptions/handler.py:123-125</code>, <code>hmac.compare_digest</code>), no por JWT.</p>
+<p>Webhooks externos: el webhook de dLocal Go se autentica por HMAC-SHA256 sobre el cuerpo crudo con comparación de tiempo constante (<code>_verify_dlocal_signature</code>, <code>subscriptions/handler.py:114-116</code>, <code>hmac.compare_digest</code>), no por JWT.</p>
 </div>
 <div class="paragraph">
 <p>Multitenencia: <code>BaseRepository</code> exige <code>tenant_id</code> no vacío en el constructor (<code>shared/db/base_repository.py:51-52</code>) y construye <code>PK = "TENANT#{tenant_id}"</code> (<code>:59-60</code>). Este control corresponde a los repositorios que usan esa base; las tablas globales, como <code>tenants</code>, <code>plans</code> y <code>payments</code>, tienen claves diferentes y requieren verificar la autorización de sus consumidores.</p>
@@ -846,10 +846,10 @@ pre.rouge .gs {
 <p>Las entidades usan nombres diversos: <code>documents/domain/entities.py</code>, <code>sequences/domain/entities.py</code>, <code>subscriptions/domain/entities/payment.py</code>, <code>tenants/domain/tenant.py</code> y <code>plans/domain/plan.py</code>, entre otros. Contar solamente archivos llamados <code>entities.py</code> no representa el inventario de entidades.</p>
 </li>
 <li>
-<p>441 archivos <code>.py</code> en <code>backend/</code> en total; 77 archivos de test unitario (<code>backend/tests/unit/lambdas/&lt;dominio&gt;/</code> + <code>backend/tests/unit/shared/</code>) distribuidos entre los 10 dominios HTTP, <code>invoice_processor</code>, <code>_base</code> y <code>workers</code>.</p>
+<p>446 archivos <code>.py</code> en <code>backend/</code> en total; 83 archivos de test unitario (<code>backend/tests/unit/lambdas/&lt;dominio&gt;/</code> + <code>backend/tests/unit/shared/</code>) distribuidos entre los 10 dominios HTTP, <code>invoice_processor</code>, <code>_base</code> y <code>workers</code>.</p>
 </li>
 <li>
-<p>Frontend: 340 archivos <code>.ts</code>/<code>.tsx</code>; 43 archivos bajo <code>features/**/screens/</code>; 61 componentes bajo <code>features/**/components/</code> + 34 bajo <code>frontend/components/</code>; 44 archivos <code>*.test.ts(x)</code> (Vitest).</p>
+<p>Frontend: 350 archivos <code>.ts</code>/<code>.tsx</code>; 43 archivos bajo <code>features/**/screens/</code>; 96 componentes bajo <code>features/**/components/</code> y <code>frontend/components/</code>; 44 archivos <code>*.test.ts(x)</code> (Vitest).</p>
 </li>
 <li>
 <p>Infraestructura: 7 stacks CDK (<code>infra/stacks/*.py</code>) + <code>app.py</code> orquestador + 9 archivos <code>.py</code> en total bajo <code>infra/</code>.</p>
@@ -873,7 +873,7 @@ pre.rouge .gs {
 <p><code>make ci-backend</code> → <code>ruff format --check backend/</code> + <code>ruff check backend/</code> + <code>coverage run --source=lambdas,shared -m unittest discover -s backend/tests -p "test_*.py"</code> + <code>coverage report</code>. Prerrequisito declarado: <code>backend/.venv</code> con <code>requirements.txt</code> + <code>requirements-ci.txt</code>.</p>
 </li>
 <li>
-<p><code>make ci-frontend</code> → <code>npm run format:check &amp;&amp; npm run lint &amp;&amp; npm run typecheck &amp;&amp; npm run test:run</code> (dentro de <code>frontend/</code>).</p>
+<p><code>make ci-frontend</code> → <code>npm run format:check &amp;&amp; npm run lint &amp;&amp; npm run typecheck &amp;&amp; npm run test:run &amp;&amp; npm run build:web</code> (dentro de <code>frontend/</code>).</p>
 </li>
 <li>
 <p><code>make ci-security</code> → <code>bandit -r backend/lambdas/ backend/shared/ -c backend/pyproject.toml --severity-level medium</code> + <code>pip-audit -r backend/requirements.txt --strict</code>.</p>
@@ -882,7 +882,7 @@ pre.rouge .gs {
 <p><code>make ci-cdk</code> → <code>cdk ls -c env=dev</code> (valida que los stacks compilen).</p>
 </li>
 <li>
-<p><code>make ci</code> → ejecuta los cuatro targets locales. No es un espejo exacto del workflow: este también configura variables AWS, genera XML de cobertura, publica reportes y valida el build web del frontend; el <code>Makefile</code> de este commit no incluye ese build.</p>
+<p><code>make ci</code> → ejecuta los cuatro targets locales. Cubre las validaciones principales, incluido el build web; el workflow además configura variables AWS y realiza pasos de artefactos/reporting, por lo que la paridad operacional debe contrastarse con <code>.github/workflows/pr-checks.yml</code>.</p>
 </li>
 <li>
 <p><code>make deploy</code> → <code>cdk deploy --all --profile codelabs --require-approval never</code> (perfil AWS <code>codelabs</code>, región <code>sa-east-1</code>).</p>
@@ -943,12 +943,6 @@ pre.rouge .gs {
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>infra/app.py</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">1-3</p></td>
 </tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Riesgo operativo declarado</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">El checkout contiene trabajo de aplicación sin commitear que esta documentación excluye. La nueva comprobación del remoto configurado falla por resolución SSH. La fuente sigue siendo el commit local indicado en la sección 1; regenerar desde la rama remota confirmada cuando se restaure el acceso. Esta es evidencia de instalación, no un hallazgo del código documentado.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>AGENTS.md</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
-</tr>
 </tbody>
 </table>
 </div>
@@ -957,7 +951,7 @@ pre.rouge .gs {
 <h2 id="_anexo_evidencia_transversal">Anexo — Evidencia transversal</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Fuente para todo este anexo: worktree aislado creado con <code>git worktree add --detach &lt;tmp&gt; develop</code> sobre el commit <code>09a4a3b2aa87f139c4836733180edf87371c14b3</code>. Ninguna cita proviene del checkout local con cambios sin commitear.</p>
+<p>Fuente para todo este anexo: worktree aislado y limpio creado con <code>git worktree add --detach &lt;tmp&gt; FETCH_HEAD</code> después de obtener <code>refs/heads/develop</code> del remoto autenticado. Commit verificado: <code>92d581a9ff38ed3ad30fcc9916b4c1e401cb28e9</code>. Ninguna cita proviene del checkout de trabajo.</p>
 </div>
 <div class="sect2">
 <h3 id="_patrón_de_decorador_lambda_contrato_compartido_de_todos_los_handlers_http">Patrón de decorador Lambda (contrato compartido de todos los handlers HTTP)</h3>
@@ -1001,7 +995,7 @@ pre.rouge .gs {
 </div>
 </div>
 <div class="paragraph">
-<p>El mismo orden se repite en <code>certificates/handler.py</code>, <code>onboarding/handler.py:63-65</code> (con <code>@public_lambda_handler</code> en vez de <code>@lambda_handler</code>, porque el onboarding es anónimo) y <code>subscriptions/handler.py:56-58</code>.</p>
+<p>El mismo orden se repite en <code>certificates/handler.py</code>, <code>onboarding/handler.py:63-65</code> (con <code>@public_lambda_handler</code> en vez de <code>@lambda_handler</code>, porque el onboarding es anónimo) y <code>subscriptions/handler.py:47-49</code>.</p>
 </div>
 </div>
 <div class="sect2">
@@ -1040,7 +1034,7 @@ pre.rouge .gs {
 <h2 id="_anexo_arquitectura_y_flujos_técnicos_detalle_ampliado">Anexo — Arquitectura y flujos técnicos (detalle ampliado)</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Todas las citas de archivo:línea se verificaron sobre el worktree de <code>develop</code> (commit <code>09a4a3b2aa87f139c4836733180edf87371c14b3</code>).</p>
+<p>Todas las citas de archivo:línea se verificaron sobre el worktree detached y limpio del <code>develop</code> remoto (commit <code>92d581a9ff38ed3ad30fcc9916b4c1e401cb28e9</code>).</p>
 </div>
 <div class="sect2">
 <h3 id="_flujo_a_emisión_de_factura_hasta_autorización_sri_ampliación_de_la_sección_5_1">Flujo A — Emisión de factura hasta autorización SRI (ampliación de la sección 5.1)</h3>
@@ -1089,29 +1083,32 @@ invoice_processor/handler.py:53  message_type == "POLL"
 <h3 id="_flujo_b_pago_de_suscripción_con_dlocal_go_smartfields_ampliación_de_la_sección_5_2">Flujo B — Pago de suscripción con dLocal Go SmartFields (ampliación de la sección 5.2)</h3>
 <div class="listingblock">
 <div class="content">
-<pre class="rouge highlight"><code>Frontend (features/subscriptions/use-3ds-flow.ts, use-dlocal-smartfields.ts)
+<pre class="rouge highlight"><code>Frontend (features/subscriptions/use-payment-order.ts, use-dlocal-smartfields.ts, use-3ds-flow.ts)
   → POST /subscriptions/payments                (público, throttled)
-  → subscriptions/handler.py:56  _create_payment()
+  → subscriptions/handler.py:49  _create_payment()
        └─ CreatePaymentUseCase → dLocal crea orden → Payment persistido
 
   → POST /subscriptions/payments/{order_id}/confirm   (público)
-  → subscriptions/handler.py:84  _confirm_payment()
-       └─ ConfirmPaymentUseCase.execute()  (confirm_payment.py:41-85)
-            ├─ hmac.compare_digest(payment.checkout_token, header)   (línea 44-48)
-            ├─ rechaza si status ∈ {PAID, AUTHORIZED, PENDING}        (línea 50-51)
-            ├─ dlocal.confirm_payment(...)                             (línea 53-62)
-            └─ transición: confirm() | mark_pending() | fail()         (líneas 70-77)
+  → subscriptions/handler.py:76  _confirm_payment()
+       └─ ConfirmPaymentUseCase.execute()  (confirm_payment.py:40-84)
+            ├─ hmac.compare_digest(payment.checkout_token, header)   (líneas 43-47)
+            ├─ rechaza si status ∈ {PAID, AUTHORIZED, PENDING}        (líneas 49-50)
+            ├─ dlocal.confirm_payment(...)                             (líneas 53-61)
+            └─ transición: confirm() | mark_pending() | fail()         (líneas 69-76)
 
   ⇄ (asíncrono, iniciado por dLocal)
   → POST /subscriptions/webhooks/dlocal          (público, HMAC-verificado)
-  → subscriptions/handler.py:171  _dlocal_webhook()
-       ├─ _verify_dlocal_signature(raw_body, x-signature, secret_key)  (línea 123-125)
-       └─ _enqueue_dlocal_webhook() → SQS dlocal-webhook-queue          (línea 128-144)
+  → subscriptions/handler.py:163  _dlocal_webhook()
+       ├─ _verify_dlocal_signature(raw_body, x-signature, secret_key)  (líneas 114-116)
+       └─ _enqueue_dlocal_webhook() → SQS dlocal-webhook-queue          (líneas 119-135)
                                                        │
                                                        ▼
 workers/dlocal_webhook_processor/handler.py  [SQS trigger]
   └─ procesa el evento de forma desacoplada de la latencia del webhook HTTP</code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>En el frontend, <code>usePaymentOrder</code> crea una sola orden por montaje y conserva claves de idempotencia separadas para creación y activación (<code>use-payment-order.ts:12-44</code>). Si dLocal exige 3-D Secure, <code>use3dsFlow</code> abre el reto bancario en otra pestaña y, por acción explícita del usuario, consulta el pago hasta diez veces con intervalos de tres segundos (<code>use-3ds-flow.ts:10-27</code>, <code>:52-80</code>); <code>ThreeDsView.tsx</code> contiene las vistas de espera y error reutilizadas por la pantalla de activación.</p>
 </div>
 <div class="paragraph">
 <p>Renovación automática (no disparada por el usuario): <code>workers/subscription_renewal_notifier</code> corre diario (<code>cron(0 10 * * ? *)</code>, <code>api_stack.py:518-522</code>) → <code>NotifySubscriptionRenewalUseCase.execute()</code> (<code>workers/subscription_renewal_notifier/use_case.py:85-136</code>) recorre tenants con vencimiento próximo (<code>list_with_subscription_expiry_due</code>) y por cada uno: envía recordatorio a 7 días (<code>_REMINDER_DAYS</code>, línea 24), o si ya venció, intenta auto-cobro con el <code>dlocal_payer_id</code> guardado (<code>_try_auto_charge</code>, línea 196) usando un <strong>marcador de reconciliación</strong> (<code>create_auto_renewal_reconciliation_marker</code>, línea 217) para evitar doble cobro si el proceso se reintenta a medio camino — si el marcador ya existe, no cobra de nuevo y alerta para reconciliación manual (<code>auto_charge_reconciliation_required</code>, líneas 225-247). Si dLocal falla o el guardado transaccional posterior al cobro exitoso falla, también se marca para reconciliación manual en vez de perder el cobro silenciosamente (<code>_AutoRenewalReconciliationRequiredError</code>, líneas 257-320). Tenants en <code>PAYMENT_FAILED</code> tienen una gracia de 7 días (<code>_PAYMENT_FAILED_GRACE_DAYS</code>, línea 25) antes de expirar la suscripción definitivamente.</p>
@@ -1153,7 +1150,7 @@ POST /onboarding/otp/confirm  (público, throttle burst=10 rate=2)
 <h2 id="_anexo_backend_backend">Anexo — Backend (<code>backend/</code>)</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Muestra representativa dado el volumen del código (441 archivos <code>.py</code>, 70 archivos de casos de uso, excluyendo <code>__init__.py</code>, 22 <code>handler.py</code>). El análisis es representativo. Las rutas y roles se contrastan con los handlers citados y su registro en <code>infra/stacks/api_stack.py</code>; los comentarios de cabecera por sí solos no demuestran autorización.</p>
+<p>Muestra representativa dado el volumen del código (446 archivos <code>.py</code>, 70 archivos de casos de uso, excluyendo <code>__init__.py</code>, 22 <code>handler.py</code>). El análisis es representativo. Las rutas y roles se contrastan con los handlers citados y su registro en <code>infra/stacks/api_stack.py</code>; los comentarios de cabecera por sí solos no demuestran autorización.</p>
 </div>
 <div class="sect2">
 <h3 id="_capa_compartida_backendshared">Capa compartida (<code>backend/shared/</code>)</h3>
@@ -1232,7 +1229,7 @@ POST /onboarding/otp/confirm  (público, throttle burst=10 rate=2)
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>subscriptions</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>domain/entities/payment.py</code>, <code>domain/repositories/</code> (<code>i_dlocal_client</code>, <code>i_payment_repository</code>, <code>i_plan_catalog</code>), <code>infra/</code> (<code>dlocal_client.py</code>, <code>payment_repository.py</code>, <code>plan_catalog.py</code>), <code>use_cases/</code> (5: <code>confirm_payment</code>, <code>create_payment</code>, <code>get_payment</code>, <code>process_webhook</code>, <code>refund_payment</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>domain/entities/payment.py</code> (incluye <code>PAID_STATUSES</code> compartido), <code>domain/repositories/</code> (<code>i_dlocal_client</code>, <code>i_payment_repository</code>, <code>i_plan_catalog</code>), <code>infra/</code> (<code>dlocal_client.py</code>, <code>payment_repository.py</code>, <code>plan_catalog.py</code>), <code>use_cases/</code> (5: <code>confirm_payment</code>, <code>create_payment</code>, <code>get_payment</code>, <code>process_webhook</code>, <code>refund_payment</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /subscriptions/payments</code>, <code>POST &#8230;&#8203;/confirm</code>, <code>GET &#8230;&#8203;/{order_id}</code>, <code>POST &#8230;&#8203;/refund</code> (JWT superadmin), <code>POST /subscriptions/webhooks/dlocal</code> (HMAC) — <code>subscriptions/handler.py:6-11</code>.</p></td>
 </tr>
 <tr>
@@ -1350,7 +1347,7 @@ POST /onboarding/otp/confirm  (público, throttle burst=10 rate=2)
 <div class="sect2">
 <h3 id="_tests_backendtests">Tests (<code>backend/tests/</code>)</h3>
 <div class="paragraph">
-<p>77 archivos <code>test_*.py</code> bajo <code>backend/tests/unit/lambdas/&lt;dominio&gt;/</code> (un subdirectorio por cada uno de los 10 dominios HTTP más <code>invoice_processor</code>, <code>_base</code> y <code>workers</code>) y <code>backend/tests/unit/shared/</code>. Configuración de cobertura en <code>backend/pyproject.toml</code>: <code>fail_under = 70</code>, fuente <code>lambdas,shared</code>, excluye <code>.venv</code>, <code>tests</code>, <code>migrations</code>. No se ejecutó la suite como parte de esta documentación (fuera de alcance: solo lectura del worktree); el conteo de archivos de test es evidencia directa de que <strong>todos</strong> los dominios HTTP tienen al menos un test unitario, no evidencia del resultado de ejecutarlos.</p>
+<p>83 archivos <code>test_*.py</code> bajo <code>backend/tests/unit/lambdas/&lt;dominio&gt;/</code> (un subdirectorio por cada uno de los 10 dominios HTTP más <code>invoice_processor</code>, <code>_base</code> y <code>workers</code>) y <code>backend/tests/unit/shared/</code>. Los seis archivos añadidos desde la publicación anterior cubren <code>base_entity</code>, límites de listas, outbox, paginador, serialización de eventos y auditoría compartida. Configuración de cobertura en <code>backend/pyproject.toml</code>: <code>fail_under = 70</code>, fuente <code>lambdas,shared</code>, excluye <code>.venv</code>, <code>tests</code>, <code>migrations</code>. No se ejecutó la suite como parte de esta documentación; el conteo de archivos de test es evidencia de presencia, no de resultado.</p>
 </div>
 </div>
 </div>
@@ -1359,7 +1356,7 @@ POST /onboarding/otp/confirm  (público, throttle burst=10 rate=2)
 <h2 id="_anexo_frontend_frontend">Anexo — Frontend (<code>frontend/</code>)</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Muestra representativa dado el volumen del código (340 archivos <code>.ts</code>/<code>.tsx</code>, 43 pantallas, 95 componentes entre <code>features/**/components/</code> y <code>frontend/components/</code>, 44 archivos de test Vitest). No se documenta cada pantalla individualmente; se documenta la estructura de enrutamiento (evidencia completa por ser un árbol de archivos pequeño y determinístico) y los módulos transversales (<code>lib/</code>) con cita real.</p>
+<p>Muestra representativa dado el volumen del código (350 archivos <code>.ts</code>/<code>.tsx</code>, 43 pantallas, 96 componentes entre <code>features/**/components/</code> y <code>frontend/components/</code>, 44 archivos de test Vitest). No se documenta cada pantalla individualmente; se documenta la estructura de enrutamiento (evidencia completa por ser un árbol de archivos pequeño y determinístico) y los módulos transversales (<code>lib/</code>) con cita real.</p>
 </div>
 <div class="sect2">
 <h3 id="_enrutamiento_frontendapp_expo_router_convención_de_archivos">Enrutamiento (<code>frontend/app/</code>, Expo Router — convención de archivos)</h3>
@@ -1402,7 +1399,10 @@ POST /onboarding/otp/confirm  (público, throttle burst=10 rate=2)
 <p>Cada carpeta de dominio replica, con variaciones, el patrón <code>api.ts</code> (llamadas HTTP tipadas) + <code>schemas.ts</code> (validación Zod) + <code>types.ts</code> + <code>hooks/</code> + <code>screens/</code> + <code>components/</code>: <code>auth</code>, <code>clients</code>, <code>documents</code>, <code>onboarding</code>, <code>plans</code>, <code>products</code>, <code>sequences</code>, <code>subscriptions</code>, <code>tenants</code>. Dos features sin contraparte 1:1 en el backend: <code>design-system</code> (catálogo visual interno, sin API propia) y <code>marketing</code>/<code>navigation</code> (landing pública y navegación entre pantallas, respectivamente — capas de presentación puras).</p>
 </div>
 <div class="paragraph">
-<p>Ejemplo verificado de la profundidad real de una feature (<code>subscriptions/</code>): <code>api.ts</code>, <code>schemas.ts</code>, <code>dlocal-types.ts</code>, <code>dlocal-field-options.ts</code>, <code>use-dlocal-smartfields.ts</code> (integración con el SDK externo de dLocal Go SmartFields cargado dinámicamente, ver <code>frontend/constants/config.ts:38-42</code>, <code>resolveDLocalGoSdkUrl</code>), <code>use-3ds-flow.ts</code> + <code>use-3ds-flow.test.ts</code> (manejo del reto 3-D Secure del banco emisor durante la confirmación de pago).</p>
+<p>Ejemplo verificado de la profundidad real de una feature (<code>subscriptions/</code>): <code>api.ts</code>, <code>schemas.ts</code>, <code>dlocal-types.ts</code>, <code>dlocal-field-options.ts</code>, <code>use-dlocal-smartfields.ts</code> (integración con el SDK externo de dLocal Go SmartFields cargado dinámicamente, ver <code>frontend/constants/config.ts:38-42</code>, <code>resolveDLocalGoSdkUrl</code>), <code>use-payment-order.ts</code> (creación automática e idempotente de la orden), <code>use-3ds-flow.ts</code> + <code>use-3ds-flow.test.ts</code> (polling acotado del reto 3-D Secure) y <code>components/ThreeDsView.tsx</code> (estados visuales de espera/error).</p>
+</div>
+<div class="paragraph">
+<p>La feature <code>documents</code> separa la gestión de líneas y descuentos sugeridos en <code>hooks/useDocumentLines.ts</code>, y las acciones de descarga/reintento de listas en <code>hooks/useDocumentListActions.ts</code>. Los selectores rápidos de clientes y productos comparten el estado de búsqueda, protección contra respuestas fuera de orden y reset mediante <code>lib/hooks/usePickerSearchState.ts</code>, en lugar de duplicar esa orquestación en cada modal.</p>
 </div>
 </div>
 <div class="sect2">
@@ -1413,10 +1413,10 @@ POST /onboarding/otp/confirm  (público, throttle burst=10 rate=2)
 <p><code>lib/api/client.ts</code> — cliente HTTP central (ver cita completa en <code>modules/evidencia.adoc</code>), <code>errors.ts</code> (<code>ApiError</code>), <code>types.ts</code> (contrato <code>ApiEnvelope</code>), con tests propios (<code>client.test.ts</code>, <code>idempotency.test.ts</code>).</p>
 </li>
 <li>
-<p><code>lib/hooks/</code> — <code>useFetch</code>, <code>useAsync</code>, <code>useFormSubmit</code>, <code>useCursorPagedList</code>/<code>useEagerPagedList</code>/<code>useLocalPagedItems</code>/<code>usePaginatedList</code> (variantes de paginación consumidas por las listas de <code>clients</code>, <code>products</code>, <code>documents</code>, <code>tenants</code>), <code>useDebouncedSearch</code>, <code>useRefreshOnFocus</code>, <code>useNow</code>, <code>useCertificateFilePicker</code>, <code>useIsDesktopLayout</code> — 8 de estos 12 hooks tienen test unitario dedicado (<code>*.test.ts</code> junto al hook).</p>
+<p><code>lib/hooks/</code> — 15 hooks reutilizables: <code>useFetch</code>, <code>useAsync</code>, <code>useFormSubmit</code>, <code>useCursorPagedList</code>/<code>useEagerPagedList</code>/<code>useLocalPagedItems</code>/<code>usePaginatedList</code> (variantes de paginación), <code>useDebouncedSearch</code>, <code>useRefreshOnFocus</code>, <code>useNow</code>, <code>useCertificateFilePicker</code>, <code>useIsDesktopLayout</code>, más <code>useAutoRetryOnMount</code>, <code>useCountdown</code> y <code>usePickerSearchState</code>; 8 tienen test unitario dedicado (<code>*.test.ts</code> junto al hook).</p>
 </li>
 <li>
-<p><code>lib/utils/</code> — <code>jwt.ts</code> (<code>decodeJwtClaims</code>, <code>isTokenExpired</code>, consumidos por <code>features/auth/store.ts</code> y <code>lib/api/client.ts</code>), <code>ruc.ts</code> (validación de RUC ecuatoriano, con test), <code>date-range.ts</code>, <code>ecuador-time.ts</code>, <code>form-validators.ts</code>, <code>format.ts</code>, <code>retry.ts</code>.</p>
+<p><code>lib/utils/</code> — <code>jwt.ts</code> (<code>decodeJwtClaims</code>, <code>isTokenExpired</code>, consumidos por <code>features/auth/store.ts</code> y <code>lib/api/client.ts</code>), <code>ruc.ts</code> (validación de RUC ecuatoriano, con test), <code>date-range.ts</code>, <code>ecuador-time.ts</code>, <code>form-validators.ts</code>, <code>format.ts</code>, <code>retry.ts</code> y <code>validation-messages.ts</code> (mensajes Zod compartidos por schemas de autenticación, onboarding, clientes y tenants).</p>
 </li>
 <li>
 <p><code>lib/theme-context.tsx</code> — contexto de tema claro/oscuro para el design system.</p>
@@ -1447,7 +1447,7 @@ POST /onboarding/otp/confirm  (público, throttle burst=10 rate=2)
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-09-15 22:00:12 -0500
+Last updated 2026-09-16 10:19:31 -0500
 </div>
 </div>
 </body>

@@ -1,6 +1,6 @@
 == Anexo — Arquitectura y flujos técnicos (detalle ampliado)
 
-Todas las citas de archivo:línea se verificaron sobre el worktree de `develop` (commit `09a4a3b2aa87f139c4836733180edf87371c14b3`).
+Todas las citas de archivo:línea se verificaron sobre el worktree detached y limpio del `develop` remoto (commit `92d581a9ff38ed3ad30fcc9916b4c1e401cb28e9`).
 
 === Flujo A — Emisión de factura hasta autorización SRI (ampliación de la sección 5.1)
 
@@ -46,29 +46,31 @@ Riesgo funcional real (no hipotético) en este flujo: el `send_message` de `_sen
 
 [source]
 ----
-Frontend (features/subscriptions/use-3ds-flow.ts, use-dlocal-smartfields.ts)
+Frontend (features/subscriptions/use-payment-order.ts, use-dlocal-smartfields.ts, use-3ds-flow.ts)
   → POST /subscriptions/payments                (público, throttled)
-  → subscriptions/handler.py:56  _create_payment()
+  → subscriptions/handler.py:49  _create_payment()
        └─ CreatePaymentUseCase → dLocal crea orden → Payment persistido
 
   → POST /subscriptions/payments/{order_id}/confirm   (público)
-  → subscriptions/handler.py:84  _confirm_payment()
-       └─ ConfirmPaymentUseCase.execute()  (confirm_payment.py:41-85)
-            ├─ hmac.compare_digest(payment.checkout_token, header)   (línea 44-48)
-            ├─ rechaza si status ∈ {PAID, AUTHORIZED, PENDING}        (línea 50-51)
-            ├─ dlocal.confirm_payment(...)                             (línea 53-62)
-            └─ transición: confirm() | mark_pending() | fail()         (líneas 70-77)
+  → subscriptions/handler.py:76  _confirm_payment()
+       └─ ConfirmPaymentUseCase.execute()  (confirm_payment.py:40-84)
+            ├─ hmac.compare_digest(payment.checkout_token, header)   (líneas 43-47)
+            ├─ rechaza si status ∈ {PAID, AUTHORIZED, PENDING}        (líneas 49-50)
+            ├─ dlocal.confirm_payment(...)                             (líneas 53-61)
+            └─ transición: confirm() | mark_pending() | fail()         (líneas 69-76)
 
   ⇄ (asíncrono, iniciado por dLocal)
   → POST /subscriptions/webhooks/dlocal          (público, HMAC-verificado)
-  → subscriptions/handler.py:171  _dlocal_webhook()
-       ├─ _verify_dlocal_signature(raw_body, x-signature, secret_key)  (línea 123-125)
-       └─ _enqueue_dlocal_webhook() → SQS dlocal-webhook-queue          (línea 128-144)
+  → subscriptions/handler.py:163  _dlocal_webhook()
+       ├─ _verify_dlocal_signature(raw_body, x-signature, secret_key)  (líneas 114-116)
+       └─ _enqueue_dlocal_webhook() → SQS dlocal-webhook-queue          (líneas 119-135)
                                                        │
                                                        ▼
 workers/dlocal_webhook_processor/handler.py  [SQS trigger]
   └─ procesa el evento de forma desacoplada de la latencia del webhook HTTP
 ----
+
+En el frontend, `usePaymentOrder` crea una sola orden por montaje y conserva claves de idempotencia separadas para creación y activación (`use-payment-order.ts:12-44`). Si dLocal exige 3-D Secure, `use3dsFlow` abre el reto bancario en otra pestaña y, por acción explícita del usuario, consulta el pago hasta diez veces con intervalos de tres segundos (`use-3ds-flow.ts:10-27`, `:52-80`); `ThreeDsView.tsx` contiene las vistas de espera y error reutilizadas por la pantalla de activación.
 
 Renovación automática (no disparada por el usuario): `workers/subscription_renewal_notifier` corre diario (`cron(0 10 * * ? *)`, `api_stack.py:518-522`) → `NotifySubscriptionRenewalUseCase.execute()` (`workers/subscription_renewal_notifier/use_case.py:85-136`) recorre tenants con vencimiento próximo (`list_with_subscription_expiry_due`) y por cada uno: envía recordatorio a 7 días (`_REMINDER_DAYS`, línea 24), o si ya venció, intenta auto-cobro con el `dlocal_payer_id` guardado (`_try_auto_charge`, línea 196) usando un **marcador de reconciliación** (`create_auto_renewal_reconciliation_marker`, línea 217) para evitar doble cobro si el proceso se reintenta a medio camino — si el marcador ya existe, no cobra de nuevo y alerta para reconciliación manual (`auto_charge_reconciliation_required`, líneas 225-247). Si dLocal falla o el guardado transaccional posterior al cobro exitoso falla, también se marca para reconciliación manual en vez de perder el cobro silenciosamente (`_AutoRenewalReconciliationRequiredError`, líneas 257-320). Tenants en `PAYMENT_FAILED` tienen una gracia de 7 días (`_PAYMENT_FAILED_GRACE_DAYS`, línea 25) antes de expirar la suscripción definitivamente.
 

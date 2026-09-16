@@ -3,9 +3,9 @@ autenticacion de usuarios,Cognito User Pool unico; self_sign_up_enabled=False; c
 claims JWT custom,custom:tenant_id custom:role custom:is_superadmin,infra/stacks/auth_stack.py,9
 validacion JWT en API Gateway,HttpJwtAuthorizer nativo contra Cognito,infra/stacks/api_stack.py,662
 autorizacion por rol en handler,require_superadmin / require_role,backend/lambdas/_base/permissions.py,29
-comparacion de tokens en tiempo constante,hmac.compare_digest checkout_token,backend/lambdas/subscriptions/use_cases/confirm_payment.py,44
-autenticacion de webhook externo,HMAC-SHA256 sobre raw body,backend/lambdas/subscriptions/handler.py,123
-sanitizacion de parametros de challenge Cognito,elimina SALT SRP_B SECRET_BLOCK antes de responder,backend/lambdas/auth/infra/cognito_auth_provider.py,172
+comparacion de tokens en tiempo constante,hmac.compare_digest checkout_token,backend/lambdas/subscriptions/use_cases/confirm_payment.py,43
+autenticacion de webhook externo,HMAC-SHA256 sobre raw body,backend/lambdas/subscriptions/handler.py,114
+sanitizacion de parametros de challenge Cognito,elimina SALT SRP_B SECRET_BLOCK antes de responder,backend/lambdas/auth/infra/cognito_auth_provider.py,173
 validacion de certificado digital,tamano maximo 50KB contrasena no vacia RUC coincide,backend/shared/certificates/validator.py,19
 autorizacion de certificado por tenant,mismo tenant y rol permitido por GET/PUT o superadmin (lineas 67-81),backend/lambdas/certificates/handler.py,48
 aislamiento multitenant en persistencia,tenant_id obligatorio en BaseRepository,backend/shared/db/base_repository.py,51

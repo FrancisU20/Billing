@@ -1,6 +1,6 @@
 == Anexo — Evidencia transversal
 
-Fuente para todo este anexo: worktree aislado creado con `git worktree add --detach <tmp> develop` sobre el commit `09a4a3b2aa87f139c4836733180edf87371c14b3`. Ninguna cita proviene del checkout local con cambios sin commitear.
+Fuente para todo este anexo: worktree aislado y limpio creado con `git worktree add --detach <tmp> FETCH_HEAD` después de obtener `refs/heads/develop` del remoto autenticado. Commit verificado: `92d581a9ff38ed3ad30fcc9916b4c1e401cb28e9`. Ninguna cita proviene del checkout de trabajo.
 
 === Patrón de decorador Lambda (contrato compartido de todos los handlers HTTP)
 
@@ -26,7 +26,7 @@ Los endpoints de escritura combinan tres decoradores en un orden fijo (de abajo 
 def _emit(request: Request, context) -> dict:
 ----
 
-El mismo orden se repite en `certificates/handler.py`, `onboarding/handler.py:63-65` (con `@public_lambda_handler` en vez de `@lambda_handler`, porque el onboarding es anónimo) y `subscriptions/handler.py:56-58`.
+El mismo orden se repite en `certificates/handler.py`, `onboarding/handler.py:63-65` (con `@public_lambda_handler` en vez de `@lambda_handler`, porque el onboarding es anónimo) y `subscriptions/handler.py:47-49`.
 
 === Idempotencia HTTP (`X-Idempotency-Key`)
 

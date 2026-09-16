@@ -1,6 +1,6 @@
 == Anexo — Backend (`backend/`)
 
-Muestra representativa dado el volumen del código (441 archivos `.py`, 70 archivos de casos de uso, excluyendo `+__init__.py+`, 22 `handler.py`). El análisis es representativo. Las rutas y roles se contrastan con los handlers citados y su registro en `infra/stacks/api_stack.py`; los comentarios de cabecera por sí solos no demuestran autorización.
+Muestra representativa dado el volumen del código (446 archivos `.py`, 70 archivos de casos de uso, excluyendo `+__init__.py+`, 22 `handler.py`). El análisis es representativo. Las rutas y roles se contrastan con los handlers citados y su registro en `infra/stacks/api_stack.py`; los comentarios de cabecera por sí solos no demuestran autorización.
 
 === Capa compartida (`backend/shared/`)
 
@@ -36,7 +36,7 @@ Muestra representativa dado el volumen del código (441 archivos `.py`, 70 archi
 | `POST /onboarding/otp/{request,confirm}` — públicas, throttled (`onboarding/handler.py:160-166`).
 
 | `subscriptions`
-| `domain/entities/payment.py`, `domain/repositories/` (`i_dlocal_client`, `i_payment_repository`, `i_plan_catalog`), `infra/` (`dlocal_client.py`, `payment_repository.py`, `plan_catalog.py`), `use_cases/` (5: `confirm_payment`, `create_payment`, `get_payment`, `process_webhook`, `refund_payment`)
+| `domain/entities/payment.py` (incluye `PAID_STATUSES` compartido), `domain/repositories/` (`i_dlocal_client`, `i_payment_repository`, `i_plan_catalog`), `infra/` (`dlocal_client.py`, `payment_repository.py`, `plan_catalog.py`), `use_cases/` (5: `confirm_payment`, `create_payment`, `get_payment`, `process_webhook`, `refund_payment`)
 | `POST /subscriptions/payments`, `POST .../confirm`, `GET .../{order_id}`, `POST .../refund` (JWT superadmin), `POST /subscriptions/webhooks/dlocal` (HMAC) — `subscriptions/handler.py:6-11`.
 
 | `tenants`
@@ -121,4 +121,4 @@ Muestra representativa dado el volumen del código (441 archivos `.py`, 70 archi
 
 === Tests (`backend/tests/`)
 
-77 archivos `test_*.py` bajo `backend/tests/unit/lambdas/<dominio>/` (un subdirectorio por cada uno de los 10 dominios HTTP más `invoice_processor`, `_base` y `workers`) y `backend/tests/unit/shared/`. Configuración de cobertura en `backend/pyproject.toml`: `fail_under = 70`, fuente `lambdas,shared`, excluye `.venv`, `tests`, `migrations`. No se ejecutó la suite como parte de esta documentación (fuera de alcance: solo lectura del worktree); el conteo de archivos de test es evidencia directa de que **todos** los dominios HTTP tienen al menos un test unitario, no evidencia del resultado de ejecutarlos.
+83 archivos `test_*.py` bajo `backend/tests/unit/lambdas/<dominio>/` (un subdirectorio por cada uno de los 10 dominios HTTP más `invoice_processor`, `_base` y `workers`) y `backend/tests/unit/shared/`. Los seis archivos añadidos desde la publicación anterior cubren `base_entity`, límites de listas, outbox, paginador, serialización de eventos y auditoría compartida. Configuración de cobertura en `backend/pyproject.toml`: `fail_under = 70`, fuente `lambdas,shared`, excluye `.venv`, `tests`, `migrations`. No se ejecutó la suite como parte de esta documentación; el conteo de archivos de test es evidencia de presencia, no de resultado.

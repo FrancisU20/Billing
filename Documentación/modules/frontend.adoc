@@ -1,6 +1,6 @@
 == Anexo — Frontend (`frontend/`)
 
-Muestra representativa dado el volumen del código (340 archivos `.ts`/`.tsx`, 43 pantallas, 95 componentes entre `+features/**/components/+` y `frontend/components/`, 44 archivos de test Vitest). No se documenta cada pantalla individualmente; se documenta la estructura de enrutamiento (evidencia completa por ser un árbol de archivos pequeño y determinístico) y los módulos transversales (`lib/`) con cita real.
+Muestra representativa dado el volumen del código (350 archivos `.ts`/`.tsx`, 43 pantallas, 96 componentes entre `+features/**/components/+` y `frontend/components/`, 44 archivos de test Vitest). No se documenta cada pantalla individualmente; se documenta la estructura de enrutamiento (evidencia completa por ser un árbol de archivos pequeño y determinístico) y los módulos transversales (`lib/`) con cita real.
 
 === Enrutamiento (`frontend/app/`, Expo Router — convención de archivos)
 
@@ -19,13 +19,15 @@ La separación de carpetas `(tenant)` vs. `(superadmin)` bajo el mismo grupo `(a
 
 Cada carpeta de dominio replica, con variaciones, el patrón `api.ts` (llamadas HTTP tipadas) + `schemas.ts` (validación Zod) + `types.ts` + `hooks/` + `screens/` + `components/`: `auth`, `clients`, `documents`, `onboarding`, `plans`, `products`, `sequences`, `subscriptions`, `tenants`. Dos features sin contraparte 1:1 en el backend: `design-system` (catálogo visual interno, sin API propia) y `marketing`/`navigation` (landing pública y navegación entre pantallas, respectivamente — capas de presentación puras).
 
-Ejemplo verificado de la profundidad real de una feature (`subscriptions/`): `api.ts`, `schemas.ts`, `dlocal-types.ts`, `dlocal-field-options.ts`, `use-dlocal-smartfields.ts` (integración con el SDK externo de dLocal Go SmartFields cargado dinámicamente, ver `frontend/constants/config.ts:38-42`, `resolveDLocalGoSdkUrl`), `use-3ds-flow.ts` + `use-3ds-flow.test.ts` (manejo del reto 3-D Secure del banco emisor durante la confirmación de pago).
+Ejemplo verificado de la profundidad real de una feature (`subscriptions/`): `api.ts`, `schemas.ts`, `dlocal-types.ts`, `dlocal-field-options.ts`, `use-dlocal-smartfields.ts` (integración con el SDK externo de dLocal Go SmartFields cargado dinámicamente, ver `frontend/constants/config.ts:38-42`, `resolveDLocalGoSdkUrl`), `use-payment-order.ts` (creación automática e idempotente de la orden), `use-3ds-flow.ts` + `use-3ds-flow.test.ts` (polling acotado del reto 3-D Secure) y `components/ThreeDsView.tsx` (estados visuales de espera/error).
+
+La feature `documents` separa la gestión de líneas y descuentos sugeridos en `hooks/useDocumentLines.ts`, y las acciones de descarga/reintento de listas en `hooks/useDocumentListActions.ts`. Los selectores rápidos de clientes y productos comparten el estado de búsqueda, protección contra respuestas fuera de orden y reset mediante `lib/hooks/usePickerSearchState.ts`, en lugar de duplicar esa orquestación en cada modal.
 
 === Infraestructura transversal (`frontend/lib/`)
 
 * `lib/api/client.ts` — cliente HTTP central (ver cita completa en `modules/evidencia.adoc`), `errors.ts` (`ApiError`), `types.ts` (contrato `ApiEnvelope`), con tests propios (`client.test.ts`, `idempotency.test.ts`).
-* `lib/hooks/` — `useFetch`, `useAsync`, `useFormSubmit`, `useCursorPagedList`/`useEagerPagedList`/`useLocalPagedItems`/`usePaginatedList` (variantes de paginación consumidas por las listas de `clients`, `products`, `documents`, `tenants`), `useDebouncedSearch`, `useRefreshOnFocus`, `useNow`, `useCertificateFilePicker`, `useIsDesktopLayout` — 8 de estos 12 hooks tienen test unitario dedicado (`*.test.ts` junto al hook).
-* `lib/utils/` — `jwt.ts` (`decodeJwtClaims`, `isTokenExpired`, consumidos por `features/auth/store.ts` y `lib/api/client.ts`), `ruc.ts` (validación de RUC ecuatoriano, con test), `date-range.ts`, `ecuador-time.ts`, `form-validators.ts`, `format.ts`, `retry.ts`.
+* `lib/hooks/` — 15 hooks reutilizables: `useFetch`, `useAsync`, `useFormSubmit`, `useCursorPagedList`/`useEagerPagedList`/`useLocalPagedItems`/`usePaginatedList` (variantes de paginación), `useDebouncedSearch`, `useRefreshOnFocus`, `useNow`, `useCertificateFilePicker`, `useIsDesktopLayout`, más `useAutoRetryOnMount`, `useCountdown` y `usePickerSearchState`; 8 tienen test unitario dedicado (`*.test.ts` junto al hook).
+* `lib/utils/` — `jwt.ts` (`decodeJwtClaims`, `isTokenExpired`, consumidos por `features/auth/store.ts` y `lib/api/client.ts`), `ruc.ts` (validación de RUC ecuatoriano, con test), `date-range.ts`, `ecuador-time.ts`, `form-validators.ts`, `format.ts`, `retry.ts` y `validation-messages.ts` (mensajes Zod compartidos por schemas de autenticación, onboarding, clientes y tenants).
 * `lib/theme-context.tsx` — contexto de tema claro/oscuro para el design system.
 
 === Autenticación y sesión (frontend)

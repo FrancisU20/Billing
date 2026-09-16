@@ -1,12 +1,13 @@
 = Resumen técnico — CodelabsBillingCloud
 :lang: es
 :toc: left
+:toc-title: Tabla de contenido
 :sectnums!:
 :source-highlighter: rouge
 
 == 1. Contexto y metadatos
 
-Repositorio: `CodelabsBillingCloud` (`wali-billing`). Fuente: rama local `develop`, último commit (excepción registrada: remoto inalcanzable al momento de esta instalación, ver `AGENTS.md`). SHA: `09a4a3b2aa87f139c4836733180edf87371c14b3` (commit `chore: retirar CLAUDE.md, context/ y docs/ (gestor de memoria y documentación 1.1)`). No incluye los ~82 archivos con cambios reales sin commitear presentes en el checkout local (verificado con `git status --short` antes de generar esta documentación: 82 entradas).
+Repositorio: `CodelabsBillingCloud` (`wali-billing`). Fuente canónica: `refs/heads/develop` del remoto autenticado, obtenida con un fetch nuevo y analizada en un worktree detached limpio. SHA: `92d581a9ff38ed3ad30fcc9916b4c1e401cb28e9`. La rama predeterminada remota es `develop`; ninguna afirmación técnica de este documento se derivó del checkout de trabajo ni de otra rama. La procedencia estructurada y los criterios de conteo están en `provenance.json`.
 
 Tecnología:
 
@@ -80,7 +81,7 @@ El mensaje `POLL` es atendido por la misma Lambda (`invoice_processor/handler.py
 
 === 5.2 Confirmación de pago de suscripción (dLocal Go)
 
-`POST /subscriptions/payments` (público, con throttling propio) → `_create_payment` (`subscriptions/handler.py:56-81`, decorado `@idempotent`) crea la orden en dLocal y persiste el `Payment` en estado inicial. El frontend confirma con `POST /subscriptions/payments/{order_id}/confirm` (público) → `_confirm_payment` (`subscriptions/handler.py:84-112`) → `ConfirmPaymentUseCase.execute` (`subscriptions/use_cases/confirm_payment.py:41-85`): valida el `checkout_token` recibido por header `x-checkout-token` contra el guardado (`hmac.compare_digest`, línea 44-48 — comparación de tiempo constante), rechaza si el pago ya está en un estado no confirmable (`PAID`/`AUTHORIZED`/`PENDING`, línea 50-51), llama a dLocal (`confirm_payment`) y, según el `status` devuelto, transiciona el pago a `confirm()`, `mark_pending()` o `fail()` (líneas 70-77). En paralelo, dLocal puede notificar por `POST /subscriptions/webhooks/dlocal` (público, autenticado por firma HMAC-SHA256 sobre el cuerpo crudo — `_verify_dlocal_signature`, `subscriptions/handler.py:123-125`); el handler solo valida la firma y encola el evento crudo en `DLOCAL_WEBHOOK_QUEUE_URL` (línea 180) para que `workers/dlocal_webhook_processor` lo procese de forma asíncrona y desacoplada de la latencia del webhook.
+`POST /subscriptions/payments` (público, con throttling propio) → `_create_payment` (`subscriptions/handler.py:47-72`, decorado `@idempotent`) crea la orden en dLocal y persiste el `Payment` en estado inicial. El frontend confirma con `POST /subscriptions/payments/{order_id}/confirm` (público) → `_confirm_payment` (`subscriptions/handler.py:75-103`) → `ConfirmPaymentUseCase.execute` (`subscriptions/use_cases/confirm_payment.py:40-84`): valida el `checkout_token` recibido por header `x-checkout-token` contra el guardado (`hmac.compare_digest`, líneas 43-47 — comparación de tiempo constante), rechaza si el pago ya está en un estado no confirmable (`PAID`/`AUTHORIZED`/`PENDING`, líneas 49-50), llama a dLocal (`confirm_payment`) y, según el `status` devuelto, transiciona el pago a `confirm()`, `mark_pending()` o `fail()` (líneas 69-76). La construcción del cliente dLocal está centralizada en `subscriptions/infra/dlocal_client.py:137-145`, y los estados pagados aceptados (`PAID`/`AUTHORIZED`) se comparten mediante `PAID_STATUSES` en `subscriptions/domain/entities/payment.py`. En paralelo, dLocal puede notificar por `POST /subscriptions/webhooks/dlocal` (público, autenticado por firma HMAC-SHA256 sobre el cuerpo crudo — `_verify_dlocal_signature`, `subscriptions/handler.py:114-116`); el handler valida la firma y encola el evento crudo en `DLOCAL_WEBHOOK_QUEUE_URL` (`:119-135`) para que `workers/dlocal_webhook_processor` lo procese de forma asíncrona.
 
 === 5.3 Onboarding self-service con OTP
 
@@ -90,13 +91,13 @@ Ver `modules/arquitectura_y_flujos.adoc` para el detalle ampliado de estos tres 
 
 == 6. Seguridad y contexto de ejecución
 
-Autenticación: Amazon Cognito, un único User Pool para toda la plataforma (`infra/stacks/auth_stack.py:38-73`). `self_sign_up_enabled=False` — todos los usuarios requieren creación administrativa; el comentario del stack describe los roles, y el worker de onboarding crea el owner inicial. El comentario no demuestra un flujo operativo para cada rol. Flujo de login exclusivamente `USER_SRP_AUTH` (`user_password=False` en el cliente web, línea 78-83, comentario explícito "más seguro" para el intercambio SRP con Cognito; esta configuración no describe por sí sola cómo el frontend entrega la contraseña al backend) implementado en `backend/lambdas/auth/infra/cognito_auth_provider.py` con SRP real (`infra/srp.py`, uso de `initiate_auth`/`respond_to_auth_challenge` con `ChallengeName=PASSWORD_VERIFIER`, líneas 40-71). Los parámetros secretos del challenge (`SALT`, `SRP_B`, `SECRET_BLOCK`) se filtran antes de responder al cliente (`_sanitize_challenge_parameters`, `cognito_auth_provider.py:172-183`).
+Autenticación: Amazon Cognito, un único User Pool para toda la plataforma (`infra/stacks/auth_stack.py:38-73`). `self_sign_up_enabled=False` — todos los usuarios requieren creación administrativa; el comentario del stack describe los roles, y el worker de onboarding crea el owner inicial. El comentario no demuestra un flujo operativo para cada rol. Flujo de login exclusivamente `USER_SRP_AUTH` (`user_password=False` en el cliente web, línea 78-83, comentario explícito "más seguro" para el intercambio SRP con Cognito; esta configuración no describe por sí sola cómo el frontend entrega la contraseña al backend) implementado en `backend/lambdas/auth/infra/cognito_auth_provider.py` con SRP real (`infra/srp.py`, uso de `initiate_auth`/`respond_to_auth_challenge` con `ChallengeName=PASSWORD_VERIFIER`, líneas 40-71). Los parámetros secretos del challenge (`SALT`, `SRP_B`, `SECRET_BLOCK`) se filtran antes de responder al cliente (`_sanitize_challenge_parameters`, `cognito_auth_provider.py:173-184`). Las consultas de existencia de usuario usan `ListUsers` con filtro exacto y límite uno (`cognito_auth_provider.py:110-119`; `onboarding/infra/identity_provider.py:12-18`).
 
 Autorización: claims custom en el ID Token — `custom:tenant_id`, `custom:role` (`superadmin|owner|admin|viewer`), `custom:is_superadmin` (`auth_stack.py:9-16`). El API Gateway valida firma/expiración vía `HttpJwtAuthorizer` nativo (`api_stack.py:662-666`); la autorización de rol fino se aplica en los handlers que consumen esos controles con los decoradores `require_superadmin`/`require_role` de `backend/lambdas/_base/permissions.py:29-57` (superadmin siempre pasa; el resto exige pertenecer a la lista de roles permitidos).
 
-Certificados digitales SRI: `backend/shared/certificates/validator.py` — carga el `.p12` con `cryptography.hazmat.primitives.serialization.pkcs12`, valida tamaño máximo `MAX_CERTIFICATE_BYTES = 50 * 1024` (línea 19), exige contraseña no vacía (línea 51-52) y contrasta el RUC del certificado contra el RUC esperado del tenant (`CertificateRucMismatchError`). El endpoint de carga (`certificates/handler.py`) exige `owner`/`admin` del mismo tenant o superadmin (`_authorize_tenant`, líneas 47-51) y usa `IDEMPOTENCY_TABLE` + reintentos acotados (`_MAX_COMMIT_ATTEMPTS = 3`, línea 32) ante condiciones de carrera al actualizar el mismo tenant. El certificado se almacena en Secrets Manager bajo el prefijo `/codelabs-billing/{env}/tenant/*`, con permisos de Lambda acotados exactamente a ese prefijo (`_grant_certificate_secrets`, `api_stack.py:88-108`). **Se confirma la existencia de `backend/lambdas/auth/infra/cognito_auth_provider.py` en el commit de `develop` verificado** (contenido citado arriba), tal como referencia `AGENTS.md`.
+Certificados digitales SRI: `backend/shared/certificates/validator.py` — carga el `.p12` con `cryptography.hazmat.primitives.serialization.pkcs12`, valida tamaño máximo `MAX_CERTIFICATE_BYTES = 50 * 1024` (línea 19), exige contraseña no vacía (línea 51-52) y contrasta el RUC del certificado contra el RUC esperado del tenant (`CertificateRucMismatchError`). El endpoint de carga (`certificates/handler.py`) exige `owner`/`admin` del mismo tenant o superadmin (`_authorize_tenant`, líneas 48-52) y usa `IDEMPOTENCY_TABLE` + reintentos acotados (`_MAX_COMMIT_ATTEMPTS = 3`, línea 32) ante condiciones de carrera al actualizar el mismo tenant. El certificado se almacena en Secrets Manager bajo el prefijo `/codelabs-billing/{env}/tenant/*`, con permisos de Lambda acotados exactamente a ese prefijo (`_grant_certificate_secrets`, `api_stack.py:88-108`). **Se confirma la existencia de `backend/lambdas/auth/infra/cognito_auth_provider.py` en el commit de `develop` verificado** (contenido citado arriba), tal como referencia `AGENTS.md`.
 
-Webhooks externos: el webhook de dLocal Go se autentica por HMAC-SHA256 sobre el cuerpo crudo con comparación de tiempo constante (`_verify_dlocal_signature`, `subscriptions/handler.py:123-125`, `hmac.compare_digest`), no por JWT.
+Webhooks externos: el webhook de dLocal Go se autentica por HMAC-SHA256 sobre el cuerpo crudo con comparación de tiempo constante (`_verify_dlocal_signature`, `subscriptions/handler.py:114-116`, `hmac.compare_digest`), no por JWT.
 
 Multitenencia: `BaseRepository` exige `tenant_id` no vacío en el constructor (`shared/db/base_repository.py:51-52`) y construye `PK = "TENANT#{tenant_id}"` (`:59-60`). Este control corresponde a los repositorios que usan esa base; las tablas globales, como `tenants`, `plans` y `payments`, tienen claves diferentes y requieren verificar la autorización de sus consumidores.
 
@@ -119,8 +120,8 @@ Conteos verificados sobre el worktree de `develop` (no exhaustivo línea por lí
 * 22 archivos `handler.py`: 10 dominios HTTP + `invoice_processor` (SQS) + `_base` (decoradores compartidos) + 10 workers (`certificate_expiry_notifier`, `dlocal_webhook_processor`, `email_notifications`, `migrations`, `orphan_payment_notifier`, `outbox_relay`, `pending_activation_reconciler`, `stale_payment_cleaner`, `subscription_renewal_notifier`, `tenant_onboarding`).
 * 70 archivos bajo `use_cases/` (excluyendo `+__init__.py+`) en todo `backend/lambdas/`.
 * Las entidades usan nombres diversos: `documents/domain/entities.py`, `sequences/domain/entities.py`, `subscriptions/domain/entities/payment.py`, `tenants/domain/tenant.py` y `plans/domain/plan.py`, entre otros. Contar solamente archivos llamados `entities.py` no representa el inventario de entidades.
-* 441 archivos `.py` en `backend/` en total; 77 archivos de test unitario (`backend/tests/unit/lambdas/<dominio>/` + `backend/tests/unit/shared/`) distribuidos entre los 10 dominios HTTP, `invoice_processor`, `_base` y `workers`.
-* Frontend: 340 archivos `.ts`/`.tsx`; 43 archivos bajo `+features/**/screens/+`; 61 componentes bajo `+features/**/components/+` + 34 bajo `frontend/components/`; 44 archivos `*.test.ts(x)` (Vitest).
+* 446 archivos `.py` en `backend/` en total; 83 archivos de test unitario (`backend/tests/unit/lambdas/<dominio>/` + `backend/tests/unit/shared/`) distribuidos entre los 10 dominios HTTP, `invoice_processor`, `_base` y `workers`.
+* Frontend: 350 archivos `.ts`/`.tsx`; 43 archivos bajo `+features/**/screens/+`; 96 componentes bajo `+features/**/components/+` y `frontend/components/`; 44 archivos `*.test.ts(x)` (Vitest).
 * Infraestructura: 7 stacks CDK (`infra/stacks/*.py`) + `app.py` orquestador + 9 archivos `.py` en total bajo `infra/`.
 
 Ver `matrices/implementation.csv` para una muestra representativa citando archivo:línea (no pretende ser el listado completo de los 70 archivos de casos de uso).
@@ -130,10 +131,10 @@ Ver `matrices/implementation.csv` para una muestra representativa citando archiv
 Comandos declarados en `Makefile` (raíz del repositorio, verificado en el worktree; **no se ejecutó ningún build/test/deploy real como parte de esta documentación**, solo se leyó el archivo):
 
 * `make ci-backend` → `ruff format --check backend/` + `ruff check backend/` + `coverage run --source=lambdas,shared -m unittest discover -s backend/tests -p "test_*.py"` + `coverage report`. Prerrequisito declarado: `backend/.venv` con `requirements.txt` + `requirements-ci.txt`.
-* `make ci-frontend` → `npm run format:check && npm run lint && npm run typecheck && npm run test:run` (dentro de `frontend/`).
+* `make ci-frontend` → `npm run format:check && npm run lint && npm run typecheck && npm run test:run && npm run build:web` (dentro de `frontend/`).
 * `make ci-security` → `bandit -r backend/lambdas/ backend/shared/ -c backend/pyproject.toml --severity-level medium` + `pip-audit -r backend/requirements.txt --strict`.
 * `make ci-cdk` → `cdk ls -c env=dev` (valida que los stacks compilen).
-* `make ci` → ejecuta los cuatro targets locales. No es un espejo exacto del workflow: este también configura variables AWS, genera XML de cobertura, publica reportes y valida el build web del frontend; el `Makefile` de este commit no incluye ese build.
+* `make ci` → ejecuta los cuatro targets locales. Cubre las validaciones principales, incluido el build web; el workflow además configura variables AWS y realiza pasos de artefactos/reporting, por lo que la paridad operacional debe contrastarse con `.github/workflows/pr-checks.yml`.
 * `make deploy` → `cdk deploy --all --profile codelabs --require-approval never` (perfil AWS `codelabs`, región `sa-east-1`).
 * `make superadmin` / `make token` → scripts operativos (`scripts/create_superadmin.py`, `scripts/make_token.py`).
 
@@ -143,7 +144,7 @@ Despliegue: según `app.py` (`infra/app.py:1-24`), "Solo dev por ahora. Prod no 
 
 == 10. Riesgos y deuda
 
-[cols="1,1,1,1",options="header"]
+[cols="1.2,2.5,1.5,0.8",options="header"]
 |===
 | Clasificación | Hallazgo | Archivo | Línea
 
@@ -167,10 +168,6 @@ Despliegue: según `app.py` (`infra/app.py:1-24`), "Solo dev por ahora. Prod no 
 | `infra/app.py`
 | 1-3
 
-| Riesgo operativo declarado
-| El checkout contiene trabajo de aplicación sin commitear que esta documentación excluye. La nueva comprobación del remoto configurado falla por resolución SSH. La fuente sigue siendo el commit local indicado en la sección 1; regenerar desde la rama remota confirmada cuando se restaure el acceso. Esta es evidencia de instalación, no un hallazgo del código documentado.
-| `AGENTS.md`
-| —
 |===
 
 include::modules/evidencia.adoc[]
