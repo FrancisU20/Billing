@@ -1,7 +1,5 @@
 import type { ProductKind, ProductStatus } from './types'
 
-export const PRODUCTS_PAGE_SIZE = 20
-
 export const PRODUCT_KIND_OPTIONS: Array<{ value: ProductKind; label: string }> = [
   { value: 'PRODUCT', label: 'Producto' },
   { value: 'SERVICE', label: 'Servicio' },

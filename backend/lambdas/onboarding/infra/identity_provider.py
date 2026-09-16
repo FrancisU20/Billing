@@ -12,8 +12,9 @@ class CognitoIdentityProvider(IIdentityProvider):
         self._idp = boto3.client("cognito-idp")
 
     def email_exists(self, email: str) -> bool:
-        try:
-            self._idp.admin_get_user(UserPoolId=self._user_pool_id, Username=email)
-            return True
-        except self._idp.exceptions.UserNotFoundException:
-            return False
+        response = self._idp.list_users(
+            UserPoolId=self._user_pool_id,
+            Filter=f'username = "{email}"',
+            Limit=1,
+        )
+        return bool(response.get("Users"))

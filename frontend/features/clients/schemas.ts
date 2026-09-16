@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { isPhoneInput } from '@/lib/utils/form-validators'
 import { isValidCedula, isValidRuc } from '@/lib/utils/ruc'
+import { vm } from '@/lib/utils/validation-messages'
 
 export const clientStatusSchema = z.enum(['active', 'inactive'])
 export const identificationTypeSchema = z.enum(['ruc', 'cedula', 'pasaporte', 'exterior'])
@@ -48,18 +49,10 @@ function validateClientIdentification(
 ) {
   const identification = value.identification.trim()
   if (value.identification_type === 'ruc' && !isValidRuc(identification)) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['identification'],
-      message: 'RUC ecuatoriano inválido',
-    })
+    ctx.addIssue({ code: 'custom', path: ['identification'], message: vm.rucInvalid })
   }
   if (value.identification_type === 'cedula' && !isValidCedula(identification)) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['identification'],
-      message: 'Cédula ecuatoriana inválida',
-    })
+    ctx.addIssue({ code: 'custom', path: ['identification'], message: vm.cedulaInvalid })
   }
 }
 
@@ -71,9 +64,9 @@ const createClientSchemaBase = z
     legal_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(250, 'Máximo 250 caracteres'),
     trade_name: z.string().trim().max(250, 'Máximo 250 caracteres'),
     special_taxpayer: z.boolean(),
-    emails: z.array(z.string().trim().email('Email inválido')).max(5, 'Máximo 5 emails'),
+    emails: z.array(z.string().trim().email(vm.emailInvalid)).max(5, 'Máximo 5 emails'),
     phones: z
-      .array(z.string().trim().refine(isPhoneInput, 'Teléfono inválido'))
+      .array(z.string().trim().refine(isPhoneInput, vm.phoneInvalid))
       .max(5, 'Máximo 5 teléfonos'),
     addresses: z.array(clientAddressSchema).max(5, 'Máximo 5 direcciones'),
   })
@@ -107,8 +100,8 @@ export const clientFormValuesSchema = z
     legal_name: z.string().trim().min(2, 'Mínimo 2 caracteres').max(250, 'Máximo 250 caracteres'),
     trade_name: z.string().trim().max(250, 'Máximo 250 caracteres'),
     special_taxpayer: z.boolean(),
-    email: z.string().trim().email('Email inválido').or(z.literal('')),
-    phone: z.string().trim().refine(isPhoneInput, 'Teléfono inválido').or(z.literal('')),
+    email: z.string().trim().email(vm.emailInvalid).or(z.literal('')),
+    phone: z.string().trim().refine(isPhoneInput, vm.phoneInvalid).or(z.literal('')),
     address_label: z.string().trim().max(50, 'Máximo 50 caracteres'),
     address_line: z.string().trim().max(500, 'Máximo 500 caracteres'),
     address_city: z.string().trim().max(100, 'Máximo 100 caracteres'),

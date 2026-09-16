@@ -6,7 +6,7 @@ XAdES-BES signing.
 
 Cached at module level, keyed by `secret_arn` — the Lambda container reuses the
 loaded certificate across invocations (cold start loads it once, matches the
-caching strategy documented in `context/INVOICES.md`). Zero Secrets Manager calls
+caching strategy documented in `context/domains/INVOICES.md`). Zero Secrets Manager calls
 per document after the first one in a given container.
 """
 

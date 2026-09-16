@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { FormField } from '@/components/ui/FormField'
 import { Routes } from '@/constants/routes'
 import { radius, spacing, typography } from '@/constants/tokens'
+import { formatCountdown, useCountdown } from '@/lib/hooks/useCountdown'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useTheme } from '@/lib/theme-context'
 import { onboardingApi } from '../api'
@@ -28,6 +29,7 @@ export function RegisterOtpScreen() {
   const setResult = useOnboardingStore((state) => state.setResult)
   const requestOtp = useRequestOtp()
   const [resent, setResent] = useState(false)
+  const secondsLeft = useCountdown(verification?.expires_at)
 
   const {
     control,
@@ -110,8 +112,15 @@ export function RegisterOtpScreen() {
             )}
           />
 
-          <Text style={[styles.hint, { color: semantic.text.secondary }]}>
-            El código expira pronto. Si no te llegó o caducó, solicita uno nuevo.
+          <Text
+            style={[
+              styles.hint,
+              { color: secondsLeft > 0 ? semantic.text.secondary : semantic.status.warning },
+            ]}
+          >
+            {secondsLeft > 0
+              ? `El código expira en ${formatCountdown(secondsLeft)}.`
+              : 'El código ha expirado. Solicita uno nuevo.'}
           </Text>
 
           {error ? <ApiErrorBanner error={error} /> : null}

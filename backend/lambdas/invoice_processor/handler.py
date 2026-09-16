@@ -6,7 +6,7 @@ Lambda `invoice_processor` — firma XAdES-BES, envío SRI, polling de autorizac
 Desplegado como dos funciones CDK (`invoice-processor-sign` / `invoice-processor-poll`)
 con el mismo código y distinto `reserved_concurrent_executions`, cada una suscrita a
 su cola (`invoice-sign` / `invoice-poll`). El routing por `type` es el mismo en
-ambas — ver `context/INVOICES.md`.
+ambas — ver `context/domains/INVOICES.md`.
 """
 
 from lambdas._base.sqs_handler import SQSRecord, sqs_handler

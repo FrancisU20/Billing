@@ -4,9 +4,11 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from lambdas.plans.use_cases.create_plan import SLUG_PATTERN
+
 
 class CreatePlanRequest(BaseModel):
-    slug: str = Field(..., pattern=r"^[a-z0-9_-]{2,30}$")
+    slug: str = Field(..., pattern=SLUG_PATTERN)
     name: str = Field(..., min_length=2, max_length=80)
     description: str = Field("", max_length=300)
     monthly_price: Decimal = Field(Decimal("0.00"), ge=0)

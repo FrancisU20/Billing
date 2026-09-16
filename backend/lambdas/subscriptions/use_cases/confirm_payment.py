@@ -5,6 +5,7 @@ import urllib.error
 from dataclasses import dataclass
 
 from lambdas.subscriptions.domain.commands import ConfirmPaymentCommand
+from lambdas.subscriptions.domain.entities.payment import PAID_STATUSES
 from lambdas.subscriptions.domain.errors import (
     PaymentAccessDeniedError,
     PaymentAlreadyConfirmedError,
@@ -15,8 +16,6 @@ from lambdas.subscriptions.domain.repositories.i_payment_repository import IPaym
 from shared.logger import get_logger
 
 _log = get_logger(__name__)
-
-_PAID_STATUSES = frozenset({"PAID", "AUTHORIZED"})
 
 # Statuses where calling confirm again makes no sense: either it's already done
 # (PAID/AUTHORIZED) or a bank 3DS redirect is in flight and the resolution comes
@@ -67,7 +66,7 @@ class ConfirmPaymentUseCase:
             self._payments.save(payment)
             raise PaymentConfirmError() from exc
 
-        if result.status in _PAID_STATUSES:
+        if result.status in PAID_STATUSES:
             payment.confirm(result.payer_id, result.payer_email)
         elif result.status == "PENDING":
             payment.mark_pending("dLocal requires customer action")

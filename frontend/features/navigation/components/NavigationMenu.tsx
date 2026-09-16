@@ -1,8 +1,9 @@
 import React from 'react'
 import { View } from 'react-native'
-import { usePathname, useRouter } from 'expo-router'
+import { useRouter } from 'expo-router'
 import type { AuthUser } from '@/features/auth/types'
-import { getAppNavigationItems, type AppNavigationItem } from '../items'
+import { useNavigationItems } from '../useNavigationItems'
+import type { AppNavigationItem } from '../items'
 import { MenuEyebrow, MenuItem, MenuSurface, menuLayoutStyles } from './MenuSurface'
 
 interface NavigationMenuProps {
@@ -12,9 +13,8 @@ interface NavigationMenuProps {
 }
 
 export function NavigationMenu({ user, visible, onClose }: NavigationMenuProps) {
-  const pathname = usePathname()
   const router = useRouter()
-  const items = getAppNavigationItems(user)
+  const { items, isActive } = useNavigationItems(user)
 
   function navigateTo(item: AppNavigationItem) {
     onClose()
@@ -30,7 +30,7 @@ export function NavigationMenu({ user, visible, onClose }: NavigationMenuProps) 
             key={item.label}
             icon={item.icon}
             label={item.label}
-            active={pathname.includes(item.activeWhen)}
+            active={isActive(item)}
             onPress={() => navigateTo(item)}
           />
         ))}

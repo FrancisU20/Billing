@@ -33,6 +33,9 @@ export const planSchema = z.object({
 
 export const plansListSchema = z.object({
   items: z.array(planSchema),
+  has_more: z.boolean().default(false),
+  next_token: z.string().nullable().default(null),
+  total: z.number().nullable().optional(),
 })
 
 const priceInputSchema = z.union([

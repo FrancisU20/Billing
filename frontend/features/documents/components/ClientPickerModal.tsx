@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Button } from '@/components/ui/Button'
 import { FormField } from '@/components/ui/FormField'
@@ -6,7 +6,8 @@ import { PickerModal, PickerResultRow } from '@/components/ui/PickerModal'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { EmailField, PhoneField } from '@/components/ui/SpecializedFields'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
-import { toApiError, type ApiError } from '@/lib/api/errors'
+import { toApiError } from '@/lib/api/errors'
+import { usePickerSearchState } from '@/lib/hooks/usePickerSearchState'
 import { useTheme } from '@/lib/theme-context'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { clientsApi } from '@/features/clients/api'
@@ -20,13 +21,6 @@ interface ClientPickerModalProps {
 }
 
 export function ClientPickerModal({ visible, onClose, onSelect }: ClientPickerModalProps) {
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<Client[]>([])
-  const [searched, setSearched] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [error, setError] = useState<ApiError | null>(null)
-  const [showQuickCreate, setShowQuickCreate] = useState(false)
   const [quickIdentificationType, setQuickIdentificationType] =
     useState<IdentificationType>('cedula')
   const [quickIdentification, setQuickIdentification] = useState('')
@@ -35,20 +29,6 @@ export function ClientPickerModal({ visible, onClose, onSelect }: ClientPickerMo
   const [quickEmail, setQuickEmail] = useState('')
   const [quickPhone, setQuickPhone] = useState('')
   const [quickAddressLine, setQuickAddressLine] = useState('')
-  const searchRequestId = useRef(0)
-
-  useEffect(() => {
-    if (!visible) return
-    searchRequestId.current += 1
-    setQuery('')
-    setResults([])
-    setSearched(false)
-    setLoading(false)
-    setCreating(false)
-    setError(null)
-    setShowQuickCreate(false)
-    resetQuickForm()
-  }, [visible])
 
   function resetQuickForm() {
     setQuickIdentificationType('cedula')
@@ -60,43 +40,21 @@ export function ClientPickerModal({ visible, onClose, onSelect }: ClientPickerMo
     setQuickAddressLine('')
   }
 
-  function resetState() {
-    setQuery('')
-    setResults([])
-    setSearched(false)
-    setLoading(false)
-    setCreating(false)
-    setError(null)
-    setShowQuickCreate(false)
-    resetQuickForm()
-  }
-
-  function close() {
-    resetState()
-    onClose()
-  }
-
-  async function search(nextQuery = query) {
-    const q = nextQuery.trim()
-    if (q.length < 3) return
-    const requestId = searchRequestId.current + 1
-    searchRequestId.current = requestId
-    setLoading(true)
-    setError(null)
-    try {
-      const page = await clientsApi.list({ q })
-      if (requestId !== searchRequestId.current) return
-      setResults(page.items)
-      setSearched(true)
-    } catch (e) {
-      if (requestId !== searchRequestId.current) return
-      setError(toApiError(e))
-    } finally {
-      if (requestId === searchRequestId.current) {
-        setLoading(false)
-      }
-    }
-  }
+  const {
+    query,
+    setQuery,
+    results,
+    searched,
+    loading,
+    creating,
+    setCreating,
+    error,
+    setError,
+    showQuickCreate,
+    setShowQuickCreate,
+    search,
+    close,
+  } = usePickerSearchState<Client>(visible, onClose, (q) => clientsApi.list({ q }), resetQuickForm)
 
   async function createQuick() {
     const identification = quickIdentification.trim()
@@ -141,8 +99,6 @@ export function ClientPickerModal({ visible, onClose, onSelect }: ClientPickerMo
       onSearchChangeText={setQuery}
       onSearchChange={(nextQuery) => {
         if (!nextQuery) {
-          setResults([])
-          setSearched(false)
           return
         }
         void search(nextQuery)

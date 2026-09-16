@@ -1,6 +1,7 @@
 {
 	"info": {
 		"name": "Wali",
+		"description": "COLECCIÓN DEPRECADA (corte 2026-08-18). No representa el contrato HTTP vigente: conserva rutas eliminadas y cobertura parcial. La fuente canónica es docs/matrices/interfaces.adoc; regenerar esta colección antes de usarla para pruebas o integración.",
 		"_postman_id": "clb-collection-001",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},

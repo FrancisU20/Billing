@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react'
-import { FlatList, Linking, StyleSheet, View } from 'react-native'
+import { FlatList, StyleSheet, View } from 'react-native'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
@@ -10,12 +10,10 @@ import { ListScreenHeader } from '@/components/layout/ListScreenHeader'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { canWrite } from '@/constants/roles'
-import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
 import { spacing } from '@/constants/tokens'
-import { documentsApi } from '../api'
 import { AnnulInvoiceModal } from '../components/AnnulInvoiceModal'
 import { DocumentListItem } from '../components/DocumentListItem'
 import { DocumentsFilters } from '../components/DocumentsFilters'
@@ -24,8 +22,8 @@ import {
   toDocumentListFilters,
   type DocumentFilterDraft,
 } from '../filters'
+import { useDocumentListActions } from '../hooks/useDocumentListActions'
 import { useDocuments } from '../hooks/useDocuments'
-import { useRetryDocument } from '../hooks/useRetryDocument'
 import { getCreditNoteBlockReason } from '../utils'
 import type { Document, DocumentListFilters } from '../types'
 
@@ -71,19 +69,8 @@ export function DocumentsListScreen() {
     setFilters(FACTURA_ONLY_FILTERS)
   }
 
-  const { error: downloadError, submit: downloadRide } = useFormSubmit(
-    async (documentId: string) => {
-      const { url } = await documentsApi.getRideUrl(documentId)
-      await Linking.openURL(url)
-    },
-  )
-  const { error: downloadXmlError, submit: downloadXml } = useFormSubmit(
-    async (documentId: string) => {
-      const { url } = await documentsApi.getXmlUrl(documentId)
-      await Linking.openURL(url)
-    },
-  )
-  const { error: retryError, submit: retryDocument } = useRetryDocument(refresh)
+  const { downloadError, downloadRide, downloadXmlError, downloadXml, retryError, retryDocument } =
+    useDocumentListActions(refresh)
 
   if (loading && documents.length === 0) {
     return <LoadingSpinner fullScreen label="Cargando documentos..." />

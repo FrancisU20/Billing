@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
@@ -6,6 +6,7 @@ import type { Href } from 'expo-router'
 import { Routes } from '@/constants/routes'
 import { spacing, typography } from '@/constants/tokens'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
+import { useAutoRetryOnMount } from '@/lib/hooks/useAutoRetryOnMount'
 import { useTheme } from '@/lib/theme-context'
 import { subscriptionsApi } from '../api'
 
@@ -22,7 +23,6 @@ export function PaymentFailedBanner({ tenantId, onRetried }: Props) {
   const [phase, setPhase] = useState<Phase>('retrying')
   const [error, setError] = useState<string | null>(null)
   const retryKey = useRef(createIdempotencyKey('subscription-retry-payment'))
-  const attempted = useRef(false)
 
   const doRetry = useCallback(async () => {
     setPhase('retrying')
@@ -38,12 +38,7 @@ export function PaymentFailedBanner({ tenantId, onRetried }: Props) {
     }
   }, [tenantId, onRetried])
 
-  // Auto-retry on mount
-  useEffect(() => {
-    if (attempted.current) return
-    attempted.current = true
-    doRetry()
-  }, [doRetry])
+  useAutoRetryOnMount(doRetry)
 
   if (phase === 'success') return null
 

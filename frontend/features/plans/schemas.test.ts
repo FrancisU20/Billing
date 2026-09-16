@@ -35,10 +35,14 @@ describe('plan contract schemas', () => {
     expect(planSchema.parse(plan)).toEqual({ ...plan, version: 1 })
   })
 
-  it('matches the non-paginated GET /plans response', () => {
-    expect(plansListSchema.parse({ items: [plan] })).toEqual({ items: [{ ...plan, version: 1 }] })
+  it('matches the GET /plans response with or without pagination fields', () => {
+    const parsed = plansListSchema.parse({ items: [plan] })
+    expect(parsed.items).toEqual([{ ...plan, version: 1 }])
+    expect(parsed.has_more).toBe(false)
+    expect(parsed.next_token).toBeNull()
+
     expect(() =>
-      plansListSchema.parse({ items: [plan], next_token: null, has_more: false }),
+      plansListSchema.parse({ items: [plan], next_token: 'tok', has_more: true }),
     ).not.toThrow()
   })
 

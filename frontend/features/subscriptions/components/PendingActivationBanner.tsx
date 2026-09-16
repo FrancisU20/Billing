@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { spacing, typography } from '@/constants/tokens'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { retryWithBackoff } from '@/lib/utils/retry'
+import { useAutoRetryOnMount } from '@/lib/hooks/useAutoRetryOnMount'
 import { useTheme } from '@/lib/theme-context'
 import { subscriptionsApi } from '../api'
 
@@ -36,9 +37,7 @@ export function PendingActivationBanner({ tenantId, orderId, onActivated }: Prop
     }
   }, [tenantId, orderId, onActivated])
 
-  useEffect(() => {
-    attempt()
-  }, [attempt])
+  useAutoRetryOnMount(attempt)
 
   const bg = phase === 'failed' ? semantic.status.errorBg : semantic.status.warningBg
   const border = phase === 'failed' ? semantic.status.error : semantic.status.warning

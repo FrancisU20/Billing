@@ -11,7 +11,7 @@ class IDiscountCampaignRepository(ABC):
         """Return the tenant's discount campaign, or a default (inactive) one."""
 
     @abstractmethod
-    def save(
+    def commit(
         self,
         *,
         campaign: DiscountCampaign,

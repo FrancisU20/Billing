@@ -19,7 +19,7 @@ class FakeDiscountCampaignRepository:
             return DiscountCampaign.default("tenant-1")
         return self.campaign
 
-    def save(self, **kwargs) -> None:
+    def commit(self, **kwargs) -> None:
         self.save_calls.append(kwargs)
 
 

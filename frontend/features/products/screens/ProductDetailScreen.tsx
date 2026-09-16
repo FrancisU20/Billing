@@ -15,7 +15,7 @@ import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
-import { formatDateTime } from '@/lib/utils/format'
+import { formatCurrency, formatDateTime } from '@/lib/utils/format'
 import { Routes } from '@/constants/routes'
 import { canWrite } from '@/constants/roles'
 import { spacing } from '@/constants/tokens'
@@ -93,10 +93,7 @@ export function ProductDetailScreen() {
             <DetailField label="Tipo" value={productKindLabel(product.kind)} />
             <DetailField label="Descripción" value={product.description || product.name} />
             <DetailField label="IVA" value={product.iva_rate} />
-            <DetailField
-              label="Precio unitario"
-              value={`$${Number(product.unit_price).toFixed(2)}`}
-            />
+            <DetailField label="Precio unitario" value={formatCurrency(product.unit_price)} />
             <DetailField
               label="Descuento"
               value={

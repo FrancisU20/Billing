@@ -212,7 +212,7 @@ def _update_discount_campaign(request: Request, context) -> dict:
         updated_by=request.user_id,
     )
     response = ApiResponse.ok(campaign.to_dict(), request.request_id)
-    repo.save(
+    repo.commit(
         campaign=campaign,
         user_id=request.user_id,
         action="UPSERT",

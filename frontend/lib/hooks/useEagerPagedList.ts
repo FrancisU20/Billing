@@ -82,6 +82,7 @@ export function useEagerPagedList<T, F>(
 
   return {
     ...local,
+    allItems: items,
     loading,
     error,
     truncated,

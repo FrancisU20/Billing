@@ -186,7 +186,7 @@ class CreatePaymentHandlerTests(unittest.TestCase):
         _repo = repo or FakePaymentRepository()
         with (
             patch.object(_handler_mod, "DynamoPlanCatalog", return_value=_catalog),
-            patch.object(_handler_mod, "_dlocal", return_value=_dl),
+            patch.object(_handler_mod, "make_dlocal_client", return_value=_dl),
             patch.object(_handler_mod, "DynamoPaymentRepository", return_value=_repo),
         ):
             return _handler_mod.handler(event, LambdaContext())
@@ -256,7 +256,7 @@ class ConfirmPaymentHandlerTests(unittest.TestCase):
         _dl = dlocal or FakeDLocalClient()
         _repo = repo or self._repo_with_payment(order_id)
         with (
-            patch.object(_handler_mod, "_dlocal", return_value=_dl),
+            patch.object(_handler_mod, "make_dlocal_client", return_value=_dl),
             patch.object(_handler_mod, "DynamoPaymentRepository", return_value=_repo),
         ):
             return _handler_mod.handler(event, LambdaContext())

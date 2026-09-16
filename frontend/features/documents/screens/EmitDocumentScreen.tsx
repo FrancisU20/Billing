@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
@@ -24,11 +24,12 @@ import { ProductPickerModal } from '@/features/products/components/ProductPicker
 import { useDiscountCampaign } from '@/features/products/hooks/useDiscountCampaign'
 import type { Product } from '@/features/products/types'
 import { Routes } from '@/constants/routes'
-import { radius, sizes, spacing, typography } from '@/constants/tokens'
+import { radius, spacing, typography } from '@/constants/tokens'
 import { documentsApi } from '../api'
 import { BuyerSection } from '../components/BuyerSection'
 import { DocumentLineEditModal } from '../components/DocumentLineEditModal'
 import { DocumentLineRow } from '../components/DocumentLineRow'
+import { LockedInfoRow } from '../components/LockedInfoRow'
 import { TotalsSummary } from '../components/TotalsSummary'
 import { PAYMENT_METHOD_OPTIONS } from '../constants'
 import {
@@ -36,10 +37,8 @@ import {
   defaultEmitDocumentFormValues,
   ecuadorIssuedAtDisplay,
   formValuesToEmitDocumentInput,
-  resolveDiscountPolicy,
-  resolveSuggestedDiscount,
-  shouldAutoApplySuggestedDiscount,
 } from '../form'
+import { useDocumentLines } from '../hooks/useDocumentLines'
 import { emitDocumentFormValuesSchema, type EmitDocumentFormValues } from '../schemas'
 
 export function EmitDocumentScreen() {
@@ -48,10 +47,6 @@ export function EmitDocumentScreen() {
   const { semantic } = useTheme()
   const [productPickerOpen, setProductPickerOpen] = useState(false)
   const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null)
-  const [productDiscountByLine, setProductDiscountByLine] = useState<Record<number, string | null>>(
-    {},
-  )
-  const lastSuggestedDiscountByLine = useRef<Record<number, string>>({})
   const [issuedAtDisplay] = useState(() => ecuadorIssuedAtDisplay())
   const user = useAuthStore(selectUser)
   const tenantId = user?.tenantId ?? null
@@ -78,13 +73,17 @@ export function EmitDocumentScreen() {
     mode: 'onChange',
     reValidateMode: 'onChange',
   })
-  const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
   const establishmentCode = useWatch({ control, name: 'establishment_code' })
   const emissionPointCode = useWatch({ control, name: 'emission_point_code' })
   const issuedAt = useWatch({ control, name: 'issued_at' })
   const paymentMethod = useWatch({ control, name: 'payment_method' })
-  const lines = useWatch({ control, name: 'lines' })
   const overrideDiscountCeiling = useWatch({ control, name: 'override_discount_ceiling' })
+
+  const campaignInput = campaign
+    ? { active: campaign.active, percentage: campaign.percentage }
+    : null
+  const { fields, lines, productDiscountByLine, discountPreview, addProductLine, removeLine } =
+    useDocumentLines(control, getValues, setValue, campaignInput)
 
   useEffect(() => {
     if (establishments.length === 0 || establishmentCode) return
@@ -97,32 +96,6 @@ export function EmitDocumentScreen() {
 
   const selectedEstablishment = establishments.find((est) => est.code === establishmentCode)
 
-  useEffect(() => {
-    for (const [index, line] of (lines ?? []).entries()) {
-      const suggestedDiscount = resolveSuggestedDiscount(
-        line.quantity,
-        line.unit_price,
-        productDiscountByLine[index] ?? null,
-        campaign ? { active: campaign.active, percentage: campaign.percentage } : null,
-      )
-
-      if (
-        shouldAutoApplySuggestedDiscount(
-          line.discount,
-          lastSuggestedDiscountByLine.current[index],
-          suggestedDiscount,
-        )
-      ) {
-        setValue(`lines.${index}.discount`, suggestedDiscount, {
-          shouldDirty: true,
-          shouldValidate: true,
-        })
-      }
-
-      lastSuggestedDiscountByLine.current[index] = suggestedDiscount
-    }
-  }, [campaign, lines, productDiscountByLine, setValue])
-
   const { submitting, error, submit } = useFormSubmit(async (values: EmitDocumentFormValues) => {
     const document = await documentsApi.emit(
       formValuesToEmitDocumentInput(values),
@@ -133,56 +106,14 @@ export function EmitDocumentScreen() {
   })
 
   const totals = computeLineTotals(lines ?? [])
-  const discountPreview = computeDiscountPreview(
-    lines ?? [],
-    productDiscountByLine,
-    campaign ? { active: campaign.active, percentage: campaign.percentage } : null,
-  )
 
-  function incrementLineQuantity(index: number) {
-    const current = Number(getValues(`lines.${index}.quantity`)) || 0
-    setValue(`lines.${index}.quantity`, String(current + 1), {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-  }
-
-  function addProductLine(product: Product) {
-    const existingIndex = (lines ?? []).findIndex((line) => line.product_id === product.id)
-    if (existingIndex >= 0) {
-      incrementLineQuantity(existingIndex)
-      setProductPickerOpen(false)
-      return
-    }
-
-    const newIndex = fields.length
-    const suggestedDiscount = resolveSuggestedDiscount(
-      '1',
-      product.unit_price,
-      product.discount_percentage,
-      campaign ? { active: campaign.active, percentage: campaign.percentage } : null,
-    )
-    append({
-      product_id: product.id,
-      code: product.invoice_code,
-      description: product.description || product.name,
-      quantity: '1',
-      unit_price: product.unit_price,
-      discount: suggestedDiscount,
-      iva_rate: product.iva_rate,
-    })
-    setProductDiscountByLine((current) => ({ ...current, [newIndex]: product.discount_percentage }))
-    lastSuggestedDiscountByLine.current[newIndex] = suggestedDiscount
+  function handleProductSelected(product: Product) {
+    addProductLine(product)
     setProductPickerOpen(false)
   }
 
-  function removeLine(index: number) {
-    remove(index)
-    setProductDiscountByLine((current) => reindexByRemovedLine(current, index))
-    lastSuggestedDiscountByLine.current = reindexByRemovedLine(
-      lastSuggestedDiscountByLine.current,
-      index,
-    )
+  function handleRemoveLine(index: number) {
+    removeLine(index)
     setEditingLineIndex((current) => (current === index ? null : current))
   }
 
@@ -296,7 +227,13 @@ export function EmitDocumentScreen() {
               fill
               contentStyle={styles.sectionBody}
             >
-              <LockedIssuedAt value={issuedAtDisplay} sriDate={issuedAt} />
+              <LockedInfoRow
+                icon="calendar-outline"
+                label="Fecha y hora Ecuador"
+                value={issuedAtDisplay}
+                meta={`Fecha SRI: ${issuedAt}`}
+                monoMeta
+              />
               {errors.issued_at?.message ? (
                 <Text style={[styles.fieldError, { color: semantic.status.error }]}>
                   {errors.issued_at.message}
@@ -380,9 +317,7 @@ export function EmitDocumentScreen() {
 
         <FormSection title="Productos" icon="cube-outline" contentStyle={styles.sectionBody}>
           <DiscountContextBanner
-            campaign={
-              campaign ? { active: campaign.active, percentage: campaign.percentage } : null
-            }
+            campaign={campaignInput}
             discountedLines={discountPreview.discountedLines}
             suggestedDiscount={discountPreview.suggestedDiscount}
           />
@@ -404,7 +339,7 @@ export function EmitDocumentScreen() {
                   index={index}
                   control={control}
                   onPress={() => setEditingLineIndex(index)}
-                  onRemove={() => removeLine(index)}
+                  onRemove={() => handleRemoveLine(index)}
                 />
               ))}
             </View>
@@ -440,8 +375,8 @@ export function EmitDocumentScreen() {
       <ProductPickerModal
         visible={productPickerOpen}
         onClose={() => setProductPickerOpen(false)}
-        onSelect={addProductLine}
-        campaign={campaign ? { active: campaign.active, percentage: campaign.percentage } : null}
+        onSelect={handleProductSelected}
+        campaign={campaignInput}
       />
       <DocumentLineEditModal
         index={editingLineIndex}
@@ -451,7 +386,7 @@ export function EmitDocumentScreen() {
         productDiscountPercentage={
           editingLineIndex !== null ? (productDiscountByLine[editingLineIndex] ?? null) : null
         }
-        campaign={campaign ? { active: campaign.active, percentage: campaign.percentage } : null}
+        campaign={campaignInput}
         onChangeIvaRate={(rate) => {
           if (editingLineIndex === null) return
           setValue(`lines.${editingLineIndex}.iva_rate`, rate, {
@@ -503,55 +438,6 @@ function DiscountContextBanner({
   )
 }
 
-function LockedIssuedAt({ value, sriDate }: { value: string; sriDate: string }) {
-  return (
-    <LockedInfoRow
-      icon="calendar-outline"
-      label="Fecha y hora Ecuador"
-      value={value}
-      meta={`Fecha SRI: ${sriDate}`}
-    />
-  )
-}
-
-/** Caja "no editable" generica — mismo lenguaje visual para todo dato fijo que no es un
- * Input deshabilitado (`Input.tsx` ya cubre ese caso) sino un valor sin alternativa real
- * para elegir, ej. el unico establecimiento/punto de emision del tenant. Evita que un
- * `SegmentedControl` con una sola opcion se vea como un boton vacio sin proposito. */
-function LockedInfoRow({
-  icon,
-  label,
-  value,
-  meta,
-}: {
-  icon: keyof typeof Ionicons.glyphMap
-  label: string
-  value: string
-  meta?: string
-}) {
-  const { semantic } = useTheme()
-  return (
-    <View
-      style={[
-        styles.lockedDate,
-        { backgroundColor: semantic.bg.primary, borderColor: semantic.border.default },
-      ]}
-    >
-      <View style={styles.lockedDateIcon}>
-        <Ionicons name={icon} size={18} color={semantic.accent.default} />
-      </View>
-      <View style={styles.lockedDateText}>
-        <Text style={[styles.lockedDateLabel, { color: semantic.text.secondary }]}>{label}</Text>
-        <Text style={[styles.lockedDateValue, { color: semantic.text.primary }]}>{value}</Text>
-        {meta ? (
-          <Text style={[styles.lockedDateMeta, { color: semantic.text.tertiary }]}>{meta}</Text>
-        ) : null}
-      </View>
-      <Ionicons name="lock-closed-outline" size={18} color={semantic.text.tertiary} />
-    </View>
-  )
-}
-
 function Pill({
   label,
   selected,
@@ -589,45 +475,6 @@ function Pill({
   )
 }
 
-function computeDiscountPreview(
-  lines: EmitDocumentFormValues['lines'],
-  productDiscountByLine: Record<number, string | null>,
-  campaign: { active: boolean; percentage: string } | null,
-): { discountedLines: number; suggestedDiscount: number } {
-  return lines.reduce(
-    (acc, line, index) => {
-      const policy = resolveDiscountPolicy(
-        line.quantity,
-        line.unit_price,
-        productDiscountByLine[index] ?? null,
-        campaign,
-      )
-      const amount = Number(policy.amount)
-      if (policy.source !== 'none' && Number.isFinite(amount) && amount > 0) {
-        acc.discountedLines += 1
-        acc.suggestedDiscount += amount
-      }
-      return acc
-    },
-    { discountedLines: 0, suggestedDiscount: 0 },
-  )
-}
-
-function reindexByRemovedLine<T>(
-  values: Record<number, T>,
-  removedIndex: number,
-): Record<number, T> {
-  return Object.entries(values).reduce<Record<number, T>>((next, [key, value]) => {
-    const index = Number(key)
-    if (index < removedIndex) {
-      next[index] = value
-    } else if (index > removedIndex) {
-      next[index - 1] = value
-    }
-    return next
-  }, {})
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { gap: spacing[4], padding: spacing[5], paddingBottom: spacing[12] },
@@ -663,25 +510,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[3],
   },
   pillText: { fontSize: typography.size.sm, fontWeight: typography.weight.semibold },
-  lockedDate: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing[3],
-    minHeight: 66,
-    padding: spacing[3],
-  },
-  lockedDateIcon: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    height: sizes.icon,
-    justifyContent: 'center',
-    width: sizes.icon,
-  },
-  lockedDateText: { flex: 1, gap: spacing[1] - 2 },
-  lockedDateLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
-  lockedDateValue: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
-  lockedDateMeta: { fontFamily: typography.fontFamily.mono, fontSize: typography.size.xs },
   fieldError: { fontSize: typography.size.xs },
 })

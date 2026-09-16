@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import urllib.error
-from dataclasses import dataclass
 
 from lambdas.subscriptions.domain.entities.payment import Payment
 from lambdas.subscriptions.domain.repositories.i_dlocal_client import IDLocalClient
@@ -14,6 +13,7 @@ from lambdas.tenants.domain.errors import (
     SavedCardRejectedError,
 )
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
+from lambdas.tenants.domain.subscription_result import SubscriptionActivationResult
 from lambdas.tenants.domain.tenant import Tenant
 from shared.billing import gross_price, plan_net_price
 from shared.dates import isoformat_ecuador, now_utc
@@ -29,13 +29,6 @@ _ELIGIBLE_STATUSES = {
 }
 
 
-@dataclass(frozen=True)
-class RetryPaymentResult:
-    tenant_id: str
-    plan_cycle_ends_at: str
-    subscription_status: str
-
-
 class RetryPaymentUseCase:
     def __init__(
         self,
@@ -49,7 +42,9 @@ class RetryPaymentUseCase:
         self._dlocal = dlocal
         self._payments = payment_repo
 
-    def execute(self, tenant_id: str, updated_by: str) -> tuple[Tenant, RetryPaymentResult, dict]:
+    def execute(
+        self, tenant_id: str, updated_by: str
+    ) -> tuple[Tenant, SubscriptionActivationResult, dict]:
         tenant = self._tenant_repo.get_by_id(tenant_id)
 
         if not tenant.dlocal_payer_id:
@@ -108,7 +103,7 @@ class RetryPaymentUseCase:
 
         return (
             tenant,
-            RetryPaymentResult(
+            SubscriptionActivationResult(
                 tenant_id=tenant_id,
                 plan_cycle_ends_at=isoformat_ecuador(tenant.plan_cycle_ends_at) or "",
                 subscription_status=(tenant.subscription_status or SubscriptionStatus.ACTIVE).value,

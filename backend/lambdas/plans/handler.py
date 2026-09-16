@@ -115,7 +115,10 @@ def _create(request: Request, context) -> dict:
 def _admin_list(request: Request, context) -> dict:
     query = _parse_list_query(request.query_params)
     plans = ListPlansUseCase(_repo()).execute(query)
-    return ApiResponse.ok({"items": [p.to_dict() for p in plans]}, request.request_id)
+    return ApiResponse.ok(
+        {"items": [p.to_dict() for p in plans], "has_more": False, "next_token": None},
+        request.request_id,
+    )
 
 
 @lambda_handler
@@ -129,7 +132,10 @@ def _admin_get(request: Request, context) -> dict:
 @public_lambda_handler
 def _list(request: Request, context) -> dict:
     plans = ListPlansUseCase(_repo()).execute(ListPlansQuery(status="active"))
-    return ApiResponse.ok({"items": [p.to_dict() for p in plans]}, request.request_id)
+    return ApiResponse.ok(
+        {"items": [p.to_dict() for p in plans], "has_more": False, "next_token": None},
+        request.request_id,
+    )
 
 
 @public_lambda_handler

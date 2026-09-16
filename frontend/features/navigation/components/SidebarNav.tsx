@@ -1,11 +1,12 @@
 import React from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
-import { usePathname, useRouter } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useTheme } from '@/lib/theme-context'
 import { Wordmark } from '@/components/branding/Logo'
 import { spacing } from '@/constants/tokens'
 import type { AuthUser } from '@/features/auth/types'
-import { getAppNavigationItems, type AppNavigationItem } from '../items'
+import { useNavigationItems } from '../useNavigationItems'
+import type { AppNavigationItem } from '../items'
 import { MenuItem } from './MenuSurface'
 
 const SIDEBAR_WIDTH = 240
@@ -17,11 +18,9 @@ interface SidebarNavProps {
 export function SidebarNav({ user }: SidebarNavProps) {
   const { semantic } = useTheme()
   const router = useRouter()
-  const pathname = usePathname()
+  const { items, isActive } = useNavigationItems(user)
 
   if (!user) return null
-
-  const items = getAppNavigationItems(user)
 
   function navigateTo(item: AppNavigationItem) {
     router.push(item.href)
@@ -44,7 +43,7 @@ export function SidebarNav({ user }: SidebarNavProps) {
             key={item.label}
             icon={item.icon}
             label={item.label}
-            active={pathname.includes(item.activeWhen)}
+            active={isActive(item)}
             onPress={() => navigateTo(item)}
           />
         ))}

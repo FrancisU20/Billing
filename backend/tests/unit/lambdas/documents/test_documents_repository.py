@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import unittest
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
+from unittest.mock import patch
 
 from botocore.exceptions import ClientError
 
@@ -275,8 +276,12 @@ class DynamoDocumentsRepositoryCountTests(unittest.TestCase):
             ]
         )
         repo = DynamoDocumentsRepository(table)
-
-        summary = repo.summary_this_month("tenant-1")
+        _june_19 = datetime(2026, 6, 19, 12, 0, 0, tzinfo=timezone(timedelta(hours=-5)))
+        with patch(
+            "lambdas.documents.infra.documents_repository.now_ecuador",
+            return_value=_june_19,
+        ):
+            summary = repo.summary_this_month("tenant-1")
 
         self.assertEqual(summary.authorized_total, Decimal("66.50"))
         daily_by_date = {entry.date: entry.count for entry in summary.daily_issued}

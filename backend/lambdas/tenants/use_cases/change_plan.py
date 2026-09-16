@@ -16,7 +16,7 @@ _ELIGIBLE_STATUSES = {None, SubscriptionStatus.PENDING_PAYMENT}
 
 class ChangePlanUseCase:
     """Lets a tenant confirm or change its plan before the first payment —
-    between OTP confirmation and certificate upload. See context/ONBOARDING.md."""
+    between OTP confirmation and certificate upload. See context/domains/ONBOARDING.md."""
 
     def __init__(self, repo: ITenantRepository, plan_catalog: IPlanCatalog) -> None:
         self._repo = repo

@@ -1,5 +1,9 @@
 import { ECUADOR_TIME_ZONE, dateOnlyToLocalDate, isDateOnly } from './ecuador-time'
 
+export function formatInteger(value: number): string {
+  return new Intl.NumberFormat('es-EC', { maximumFractionDigits: 0 }).format(value)
+}
+
 export function formatCurrency(amount: string | number, currency = 'USD'): string {
   const num = typeof amount === 'string' ? parseFloat(amount) : amount
   return new Intl.NumberFormat('es-EC', { style: 'currency', currency }).format(num)

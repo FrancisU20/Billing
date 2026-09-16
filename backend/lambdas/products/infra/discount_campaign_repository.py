@@ -29,7 +29,7 @@ class DynamoDiscountCampaignRepository(BaseRepository, IDiscountCampaignReposito
             return DiscountCampaign.default(self._tenant_id)
         return self._from_item(item)
 
-    def save(
+    def commit(
         self,
         *,
         campaign: DiscountCampaign,
