@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { Button } from '@/components/ui/Button'
@@ -7,10 +7,12 @@ import { PickerModal, PickerResultRow } from '@/components/ui/PickerModal'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { MoneyField } from '@/components/ui/SpecializedFields'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
-import { ApiError, toApiError, type ApiError as ApiErrorType } from '@/lib/api/errors'
+import { ApiError, toApiError } from '@/lib/api/errors'
+import { usePickerSearchState } from '@/lib/hooks/usePickerSearchState'
 import { useTheme } from '@/lib/theme-context'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { productsApi } from '../api'
+import { resolvePickerDiscount } from '../discount'
 import { generateProductSku, SKU_PLACEHOLDER } from '../sku'
 import type { Product, ProductIvaRate } from '../types'
 import { GenerateSkuButton } from './GenerateSkuButton'
@@ -28,45 +30,10 @@ export function ProductPickerModal({
   onSelect,
   campaign = null,
 }: ProductPickerModalProps) {
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<Product[]>([])
-  const [searched, setSearched] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [error, setError] = useState<ApiErrorType | null>(null)
-  const [showQuickCreate, setShowQuickCreate] = useState(false)
   const [quickSku, setQuickSku] = useState('')
   const [quickName, setQuickName] = useState('')
   const [quickPrice, setQuickPrice] = useState('0.00')
   const [quickIva, setQuickIva] = useState<ProductIvaRate>('15')
-  const searchRequestId = useRef(0)
-
-  useEffect(() => {
-    if (!visible) return
-    searchRequestId.current += 1
-    setQuery('')
-    setResults([])
-    setSearched(false)
-    setLoading(false)
-    setCreating(false)
-    setError(null)
-    setShowQuickCreate(false)
-    setQuickSku('')
-    setQuickName('')
-    setQuickPrice('0.00')
-    setQuickIva('15')
-  }, [visible])
-
-  function resetState() {
-    setQuery('')
-    setResults([])
-    setSearched(false)
-    setLoading(false)
-    setCreating(false)
-    setError(null)
-    setShowQuickCreate(false)
-    resetQuickForm()
-  }
 
   function resetQuickForm() {
     setQuickSku('')
@@ -75,32 +42,26 @@ export function ProductPickerModal({
     setQuickIva('15')
   }
 
-  function close() {
-    resetState()
-    onClose()
-  }
-
-  async function search(nextQuery = query) {
-    const q = nextQuery.trim()
-    if (q.length < 3) return
-    const requestId = searchRequestId.current + 1
-    searchRequestId.current = requestId
-    setLoading(true)
-    setError(null)
-    try {
-      const page = await productsApi.list({ q, status: 'ACTIVE' })
-      if (requestId !== searchRequestId.current) return
-      setResults(page.items)
-      setSearched(true)
-    } catch (e) {
-      if (requestId !== searchRequestId.current) return
-      setError(toApiError(e))
-    } finally {
-      if (requestId === searchRequestId.current) {
-        setLoading(false)
-      }
-    }
-  }
+  const {
+    query,
+    setQuery,
+    results,
+    searched,
+    loading,
+    creating,
+    setCreating,
+    error,
+    setError,
+    showQuickCreate,
+    setShowQuickCreate,
+    search,
+    close,
+  } = usePickerSearchState<Product>(
+    visible,
+    onClose,
+    (q) => productsApi.list({ q, status: 'ACTIVE' }),
+    resetQuickForm,
+  )
 
   async function createQuick() {
     const sku = quickSku.trim()
@@ -152,8 +113,6 @@ export function ProductPickerModal({
       onSearchChangeText={setQuery}
       onSearchChange={(nextQuery) => {
         if (!nextQuery) {
-          setResults([])
-          setSearched(false)
           return
         }
         void search(nextQuery)
@@ -241,7 +200,7 @@ function ProductResult({
         {product.name}
       </Text>
       <Text style={[styles.resultMeta, { color: semantic.text.secondary }]} numberOfLines={1}>
-        {product.sku} · IVA {product.iva_rate} · ${Number(product.unit_price).toFixed(2)}
+        {product.sku} · IVA {product.iva_rate} · {product.unit_price}
       </Text>
       {discount ? (
         <Text style={[styles.discountMeta, { color: semantic.accent.default }]} numberOfLines={1}>
@@ -334,24 +293,6 @@ function QuickCreateForm({
       </Button>
     </View>
   )
-}
-
-function resolvePickerDiscount(
-  product: Product,
-  campaign: { active: boolean; percentage: string } | null,
-): string | null {
-  const productPct = Number(product.discount_percentage ?? 0)
-  const campaignPct = campaign?.active ? Number(campaign.percentage) : 0
-  const effectivePct = Math.max(
-    Number.isFinite(productPct) ? productPct : 0,
-    Number.isFinite(campaignPct) ? campaignPct : 0,
-  )
-
-  if (effectivePct <= 0) return null
-
-  const source = productPct >= campaignPct ? 'catálogo' : 'campaña global'
-  const amount = (Number(product.unit_price) * (effectivePct / 100)).toFixed(2)
-  return `Descuento sugerido: ${effectivePct}% por ${source} · $${amount} por unidad`
 }
 
 const styles = StyleSheet.create({

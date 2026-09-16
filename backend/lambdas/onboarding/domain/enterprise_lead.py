@@ -8,7 +8,7 @@ Created instead of a Tenant when the selected Plan has `self_service=False`
 `lambdas.plans.domain.plan.Plan`). It is not a tenant: it does not get a RUC
 lock, no Cognito user is provisioned, and it does not appear in
 `lambdas.tenants`. A superadmin converts it to a real Tenant manually (out of
-scope for this phase — see context/ONBOARDING.md).
+scope for this phase — see context/domains/ONBOARDING.md).
 """
 
 from dataclasses import dataclass

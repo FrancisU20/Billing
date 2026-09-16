@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
+from lambdas.subscriptions.domain.entities.payment import PAID_STATUSES
 from lambdas.tenants.domain.enums import SubscriptionStatus
 from lambdas.tenants.domain.errors import (
     SubscriptionRenewalPaymentAlreadyAppliedError,
@@ -11,16 +10,8 @@ from lambdas.tenants.domain.errors import (
 )
 from lambdas.tenants.domain.repositories.i_payment_reader import IPaymentReader
 from lambdas.tenants.domain.repositories.i_tenant_repository import ITenantRepository
+from lambdas.tenants.domain.subscription_result import SubscriptionActivationResult
 from shared.dates import isoformat_ecuador, now_utc
-
-_PAID_STATUSES = frozenset({"PAID", "AUTHORIZED"})
-
-
-@dataclass(frozen=True)
-class ApplySubscriptionRenewalResult:
-    tenant_id: str
-    plan_cycle_ends_at: str
-    subscription_status: str
 
 
 class ApplySubscriptionRenewalUseCase:
@@ -39,7 +30,7 @@ class ApplySubscriptionRenewalUseCase:
 
         payment = self._payment_reader.get_by_order_id(order_id)
 
-        if payment.status not in _PAID_STATUSES:
+        if payment.status not in PAID_STATUSES:
             raise SubscriptionRenewalPaymentNotConfirmedError()
 
         if payment.tenant_id not in ("", tenant_id):
@@ -58,7 +49,7 @@ class ApplySubscriptionRenewalUseCase:
 
         payment_transact = self._payment_reader.mark_applied_to_tenant(order_id, tenant_id)
 
-        result = ApplySubscriptionRenewalResult(
+        result = SubscriptionActivationResult(
             tenant_id=tenant.id,
             plan_cycle_ends_at=isoformat_ecuador(tenant.plan_cycle_ends_at) or "",
             subscription_status=(tenant.subscription_status or SubscriptionStatus.ACTIVE).value,

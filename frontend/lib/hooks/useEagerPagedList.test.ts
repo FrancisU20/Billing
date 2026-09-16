@@ -32,6 +32,7 @@ describe('useEagerPagedList', () => {
     expect(result.current.backendTotal).toBe(101)
     expect(result.current.truncated).toBe(false)
     expect(result.current.pageItems).toEqual(pageA.slice(0, 10))
+    expect(result.current.allItems).toHaveLength(101)
     expect(result.current.totalPages).toBe(11)
   })
 

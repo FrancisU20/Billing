@@ -14,6 +14,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useNow } from '@/lib/hooks/useNow'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { ecuadorDateTimeDisplay } from '@/lib/utils/ecuador-time'
+import { formatCurrency, formatInteger } from '@/lib/utils/format'
 import { useAuthStore, selectUser } from '@/features/auth/store'
 import { Routes } from '@/constants/routes'
 import { useDocumentsSummary } from '@/features/documents/hooks/useDocumentsSummary'
@@ -454,20 +455,6 @@ function MetricCard({
       </View>
     </Card>
   )
-}
-
-function formatInteger(value: number): string {
-  return new Intl.NumberFormat('es-EC', { maximumFractionDigits: 0 }).format(value)
-}
-
-function formatCurrency(value: string): string {
-  const amount = Number(value)
-  return new Intl.NumberFormat('es-EC', {
-    currency: 'USD',
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
-    style: 'currency',
-  }).format(Number.isFinite(amount) ? amount : 0)
 }
 
 function formatCivilDate(value: string): string {

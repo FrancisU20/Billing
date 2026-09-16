@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 
-@dataclass
+@dataclass(frozen=True)
 class CreatePlanCommand:
     slug: str  # immutable — not in UpdatePlanCommand
     name: str
@@ -28,7 +28,7 @@ class CreatePlanCommand:
     created_by: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class UpdatePlanCommand:
     id: str  # plan UUID
     updated_by: str
@@ -53,7 +53,7 @@ class UpdatePlanCommand:
     order: int | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class TogglePlanCommand:
     id: str  # plan UUID
     active: bool

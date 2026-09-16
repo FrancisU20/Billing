@@ -47,7 +47,7 @@ class FakeCognitoClient:
         auth_response: dict | Exception | None = None,
         challenge_response: dict | Exception | None = None,
         refresh_response: dict | Exception | None = None,
-        admin_get_user_response: dict | Exception | None = None,
+        list_users_response: dict | Exception | None = None,
         admin_set_user_password_response: dict | Exception | None = None,
     ) -> None:
         self.auth_response = auth_response or {
@@ -76,12 +76,14 @@ class FakeCognitoClient:
                 "TokenType": "Bearer",
             }
         }
-        self.admin_get_user_response = admin_get_user_response or {"Username": "owner@example.com"}
+        self.list_users_response = list_users_response or {
+            "Users": [{"Username": "owner@example.com"}]
+        }
         self.admin_set_user_password_response = admin_set_user_password_response
         self.initiate_auth_calls: list[dict] = []
         self.respond_to_auth_challenge_calls: list[dict] = []
         self.global_sign_out_calls: list[dict] = []
-        self.admin_get_user_calls: list[dict] = []
+        self.list_users_calls: list[dict] = []
         self.admin_set_user_password_calls: list[dict] = []
 
     def initiate_auth(self, **kwargs):
@@ -103,11 +105,11 @@ class FakeCognitoClient:
     def global_sign_out(self, **kwargs):
         self.global_sign_out_calls.append(kwargs)
 
-    def admin_get_user(self, **kwargs):
-        self.admin_get_user_calls.append(kwargs)
-        if isinstance(self.admin_get_user_response, Exception):
-            raise self.admin_get_user_response
-        return self.admin_get_user_response
+    def list_users(self, **kwargs):
+        self.list_users_calls.append(kwargs)
+        if isinstance(self.list_users_response, Exception):
+            raise self.list_users_response
+        return self.list_users_response
 
     def admin_set_user_password(self, **kwargs):
         self.admin_set_user_password_calls.append(kwargs)
@@ -326,7 +328,7 @@ class CognitoAuthProviderTests(unittest.TestCase):
                         )
                     )
 
-    def test_user_exists_calls_admin_get_user(self) -> None:
+    def test_user_exists_calls_list_users(self) -> None:
         idp = FakeCognitoClient()
         provider = CognitoAuthProvider(
             idp=idp, user_pool_id="sa-east-1_unit", client_id="client-id"
@@ -336,12 +338,16 @@ class CognitoAuthProviderTests(unittest.TestCase):
 
         self.assertTrue(result)
         self.assertEqual(
-            idp.admin_get_user_calls[0],
-            {"UserPoolId": "sa-east-1_unit", "Username": "owner@example.com"},
+            idp.list_users_calls[0],
+            {
+                "UserPoolId": "sa-east-1_unit",
+                "Filter": 'username = "owner@example.com"',
+                "Limit": 1,
+            },
         )
 
-    def test_user_exists_returns_false_for_user_not_found(self) -> None:
-        idp = FakeCognitoClient(admin_get_user_response=_client_error("UserNotFoundException"))
+    def test_user_exists_returns_false_when_no_users(self) -> None:
+        idp = FakeCognitoClient(list_users_response={"Users": []})
         provider = CognitoAuthProvider(
             idp=idp, user_pool_id="sa-east-1_unit", client_id="client-id"
         )
@@ -349,7 +355,7 @@ class CognitoAuthProviderTests(unittest.TestCase):
         self.assertFalse(provider.user_exists("missing@example.com"))
 
     def test_user_exists_propagates_other_errors(self) -> None:
-        idp = FakeCognitoClient(admin_get_user_response=_client_error("LimitExceededException"))
+        idp = FakeCognitoClient(list_users_response=_client_error("LimitExceededException"))
         provider = CognitoAuthProvider(
             idp=idp, user_pool_id="sa-east-1_unit", client_id="client-id"
         )

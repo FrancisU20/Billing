@@ -23,7 +23,7 @@ from lambdas._base.idempotency import idempotent
 from lambdas._base.parser import Request, parse, require_path_param
 from lambdas._base.response import ApiResponse
 from lambdas.subscriptions.domain.commands import ConfirmPaymentCommand, CreatePaymentCommand
-from lambdas.subscriptions.infra.dlocal_client import DLocalClient
+from lambdas.subscriptions.infra.dlocal_client import make_dlocal_client
 from lambdas.subscriptions.infra.payment_repository import DynamoPaymentRepository
 from lambdas.subscriptions.infra.plan_catalog import DynamoPlanCatalog
 from lambdas.subscriptions.schemas import ConfirmPaymentRequest, CreatePaymentRequest
@@ -35,7 +35,7 @@ from shared.config import env
 from shared.db.client import get_table
 from shared.errors import ForbiddenError, NotFoundError
 from shared.logger import get_logger
-from shared.secrets.client import get_secret_json
+from shared.secrets.client import get_secret_json  # webhook signature only
 
 _log = get_logger(__name__)
 
@@ -44,22 +44,13 @@ _PLANS_TABLE = get_table("PLANS_TABLE")
 _IDEMPOTENCY_TABLE = get_table("IDEMPOTENCY_TABLE") if env("IDEMPOTENCY_TABLE", "") else None
 
 
-def _dlocal() -> DLocalClient:
-    creds = get_secret_json(env("DLOCALGO_CREDENTIALS_NAME"))
-    return DLocalClient(
-        base_url=env("DLOCALGO_API_URL"),
-        api_key=creds["api_key"],
-        secret_key=creds["secret_key"],
-    )
-
-
 @public_lambda_handler
 @idempotent
 def _create_payment(request: Request, context) -> dict:
     body = parse(CreatePaymentRequest, request.body)
     result = CreatePaymentUseCase(
         plan_catalog=DynamoPlanCatalog(_PLANS_TABLE),
-        dlocal=_dlocal(),
+        dlocal=make_dlocal_client(),
         payment_repo=DynamoPaymentRepository(_PAYMENTS_TABLE),
     ).execute(
         CreatePaymentCommand(
@@ -86,7 +77,7 @@ def _confirm_payment(request: Request, context) -> dict:
     order_id = require_path_param(request, "order_id")
     body = parse(ConfirmPaymentRequest, request.body)
     result = ConfirmPaymentUseCase(
-        dlocal=_dlocal(),
+        dlocal=make_dlocal_client(),
         payment_repo=DynamoPaymentRepository(_PAYMENTS_TABLE),
     ).execute(
         ConfirmPaymentCommand(
@@ -160,7 +151,7 @@ def _refund_payment(request: Request, context) -> dict:
     order_id = require_path_param(request, "order_id")
     result = RefundPaymentUseCase(
         payment_repo=DynamoPaymentRepository(_PAYMENTS_TABLE),
-        dlocal=_dlocal(),
+        dlocal=make_dlocal_client(),
     ).execute(order_id)
     return ApiResponse.ok(
         {"order_id": result.order_id, "refund_id": result.refund_id, "status": result.status},

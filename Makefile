@@ -31,11 +31,12 @@ ci-security:
 	backend/.venv/bin/pip-audit -r backend/requirements.txt --strict
 
 ci-frontend:
-	@echo "==> Frontend: format + lint + typecheck + tests"
+	@echo "==> Frontend: format + lint + typecheck + tests + web build"
 	cd frontend && npm run format:check
 	cd frontend && npm run lint
 	cd frontend && npm run typecheck
 	cd frontend && npm run test:run
+	cd frontend && npm run build:web
 
 ci-cdk:
 	@echo "==> CDK: validar que los stacks compilan"

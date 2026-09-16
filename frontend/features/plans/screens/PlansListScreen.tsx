@@ -13,7 +13,6 @@ import { StatMetric } from '@/components/ui/StatMetric'
 import { useToast } from '@/components/feedback/Toast'
 import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
-import { useLocalPagedItems } from '@/lib/hooks/useLocalPagedItems'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
@@ -32,9 +31,13 @@ export function PlansListScreen() {
   const [draft, setDraft] = useState<PlanFilterDraft>(emptyPlanFilterDraft)
   const [filters, setFilters] = useState<PlanListFilters>({})
   const [planToToggle, setPlanToToggle] = useState<Plan | null>(null)
-  const { plans, loading, error, refresh } = useAdminPlans(filters)
+
   const {
-    pageItems: visiblePlans,
+    plans: visiblePlans,
+    allPlans,
+    loading,
+    error,
+    refresh,
     page,
     pageSize,
     totalItems,
@@ -45,14 +48,15 @@ export function PlansListScreen() {
     previousPage,
     goToPage,
     setPageSize,
-  } = useLocalPagedItems(plans)
+  } = useAdminPlans(filters)
+
   useRefreshOnFocus(refresh)
 
   const summary = useMemo(() => {
-    const active = plans.filter((plan) => plan.active).length
-    const unlimited = plans.filter((plan) => plan.document_limit === -1).length
-    return { active, unlimited, total: plans.length }
-  }, [plans])
+    const active = allPlans.filter((plan) => plan.active).length
+    const unlimited = allPlans.filter((plan) => plan.document_limit === -1).length
+    return { active, unlimited, total: allPlans.length }
+  }, [allPlans])
 
   function applyFilters() {
     setFilters(toPlanListFilters(draft))
@@ -105,8 +109,8 @@ export function PlansListScreen() {
       <AppNavBar
         title="Planes"
         subtitle={
-          plans.length
-            ? `Página ${page} de ${totalPages} · ${plans.length} planes`
+          summary.total
+            ? `Página ${page} de ${totalPages} · ${summary.total} planes`
             : 'Catálogo SaaS'
         }
       />

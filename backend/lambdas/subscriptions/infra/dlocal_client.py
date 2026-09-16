@@ -12,7 +12,9 @@ from lambdas.subscriptions.domain.repositories.i_dlocal_client import (
     DLocalRefundResult,
     IDLocalClient,
 )
+from shared.config import env
 from shared.logger import get_logger
+from shared.secrets.client import get_secret_json
 
 _log = get_logger(__name__)
 
@@ -130,3 +132,13 @@ class DLocalClient(IDLocalClient):
 def _json_amount(amount: str) -> float:
     """dLocal Go requires JSON numbers; quantize explicitly before leaving Decimal land."""
     return float(Decimal(amount).quantize(_CENT, ROUND_HALF_UP))
+
+
+def make_dlocal_client() -> DLocalClient:
+    """Builds a DLocalClient from environment variables and Secrets Manager."""
+    creds = get_secret_json(env("DLOCALGO_CREDENTIALS_NAME"))
+    return DLocalClient(
+        base_url=env("DLOCALGO_API_URL"),
+        api_key=creds["api_key"],
+        secret_key=creds["secret_key"],
+    )

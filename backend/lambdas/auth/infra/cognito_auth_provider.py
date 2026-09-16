@@ -109,12 +109,13 @@ class CognitoAuthProvider(IAuthProvider):
 
     def user_exists(self, username: str) -> bool:
         try:
-            self._idp.admin_get_user(UserPoolId=self._user_pool_id, Username=username)
-            return True
+            response = self._idp.list_users(
+                UserPoolId=self._user_pool_id,
+                Filter=f'username = "{username}"',
+                Limit=1,
+            )
+            return bool(response.get("Users"))
         except ClientError as exc:
-            code = exc.response.get("Error", {}).get("Code", "")
-            if code == "UserNotFoundException":
-                return False
             raise self._map_client_error(exc) from exc
 
     def set_permanent_password(self, *, username: str, password: str) -> None:

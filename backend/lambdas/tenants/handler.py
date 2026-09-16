@@ -25,7 +25,7 @@ from lambdas._base.parser import Request, parse, require_path_param
 from lambdas._base.permissions import require_role, require_superadmin
 from lambdas._base.query_params import parse_enum_query_param, parse_list_limit
 from lambdas._base.response import ApiResponse
-from lambdas.subscriptions.infra.dlocal_client import DLocalClient
+from lambdas.subscriptions.infra.dlocal_client import make_dlocal_client
 from lambdas.subscriptions.infra.payment_repository import DynamoPaymentRepository
 from lambdas.tenants.domain.commands import (
     ChangeTenantPlanCommand,
@@ -61,7 +61,6 @@ from shared.config import env
 from shared.dates import now_utc, parse_date_boundary
 from shared.db.client import get_table
 from shared.errors import ForbiddenError, NotFoundError, ValidationError
-from shared.secrets.client import get_secret_json
 
 # ── Cold start ────────────────────────────────────────────────────────────────
 _TABLE = get_table("TENANTS_TABLE")
@@ -87,16 +86,10 @@ def _payment_repo() -> DynamoPaymentRepository | None:
     return DynamoPaymentRepository(_PAYMENTS_TABLE) if _PAYMENTS_TABLE else None
 
 
-def _dlocal_client() -> DLocalClient | None:
-    creds_name = env("DLOCALGO_CREDENTIALS_NAME", "")
-    if not creds_name:
+def _dlocal_client():
+    if not env("DLOCALGO_CREDENTIALS_NAME", ""):
         return None
-    creds = get_secret_json(creds_name)
-    return DLocalClient(
-        base_url=env("DLOCALGO_API_URL"),
-        api_key=creds["api_key"],
-        secret_key=creds["secret_key"],
-    )
+    return make_dlocal_client()
 
 
 def _parse_list_query(params: dict) -> ListTenantsQuery:

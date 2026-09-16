@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { AppNavBar } from '@/features/navigation/components/AppNavBar'
@@ -17,10 +16,11 @@ import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useTheme } from '@/lib/theme-context'
 import { Routes } from '@/constants/routes'
-import { radius, sizes, spacing, typography } from '@/constants/tokens'
+import { radius, spacing, typography } from '@/constants/tokens'
 import { documentsApi } from '../api'
 import { BuyerReadOnlySection } from '../components/BuyerReadOnlySection'
 import { InvoicePickerModal } from '../components/InvoicePickerModal'
+import { LockedInfoRow } from '../components/LockedInfoRow'
 import { TotalsSummary } from '../components/TotalsSummary'
 import {
   computeCreditNoteLinePreview,
@@ -274,39 +274,6 @@ function CreditNoteLineRow({
   )
 }
 
-function LockedInfoRow({
-  icon,
-  label,
-  value,
-  meta,
-}: {
-  icon: keyof typeof Ionicons.glyphMap
-  label: string
-  value: string
-  meta?: string
-}) {
-  const { semantic } = useTheme()
-  return (
-    <View
-      style={[
-        styles.lockedRow,
-        { backgroundColor: semantic.bg.primary, borderColor: semantic.border.default },
-      ]}
-    >
-      <View style={styles.lockedIcon}>
-        <Ionicons name={icon} size={18} color={semantic.accent.default} />
-      </View>
-      <View style={styles.lockedText}>
-        <Text style={[styles.lockedLabel, { color: semantic.text.secondary }]}>{label}</Text>
-        <Text style={[styles.lockedValue, { color: semantic.text.primary }]}>{value}</Text>
-        {meta ? (
-          <Text style={[styles.lockedMeta, { color: semantic.text.tertiary }]}>{meta}</Text>
-        ) : null}
-      </View>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { gap: spacing[4], padding: spacing[5], paddingBottom: spacing[12] },
@@ -333,24 +300,4 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   lineTotalValue: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
-  lockedRow: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing[3],
-    minHeight: 66,
-    padding: spacing[3],
-  },
-  lockedIcon: {
-    alignItems: 'center',
-    borderRadius: radius.md,
-    height: sizes.icon,
-    justifyContent: 'center',
-    width: sizes.icon,
-  },
-  lockedText: { flex: 1, gap: spacing[1] - 2 },
-  lockedLabel: { fontSize: typography.size.xs, fontWeight: typography.weight.semibold },
-  lockedValue: { fontSize: typography.size.md, fontWeight: typography.weight.bold },
-  lockedMeta: { fontSize: typography.size.xs },
 })

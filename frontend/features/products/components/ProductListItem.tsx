@@ -5,6 +5,7 @@ import { ListCell, ListItemAction } from '@/components/ui/ListItemPrimitives'
 import { RowActionsMenu, type RowAction } from '@/components/ui/RowActionsMenu'
 import { useIsDesktopLayout } from '@/lib/hooks/useIsDesktopLayout'
 import { useTheme } from '@/lib/theme-context'
+import { formatCurrency } from '@/lib/utils/format'
 import { radius, spacing, typography } from '@/constants/tokens'
 import { productKindLabel } from '../constants'
 import type { Product } from '../types'
@@ -92,7 +93,7 @@ function MobileRow({ product, stockText }: { product: Product; stockText: string
         {product.name}
       </Text>
       <Text style={[styles.meta, { color: semantic.text.secondary }]} numberOfLines={1}>
-        {stockText} · IVA {product.iva_rate} · ${Number(product.unit_price).toFixed(2)}
+        {stockText} · IVA {product.iva_rate} · {formatCurrency(product.unit_price)}
         {product.discount_percentage ? ` · -${Number(product.discount_percentage)}%` : ''}
       </Text>
     </>
@@ -114,11 +115,7 @@ function DesktopRow({ product, stockText }: { product: Product; stockText: strin
       </View>
       <ListCell label="Stock / Tipo" value={stockText} style={styles.colKind} />
       <ListCell label="IVA" value={`${product.iva_rate}%`} style={styles.colIva} />
-      <ListCell
-        label="Precio"
-        value={`$${Number(product.unit_price).toFixed(2)}`}
-        style={styles.colPrice}
-      />
+      <ListCell label="Precio" value={formatCurrency(product.unit_price)} style={styles.colPrice} />
       <ListCell
         label="Descuento"
         value={product.discount_percentage ? `-${Number(product.discount_percentage)}%` : '—'}

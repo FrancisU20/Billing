@@ -8,6 +8,8 @@ from shared.dates import isoformat_ecuador, now_utc
 
 PaymentStatus = Literal["CREATED", "PENDING", "PAID", "REJECTED", "CANCELLED", "FAILED", "REFUNDED"]
 
+PAID_STATUSES: frozenset[str] = frozenset({"PAID", "AUTHORIZED"})
+
 
 @dataclass
 class Payment:

@@ -1,4 +1,6 @@
 import { useCallback } from 'react'
+import type { PageSize } from '@/constants/pagination'
+import { useEagerPagedList } from '@/lib/hooks/useEagerPagedList'
 import { useFetch } from '@/lib/hooks/useFetch'
 import { plansApi } from '../api'
 import type { Plan, PlanListFilters } from '../types'
@@ -18,11 +20,15 @@ export function usePlans() {
 }
 
 export function useAdminPlans(filters: PlanListFilters = {}) {
-  const fetcher = useCallback(async () => {
-    const res = await plansApi.adminList(filters)
-    return sortByOrder(res.items)
-  }, [filters])
-  const { data, loading, error, refresh } = useFetch(fetcher)
+  const loadPage = useCallback(
+    (f: PlanListFilters, nextToken: string | undefined, limit: PageSize) =>
+      plansApi.adminListPage(f, nextToken, limit).then((res) => ({
+        ...res,
+        items: sortByOrder(res.items),
+      })),
+    [],
+  )
 
-  return { plans: data ?? [], loading, error, refresh }
+  const { pageItems, allItems, ...state } = useEagerPagedList(filters, loadPage)
+  return { plans: pageItems, allPlans: allItems, ...state }
 }

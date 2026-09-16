@@ -19,7 +19,7 @@ from shared.dates import to_ecuador
 
 class GetSuperadminDashboardUseCase:
     """Agrega estadisticas globales para el dashboard superadmin a partir de 3 fuentes
-    de solo lectura (tenants, payments, plans) — ver context/TENANTS.md."""
+    de solo lectura (tenants, payments, plans) — ver context/domains/TENANTS.md."""
 
     def __init__(
         self,

@@ -106,7 +106,7 @@ class ConfirmOnboardingOtpUseCase:
             # Netflix model: cycle starts at first payment, not at registration.
             tenant.plan_cycle_ends_at = None
             tenant.subscription_status = SubscriptionStatus.PENDING_PAYMENT
-        # The certificate is uploaded later, after payment — see context/CERTIFICATES.md.
+        # The certificate is uploaded later, after payment — see context/domains/CERTIFICATES.md.
         tenant.onboarding_completed_at = now_utc()
         events = [
             TenantCreatedEvent(

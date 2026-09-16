@@ -13,7 +13,12 @@ import type {
   UpdatePlanInput,
 } from './types'
 
-function listPath(base: string, filters: PlanListFilters = {}): string {
+function listPath(
+  base: string,
+  filters: PlanListFilters = {},
+  nextToken?: string,
+  limit?: number,
+): string {
   const params = new URLSearchParams()
   if (filters.q) params.set('q', filters.q)
   if (filters.slug) params.set('slug', filters.slug)
@@ -21,6 +26,8 @@ function listPath(base: string, filters: PlanListFilters = {}): string {
   if (filters.limit_cycle) params.set('limit_cycle', filters.limit_cycle)
   if (filters.created_from) params.set('created_from', filters.created_from)
   if (filters.created_to) params.set('created_to', filters.created_to)
+  if (nextToken) params.set('next_token', nextToken)
+  if (limit) params.set('limit', String(limit))
   const query = params.toString()
   return query ? `${base}?${query}` : base
 }
@@ -32,6 +39,9 @@ export const plansApi = {
 
   adminList: (filters?: PlanListFilters) =>
     api.get(listPath('/superadmin/plans', filters), plansListSchema),
+
+  adminListPage: (filters: PlanListFilters = {}, nextToken?: string, limit?: number) =>
+    api.get(listPath('/superadmin/plans', filters, nextToken, limit), plansListSchema),
 
   adminGetBySlug: (slug: string) => api.get(`/superadmin/plans/${slug}`, planSchema),
 

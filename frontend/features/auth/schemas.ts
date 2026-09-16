@@ -1,40 +1,39 @@
 import { z } from 'zod'
+import { vm } from '@/lib/utils/validation-messages'
+
+const passwordField = z
+  .string()
+  .min(8, vm.passwordMin)
+  .regex(/[A-Z]/, vm.passwordNeedsUppercase)
+  .regex(/[0-9]/, vm.passwordNeedsNumber)
 
 export const loginSchema = z.object({
-  username: z.string().min(1, 'El email es requerido').email('Email inválido'),
+  username: z.string().min(1, 'El email es requerido').email(vm.emailInvalid),
   password: z.string().min(1, 'La contraseña es requerida'),
 })
 
 export const newPasswordSchema = z
   .object({
-    newPassword: z
-      .string()
-      .min(8, 'Mínimo 8 caracteres')
-      .regex(/[A-Z]/, 'Debe incluir una mayúscula')
-      .regex(/[0-9]/, 'Debe incluir un número'),
-    confirmPassword: z.string().min(1, 'Confirma la contraseña'),
+    newPassword: passwordField,
+    confirmPassword: z.string().min(1, vm.passwordConfirmRequired),
   })
   .refine((v) => v.newPassword === v.confirmPassword, {
-    message: 'Las contraseñas no coinciden',
+    message: vm.passwordsNoMatch,
     path: ['confirmPassword'],
   })
 
 export const forgotPasswordSchema = z.object({
-  username: z.string().min(1, 'El email es requerido').email('Email inválido'),
+  username: z.string().min(1, 'El email es requerido').email(vm.emailInvalid),
 })
 
 export const resetPasswordSchema = z
   .object({
     confirmationCode: z.string().min(1, 'El código es requerido'),
-    newPassword: z
-      .string()
-      .min(8, 'Mínimo 8 caracteres')
-      .regex(/[A-Z]/, 'Debe incluir una mayúscula')
-      .regex(/[0-9]/, 'Debe incluir un número'),
-    confirmPassword: z.string().min(1, 'Confirma la contraseña'),
+    newPassword: passwordField,
+    confirmPassword: z.string().min(1, vm.passwordConfirmRequired),
   })
   .refine((v) => v.newPassword === v.confirmPassword, {
-    message: 'Las contraseñas no coinciden',
+    message: vm.passwordsNoMatch,
     path: ['confirmPassword'],
   })
 

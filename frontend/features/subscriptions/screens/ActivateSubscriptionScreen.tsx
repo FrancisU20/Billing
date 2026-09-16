@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { Href } from 'expo-router'
@@ -10,7 +10,6 @@ import { Routes } from '@/constants/routes'
 import { radius, shadow, spacing, typography } from '@/constants/tokens'
 import { useFormSubmit } from '@/lib/hooks/useFormSubmit'
 import { useRefreshOnFocus } from '@/lib/hooks/useRefreshOnFocus'
-import { createIdempotencyKey } from '@/lib/api/idempotency'
 import { useTheme } from '@/lib/theme-context'
 import { selectUser, useAuthStore } from '@/features/auth/store'
 import { useTenant } from '@/features/tenants/hooks/useTenant'
@@ -19,9 +18,10 @@ import { retryWithBackoff } from '@/lib/utils/retry'
 import { subscriptionsApi } from '../api'
 import { PayerForm, usePayerForm } from '../components/PayerForm'
 import { PriceBreakdown } from '../components/PriceBreakdown'
+import { ThreeDsAwaitingView, ThreeDsFailedView } from '../components/ThreeDsView'
 import { useDLocalSmartFields } from '../use-dlocal-smartfields'
 import { use3dsFlow } from '../use-3ds-flow'
-import type { CreatePaymentResult } from '../schemas'
+import { usePaymentOrder } from '../use-payment-order'
 
 export function ActivateSubscriptionScreen() {
   const { semantic } = useTheme()
@@ -33,13 +33,14 @@ export function ActivateSubscriptionScreen() {
 
   useRefreshOnFocus(refresh)
 
-  const [order, setOrder] = useState<CreatePaymentResult | null>(null)
-  const [createOrderKey] = useState(() => createIdempotencyKey('subscription-activate-create'))
-  const [activateKey] = useState(() => createIdempotencyKey('subscription-activate'))
-  const orderTriggered = useRef(false)
-
   const payerForm = usePayerForm()
   const threeDs = use3dsFlow()
+
+  const { order, activateKey, creatingOrder, createError, startPayment, resetOrder } =
+    usePaymentOrder({
+      planId: tenant?.plan_id ?? null,
+      billingCycle: tenant?.billing_cycle ?? null,
+    })
 
   const { fieldRef, sdkReady, sdkError } = useDLocalSmartFields({
     checkoutToken: order?.checkout_token,
@@ -47,27 +48,15 @@ export function ActivateSubscriptionScreen() {
     semantic,
   })
 
-  const handleCreateOrder = useCallback(async () => {
-    if (!tenant) return
-    const result = await subscriptionsApi.createPayment(
-      { plan_id: tenant.plan_id, currency: 'USD', billing_cycle: tenant.billing_cycle },
-      createOrderKey,
-    )
-    setOrder(result)
-  }, [tenant, createOrderKey])
-
-  const {
-    submitting: creatingOrder,
-    error: createError,
-    submit: startPayment,
-  } = useFormSubmit(handleCreateOrder)
-
-  // Auto-create the payment order as soon as tenant data is ready
-  useEffect(() => {
-    if (!tenant || orderTriggered.current) return
-    orderTriggered.current = true
-    startPayment()
-  }, [tenant, startPayment])
+  const handleThreeDsConfirm = useCallback(() => {
+    threeDs.checkStatus(async (orderId) => {
+      if (!tenantId) return
+      await retryWithBackoff(() =>
+        subscriptionsApi.activateSubscription(tenantId, orderId, activateKey),
+      )
+      router.replace(Routes.tenant.dashboard as Href)
+    })
+  }, [threeDs, tenantId, activateKey, router])
 
   const {
     submitting: confirming,
@@ -114,96 +103,24 @@ export function ActivateSubscriptionScreen() {
   })
 
   const handleCancel = useCallback(() => {
-    setOrder(null)
-    orderTriggered.current = false
+    resetOrder()
     payerForm.reset()
-  }, [payerForm])
+  }, [resetOrder, payerForm])
 
   if (tenantLoading) return <LoadingSpinner fullScreen label="Cargando..." />
 
   if (threeDs.state.phase === 'awaiting' || threeDs.state.phase === 'checking') {
     return (
-      <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
-            ]}
-          >
-            <View style={styles.cardHeader}>
-              <View style={[styles.iconWrap, { backgroundColor: semantic.accent.subtle }]}>
-                <Ionicons
-                  name="shield-checkmark-outline"
-                  size={22}
-                  color={semantic.accent.default}
-                />
-              </View>
-              <View style={styles.cardTitle}>
-                <Text style={[styles.title, { color: semantic.text.primary }]}>
-                  Verificación del banco
-                </Text>
-                <Text style={[styles.subtitle, { color: semantic.text.secondary }]}>
-                  Tu banco requiere autenticación adicional. Completa la verificación en la pestaña
-                  que se abrió y luego regresa aquí.
-                </Text>
-              </View>
-            </View>
-            <View style={[styles.divider, { backgroundColor: semantic.border.default }]} />
-            <Button
-              variant="primary"
-              size="lg"
-              fullWidth
-              isLoading={threeDs.state.phase === 'checking'}
-              onPress={() =>
-                threeDs.checkStatus(async (orderId) => {
-                  if (!tenantId) return
-                  await retryWithBackoff(() =>
-                    subscriptionsApi.activateSubscription(tenantId, orderId, activateKey),
-                  )
-                  router.replace(Routes.tenant.dashboard as Href)
-                })
-              }
-            >
-              Ya completé la verificación
-            </Button>
-            <Button variant="ghost" size="sm" fullWidth onPress={threeDs.reset}>
-              Cancelar
-            </Button>
-          </View>
-        </ScrollView>
-      </View>
+      <ThreeDsAwaitingView
+        checking={threeDs.state.phase === 'checking'}
+        onConfirm={handleThreeDsConfirm}
+        onCancel={threeDs.reset}
+      />
     )
   }
 
   if (threeDs.state.phase === 'failed') {
-    return (
-      <View style={[styles.container, { backgroundColor: semantic.bg.page }]}>
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: semantic.bg.elevated, borderColor: semantic.border.default },
-            ]}
-          >
-            <View
-              style={[
-                styles.infoBox,
-                { backgroundColor: semantic.status.errorBg, borderColor: semantic.status.error },
-              ]}
-            >
-              <Ionicons name="alert-circle-outline" size={16} color={semantic.status.error} />
-              <Text style={[styles.infoText, { color: semantic.status.error }]}>
-                {threeDs.state.error}
-              </Text>
-            </View>
-            <Button variant="primary" size="lg" fullWidth onPress={threeDs.reset}>
-              Intentar de nuevo
-            </Button>
-          </View>
-        </ScrollView>
-      </View>
-    )
+    return <ThreeDsFailedView error={threeDs.state.error} onRetry={threeDs.reset} />
   }
 
   return (
@@ -243,7 +160,7 @@ export function ActivateSubscriptionScreen() {
                 size="lg"
                 fullWidth
                 onPress={() => {
-                  orderTriggered.current = false
+                  resetOrder()
                   startPayment()
                 }}
               >
